@@ -1,0 +1,41 @@
+{
+  "name": "@elvatis/conduit-bridge",
+  "version": "0.1.0",
+  "description": "Standalone OpenAI-compatible AI proxy — Grok, Claude, Gemini, ChatGPT via headless browser",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "conduit-bridge": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=node --packages=external --sourcemap && esbuild src/cli.ts --bundle --outfile=dist/cli.js --format=esm --platform=node --packages=external --sourcemap && chmod +x dist/cli.js",
+    "dev": "node --watch dist/cli.js",
+    "test": "node --experimental-vm-modules node_modules/.bin/vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": ["ai", "grok", "claude", "gemini", "chatgpt", "openai", "proxy", "bridge"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elvatis/conduit-bridge.git"
+  }
+}
