@@ -86,7 +86,13 @@ export abstract class BaseProvider implements ProviderAdapter {
     // Launch headful (visible) browser so user can log in
     this._ctx = await chromium.launchPersistentContext(this.profileDir, {
       headless: false,
-      args: ['--no-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=IsolateOrigins,site-per-process',
+        // macOS: skip Keychain prompts for stored passwords/cookies
+        ...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []),
+      ],
     });
 
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
