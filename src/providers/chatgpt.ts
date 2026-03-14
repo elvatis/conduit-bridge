@@ -9,10 +9,13 @@ export class ChatGPTProvider extends BaseProvider {
   readonly verifySelector = '#prompt-textarea';
 
   readonly models: ModelDefinition[] = [
-    { id: 'web-chatgpt/gpt-4o',     provider: 'chatgpt', displayName: 'GPT-4o',     owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-o3',     provider: 'chatgpt', displayName: 'GPT o3',     owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-o4-mini',provider: 'chatgpt', displayName: 'GPT o4-mini',owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-5',      provider: 'chatgpt', displayName: 'GPT-5',      owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5',       provider: 'chatgpt', displayName: 'GPT-5',       owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5-mini',  provider: 'chatgpt', displayName: 'GPT-5 Mini',  owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-4o',      provider: 'chatgpt', displayName: 'GPT-4o',      owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-4o-mini', provider: 'chatgpt', displayName: 'GPT-4o Mini', owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-4.1',     provider: 'chatgpt', displayName: 'GPT-4.1',     owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-o3',      provider: 'chatgpt', displayName: 'o3',          owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-o4-mini', provider: 'chatgpt', displayName: 'o4 Mini',     owned_by: 'openai' },
   ];
 
   constructor(cfg: BridgeConfig) { super(cfg); }

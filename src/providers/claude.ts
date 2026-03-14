@@ -9,9 +9,9 @@ export class ClaudeProvider extends BaseProvider {
   readonly verifySelector = '.ProseMirror';
 
   readonly models: ModelDefinition[] = [
-    { id: 'web-claude/claude-sonnet', provider: 'claude', displayName: 'Claude Sonnet', owned_by: 'anthropic' },
-    { id: 'web-claude/claude-opus',   provider: 'claude', displayName: 'Claude Opus',   owned_by: 'anthropic' },
-    { id: 'web-claude/claude-haiku',  provider: 'claude', displayName: 'Claude Haiku',  owned_by: 'anthropic' },
+    { id: 'web-claude/claude-sonnet', provider: 'claude', displayName: 'Claude Sonnet 4.6', owned_by: 'anthropic' },
+    { id: 'web-claude/claude-opus',   provider: 'claude', displayName: 'Claude Opus 4.6',   owned_by: 'anthropic' },
+    { id: 'web-claude/claude-haiku',  provider: 'claude', displayName: 'Claude Haiku 4.5',  owned_by: 'anthropic' },
   ];
 
   constructor(cfg: BridgeConfig) { super(cfg); }

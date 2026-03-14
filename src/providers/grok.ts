@@ -8,17 +8,21 @@ export class GrokProvider extends BaseProvider {
   readonly verifySelector = 'textarea[placeholder]';
 
   readonly models: ModelDefinition[] = [
-    { id: 'web-grok/grok-3',      provider: 'grok', displayName: 'Grok 3',       owned_by: 'xai' },
-    { id: 'web-grok/grok-3-fast', provider: 'grok', displayName: 'Grok 3 Fast',  owned_by: 'xai' },
-    { id: 'web-grok/grok-3-mini', provider: 'grok', displayName: 'Grok 3 Mini',  owned_by: 'xai' },
-    { id: 'web-grok/grok-2',      provider: 'grok', displayName: 'Grok 2',       owned_by: 'xai' },
+    { id: 'web-grok/grok-4',           provider: 'grok', displayName: 'Grok 4',           owned_by: 'xai' },
+    { id: 'web-grok/grok-3',           provider: 'grok', displayName: 'Grok 3',           owned_by: 'xai' },
+    { id: 'web-grok/grok-3-fast',      provider: 'grok', displayName: 'Grok 3 Fast',      owned_by: 'xai' },
+    { id: 'web-grok/grok-3-mini',      provider: 'grok', displayName: 'Grok 3 Mini',      owned_by: 'xai' },
+    { id: 'web-grok/grok-3-mini-fast', provider: 'grok', displayName: 'Grok 3 Mini Fast', owned_by: 'xai' },
+    { id: 'web-grok/grok-2',           provider: 'grok', displayName: 'Grok 2',           owned_by: 'xai' },
   ];
 
   private _modelUrlMap: Record<string, string> = {
-    'web-grok/grok-3':      'https://x.com/i/grok?focus=1',
-    'web-grok/grok-3-fast': 'https://x.com/i/grok?focus=1&model=grok-3-fast',
-    'web-grok/grok-3-mini': 'https://x.com/i/grok?focus=1&model=grok-3-mini',
-    'web-grok/grok-2':      'https://x.com/i/grok?focus=1&model=grok-2',
+    'web-grok/grok-4':           'https://x.com/i/grok?focus=1&model=grok-4',
+    'web-grok/grok-3':           'https://x.com/i/grok?focus=1',
+    'web-grok/grok-3-fast':      'https://x.com/i/grok?focus=1&model=grok-3-fast',
+    'web-grok/grok-3-mini':      'https://x.com/i/grok?focus=1&model=grok-3-mini',
+    'web-grok/grok-3-mini-fast': 'https://x.com/i/grok?focus=1&model=grok-3-mini-fast',
+    'web-grok/grok-2':           'https://x.com/i/grok?focus=1&model=grok-2',
   };
 
   constructor(cfg: BridgeConfig) { super(cfg); }
