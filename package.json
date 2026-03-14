@@ -15,7 +15,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc --noEmit && esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=node --packages=external --sourcemap && esbuild src/cli.ts --bundle --outfile=dist/cli.js --format=esm --platform=node --packages=external --sourcemap && chmod +x dist/cli.js",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=node --packages=external --sourcemap && esbuild src/cli.ts --bundle --outfile=dist/cli.js --format=esm --platform=node --packages=external --sourcemap && node -e \"try{require('fs').chmodSync('dist/cli.js',0o755)}catch{}\"",
     "dev": "node --watch dist/cli.js",
     "test": "node --experimental-vm-modules node_modules/.bin/vitest run",
     "typecheck": "tsc --noEmit"
