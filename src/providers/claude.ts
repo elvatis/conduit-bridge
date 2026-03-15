@@ -16,6 +16,8 @@ export class ClaudeProvider extends BaseProvider {
     { id: 'web-claude/claude-sonnet-4-5',  provider: 'claude', displayName: 'Claude Sonnet 4.5', owned_by: 'anthropic' },
   ];
 
+  private _isFirstRequest = true;
+
   constructor(cfg: BridgeConfig) { super(cfg); }
 
   async chat(req: ChatRequest): Promise<string> {
@@ -29,9 +31,12 @@ export class ClaudeProvider extends BaseProvider {
 
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
 
-    // Always start a new conversation
-    await page.goto('https://claude.ai/new', { waitUntil: 'domcontentloaded' });
-    await new Promise(r => setTimeout(r, 2000));
+    // Only navigate to new conversation on first request or if not on claude.ai
+    if (this._isFirstRequest || !page.url().includes('claude.ai')) {
+      await page.goto('https://claude.ai/new', { waitUntil: 'domcontentloaded' });
+      await new Promise(r => setTimeout(r, 2000));
+      this._isFirstRequest = false;
+    }
 
     const userMsg = buildUserMessage(req.messages);
 
@@ -80,7 +85,24 @@ export class ClaudeProvider extends BaseProvider {
             return child && !child.className.includes('mb-1');
           });
           if (assistants.length <= before) return '';
-          return assistants[assistants.length - 1]?.textContent?.trim() ?? '';
+          const lastEl = assistants[assistants.length - 1];
+          if (!lastEl) return '';
+
+          // Clone the element so we can remove unwanted nodes without affecting the page
+          const clone = lastEl.cloneNode(true);
+
+          // Remove thinking/reasoning UI elements that leak into textContent
+          // Claude uses various containers for thinking indicators
+          clone.querySelectorAll(
+            '[class*="thinking"], [class*="Thinking"], ' +
+            '[data-thinking], [data-is-thinking], ' +
+            'button, [role="button"], ' +
+            '[class*="spinner"], [class*="loading"], ' +
+            '[class*="collapse"], [class*="toggle"]'
+          ).forEach(el => el.remove());
+
+          // Use innerText to preserve line breaks and whitespace structure
+          return clone.innerText?.trim() ?? '';
         })()
       `) as string;
 
