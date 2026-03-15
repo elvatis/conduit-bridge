@@ -3,24 +3,24 @@ import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
 
 const MODEL_MAP: Record<string, string> = {
-  'api-codex/gpt-4.1':         'gpt-4.1',
-  'api-codex/gpt-4.1-mini':    'gpt-4.1-mini',
-  'api-codex/gpt-4.1-nano':    'gpt-4.1-nano',
-  'api-codex/o3':              'o3',
-  'api-codex/o4-mini':         'o4-mini',
-  'api-codex/codex-mini':      'codex-mini-latest',
+  'api-codex/gpt-5.4-pro':           'gpt-5.4-pro',
+  'api-codex/gpt-5.4-thinking':      'gpt-5.4-thinking',
+  'api-codex/gpt-5.3-instant':       'gpt-5.3-instant',
+  'api-codex/gpt-5-thinking-mini':   'gpt-5-thinking-mini',
+  'api-codex/o3':                    'o3',
+  'api-codex/codex-mini':           'codex-mini-latest',
 };
 
 export class CodexApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'codex-api';
 
   readonly models: ModelDefinition[] = [
-    { id: 'api-codex/gpt-4.1',       provider: 'codex-api', displayName: 'GPT-4.1 (API)',       owned_by: 'openai' },
-    { id: 'api-codex/gpt-4.1-mini',  provider: 'codex-api', displayName: 'GPT-4.1 Mini (API)',  owned_by: 'openai' },
-    { id: 'api-codex/gpt-4.1-nano',  provider: 'codex-api', displayName: 'GPT-4.1 Nano (API)',  owned_by: 'openai' },
-    { id: 'api-codex/o3',            provider: 'codex-api', displayName: 'o3 (API)',             owned_by: 'openai' },
-    { id: 'api-codex/o4-mini',       provider: 'codex-api', displayName: 'o4-mini (API)',        owned_by: 'openai' },
-    { id: 'api-codex/codex-mini',    provider: 'codex-api', displayName: 'Codex Mini (API)',     owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.4-pro',          provider: 'codex-api', displayName: 'GPT-5.4 Pro (API)',          owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.4-thinking',     provider: 'codex-api', displayName: 'GPT-5.4 Thinking (API)',     owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.3-instant',      provider: 'codex-api', displayName: 'GPT-5.3 Instant (API)',      owned_by: 'openai' },
+    { id: 'api-codex/gpt-5-thinking-mini',  provider: 'codex-api', displayName: 'GPT-5 Thinking Mini (API)',  owned_by: 'openai' },
+    { id: 'api-codex/o3',                   provider: 'codex-api', displayName: 'o3 (API)',                   owned_by: 'openai' },
+    { id: 'api-codex/codex-mini',           provider: 'codex-api', displayName: 'Codex Mini (API)',           owned_by: 'openai' },
   ];
 
   private _client(): OpenAI {

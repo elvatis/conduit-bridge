@@ -3,20 +3,18 @@ import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
 
 const MODEL_MAP: Record<string, string> = {
-  'api-gemini/gemini-2.5-pro':       'gemini-2.5-pro-preview-06-05',
-  'api-gemini/gemini-2.5-flash':     'gemini-2.5-flash-preview-05-20',
-  'api-gemini/gemini-2.0-flash':     'gemini-2.0-flash',
-  'api-gemini/gemini-2.0-flash-lite':'gemini-2.0-flash-lite',
+  'api-gemini/gemini-3-fast':        'gemini-3.0-flash',
+  'api-gemini/gemini-3-thinking':    'gemini-3.0-thinking',
+  'api-gemini/gemini-3.1-pro':       'gemini-3.1-pro',
 };
 
 export class GeminiApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'gemini-api';
 
   readonly models: ModelDefinition[] = [
-    { id: 'api-gemini/gemini-2.5-pro',        provider: 'gemini-api', displayName: 'Gemini 2.5 Pro (API)',        owned_by: 'google' },
-    { id: 'api-gemini/gemini-2.5-flash',       provider: 'gemini-api', displayName: 'Gemini 2.5 Flash (API)',      owned_by: 'google' },
-    { id: 'api-gemini/gemini-2.0-flash',       provider: 'gemini-api', displayName: 'Gemini 2.0 Flash (API)',      owned_by: 'google' },
-    { id: 'api-gemini/gemini-2.0-flash-lite',  provider: 'gemini-api', displayName: 'Gemini 2.0 Flash Lite (API)', owned_by: 'google' },
+    { id: 'api-gemini/gemini-3-fast',      provider: 'gemini-api', displayName: 'Gemini 3 Fast (API)',      owned_by: 'google' },
+    { id: 'api-gemini/gemini-3-thinking',   provider: 'gemini-api', displayName: 'Gemini 3 Thinking (API)',  owned_by: 'google' },
+    { id: 'api-gemini/gemini-3.1-pro',      provider: 'gemini-api', displayName: 'Gemini 3.1 Pro (API)',     owned_by: 'google' },
   ];
 
   private _client(): GoogleGenerativeAI {
