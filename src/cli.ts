@@ -1,8 +1,19 @@
 #!/usr/bin/env node
 // conduit-bridge CLI — standalone entry point
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { BridgeServer } from './server.js';
 import { loadConfig, saveConfig } from './config.js';
 import { logger, configureLogger } from './logger.js';
+
+const __cli_dirname = dirname(fileURLToPath(import.meta.url));
+const CLI_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__cli_dirname, '..', 'package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch { return '0.0.0'; }
+})();
 
 const args = process.argv.slice(2);
 const cmd = args[0] ?? 'start';
@@ -29,7 +40,7 @@ configureLogger(cfg);
 
 switch (cmd) {
   case 'start': {
-    logger.info(`conduit-bridge v0.1.0 starting on ${cfg.host}:${cfg.port}…`);
+    logger.info(`conduit-bridge v${CLI_VERSION} starting on ${cfg.host}:${cfg.port}…`);
     const server = new BridgeServer(cfg);
     server.start().catch(err => {
       logger.error(`Failed to start: ${err.message}`);
@@ -127,7 +138,7 @@ switch (cmd) {
   }
 
   default:
-    console.log(`conduit-bridge v0.1.0
+    console.log(`conduit-bridge v${CLI_VERSION}
 
 Usage:
   conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]

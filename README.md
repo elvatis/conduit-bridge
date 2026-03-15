@@ -1,6 +1,6 @@
 # conduit-bridge
 
-**Current version:** `0.1.0` — pre-release
+**Current version:** `0.2.0` — pre-release
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts.
 
@@ -96,7 +96,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.1.0" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.2.0" }
 ```
 
 ### `GET /v1/models`
@@ -108,7 +108,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "uptime": 3600,
   "providers": [
     {
