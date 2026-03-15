@@ -10,6 +10,15 @@ const MODEL_MAP: Record<string, string> = {
   'api-claude/claude-sonnet-4-5':  'claude-sonnet-4-5-20250514',
 };
 
+// Default max output tokens per model (used when client doesn't specify)
+// Sources: platform.claude.com/docs/en/about-claude/models/overview (March 2026)
+const DEFAULT_MAX_TOKENS: Record<string, number> = {
+  'api-claude/claude-opus-4-6':    128_000,
+  'api-claude/claude-sonnet-4-6':  64_000,
+  'api-claude/claude-haiku-4-5':   64_000,
+  'api-claude/claude-sonnet-4-5':  16_384,
+};
+
 export class ClaudeApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'claude-api';
 
@@ -36,7 +45,7 @@ export class ClaudeApiProvider extends ApiBaseProvider {
 
     const response = await client.messages.create({
       model: apiModel,
-      max_tokens: req.max_tokens ?? 8192,
+      max_tokens: req.max_tokens ?? DEFAULT_MAX_TOKENS[req.model] ?? 64_000,
       ...(systemMsg ? { system: systemMsg.content } : {}),
       messages: conversationMsgs,
     });
@@ -58,7 +67,7 @@ export class ClaudeApiProvider extends ApiBaseProvider {
 
     const stream = client.messages.stream({
       model: apiModel,
-      max_tokens: req.max_tokens ?? 8192,
+      max_tokens: req.max_tokens ?? DEFAULT_MAX_TOKENS[req.model] ?? 64_000,
       ...(systemMsg ? { system: systemMsg.content } : {}),
       messages: conversationMsgs,
     });
