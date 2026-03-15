@@ -9,10 +9,9 @@ export class GeminiProvider extends BaseProvider {
   readonly verifySelector = '.ql-editor';
 
   readonly models: ModelDefinition[] = [
-    { id: 'web-gemini/gemini-2-5-pro',   provider: 'gemini', displayName: 'Gemini 2.5 Pro',   owned_by: 'google' },
-    { id: 'web-gemini/gemini-2-5-flash', provider: 'gemini', displayName: 'Gemini 2.5 Flash', owned_by: 'google' },
-    { id: 'web-gemini/gemini-3-pro',     provider: 'gemini', displayName: 'Gemini 3 Pro',     owned_by: 'google' },
-    { id: 'web-gemini/gemini-3-flash',   provider: 'gemini', displayName: 'Gemini 3 Flash',   owned_by: 'google' },
+    { id: 'web-gemini/gemini-3-fast',     provider: 'gemini', displayName: 'Gemini 3 Fast',     owned_by: 'google' },
+    { id: 'web-gemini/gemini-3-thinking', provider: 'gemini', displayName: 'Gemini 3 Thinking', owned_by: 'google' },
+    { id: 'web-gemini/gemini-3.1-pro',   provider: 'gemini', displayName: 'Gemini 3.1 Pro',    owned_by: 'google' },
   ];
 
   constructor(cfg: BridgeConfig) { super(cfg); }

@@ -4,25 +4,21 @@ import { logger } from '../logger.js';
 
 export class GrokProvider extends BaseProvider {
   readonly name = 'grok' as const;
-  readonly loginUrl = 'https://x.com/i/grok';
-  readonly verifySelector = 'textarea[placeholder]';
+  readonly loginUrl = 'https://grok.com';
+  readonly verifySelector = '.ProseMirror, [contenteditable="true"]';
 
   readonly models: ModelDefinition[] = [
-    { id: 'web-grok/grok-4',           provider: 'grok', displayName: 'Grok 4',           owned_by: 'xai' },
-    { id: 'web-grok/grok-3',           provider: 'grok', displayName: 'Grok 3',           owned_by: 'xai' },
-    { id: 'web-grok/grok-3-fast',      provider: 'grok', displayName: 'Grok 3 Fast',      owned_by: 'xai' },
-    { id: 'web-grok/grok-3-mini',      provider: 'grok', displayName: 'Grok 3 Mini',      owned_by: 'xai' },
-    { id: 'web-grok/grok-3-mini-fast', provider: 'grok', displayName: 'Grok 3 Mini Fast', owned_by: 'xai' },
-    { id: 'web-grok/grok-2',           provider: 'grok', displayName: 'Grok 2',           owned_by: 'xai' },
+    { id: 'web-grok/grok-expert',     provider: 'grok', displayName: 'Grok Expert',      owned_by: 'xai' },
+    { id: 'web-grok/grok-fast',       provider: 'grok', displayName: 'Grok Fast',        owned_by: 'xai' },
+    { id: 'web-grok/grok-heavy',      provider: 'grok', displayName: 'Grok Heavy',       owned_by: 'xai' },
+    { id: 'web-grok/grok-4.20-beta',  provider: 'grok', displayName: 'Grok 4.20 Beta',   owned_by: 'xai' },
   ];
 
   private _modelUrlMap: Record<string, string> = {
-    'web-grok/grok-4':           'https://x.com/i/grok?focus=1&model=grok-4',
-    'web-grok/grok-3':           'https://x.com/i/grok?focus=1',
-    'web-grok/grok-3-fast':      'https://x.com/i/grok?focus=1&model=grok-3-fast',
-    'web-grok/grok-3-mini':      'https://x.com/i/grok?focus=1&model=grok-3-mini',
-    'web-grok/grok-3-mini-fast': 'https://x.com/i/grok?focus=1&model=grok-3-mini-fast',
-    'web-grok/grok-2':           'https://x.com/i/grok?focus=1&model=grok-2',
+    'web-grok/grok-expert':     'https://grok.com',
+    'web-grok/grok-fast':       'https://grok.com',
+    'web-grok/grok-heavy':      'https://grok.com',
+    'web-grok/grok-4.20-beta':  'https://grok.com',
   };
 
   constructor(cfg: BridgeConfig) { super(cfg); }
@@ -40,23 +36,27 @@ export class GrokProvider extends BaseProvider {
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
 
     // Navigate only if not already on Grok
-    if (!page.url().includes('x.com/i/grok')) {
+    if (!page.url().includes('grok.com')) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
     }
 
     const userMsg = buildUserMessage(req.messages);
 
-    // Type into textarea
-    const textarea = page.locator('textarea[placeholder]').first();
-    await textarea.waitFor({ timeout: 10000 });
-    await textarea.click();
-    await textarea.fill(userMsg);
+    // Type into ProseMirror editor via execCommand (more reliable than fill)
+    const editor = page.locator('.ProseMirror, [contenteditable="true"]').first();
+    await editor.waitFor({ timeout: 10000 });
+    await editor.click();
+    await editor.evaluate((el: { focus: () => void }, msg: string) => {
+      el.focus();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).document.execCommand('insertText', false, msg);
+    }, userMsg);
 
-    // Submit
+    await new Promise(r => setTimeout(r, 300));
     await page.keyboard.press('Enter');
 
-    // Wait for response — poll the last assistant message
-    yield* pollForResponse(page, '[data-testid="tweetText"]', logger, this.name);
+    // Wait for response - poll .message-bubble elements
+    yield* pollForResponse(page, '.message-bubble', logger, this.name);
   }
 }
 
