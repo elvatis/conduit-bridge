@@ -7,6 +7,7 @@ export class BridgeServer {
   private _registry: ProviderRegistry;
   private _server: ReturnType<typeof createServer> | null = null;
   private _cfg: BridgeConfig;
+  private _keepaliveTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(cfg: BridgeConfig) {
     this._cfg = cfg;
@@ -42,9 +43,20 @@ export class BridgeServer {
         logger.warn(`Session restore error: ${err.message}`),
       );
     }, 3000);
+
+    // Session keepalive: every 5 minutes, check and reconnect stale providers
+    this._keepaliveTimer = setInterval(() => {
+      this._registry.keepaliveSessions().catch(err =>
+        logger.warn(`Session keepalive error: ${err.message}`),
+      );
+    }, 5 * 60 * 1000);
   }
 
   async stop(): Promise<void> {
+    if (this._keepaliveTimer) {
+      clearInterval(this._keepaliveTimer);
+      this._keepaliveTimer = null;
+    }
     if (this._server) {
       await new Promise<void>(resolve => this._server!.close(() => resolve()));
       this._server = null;
@@ -135,7 +147,8 @@ export class BridgeServer {
         return;
       }
 
-      const connected = await provider.checkSession();
+      // Try to ensure connected — will auto-restore session if needed
+      const connected = await provider.ensureConnected();
       if (!connected) {
         json(res, 503, { error: { message: `${provider.name} is not connected. POST /v1/login/${provider.name} to log in.`, type: 'provider_unavailable' } });
         return;

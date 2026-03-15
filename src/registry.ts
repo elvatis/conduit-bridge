@@ -57,6 +57,24 @@ export class ProviderRegistry {
     }
   }
 
+  /** Periodically check sessions and reconnect any that have gone stale */
+  async keepaliveSessions(): Promise<void> {
+    const providers = [...this._providers.values()];
+    for (const p of providers) {
+      if (!p.hasProfile) continue;
+      const alive = await p.checkSession();
+      if (!alive) {
+        logger.info(`[${p.name}] session stale — attempting reconnect…`);
+        try {
+          await p.restoreSession();
+        } catch (err) {
+          logger.debug(`[${p.name}] keepalive reconnect failed: ${(err as Error).message}`);
+        }
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+
   async getStatus(): Promise<BridgeStatus> {
     const providers: ProviderStatus[] = [];
 

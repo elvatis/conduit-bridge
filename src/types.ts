@@ -56,6 +56,9 @@ export interface ProviderAdapter {
   /** Check if the browser session is alive and logged in */
   checkSession(): Promise<boolean>;
 
+  /** Ensure connected - restore session from profile if not connected */
+  ensureConnected(): Promise<boolean>;
+
   /** Launch browser + open login page (headful, user logs in manually) */
   login(onReady: (loginUrl: string) => void): Promise<void>;
 
