@@ -77,6 +77,7 @@ switch (cmd) {
     const provider = args[1] as 'grok' | 'claude' | 'gemini' | 'chatgpt' | undefined;
     if (!provider) {
       console.error('Usage: conduit-bridge login <grok|claude|gemini|chatgpt>');
+      console.error('  (API providers use keys, not login: conduit-bridge config apiKeys.claude-api <key>)');
       process.exit(1);
     }
     // Send login request to running instance
@@ -105,7 +106,19 @@ switch (cmd) {
     const val = args[2];
     if (!key || !val) {
       const current = loadConfig();
-      console.log(JSON.stringify(current, null, 2));
+      // Mask API keys in display
+      const display = { ...current, apiKeys: Object.fromEntries(
+        Object.entries(current.apiKeys ?? {}).map(([k, v]) =>
+          [k, typeof v === 'string' && v.length > 8 ? v.slice(0, 4) + '…' + v.slice(-4) : v]
+        ),
+      )};
+      console.log(JSON.stringify(display, null, 2));
+    } else if (key.startsWith('apiKeys.')) {
+      // Support dotted keys for API keys: config apiKeys.claude-api sk-xxx
+      const provider = key.split('.')[1];
+      const existing = loadConfig();
+      saveConfig({ apiKeys: { ...existing.apiKeys, [provider]: val } } as any);
+      console.log(`API key set for ${provider}`);
     } else {
       saveConfig({ [key]: isNaN(Number(val)) ? val : Number(val) } as any);
       console.log(`Config updated: ${key} = ${val}`);
@@ -121,5 +134,10 @@ Usage:
   conduit-bridge status
   conduit-bridge login <grok|claude|gemini|chatgpt>
   conduit-bridge config [key] [value]
+
+API providers (no browser needed):
+  conduit-bridge config apiKeys.claude-api <ANTHROPIC_API_KEY>
+  conduit-bridge config apiKeys.gemini-api <GOOGLE_AI_API_KEY>
+  conduit-bridge config apiKeys.codex-api  <OPENAI_API_KEY>
 `);
 }

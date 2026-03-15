@@ -99,10 +99,16 @@ export class BridgeServer {
     }
 
     // ── POST /v1/login/:provider ─────────────────────────────────────────────
-    const loginMatch = url.match(/^\/v1\/login\/(grok|claude|gemini|chatgpt)$/);
+    const loginMatch = url.match(/^\/v1\/login\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api)$/);
     if (loginMatch && method === 'POST') {
-      const name = loginMatch[1] as 'grok' | 'claude' | 'gemini' | 'chatgpt';
+      const name = loginMatch[1] as import('./types.js').ProviderName;
       const provider = this._registry.get(name);
+
+      // API providers don't use browser login - return helpful message
+      if (name.endsWith('-api')) {
+        json(res, 400, { status: 'error', provider: name, message: `${name} uses API keys, not browser login. Set your key via: conduit-bridge config apiKeys.${name} <key>` });
+        return;
+      }
 
       // Respond immediately, login happens async
       json(res, 202, { status: 'login_started', provider: name, message: `Browser opened for ${name} — log in and close when done.` });
@@ -116,9 +122,9 @@ export class BridgeServer {
     }
 
     // ── POST /v1/logout/:provider ────────────────────────────────────────────
-    const logoutMatch = url.match(/^\/v1\/logout\/(grok|claude|gemini|chatgpt)$/);
+    const logoutMatch = url.match(/^\/v1\/logout\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api)$/);
     if (logoutMatch && method === 'POST') {
-      const name = logoutMatch[1] as 'grok' | 'claude' | 'gemini' | 'chatgpt';
+      const name = logoutMatch[1] as import('./types.js').ProviderName;
       await this._registry.get(name).logout();
       json(res, 200, { status: 'ok', provider: name });
       return;

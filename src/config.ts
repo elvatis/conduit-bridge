@@ -12,6 +12,7 @@ const DEFAULTS: BridgeConfig = {
   profileBaseDir: join(CONFIG_DIR, 'profiles'),
   headless: false,       // show browser for login flows
   logLevel: 'info',
+  apiKeys: {},
 };
 
 export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {

@@ -21,6 +21,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@google/generative-ai": "^0.24.1",
+    "openai": "^6.29.0",
     "playwright": "^1.44.0"
   },
   "devDependencies": {
@@ -32,7 +35,16 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "keywords": ["ai", "grok", "claude", "gemini", "chatgpt", "openai", "proxy", "bridge"],
+  "keywords": [
+    "ai",
+    "grok",
+    "claude",
+    "gemini",
+    "chatgpt",
+    "openai",
+    "proxy",
+    "bridge"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",

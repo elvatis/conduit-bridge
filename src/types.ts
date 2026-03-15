@@ -1,6 +1,12 @@
 // ── Public types for conduit-bridge ──────────────────────────────────────────
 
-export type ProviderName = 'grok' | 'claude' | 'gemini' | 'chatgpt';
+export type ProviderName = 'grok' | 'claude' | 'gemini' | 'chatgpt' | 'claude-api' | 'gemini-api' | 'codex-api';
+
+export interface ApiKeyConfig {
+  'claude-api'?: string;    // Anthropic API key
+  'gemini-api'?: string;    // Google AI API key
+  'codex-api'?: string;     // OpenAI API key
+}
 
 export interface BridgeConfig {
   port: number;
@@ -8,6 +14,7 @@ export interface BridgeConfig {
   profileBaseDir: string;   // e.g. ~/.conduit/profiles
   headless: boolean;        // false = visible browser (for login)
   logLevel: 'silent' | 'info' | 'debug';
+  apiKeys: ApiKeyConfig;    // API keys for CLI/SDK-based providers
 }
 
 export interface ProviderStatus {
