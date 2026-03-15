@@ -228,27 +228,112 @@ export class GrokProvider extends BaseProvider {
 
 // ── Helpers shared across providers ──────────────────────────────────────────
 
+/**
+ * Build the message to paste into a web provider's chat input.
+ *
+ * Web providers (Grok, ChatGPT, Gemini) are NOT APIs - they are chat UIs
+ * with their own system prompts and behavior. We must NOT dump the full
+ * system prompt into the chat input because:
+ * 1. It wastes context (the model sees instructions as a user message)
+ * 2. The model responds to the instructions instead of the user's question
+ * 3. The actual question gets buried at the end of a wall of text
+ *
+ * Strategy:
+ * - Extract only code/file context from the system prompt (if any)
+ * - Strip behavioral instructions ("You are Conduit...", mode prompts, etc.)
+ * - Send the user's actual message prominently
+ * - Keep any file contents, diagnostics, or code context as brief reference
+ */
 export function buildUserMessage(messages: Array<{ role: string; content: string }>): string {
-  const system = messages.find(m => m.role === 'system')?.content;
+  const system = messages.find(m => m.role === 'system')?.content || '';
   const userMessages = messages.filter(m => m.role === 'user');
+  const assistantMessages = messages.filter(m => m.role === 'assistant');
   const lastUserMsg = userMessages[userMessages.length - 1]?.content || '';
 
-  // If there's only a single user message with optional system context,
-  // send just the user message to avoid confusing web UI providers
-  if (messages.filter(m => m.role !== 'system').length === 1) {
-    if (system) {
-      return `[Context: ${system}]\n\n${lastUserMsg}`;
+  // Extract only useful code context from system prompt - skip behavioral instructions
+  const codeContext = extractCodeContext(system);
+
+  // Single turn (most common case)
+  if (userMessages.length === 1 && assistantMessages.length === 0) {
+    if (codeContext) {
+      return `${codeContext}\n\n${lastUserMsg}`;
     }
     return lastUserMsg;
   }
 
-  // Multi-turn: include conversation history
-  const conversation = messages
-    .filter(m => m.role !== 'system')
-    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-    .join('\n\n');
+  // Multi-turn: include recent conversation history (last 3 exchanges max)
+  const nonSystemMessages = messages.filter(m => m.role !== 'system');
+  const recentMessages = nonSystemMessages.slice(-7); // last ~3.5 exchanges
 
-  return system ? `[Context: ${system}]\n\n${conversation}` : conversation;
+  const parts: string[] = [];
+  if (codeContext) {
+    parts.push(codeContext);
+  }
+
+  // Only add role labels if there's actual back-and-forth
+  if (recentMessages.length > 1) {
+    const conversation = recentMessages
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n\n');
+    parts.push(conversation);
+  } else {
+    parts.push(lastUserMsg);
+  }
+
+  return parts.join('\n\n');
+}
+
+/**
+ * Extract code-relevant context from the system prompt, discarding
+ * behavioral instructions that web providers don't need.
+ *
+ * Keeps: file contents, code snippets, diagnostics, error messages
+ * Drops: "You are Conduit...", mode instructions, CLAUDE.md content,
+ *        tool catalogs, rendering instructions, etc.
+ */
+function extractCodeContext(system: string): string {
+  if (!system) return '';
+
+  const parts: string[] = [];
+
+  // Extract "Current file: ..." line
+  const fileMatch = system.match(/Current file:\s*(.+)/);
+  if (fileMatch) parts.push(`Current file: ${fileMatch[1].trim()}`);
+
+  // Extract "Workspace: ..." line
+  const wsMatch = system.match(/Workspace:\s*(.+)/);
+  if (wsMatch) parts.push(`Workspace: ${wsMatch[1].trim()}`);
+
+  // Extract code blocks (```...```)
+  const codeBlocks = system.match(/```[\s\S]*?```/g);
+  if (codeBlocks) {
+    for (const block of codeBlocks.slice(0, 3)) { // max 3 code blocks
+      if (block.length < 3000) { // skip huge blocks
+        parts.push(block);
+      }
+    }
+  }
+
+  // Extract diagnostics/errors sections
+  const diagMatch = system.match(/(?:diagnostics|errors|warnings)[:\s]*\n([\s\S]*?)(?:\n\n|\n##|$)/i);
+  if (diagMatch) {
+    const diag = diagMatch[1].trim();
+    if (diag.length < 1000) parts.push(`Diagnostics:\n${diag}`);
+  }
+
+  // Extract "prefix" and "suffix" context (code around cursor)
+  const prefixMatch = system.match(/(?:prefix|before cursor)[:\s]*\n([\s\S]*?)(?:\n\n|$)/i);
+  const suffixMatch = system.match(/(?:suffix|after cursor)[:\s]*\n([\s\S]*?)(?:\n\n|$)/i);
+  if (prefixMatch) parts.push(`Code before cursor:\n${prefixMatch[1].trim().slice(-500)}`);
+  if (suffixMatch) parts.push(`Code after cursor:\n${suffixMatch[1].trim().slice(0, 500)}`);
+
+  // If nothing useful was extracted but the system prompt is short, include it
+  // (it might be a simple context like "Fix this bug in Python")
+  if (parts.length === 0 && system.length < 200 && !system.includes('You are')) {
+    return system.trim();
+  }
+
+  return parts.join('\n');
 }
 
 /** DOM-based fallback for response extraction - tries multiple common selectors */
