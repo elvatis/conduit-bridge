@@ -63,7 +63,24 @@ function resolveApiKey(provider: ProviderName, cfg: BridgeConfig): string | unde
     }
 
     case 'codex-api': {
-      // OpenAI/Codex CLI - check env var
+      // Codex CLI stores OAuth access_token in ~/.codex/auth.json
+      const codexAuth = join(home, '.codex', 'auth.json');
+      if (existsSync(codexAuth)) {
+        try {
+          const auth = JSON.parse(readFileSync(codexAuth, 'utf-8'));
+          const token = auth?.tokens?.access_token;
+          if (token) {
+            logger.info('[codex-api] auto-detected credentials from Codex CLI (~/.codex/auth.json)');
+            return token;
+          }
+          // Also check for direct API key in auth file
+          if (auth?.OPENAI_API_KEY) {
+            logger.info('[codex-api] using API key from Codex CLI auth.json');
+            return auth.OPENAI_API_KEY;
+          }
+        } catch { /* ignore corrupt file */ }
+      }
+      // Fall back to env var
       if (process.env.OPENAI_API_KEY) {
         logger.info('[codex-api] using OPENAI_API_KEY from environment');
         return process.env.OPENAI_API_KEY;

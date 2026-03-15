@@ -25,6 +25,7 @@ export class ProviderRegistry {
   private _providers: Map<ProviderName, ProviderAdapter> = new Map();
   private _startTime = Date.now();
   private _restoreDone = false;
+  private _restoring = false;
 
   constructor(private _cfg: BridgeConfig) {
     // Web-based providers (Playwright)
@@ -53,29 +54,38 @@ export class ProviderRegistry {
     );
   }
 
+  /** True while initial session restore is in progress */
+  get isRestoring(): boolean { return this._restoring; }
+
   /** Restore sessions from saved profiles — sequential, profile-gated */
   async restoreSessions(): Promise<void> {
     if (this._restoreDone) return;
     this._restoreDone = true;
+    this._restoring = true;
 
     logger.info('Restoring sessions…');
     const providers = [...this._providers.values()];
 
-    for (const p of providers) {
-      // API providers restore instantly (just check API key)
-      // Web providers need profile directory
-      const isWebProvider = 'hasProfile' in p;
-      if (isWebProvider && !(p as BaseProvider).hasProfile) {
-        logger.debug(`[${p.name}] no profile — skipping`);
-        continue;
+    try {
+      for (const p of providers) {
+        // API providers restore instantly (just check API key)
+        // Web providers need profile directory
+        const isWebProvider = 'hasProfile' in p;
+        if (isWebProvider && !(p as BaseProvider).hasProfile) {
+          logger.debug(`[${p.name}] no profile — skipping`);
+          continue;
+        }
+        try {
+          await p.restoreSession();
+        } catch (err) {
+          logger.warn(`[${p.name}] restore error: ${(err as Error).message}`);
+        }
+        // Sequential delay for web providers to avoid OOM
+        if (isWebProvider) await new Promise(r => setTimeout(r, 2000));
       }
-      try {
-        await p.restoreSession();
-      } catch (err) {
-        logger.warn(`[${p.name}] restore error: ${(err as Error).message}`);
-      }
-      // Sequential delay for web providers to avoid OOM
-      if (isWebProvider) await new Promise(r => setTimeout(r, 2000));
+    } finally {
+      this._restoring = false;
+      logger.info('Session restore complete');
     }
   }
 

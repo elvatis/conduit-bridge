@@ -7,7 +7,7 @@ import { buildUserMessage } from './grok.js';
 export class GeminiProvider extends BaseProvider {
   readonly name = 'gemini' as const;
   readonly loginUrl = 'https://gemini.google.com/app';
-  readonly verifySelector = '.ql-editor, [contenteditable="true"]';
+  readonly verifySelector = '.ql-editor, [contenteditable="true"], rich-textarea, .input-area textarea, .text-input-field';
 
   readonly models: ModelDefinition[] = [
     { id: 'web-gemini/gemini-3-fast',     provider: 'gemini', displayName: 'Gemini 3 Fast',     owned_by: 'google' },
@@ -45,7 +45,7 @@ export class GeminiProvider extends BaseProvider {
       window.__conduitGemini = { text:'', done:false, startTime:Date.now() };
     `);
 
-    const editor = page.locator('.ql-editor, [contenteditable="true"]').first();
+    const editor = page.locator('.ql-editor, [contenteditable="true"], rich-textarea, .input-area textarea, .text-input-field').first();
     await editor.waitFor({ timeout: 15000 });
     await editor.click();
     await editor.fill(userMsg);
@@ -226,6 +226,10 @@ async function* pollForResponseDOM(
     '[class*="response"] .markdown',
     'message-content .markdown',
     '.model-response-text',
+    // Current Gemini UI selectors
+    '.response-content',
+    '.message-body-content',
+    '[data-content-type="response"]',
     // Generic fallbacks
     '.markdown:last-of-type',
     '[data-message-id] .markdown',
