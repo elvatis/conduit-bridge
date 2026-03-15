@@ -164,12 +164,23 @@ export class BridgeServer {
         const id = `chatcmpl-${Date.now()}`;
         try {
           for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens })) {
+            // Include provider metadata if available (thinking status, tokens, timing)
+            const meta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
             const data = JSON.stringify({
               id, object: 'chat.completion.chunk', model,
               choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }],
+              ...(meta ? { conduit_meta: meta } : {}),
             });
             res.write(`data: ${data}\n\n`);
           }
+          // Send final metadata with done signal
+          const finalMeta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
+          const doneData = JSON.stringify({
+            id, object: 'chat.completion.chunk', model,
+            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+            ...(finalMeta ? { conduit_meta: finalMeta } : {}),
+          });
+          res.write(`data: ${doneData}\n\n`);
           res.write('data: [DONE]\n\n');
         } catch (err) {
           const errData = JSON.stringify({ error: (err as Error).message });

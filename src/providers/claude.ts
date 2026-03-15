@@ -1,7 +1,18 @@
 import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
+import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
 import { buildUserMessage } from './grok.js';
+
+/** Metadata captured from Claude's SSE stream */
+export interface StreamMeta {
+  thinking: boolean;
+  toolName: string | null;
+  toolRunning: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  elapsedMs: number;
+}
 
 export class ClaudeProvider extends BaseProvider {
   readonly name = 'claude' as const;
@@ -17,9 +28,15 @@ export class ClaudeProvider extends BaseProvider {
   ];
 
   private _conversationUrl: string | null = null;
-  private _fetchPatched = false;
+  private _patchedCtx: BrowserContext | null = null;
+  private _meta: StreamMeta = this._defaultMeta();
 
   constructor(cfg: BridgeConfig) { super(cfg); }
+
+  /** Current streaming metadata - read by server.ts to include in SSE events */
+  get currentMeta(): StreamMeta {
+    return { ...this._meta };
+  }
 
   async chat(req: ChatRequest): Promise<string> {
     const chunks: string[] = [];
@@ -29,6 +46,10 @@ export class ClaudeProvider extends BaseProvider {
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
     if (!this._ctx) throw new Error('Claude: not connected. Run login first.');
+
+    // Install fetch interceptor via addInitScript (runs BEFORE page JS)
+    // This is critical: page.evaluate would run AFTER Claude.ai captures fetch
+    await this._ensureInitScript();
 
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
     const currentUrl = page.url();
@@ -41,63 +62,10 @@ export class ClaudeProvider extends BaseProvider {
       await new Promise(r => setTimeout(r, 2000));
     }
 
-    // Install fetch interceptor to capture SSE text deltas directly from the API.
-    // This completely bypasses DOM parsing - no thinking/tool-use/artifact UI leaks.
-    if (!this._fetchPatched) {
-      await page.evaluate(`
-        (() => {
-          if (window.__conduitFetchPatched) return;
-          const _fetch = window.fetch.bind(window);
-          window.fetch = async function(...args) {
-            const res = await _fetch(...args);
-            const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-            if (url.includes('/completion')) {
-              // Reset state for this new completion
-              window.__conduitText = '';
-              window.__conduitDone = false;
-              // Clone response so we can read the stream without affecting Claude's UI
-              const clone = res.clone();
-              (async () => {
-                try {
-                  const reader = clone.body.getReader();
-                  const decoder = new TextDecoder();
-                  let buffer = '';
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) { window.__conduitDone = true; break; }
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\\n');
-                    buffer = lines.pop() || '';
-                    for (const line of lines) {
-                      if (!line.startsWith('data: ')) continue;
-                      try {
-                        const data = JSON.parse(line.slice(6));
-                        if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
-                          window.__conduitText += data.delta.text;
-                        }
-                      } catch {}
-                    }
-                  }
-                } catch {
-                  window.__conduitDone = true;
-                }
-              })();
-            }
-            return res;
-          };
-          window.__conduitFetchPatched = true;
-          window.__conduitText = '';
-          window.__conduitDone = false;
-        })()
-      `);
-      this._fetchPatched = true;
-      logger.debug('[claude] fetch interceptor installed');
-    }
-
     // Reset capture state before sending
+    this._meta = this._defaultMeta();
     await page.evaluate(`
-      window.__conduitText = '';
-      window.__conduitDone = false;
+      window.__conduit = { text:'', done:false, thinking:false, toolName:null, toolRunning:false, inputTokens:0, outputTokens:0, startTime:Date.now() };
     `);
 
     const userMsg = buildUserMessage(req.messages);
@@ -125,7 +93,7 @@ export class ClaudeProvider extends BaseProvider {
       logger.debug(`[claude] conversation URL saved: ${convUrl}`);
     }
 
-    // Poll the intercepted SSE text
+    // Poll the intercepted SSE text + metadata
     const timeout = 120000;
     const pollInterval = 300;
     const start = Date.now();
@@ -136,8 +104,31 @@ export class ClaudeProvider extends BaseProvider {
       await new Promise(r => setTimeout(r, pollInterval));
 
       const result = await page.evaluate(`
-        ({ text: window.__conduitText || '', done: !!window.__conduitDone })
-      `) as { text: string; done: boolean };
+        window.__conduit ? {
+          text: window.__conduit.text || '',
+          done: !!window.__conduit.done,
+          thinking: !!window.__conduit.thinking,
+          toolName: window.__conduit.toolName || null,
+          toolRunning: !!window.__conduit.toolRunning,
+          inputTokens: window.__conduit.inputTokens || 0,
+          outputTokens: window.__conduit.outputTokens || 0,
+          elapsed: window.__conduit.startTime ? Date.now() - window.__conduit.startTime : 0
+        } : { text:'', done:false, thinking:false, toolName:null, toolRunning:false, inputTokens:0, outputTokens:0, elapsed:0 }
+      `) as {
+        text: string; done: boolean;
+        thinking: boolean; toolName: string | null; toolRunning: boolean;
+        inputTokens: number; outputTokens: number; elapsed: number;
+      };
+
+      // Update metadata for server to read
+      this._meta = {
+        thinking: result.thinking,
+        toolName: result.toolName,
+        toolRunning: result.toolRunning,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        elapsedMs: result.elapsed,
+      };
 
       if (!result.text) continue;
 
@@ -146,7 +137,7 @@ export class ClaudeProvider extends BaseProvider {
         lastLength = result.text.length;
         stableCount = 0;
       } else if (result.done) {
-        logger.debug(`[claude] SSE stream complete (${lastLength} chars)`);
+        logger.debug(`[claude] SSE stream complete (${lastLength} chars, ${result.elapsed}ms, ${result.outputTokens} tokens)`);
         return;
       } else {
         stableCount++;
@@ -158,5 +149,111 @@ export class ClaudeProvider extends BaseProvider {
     }
 
     logger.warn('[claude] response polling timed out');
+  }
+
+  /** Install fetch interceptor on the browser context - runs before any page JS */
+  private async _ensureInitScript(): Promise<void> {
+    if (!this._ctx || this._ctx === this._patchedCtx) return;
+
+    await this._ctx.addInitScript(`
+      (() => {
+        if (window.__conduitPatched) return;
+
+        // State object shared with Playwright evaluate calls
+        window.__conduit = {
+          text: '', done: false,
+          thinking: false, toolName: null, toolRunning: false,
+          inputTokens: 0, outputTokens: 0, startTime: 0
+        };
+
+        const _fetch = window.fetch;
+        window.fetch = async function(...args) {
+          const res = await _fetch.apply(this, args);
+          const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+
+          // Intercept Claude's completion API calls
+          if (url.includes('completion') || url.includes('chat_conversations')) {
+            // Reset for new completion
+            window.__conduit.text = '';
+            window.__conduit.done = false;
+            window.__conduit.thinking = false;
+            window.__conduit.toolName = null;
+            window.__conduit.toolRunning = false;
+            window.__conduit.inputTokens = 0;
+            window.__conduit.outputTokens = 0;
+            window.__conduit.startTime = Date.now();
+
+            // Clone response so Claude's UI is unaffected
+            const clone = res.clone();
+            (async () => {
+              try {
+                const reader = clone.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) { window.__conduit.done = true; break; }
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split('\\n');
+                  buffer = lines.pop() || '';
+                  for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const raw = line.slice(6).trim();
+                    if (!raw || raw === '[DONE]') continue;
+                    try {
+                      const d = JSON.parse(raw);
+                      // Text content
+                      if (d.type === 'content_block_delta' && d.delta?.type === 'text_delta') {
+                        window.__conduit.text += d.delta.text;
+                      }
+                      // Thinking state
+                      if (d.type === 'content_block_start' && d.content_block?.type === 'thinking') {
+                        window.__conduit.thinking = true;
+                      }
+                      if (d.type === 'content_block_stop') {
+                        window.__conduit.thinking = false;
+                        window.__conduit.toolRunning = false;
+                      }
+                      // Tool use
+                      if (d.type === 'content_block_start' && d.content_block?.type === 'tool_use') {
+                        window.__conduit.toolName = d.content_block.name || 'tool';
+                        window.__conduit.toolRunning = true;
+                      }
+                      // Usage stats
+                      if (d.type === 'message_delta' && d.usage) {
+                        window.__conduit.outputTokens = d.usage.output_tokens || 0;
+                      }
+                      if (d.type === 'message_start' && d.message?.usage) {
+                        window.__conduit.inputTokens = d.message.usage.input_tokens || 0;
+                      }
+                    } catch {}
+                  }
+                }
+              } catch {
+                window.__conduit.done = true;
+              }
+            })();
+          }
+          return res;
+        };
+
+        window.__conduitPatched = true;
+      })()
+    `);
+
+    this._patchedCtx = this._ctx;
+    logger.debug('[claude] addInitScript installed on context');
+
+    // Reload current page so init script takes effect
+    const page = this._ctx.pages()[0];
+    if (page && page.url().includes('claude.ai')) {
+      logger.debug('[claude] reloading page for init script...');
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  private _defaultMeta(): StreamMeta {
+    return { thinking: false, toolName: null, toolRunning: false, inputTokens: 0, outputTokens: 0, elapsedMs: 0 };
   }
 }
