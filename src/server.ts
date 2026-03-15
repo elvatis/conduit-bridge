@@ -1,7 +1,19 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import type { BridgeConfig } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PKG_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch { return '0.0.0'; }
+})();
 
 export class BridgeServer {
   private _registry: ProviderRegistry;
@@ -75,7 +87,7 @@ export class BridgeServer {
 
     // ── GET /health ──────────────────────────────────────────────────────────
     if (url === '/health' && method === 'GET') {
-      json(res, 200, { status: 'ok', service: 'conduit-bridge', version: '0.1.0' });
+      json(res, 200, { status: 'ok', service: 'conduit-bridge', version: PKG_VERSION });
       return;
     }
 

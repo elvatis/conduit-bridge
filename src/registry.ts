@@ -8,8 +8,18 @@ import { ClaudeApiProvider } from './providers/claude-api.js';
 import { GeminiApiProvider } from './providers/gemini-api.js';
 import { CodexApiProvider } from './providers/codex-api.js';
 import { logger } from './logger.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const VERSION = '0.1.0';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch { return '0.0.0'; }
+})();
 
 export class ProviderRegistry {
   private _providers: Map<ProviderName, ProviderAdapter> = new Map();
