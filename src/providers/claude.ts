@@ -16,7 +16,7 @@ export class ClaudeProvider extends BaseProvider {
     { id: 'web-claude/claude-sonnet-4-5',  provider: 'claude', displayName: 'Claude Sonnet 4.5', owned_by: 'anthropic' },
   ];
 
-  private _isFirstRequest = true;
+  private _conversationUrl: string | null = null;
 
   constructor(cfg: BridgeConfig) { super(cfg); }
 
@@ -30,12 +30,16 @@ export class ClaudeProvider extends BaseProvider {
     if (!this._ctx) throw new Error('Claude: not connected. Run login first.');
 
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
+    const currentUrl = page.url();
 
-    // Only navigate to new conversation on first request or if not on claude.ai
-    if (this._isFirstRequest || !page.url().includes('claude.ai')) {
-      await page.goto('https://claude.ai/new', { waitUntil: 'domcontentloaded' });
+    // Navigate only when needed:
+    // 1. Not on claude.ai at all -> go to saved conversation or /new
+    // 2. On /new but we have a saved conversation -> resume it
+    if (!currentUrl.includes('claude.ai')) {
+      const target = this._conversationUrl || 'https://claude.ai/new';
+      logger.debug(`[claude] navigating to ${target}`);
+      await page.goto(target, { waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));
-      this._isFirstRequest = false;
     }
 
     const userMsg = buildUserMessage(req.messages);
@@ -66,6 +70,15 @@ export class ClaudeProvider extends BaseProvider {
 
     logger.debug(`[claude] message sent (${userMsg.length} chars), streaming...`);
 
+    // Save the conversation URL once Claude redirects from /new to /chat/xxx
+    // Wait a moment for redirect, then capture
+    await new Promise(r => setTimeout(r, 1500));
+    const convUrl = page.url();
+    if (convUrl.includes('claude.ai/chat/')) {
+      this._conversationUrl = convUrl;
+      logger.debug(`[claude] conversation URL saved: ${convUrl}`);
+    }
+
     // Poll DOM for assistant response using [data-test-render-count] elements
     const timeout = 120000;
     const pollInterval = 500;
@@ -88,20 +101,48 @@ export class ClaudeProvider extends BaseProvider {
           const lastEl = assistants[assistants.length - 1];
           if (!lastEl) return '';
 
-          // Clone the element so we can remove unwanted nodes without affecting the page
+          // Clone to avoid mutating the live DOM
           const clone = lastEl.cloneNode(true);
 
-          // Remove thinking/reasoning UI elements that leak into textContent
-          // Claude uses various containers for thinking indicators
+          // Remove all non-content elements aggressively:
+          // - details/summary: thinking/reasoning collapsible sections
+          // - button, [role="button"]: artifact cards, tool-use controls
+          // - svg, img, canvas, audio, video, iframe: media/icons
+          // - [aria-hidden="true"]: screen-reader hidden UI elements
           clone.querySelectorAll(
-            '[class*="thinking"], [class*="Thinking"], ' +
-            '[data-thinking], [data-is-thinking], ' +
-            'button, [role="button"], ' +
-            '[class*="spinner"], [class*="loading"], ' +
-            '[class*="collapse"], [class*="toggle"]'
+            'details, summary, ' +
+            'button, [role="button"], [role="status"], ' +
+            'svg, img, canvas, audio, video, iframe, ' +
+            '[aria-hidden="true"], [contenteditable]'
           ).forEach(el => el.remove());
 
-          // Use innerText to preserve line breaks and whitespace structure
+          // Extract text ONLY from semantic markdown-rendered elements.
+          // This naturally excludes UI chrome (thinking labels, tool status,
+          // artifact buttons) which use div/span, not semantic HTML.
+          const mdTags = 'p, h1, h2, h3, h4, h5, h6, ol, ul, pre, blockquote, table';
+          const blocks = clone.querySelectorAll(mdTags);
+
+          if (blocks.length > 0) {
+            // Collect top-level blocks only (skip nested to avoid duplication)
+            const seen = new Set();
+            const parts = [];
+            for (const el of blocks) {
+              let dominated = false;
+              let parent = el.parentElement;
+              while (parent && parent !== clone) {
+                if (seen.has(parent)) { dominated = true; break; }
+                parent = parent.parentElement;
+              }
+              if (!dominated) {
+                seen.add(el);
+                const t = (el.innerText || '').trim();
+                if (t) parts.push(t);
+              }
+            }
+            return parts.join('\\n\\n');
+          }
+
+          // Fallback: if no semantic elements found, use innerText on cleaned clone
           return clone.innerText?.trim() ?? '';
         })()
       `) as string;
