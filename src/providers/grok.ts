@@ -34,7 +34,9 @@ export class GrokProvider extends BaseProvider {
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
 
     // Navigate only if not already on Grok
-    if (!page.url().includes('grok.com')) {
+    let _onGrokPage = false;
+    try { const _p = new URL(page.url()); _onGrokPage = _p.hostname === 'grok.com' || _p.hostname.endsWith('.grok.com'); } catch { _onGrokPage = false; }
+    if (!_onGrokPage) {
       await page.goto('https://grok.com', { waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));
     }
@@ -218,7 +220,9 @@ export class GrokProvider extends BaseProvider {
 
     // Reload current page so init script takes effect
     const page = this._ctx.pages()[0];
-    if (page && page.url().includes('grok.com')) {
+    let _onGrokPageR = false;
+    try { const _p = new URL(page?.url() ?? ''); _onGrokPageR = _p.hostname === 'grok.com' || _p.hostname.endsWith('.grok.com'); } catch { _onGrokPageR = false; }
+    if (page && _onGrokPageR) {
       logger.debug('[grok] reloading page for init script...');
       await page.reload({ waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));

@@ -141,7 +141,9 @@ export abstract class BaseProvider implements ProviderAdapter {
         await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
         // Handle Google consent dialogs (common for Gemini and other Google services)
-        if (page.url().includes('consent.google.com')) {
+        let _onConsentPage = false;
+        try { const _p = new URL(page.url()); _onConsentPage = _p.hostname === 'consent.google.com'; } catch { _onConsentPage = false; }
+        if (_onConsentPage) {
           logger.debug(`[${this.name}] consent dialog detected, auto-accepting...`);
           const acceptBtn = page.locator('button:has-text("Accept all"), button:has-text("Alle akzeptieren"), button:has-text("I agree"), button:has-text("Akzeptieren")').first();
           if (await acceptBtn.isVisible({ timeout: 3000 }).catch(() => false)) {

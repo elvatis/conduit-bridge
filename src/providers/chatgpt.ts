@@ -35,7 +35,9 @@ export class ChatGPTProvider extends BaseProvider {
 
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
 
-    if (!page.url().includes('chatgpt.com')) {
+    let _onChatGptPage = false;
+    try { const _p = new URL(page.url()); _onChatGptPage = _p.hostname === 'chatgpt.com' || _p.hostname.endsWith('.chatgpt.com'); } catch { _onChatGptPage = false; }
+    if (!_onChatGptPage) {
       await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));
     }
@@ -190,7 +192,9 @@ export class ChatGPTProvider extends BaseProvider {
 
     // Reload current page so init script takes effect
     const page = this._ctx.pages()[0];
-    if (page && page.url().includes('chatgpt.com')) {
+    let _onChatGptPageR = false;
+    try { const _p = new URL(page?.url() ?? ''); _onChatGptPageR = _p.hostname === 'chatgpt.com' || _p.hostname.endsWith('.chatgpt.com'); } catch { _onChatGptPageR = false; }
+    if (page && _onChatGptPageR) {
       logger.debug('[chatgpt] reloading page for init script...');
       await page.reload({ waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));

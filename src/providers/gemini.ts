@@ -33,7 +33,9 @@ export class GeminiProvider extends BaseProvider {
 
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
 
-    if (!page.url().includes('gemini.google.com')) {
+    let _onGeminiPage = false;
+    try { const _p = new URL(page.url()); _onGeminiPage = _p.hostname === 'gemini.google.com'; } catch { _onGeminiPage = false; }
+    if (!_onGeminiPage) {
       await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));
     }
@@ -207,7 +209,9 @@ export class GeminiProvider extends BaseProvider {
 
     // Reload current page so init script takes effect
     const page = this._ctx.pages()[0];
-    if (page && page.url().includes('gemini.google.com')) {
+    let _onGeminiPageR = false;
+    try { const _p = new URL(page?.url() ?? ''); _onGeminiPageR = _p.hostname === 'gemini.google.com'; } catch { _onGeminiPageR = false; }
+    if (page && _onGeminiPageR) {
       logger.debug('[gemini] reloading page for init script...');
       await page.reload({ waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));
