@@ -24,7 +24,7 @@
     "@anthropic-ai/sdk": "^0.80.0",
     "@google/generative-ai": "^0.24.1",
     "openai": "^6.33.0",
-    "playwright": "^1.44.0"
+    "playwright": "^1.59.1"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
