@@ -1,12 +1,12 @@
 # conduit-bridge
 
-**Current version:** `0.2.0` — pre-release
+**Current version:** `0.2.1`
 
-Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts.
+Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex).
 
 No OpenClaw required. Works on any machine with Node.js 20+ and Chromium.
 
-> Part of the [Conduit](https://github.com/elvatis/conduit-vscode) ecosystem — powers the conduit-vscode VS Code extension.
+> Part of the [Conduit](https://github.com/elvatis/conduit-vscode) ecosystem, powers the conduit-vscode VS Code extension.
 
 ---
 
@@ -26,23 +26,49 @@ Grok / Claude / Gemini / ChatGPT
 
 ## Available Models
 
+Web providers use browser session cookies (no API key); API providers require an API key in `~/.conduit/config.json` (`anthropicApiKey`, `googleApiKey`, OAuth via the OpenAI Codex CLI).
+
+### Web (browser-automated)
+
 | Model ID | Provider | Description |
 |---|---|---|
-| `web-grok/grok-3` | Grok | Grok 3 (default) |
-| `web-grok/grok-3-fast` | Grok | Grok 3 Fast |
-| `web-grok/grok-3-mini` | Grok | Grok 3 Mini |
-| `web-grok/grok-2` | Grok | Grok 2 |
-| `web-claude/claude-sonnet` | Claude | Claude Sonnet |
-| `web-claude/claude-opus` | Claude | Claude Opus |
-| `web-claude/claude-haiku` | Claude | Claude Haiku |
-| `web-gemini/gemini-2-5-pro` | Gemini | Gemini 2.5 Pro |
-| `web-gemini/gemini-2-5-flash` | Gemini | Gemini 2.5 Flash |
-| `web-gemini/gemini-3-pro` | Gemini | Gemini 3 Pro |
-| `web-gemini/gemini-3-flash` | Gemini | Gemini 3 Flash |
-| `web-chatgpt/gpt-4o` | ChatGPT | GPT-4o |
-| `web-chatgpt/gpt-o3` | ChatGPT | GPT o3 |
-| `web-chatgpt/gpt-o4-mini` | ChatGPT | GPT o4-mini |
-| `web-chatgpt/gpt-5` | ChatGPT | GPT-5 |
+| `web-grok/grok-expert` | Grok | Grok Expert |
+| `web-grok/grok-fast` | Grok | Grok Fast |
+| `web-grok/grok-heavy` | Grok | Grok Heavy |
+| `web-grok/grok-4.20-beta` | Grok | Grok 4.20 Beta |
+| `web-claude/claude-sonnet` | Claude | Claude Sonnet 4.6 |
+| `web-claude/claude-opus` | Claude | Claude Opus 4.6 |
+| `web-claude/claude-haiku` | Claude | Claude Haiku 4.5 |
+| `web-claude/claude-sonnet-4-5` | Claude | Claude Sonnet 4.5 |
+| `web-claude/claude-opus-4-5` | Claude | Claude Opus 4.5 |
+| `web-gemini/gemini-3-fast` | Gemini | Gemini 3 Fast |
+| `web-gemini/gemini-3-thinking` | Gemini | Gemini 3 Thinking |
+| `web-gemini/gemini-3.1-pro` | Gemini | Gemini 3.1 Pro |
+| `web-chatgpt/gpt-5.4-pro` | ChatGPT | GPT-5.4 Pro |
+| `web-chatgpt/gpt-5.4-thinking` | ChatGPT | GPT-5.4 Thinking |
+| `web-chatgpt/gpt-5.3-instant` | ChatGPT | GPT-5.3 Instant |
+| `web-chatgpt/gpt-5-thinking-mini` | ChatGPT | GPT-5 Thinking Mini |
+| `web-chatgpt/o3` | ChatGPT | o3 |
+
+### API (direct SDK)
+
+| Model ID | Provider | Description |
+|---|---|---|
+| `api-claude/claude-sonnet-4-6` | Claude API | Claude Sonnet 4.6 |
+| `api-claude/claude-opus-4-6` | Claude API | Claude Opus 4.6 |
+| `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
+| `api-claude/claude-sonnet-4-5` | Claude API | Claude Sonnet 4.5 |
+| `api-gemini/gemini-3-fast` | Gemini API | Gemini 3 Fast |
+| `api-gemini/gemini-3-thinking` | Gemini API | Gemini 3 Thinking |
+| `api-gemini/gemini-3.1-pro` | Gemini API | Gemini 3.1 Pro |
+| `api-codex/gpt-5.4-pro` | Codex API | GPT-5.4 Pro |
+| `api-codex/gpt-5.4-thinking` | Codex API | GPT-5.4 Thinking |
+| `api-codex/gpt-5.3-instant` | Codex API | GPT-5.3 Instant |
+| `api-codex/gpt-5-thinking-mini` | Codex API | GPT-5 Thinking Mini |
+| `api-codex/o3` | Codex API | o3 |
+| `api-codex/codex-mini` | Codex API | Codex Mini |
+
+The live model list is always available at `GET /v1/models`.
 
 ---
 
@@ -96,7 +122,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.2.0" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.2.1" }
 ```
 
 ### `GET /v1/models`
@@ -108,7 +134,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "uptime": 3600,
   "providers": [
     {
@@ -173,10 +199,22 @@ const status = await server.registry.getStatus();
 
 ## Changelog
 
-### 0.1.0 — 2026-03-12
+### 0.2.1 - 2026-05-05
+- Security: bump @anthropic-ai/sdk to ^0.91.1 (GHSA-p7fg-763f-g4gf, insecure default file permissions in BetaLocalFilesystemMemoryTool)
+- Security: bump vite (transitive via vitest) to 8.0.5 (GHSA-4w7w-66w2-5vf9 path traversal in .map handling)
+- Bump playwright to ^1.59.1, esbuild to ^0.28.0, @types/node to ^25.6.0
+
+### 0.2.0
+- Added direct API providers: `claude-api`, `gemini-api`, `codex-api`
+- Refreshed web model lineup: Grok Expert/Fast/Heavy/4.20 Beta, Claude 4.5/4.6, Gemini 3.x, GPT-5.x
+- Switched to `tsc --noEmit` typecheck plus esbuild bundling for `dist/`
+- Provider keepalive plus session expiry tracking
+- Hardened URL parsing in proxy router
+
+### 0.1.0 - 2026-03-12
 - Initial release
 - HTTP proxy server with OpenAI-compatible API
-- 4 providers: Grok, Claude, Gemini, ChatGPT (15 models total)
+- 4 web providers: Grok, Claude, Gemini, ChatGPT (15 models total)
 - Persistent browser profiles with automatic session restore
 - CLI: `conduit-bridge start|status|login|config`
 - Library API for embedding in other tools (conduit-vscode)
