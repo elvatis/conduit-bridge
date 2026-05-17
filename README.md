@@ -1,6 +1,6 @@
 # conduit-bridge
 
-**Current version:** `0.2.2`
+**Current version:** `0.2.3`
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex).
 
@@ -122,7 +122,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.2.2" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.2.3" }
 ```
 
 ### `GET /v1/models`
@@ -134,7 +134,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "uptime": 3600,
   "providers": [
     {
@@ -198,6 +198,12 @@ const status = await server.registry.getStatus();
 ---
 
 ## Changelog
+
+### 0.2.3 - 2026-05-17
+- Bump @anthropic-ai/sdk to ^0.95.1
+- Bump openai to ^6.37.0
+- Bump vitest to ^4.1.5 and @types/node to ^25.6.2
+- Closes Dependabot PRs #19, #20, #21, #22
 
 ### 0.2.2 - 2026-05-05
 - Bump @anthropic-ai/sdk to ^0.94.0
