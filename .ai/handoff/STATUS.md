@@ -43,3 +43,6 @@ No OpenClaw dependency. Designed to run locally on the developer's machine.
 | Version | Date | Notes |
 |---|---|---|
 | 0.1.0 | 2026-03-12 | Initial build — server, registry, 4 providers, CLI |
+
+<!-- aahp-gate -->
+_AAHP verify gate: v3.0.2 synced 2026-06-20._

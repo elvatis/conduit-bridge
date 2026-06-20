@@ -2,56 +2,61 @@
   "aahp_version": "3.0",
   "project": "conduit-bridge",
   "last_session": {
-    "agent": "claude-sonnet-4-6",
-    "session_id": "akido-2026-03-12-conduit-v0.1.0",
-    "timestamp": "2026-03-12T11:00:00Z",
-    "commit": "40eae33",
-    "phase": "implementation",
-    "duration_minutes": 45
+    "agent": "cli-tool",
+    "session_id": "cli-1781964463",
+    "timestamp": "2026-06-20T14:07:44Z",
+    "commit": "24183b2",
+    "phase": "fix",
+    "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "updated": "2026-03-12T11:00:00Z",
-      "summary": "v0.1.0 built. 4 providers implemented. No tests yet. Not published to npm."
+      "checksum": "sha256:710368450bb5f16b82b66dae4d1bdd13906512c7c58df6a72520a5f90db80ccf",
+      "updated": "2026-06-20T14:07:41Z",
+      "lines": 48,
+      "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
-      "updated": "2026-03-12T11:00:00Z",
-      "summary": "4 tasks ready: T-003 tests (high), T-005 network intercept (high), T-004 expiry (medium), T-006 npm publish (medium)."
+      "checksum": "sha256:f30acae1f2186b0e0e5de2c51a54f52d451058f88b91c4f9309e6602fc6f5265",
+      "updated": "2026-05-05T16:11:01Z",
+      "lines": 73,
+      "summary": "_Last updated: 2026-03-12_"
     },
     "LOG.md": {
-      "updated": "2026-03-12T11:00:00Z",
-      "summary": "Session 1: initial build. Scaffold + 4 providers + server + CLI + README."
+      "checksum": "sha256:e4cc634168109c771d0d8a39f724ab860fa97e24a7bdf23edb494e9a559816c7",
+      "updated": "2026-05-05T16:11:01Z",
+      "lines": 42,
+      "summary": "_Reverse chronological. Latest session first._"
     },
     "DASHBOARD.md": {
-      "updated": "2026-03-12T11:00:00Z",
-      "summary": "Build ✅ Tests ❌ npm ❌. Next: T-003 tests."
-    },
-    "CONVENTIONS.md": {
-      "updated": "2026-03-12T11:00:00Z",
-      "summary": "TypeScript ESM, provider rules, release checklist, security rules."
-    },
-    "WORKFLOW.md": {
-      "updated": "2026-03-12T11:00:00Z",
-      "summary": "4-phase AAHP pipeline. Sequential browser spawning rule."
+      "checksum": "sha256:13d634d04dd61545ef75f09a9d5ac425fe9f4b7125b3f7714bbd5749907c4c84",
+      "updated": "2026-05-05T16:11:01Z",
+      "lines": 33,
+      "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
     },
     "TRUST.md": {
-      "updated": "2026-03-12T11:00:00Z",
-      "summary": "Build verified. Selectors assumed from cli-bridge. Login flow not yet tested."
+      "checksum": "sha256:868e7c3fadd668f31015e22455dcff0a6071efa14efaa35c2239c19ba5b36693",
+      "updated": "2026-05-05T16:11:01Z",
+      "lines": 26,
+      "summary": "_What has been manually verified vs. assumed._"
+    },
+    "CONVENTIONS.md": {
+      "checksum": "sha256:4ee359ec1055a8c20f249d014ae305c3284e3911827659527ebe077ccb01eef7",
+      "updated": "2026-05-05T16:11:01Z",
+      "lines": 86,
+      "summary": "- TypeScript strict mode, ESM (`\"type\": \"module\"`)"
+    },
+    "WORKFLOW.md": {
+      "checksum": "sha256:648d9d8f35285b0a06eacafc8365d49f47899616139fb0df88e349d1a7a5bd6d",
+      "updated": "2026-05-05T16:11:01Z",
+      "lines": 53,
+      "summary": "(no summary available)"
     }
   },
-  "quick_context": "conduit-bridge v0.1.0 — standalone OpenAI-compatible proxy for Grok/Claude/Gemini/ChatGPT via Playwright. Built as local companion to conduit-vscode. No tests yet. Next: T-003 (tests) then T-005 (network intercept instead of DOM polling) then T-006 (npm publish).",
+  "quick_context": "(no summary available) _Last updated: 2026-03-12_ ",
   "token_budget": {
-    "manifest_only": 80,
-    "manifest_plus_core": 300,
-    "full_read": 700
-  },
-  "next_task_id": 7,
-  "tasks": {
-    "T-001": { "title": "Scaffold project + AAHP handoff", "status": "done", "priority": "high", "completed": "2026-03-12" },
-    "T-002": { "title": "Initial implementation (server, 4 providers, CLI)", "status": "done", "priority": "high", "completed": "2026-03-12" },
-    "T-003": { "title": "Add vitest test suite (server routes, registry, config)", "status": "ready", "priority": "high" },
-    "T-004": { "title": "Session expiry tracking (cookie expiry per provider)", "status": "ready", "priority": "medium" },
-    "T-005": { "title": "Replace DOM polling with network request intercept", "status": "ready", "priority": "high" },
-    "T-006": { "title": "Publish to npm (@elvatis/conduit-bridge)", "status": "ready", "priority": "medium", "depends_on": ["T-003"] }
+    "manifest_only": 85,
+    "manifest_plus_core": 963,
+    "full_read": 2692
   }
 }

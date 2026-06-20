@@ -1,0 +1,47 @@
+# AAHP Verify - the intended REQUIRED status check for the handoff gate.
+#
+# Runs `aahp verify --level ci`, which executes all 4 layers with NO escape
+# hatch (AAHP_SKIP_VERIFY is ignored at --level ci). This is the off-machine,
+# non-bypassable backstop behind the local pre-commit / pre-push hooks:
+#   Layer 1: MANIFEST checksum integrity
+#   Layer 2: content-drift gate (code changed => STATUS.md + MANIFEST.json must change)
+#   Layer 3: commit-pointer freshness
+#   Layer 4: TRUST-TTL expiry (advisory)
+#
+# NOTE: GitHub Actions is currently OFF org-wide (cost sweep). This workflow is
+# committed anyway so it activates automatically when Actions is re-enabled.
+# Once Actions is on, mark this job as a REQUIRED status check in branch
+# protection so the gate cannot be bypassed by skipping local hooks.
+
+name: AAHP Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  aahp-verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Full history so the content-drift gate can diff against the base.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run aahp verify (CI level, no escape hatch)
+        run: bash scripts/verify-handoff.sh . --level ci
