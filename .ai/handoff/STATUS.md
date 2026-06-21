@@ -48,3 +48,5 @@ No OpenClaw dependency. Designed to run locally on the developer's machine.
 _AAHP verify gate: v3.0.2 synced 2026-06-20._
 
 > 2026-06-21 install-hooks.sh: Windows drive-letter path fix propagated from AAHP.
+
+> 2026-06-21 ci: add supply-chain-guard v5.2.35 Action workflow (fail-on critical).

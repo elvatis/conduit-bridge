@@ -1,0 +1,24 @@
+name: Supply Chain Guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scan:
+    name: Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: homeofe/supply-chain-guard@89a0f2c97ff866b939b9adf8709d8b431683d937  # v5.2.35
+        with:
+          fail-on: critical
+          comment-on-pr: true
