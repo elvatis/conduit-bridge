@@ -19,7 +19,17 @@
 set -euo pipefail
 
 PROJECT_ROOT="${1:-.}"
-HANDOFF_DIR="$PROJECT_ROOT/.ai/handoff"
+
+# Path-format-agnostic file access (cross-platform fix).
+# Windows-native Python/Node cannot open an absolute MSYS path like
+# /c/Users/...; open() raises FileNotFoundError, which the 2>/dev/null below
+# silently turns into a bogus "Invalid JSON". Resolving by changing into the
+# project root once and then using RELATIVE paths sidesteps the issue: every
+# tool opens '.ai/handoff/...' relative to the cwd, which works identically on
+# Windows git-bash and Linux CI. cd failure is fatal (clear error).
+cd "$PROJECT_ROOT" || { echo "Error: cannot cd into project root: $PROJECT_ROOT" >&2; exit 1; }
+PROJECT_ROOT="."
+HANDOFF_DIR=".ai/handoff"
 VIOLATIONS=0
 
 RED='\033[0;31m'
@@ -114,11 +124,42 @@ fi
 echo -e "${GREEN}[3/6]${NC} Checking for PII..."
 
 PII_FOUND=0
-# Email check (excluding template/example patterns)
-EMAIL_MATCHES=$(grep -rnP '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$HANDOFF_DIR"/*.md 2>/dev/null \
-    | grep -v 'example\.com' \
-    | grep -v 'placeholder' \
-    | grep -v '\*@\*' \
+# Email check (excluding template/example patterns).
+#
+# Locale-robustness (T-027): the previous implementation used `grep -rnP` (PCRE).
+# On Windows git-bash under an empty or non-UTF-8 locale, GNU grep -P aborts with
+# "grep: -P supports only unibyte and UTF-8 locales" and the pipeline then finds
+# nothing -a silent FALSE PASS. Under the UTF-8 locale that `git commit` sets it
+# works and fires, so the gate was non-deterministic by locale (interactive
+# baseline passed, the commit hook blocked). The pattern is already POSIX-ERE
+# compatible, so we use `grep -E` (ERE has no PCRE locale fail-open) and pin
+# LC_ALL=C.UTF-8 for byte-for-byte identical behaviour on Windows git-bash, the
+# git commit hook, and Linux CI.
+#
+# Exclusions (intentionally narrow -PII stays a HARD-FAIL for genuine external
+# emails):
+#   - example.com / placeholder / *@* template forms
+#   - users.noreply.github.com (GitHub co-author trailers, e.g. Copilot)
+#   - any address whose domain contains ".noreply." (general no-reply form)
+# No real human/customer addresses are whitelisted, and no allowlist file is read.
+#
+# Per-MATCH filtering (T-029): extract each address with grep -o, then exclude per
+# ADDRESS in awk. A line-level grep -v previously dropped the whole matched line, so
+# a genuine external email sharing a line with an excluded token (a noreply trailer,
+# example.com, or the word placeholder) was silently suppressed, a real PII false
+# negative. Filtering each extracted address means an excluded token elsewhere on
+# the same line can no longer mask a separate real address. grep -E (not -P) and the
+# pinned LC_ALL keep detection byte-for-byte identical across locales.
+EMAIL_MATCHES=$(LC_ALL=C.UTF-8 grep -rHnoE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$HANDOFF_DIR"/*.md 2>/dev/null \
+    | awk -F: '
+        {
+            addr = $NF                            # grep -Hno => file:line:address; an address has no colon
+            if (addr ~ /\.noreply\./)       next  # GitHub co-author + any no-reply trailers
+            if (addr ~ /^no-?reply@/)       next  # noreply@ / no-reply@ local-part trailers
+            if (index(addr, "example.com")) next  # template/example domain
+            if (index(addr, "placeholder")) next  # template placeholder address
+            print
+        }' \
     || true)
 
 if [ -n "$EMAIL_MATCHES" ]; then

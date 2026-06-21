@@ -188,7 +188,7 @@ MANIFEST
 
     # Append v3 task fields if they exist
     if [ -n "$NEXT_TASK_ID" ]; then
-        echo "  ,\"next_task_id\": $NEXT_TASK_ID"
+        echo "  ,\"next_task_id\": \"$NEXT_TASK_ID\""
     fi
     if [ -n "$TASKS_JSON" ]; then
         echo "  ,\"tasks\": $TASKS_JSON"
