@@ -41,13 +41,13 @@ HOOKS_DIR=$(git -C "$TARGET" config --get core.hooksPath 2>/dev/null || true)
 if [ -n "$HOOKS_DIR" ]; then
     # core.hooksPath may be relative to the repo root.
     case "$HOOKS_DIR" in
-        /*) : ;;
+        /* | [A-Za-z]:*) : ;;  # POSIX-absolute or Windows drive-letter (C:/...) path
         *) HOOKS_DIR="$TARGET/$HOOKS_DIR" ;;
     esac
 else
     GIT_DIR=$(git -C "$TARGET" rev-parse --git-dir)
     case "$GIT_DIR" in
-        /*) : ;;
+        /* | [A-Za-z]:*) : ;;  # POSIX-absolute or Windows drive-letter (C:/...) path
         *) GIT_DIR="$TARGET/$GIT_DIR" ;;
     esac
     HOOKS_DIR="$GIT_DIR/hooks"
