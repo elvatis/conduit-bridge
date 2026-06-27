@@ -17,7 +17,7 @@ jobs:
     name: Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: homeofe/supply-chain-guard@be1d718b17cc38e4bce7fa48579b7112e557943b  # v5.2.37
         with:
           fail-on: critical
