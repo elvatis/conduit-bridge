@@ -2,6 +2,8 @@
 
 ## Current Version: 0.1.0 (GitHub only — pre-release, not yet on npm)
 
+> 2026-06-29 (claude-opus-4-8): ignore .ai/logs handoff scratch (.gitignore).
+
 ## Architecture Overview
 Standalone OpenAI-compatible HTTP proxy for headless browser AI sessions.
 No OpenClaw dependency. Designed to run locally on the developer's machine.
