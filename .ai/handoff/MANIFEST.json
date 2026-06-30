@@ -3,17 +3,17 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1782716671",
-    "timestamp": "2026-06-29T07:04:32Z",
-    "commit": "6e9204c",
+    "session_id": "cli-1782809436",
+    "timestamp": "2026-06-30T08:50:55Z",
+    "commit": "17dc526",
     "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:6c8d3bd7e4f036c355d7ade915f02ae1fea8b366734afbddb4982e116d35ffb3",
-      "updated": "2026-06-29T07:01:31Z",
-      "lines": 60,
+      "checksum": "sha256:6cb7532a4025313bf4e082bf0608abc1e6e215bfcbfe28ec84ebcb007e724f92",
+      "updated": "2026-06-30T08:36:43Z",
+      "lines": 62,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
@@ -51,12 +51,18 @@
       "updated": "2026-05-05T16:11:01Z",
       "lines": 53,
       "summary": "(no summary available)"
+    },
+    "pii-allowlist.json": {
+      "checksum": "sha256:7c1051f6e2bc3943b7c1dbe4da229694455681b8875a346c99279e555edb733f",
+      "updated": "2026-06-30T08:35:52Z",
+      "lines": 4,
+      "summary": "{"
     }
   },
   "quick_context": "(no summary available) _Last updated: 2026-03-12_ ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1106,
-    "full_read": 2835
+    "manifest_plus_core": 1122,
+    "full_read": 2859
   }
 }

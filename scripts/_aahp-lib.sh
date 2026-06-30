@@ -4,7 +4,7 @@
 
 # Standard AAHP handoff files, in canonical order
 # shellcheck disable=SC2034
-AAHP_HANDOFF_FILES=(STATUS.md NEXT_ACTIONS.md LOG.md DASHBOARD.md TRUST.md CONVENTIONS.md WORKFLOW.md)
+AAHP_HANDOFF_FILES=(STATUS.md NEXT_ACTIONS.md LOG.md DASHBOARD.md TRUST.md CONVENTIONS.md WORKFLOW.md pii-allowlist.json)
 
 # Colors (safe to re-source -same variable names used across scripts)
 # shellcheck disable=SC2034

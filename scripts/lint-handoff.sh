@@ -18,7 +18,12 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=_aahp-lib.sh
+source "$SCRIPT_DIR/_aahp-lib.sh"
+
 PROJECT_ROOT="${1:-.}"
+PYTHON_CMD="$(aahp_python_cmd)"
 
 # Path-format-agnostic file access (cross-platform fix).
 # Windows-native Python/Node cannot open an absolute MSYS path like
@@ -119,74 +124,82 @@ else
     VIOLATIONS=$((VIOLATIONS + SECRET_FOUND))
 fi
 
-# ─── Check 3: PII Patterns ───────────────────────────────────
+# --- Check 3: PII Patterns and Reviewed Allowlist ----------------
 
 echo -e "${GREEN}[3/6]${NC} Checking for PII..."
 
-PII_FOUND=0
-# Email check (excluding template/example patterns).
-#
-# Locale-robustness (T-027): the previous implementation used `grep -rnP` (PCRE).
-# On Windows git-bash under an empty or non-UTF-8 locale, GNU grep -P aborts with
-# "grep: -P supports only unibyte and UTF-8 locales" and the pipeline then finds
-# nothing -a silent FALSE PASS. Under the UTF-8 locale that `git commit` sets it
-# works and fires, so the gate was non-deterministic by locale (interactive
-# baseline passed, the commit hook blocked). The pattern is already POSIX-ERE
-# compatible, so we use `grep -E` (ERE has no PCRE locale fail-open) and pin
-# LC_ALL=C.UTF-8 for byte-for-byte identical behaviour on Windows git-bash, the
-# git commit hook, and Linux CI.
-#
-# Exclusions (intentionally narrow -PII stays a HARD-FAIL for genuine external
-# emails):
-#   - example.com / placeholder / *@* template forms
-#   - users.noreply.github.com (GitHub co-author trailers, e.g. Copilot)
-#   - any address whose domain contains ".noreply." (general no-reply form)
-# No real human/customer addresses are whitelisted, and no allowlist file is read.
-#
-# Per-MATCH filtering (T-029): extract each address with grep -o, then exclude per
-# ADDRESS in awk. A line-level grep -v previously dropped the whole matched line, so
-# a genuine external email sharing a line with an excluded token (a noreply trailer,
-# example.com, or the word placeholder) was silently suppressed, a real PII false
-# negative. Filtering each extracted address means an excluded token elsewhere on
-# the same line can no longer mask a separate real address. grep -E (not -P) and the
-# pinned LC_ALL keep detection byte-for-byte identical across locales.
-EMAIL_MATCHES=$(LC_ALL=C.UTF-8 grep -rHnoE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$HANDOFF_DIR"/*.md 2>/dev/null \
-    | awk -F: '
-        {
-            addr = $NF                            # grep -Hno => file:line:address; an address has no colon
-            if (addr ~ /\.noreply\./)       next  # GitHub co-author + any no-reply trailers
-            if (addr ~ /^no-?reply@/)       next  # noreply@ / no-reply@ local-part trailers
-            if (index(addr, "example.com")) next  # template/example domain
-            if (index(addr, "placeholder")) next  # template placeholder address
-            print
-        }' \
-    || true)
-
-if [ -n "$EMAIL_MATCHES" ]; then
-    echo -e "  ${YELLOW}⚠ Possible email addresses found:${NC}"
-    echo "    $EMAIL_MATCHES"
-    PII_FOUND=$((PII_FOUND + 1))
+ALLOWLIST_FILE="$HANDOFF_DIR/pii-allowlist.json"
+ALLOWLIST_ENTRIES=""
+if [ -f "$ALLOWLIST_FILE" ]; then
+    if [ -z "$PYTHON_CMD" ]; then
+        echo -e "  ${RED}x PII allowlist exists but Python is unavailable for validation.${NC}"
+        VIOLATIONS=$((VIOLATIONS + 1))
+    else
+        ALLOWLIST_ERR="$(mktemp)"
+        if ALLOWLIST_ENTRIES=$("$PYTHON_CMD" "$SCRIPT_DIR/validate-pii-allowlist.py" "$ALLOWLIST_FILE" --format tsv 2>"$ALLOWLIST_ERR"); then
+            echo -e "  ${GREEN}OK Valid PII allowlist.${NC}"
+        else
+            ALLOWLIST_MESSAGE="$ALLOWLIST_ENTRIES"
+            if [ -s "$ALLOWLIST_ERR" ]; then
+                ALLOWLIST_MESSAGE="${ALLOWLIST_MESSAGE}${ALLOWLIST_MESSAGE:+$'\n'}$(cat "$ALLOWLIST_ERR")"
+            fi
+            echo -e "  ${RED}x $ALLOWLIST_MESSAGE${NC}"
+            ALLOWLIST_ENTRIES=""
+            VIOLATIONS=$((VIOLATIONS + 1))
+        fi
+        rm -f "$ALLOWLIST_ERR"
+    fi
+else
+    echo -e "  ${GREEN}OK No PII allowlist configured.${NC}"
 fi
 
-if [ "$PII_FOUND" -eq 0 ]; then
-    echo -e "  ${GREEN}✓ No PII detected.${NC}"
+if [ -f "$ALLOWLIST_FILE" ] && [ -f "$HANDOFF_DIR/MANIFEST.json" ]; then
+    if [ -z "$PYTHON_CMD" ] || ! EXPECTED_CHECKSUM=$("$PYTHON_CMD" - "$HANDOFF_DIR/MANIFEST.json" <<'PY'
+import json, sys
+entry = json.load(open(sys.argv[1], encoding="utf-8")).get("files", {}).get("pii-allowlist.json")
+if not isinstance(entry, dict) or not isinstance(entry.get("checksum"), str):
+    raise SystemExit(1)
+print(entry["checksum"])
+PY
+); then
+        echo -e "  ${RED}x pii-allowlist.json is not indexed by MANIFEST.json. Run /handoff.${NC}"
+        VIOLATIONS=$((VIOLATIONS + 1))
+    elif [ "$EXPECTED_CHECKSUM" != "$(aahp_checksum "$ALLOWLIST_FILE")" ]; then
+        echo -e "  ${RED}x pii-allowlist.json checksum does not match MANIFEST.json. Run /handoff.${NC}"
+        VIOLATIONS=$((VIOLATIONS + 1))
+    fi
+fi
+
+EMAIL_MATCHES=$(LC_ALL=C.UTF-8 grep -rHnoE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$HANDOFF_DIR"/*.md 2>/dev/null | awk -F: '{ addr=$NF; if (addr ~ /\.noreply\./ || addr ~ /^no-?reply@/ || index(addr,"example.com") || index(addr,"placeholder")) next; print }' || true)
+UNAPPROVED=""
+if [ -n "$EMAIL_MATCHES" ]; then
+    while IFS= read -r match; do
+        address="${match##*:}"
+        allowed=0
+        while IFS=$'\t' read -r value owner expires reason; do
+            [ -z "$value" ] && continue
+            if [ "$address" = "$value" ]; then
+                echo -e "  ${GREEN}OK Allowed PII email '$address' via pii-allowlist.json (owner: $owner, expires: $expires).${NC}"
+                allowed=1
+                break
+            fi
+        done <<< "$ALLOWLIST_ENTRIES"
+        [ "$allowed" -eq 1 ] || UNAPPROVED="${UNAPPROVED}${UNAPPROVED:+$'\n'}$match"
+    done <<< "$EMAIL_MATCHES"
+fi
+if [ -n "$UNAPPROVED" ]; then
+    echo -e "  ${YELLOW}Possible email addresses found:${NC}"
+    echo "    $UNAPPROVED"
+    VIOLATIONS=$((VIOLATIONS + 1))
 else
-    VIOLATIONS=$((VIOLATIONS + PII_FOUND))
+    echo -e "  ${GREEN}OK No unapproved PII detected.${NC}"
 fi
 
 # ─── Check 4: MANIFEST.json Basic Validation ─────────────────
 
 echo -e "${GREEN}[4/6]${NC} Validating MANIFEST.json..."
 
-# Detect Python command (python3 on Linux/macOS, python on Windows)
-# Note: Windows has a python3 Store alias that passes `command -v` but doesn't work,
-# so we verify with an actual invocation.
-PYTHON_CMD=""
-if python3 -c "pass" &>/dev/null 2>&1; then
-    PYTHON_CMD="python3"
-elif python -c "pass" &>/dev/null 2>&1; then
-    PYTHON_CMD="python"
-fi
+# Python command was detected before the PII allowlist check.
 
 if [ -f "$HANDOFF_DIR/MANIFEST.json" ]; then
     if [ -z "$PYTHON_CMD" ]; then

@@ -58,3 +58,5 @@ _AAHP verify gate: v3.0.2 synced 2026-06-20._
 > 2026-06-27 ci: re-pin supply-chain-guard action to v5.2.37 (be1d718b17cc38e4bce7fa48579b7112e557943b) and enable Dependabot github-actions weekly updates.
 
 > 2026-06-27 chore(aahp): full AAHP gate onboarding. Added the AAHP Verify badge to README and refreshed the handoff manifest so the commit-pointer tracks HEAD; the prior #37 supply-chain-guard commit had left the manifest dormant at d425433. Toolchain scripts (aahp-manifest.sh, verify-handoff.sh, _aahp-lib.sh, lint-handoff.sh) and the aahp-verify.yml workflow were already present and self-consistent, so they were left untouched.
+
+> 2026-06-30 feat(verify): added reviewed expiring PII allowlist, rolled out from AAHP v3.2.0.
