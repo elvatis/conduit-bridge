@@ -8,6 +8,12 @@
 #   Layer 3: commit-pointer freshness
 #   Layer 4: TRUST-TTL expiry (advisory)
 #
+# Dependabot exemption: a pure dependency bump introduces no handoff-state change,
+# so the AAHP handoff gate does not apply to it. The job stays a REQUIRED check but
+# no-ops to success when the change originates from dependabot[bot] - on both the PR
+# (github.actor) and the resulting push to main (head_commit.author). Security and
+# build remain gated by the supply-chain-guard and CodeQL checks, which still run.
+#
 # NOTE: GitHub Actions is currently OFF org-wide (cost sweep). This workflow is
 # committed anyway so it activates automatically when Actions is re-enabled.
 # Once Actions is on, mark this job as a REQUIRED status check in branch
@@ -27,21 +33,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Dependabot exemption (handoff gate not applicable)
+        if: ${{ github.actor == 'dependabot[bot]' || github.event.head_commit.author.username == 'dependabot[bot]' }}
+        run: |
+          echo "Dependabot change detected: the AAHP handoff gate does not apply."
+          echo "A pure dependency bump introduces no handoff-state change."
+          echo "Security and build remain gated by the supply-chain-guard and CodeQL checks."
+
       - name: Checkout code
+        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         uses: actions/checkout@v4
         with:
           # Full history so the content-drift gate can diff against the base.
           fetch-depth: 0
 
       - name: Set up Node.js
+        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Set up Python 3
+        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Run aahp verify (CI level, no escape hatch)
+        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         run: bash scripts/verify-handoff.sh . --level ci
