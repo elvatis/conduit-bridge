@@ -19,9 +19,13 @@ export class ClaudeProvider extends BaseProvider {
   readonly loginUrl = 'https://claude.ai/new';
   readonly verifySelector = '.ProseMirror';
 
+  // The generic ids track whatever claude.ai currently serves for that tier.
+  // NOTE: the web provider does not switch the model in the browser UI; every
+  // web-claude id routes to the account's active claude.ai model. These labels
+  // are advisory (what claude.ai serves today), not per-id model selection.
   readonly models: ModelDefinition[] = [
-    { id: 'web-claude/claude-opus',        provider: 'claude', displayName: 'Claude Opus 4.6',   owned_by: 'anthropic' },
-    { id: 'web-claude/claude-sonnet',      provider: 'claude', displayName: 'Claude Sonnet 4.6', owned_by: 'anthropic' },
+    { id: 'web-claude/claude-opus',        provider: 'claude', displayName: 'Claude Opus 4.8',   owned_by: 'anthropic' },
+    { id: 'web-claude/claude-sonnet',      provider: 'claude', displayName: 'Claude Sonnet 5',   owned_by: 'anthropic' },
     { id: 'web-claude/claude-haiku',       provider: 'claude', displayName: 'Claude Haiku 4.5',  owned_by: 'anthropic' },
     { id: 'web-claude/claude-opus-4-5',    provider: 'claude', displayName: 'Claude Opus 4.5',   owned_by: 'anthropic' },
     { id: 'web-claude/claude-sonnet-4-5',  provider: 'claude', displayName: 'Claude Sonnet 4.5', owned_by: 'anthropic' },

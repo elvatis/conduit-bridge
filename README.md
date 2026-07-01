@@ -38,8 +38,8 @@ Web providers use browser session cookies (no API key); API providers require an
 | `web-grok/grok-fast` | Grok | Grok Fast |
 | `web-grok/grok-heavy` | Grok | Grok Heavy |
 | `web-grok/grok-4.20-beta` | Grok | Grok 4.20 Beta |
-| `web-claude/claude-sonnet` | Claude | Claude Sonnet 4.6 |
-| `web-claude/claude-opus` | Claude | Claude Opus 4.6 |
+| `web-claude/claude-opus` | Claude | Claude Opus 4.8 |
+| `web-claude/claude-sonnet` | Claude | Claude Sonnet 5 |
 | `web-claude/claude-haiku` | Claude | Claude Haiku 4.5 |
 | `web-claude/claude-sonnet-4-5` | Claude | Claude Sonnet 4.5 |
 | `web-claude/claude-opus-4-5` | Claude | Claude Opus 4.5 |
@@ -56,8 +56,10 @@ Web providers use browser session cookies (no API key); API providers require an
 
 | Model ID | Provider | Description |
 |---|---|---|
-| `api-claude/claude-sonnet-4-6` | Claude API | Claude Sonnet 4.6 |
+| `api-claude/claude-opus-4-8` | Claude API | Claude Opus 4.8 |
+| `api-claude/claude-sonnet-5` | Claude API | Claude Sonnet 5 |
 | `api-claude/claude-opus-4-6` | Claude API | Claude Opus 4.6 |
+| `api-claude/claude-sonnet-4-6` | Claude API | Claude Sonnet 4.6 |
 | `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
 | `api-claude/claude-sonnet-4-5` | Claude API | Claude Sonnet 4.5 |
 | `api-gemini/gemini-3-fast` | Gemini API | Gemini 3 Fast |
@@ -200,6 +202,11 @@ const status = await server.registry.getStatus();
 ---
 
 ## Changelog
+
+### 0.2.4 - 2026-07-01
+- Add Claude Opus 4.8 (`api-claude/claude-opus-4-8`) and Claude Sonnet 5 (`api-claude/claude-sonnet-5`) to the Claude API provider
+- Refresh the web Claude labels to the current claude.ai tiers (Opus 4.8, Sonnet 5)
+- Fix stale Claude API model strings: `claude-sonnet-4-6`, `claude-opus-4-6`, and `claude-sonnet-4-5` were mapped to non-existent date-suffixed snapshots (would 404); now use the bare aliases
 
 ### 0.2.3 - 2026-05-17
 - Bump @anthropic-ai/sdk to ^0.95.1
