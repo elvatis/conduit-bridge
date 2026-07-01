@@ -9,10 +9,13 @@ export class GeminiProvider extends BaseProvider {
   readonly loginUrl = 'https://gemini.google.com/app';
   readonly verifySelector = '.ql-editor, [contenteditable="true"], rich-textarea, .input-area textarea, .text-input-field';
 
+  // gemini.google.com now defaults to Gemini 3.5 Flash (Google I/O 2026), with
+  // 3.5 Pro and the older 3.1 Pro also selectable. Web selection is a no-op in
+  // this provider, so these labels are advisory.
   readonly models: ModelDefinition[] = [
-    { id: 'web-gemini/gemini-3-fast',     provider: 'gemini', displayName: 'Gemini 3 Fast',     owned_by: 'google' },
-    { id: 'web-gemini/gemini-3-thinking', provider: 'gemini', displayName: 'Gemini 3 Thinking', owned_by: 'google' },
-    { id: 'web-gemini/gemini-3.1-pro',   provider: 'gemini', displayName: 'Gemini 3.1 Pro',    owned_by: 'google' },
+    { id: 'web-gemini/gemini-3.5-flash', provider: 'gemini', displayName: 'Gemini 3.5 Flash', owned_by: 'google' },
+    { id: 'web-gemini/gemini-3.5-pro',   provider: 'gemini', displayName: 'Gemini 3.5 Pro',   owned_by: 'google' },
+    { id: 'web-gemini/gemini-3.1-pro',   provider: 'gemini', displayName: 'Gemini 3.1 Pro',   owned_by: 'google' },
   ];
 
   private _patchedCtx: BrowserContext | null = null;

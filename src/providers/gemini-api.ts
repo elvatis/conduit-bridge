@@ -2,19 +2,23 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
 
+// Model IDs verified against ai.google.dev/gemini-api/docs/models (2026-07-01).
+// The previous map pointed at gemini-3.0-flash / gemini-3.0-thinking, which are
+// not real Gemini API IDs (Google uses gemini-3.5-flash; "thinking" is a
+// request-time config, not a model ID). gemini-3.1-pro is listed as a preview.
 const MODEL_MAP: Record<string, string> = {
-  'api-gemini/gemini-3-fast':        'gemini-3.0-flash',
-  'api-gemini/gemini-3-thinking':    'gemini-3.0-thinking',
-  'api-gemini/gemini-3.1-pro':       'gemini-3.1-pro',
+  'api-gemini/gemini-3.5-flash':      'gemini-3.5-flash',
+  'api-gemini/gemini-3.1-flash-lite': 'gemini-3.1-flash-lite',
+  'api-gemini/gemini-3.1-pro':        'gemini-3.1-pro-preview',
 };
 
 export class GeminiApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'gemini-api';
 
   readonly models: ModelDefinition[] = [
-    { id: 'api-gemini/gemini-3-fast',      provider: 'gemini-api', displayName: 'Gemini 3 Fast (API)',      owned_by: 'google' },
-    { id: 'api-gemini/gemini-3-thinking',   provider: 'gemini-api', displayName: 'Gemini 3 Thinking (API)',  owned_by: 'google' },
-    { id: 'api-gemini/gemini-3.1-pro',      provider: 'gemini-api', displayName: 'Gemini 3.1 Pro (API)',     owned_by: 'google' },
+    { id: 'api-gemini/gemini-3.5-flash',      provider: 'gemini-api', displayName: 'Gemini 3.5 Flash (API)',      owned_by: 'google' },
+    { id: 'api-gemini/gemini-3.1-flash-lite', provider: 'gemini-api', displayName: 'Gemini 3.1 Flash-Lite (API)', owned_by: 'google' },
+    { id: 'api-gemini/gemini-3.1-pro',        provider: 'gemini-api', displayName: 'Gemini 3.1 Pro (API)',        owned_by: 'google' },
   ];
 
   private _client(): GoogleGenerativeAI {

@@ -34,23 +34,21 @@ Web providers use browser session cookies (no API key); API providers require an
 
 | Model ID | Provider | Description |
 |---|---|---|
-| `web-grok/grok-expert` | Grok | Grok Expert |
 | `web-grok/grok-fast` | Grok | Grok Fast |
+| `web-grok/grok-expert` | Grok | Grok Expert |
 | `web-grok/grok-heavy` | Grok | Grok Heavy |
-| `web-grok/grok-4.20-beta` | Grok | Grok 4.20 Beta |
+| `web-grok/grok-auto` | Grok | Grok Auto |
 | `web-claude/claude-opus` | Claude | Claude Opus 4.8 |
 | `web-claude/claude-sonnet` | Claude | Claude Sonnet 5 |
 | `web-claude/claude-haiku` | Claude | Claude Haiku 4.5 |
 | `web-claude/claude-sonnet-4-5` | Claude | Claude Sonnet 4.5 |
 | `web-claude/claude-opus-4-5` | Claude | Claude Opus 4.5 |
-| `web-gemini/gemini-3-fast` | Gemini | Gemini 3 Fast |
-| `web-gemini/gemini-3-thinking` | Gemini | Gemini 3 Thinking |
+| `web-gemini/gemini-3.5-flash` | Gemini | Gemini 3.5 Flash |
+| `web-gemini/gemini-3.5-pro` | Gemini | Gemini 3.5 Pro |
 | `web-gemini/gemini-3.1-pro` | Gemini | Gemini 3.1 Pro |
-| `web-chatgpt/gpt-5.4-pro` | ChatGPT | GPT-5.4 Pro |
-| `web-chatgpt/gpt-5.4-thinking` | ChatGPT | GPT-5.4 Thinking |
-| `web-chatgpt/gpt-5.3-instant` | ChatGPT | GPT-5.3 Instant |
-| `web-chatgpt/gpt-5-thinking-mini` | ChatGPT | GPT-5 Thinking Mini |
-| `web-chatgpt/o3` | ChatGPT | o3 |
+| `web-chatgpt/gpt-5.5-instant` | ChatGPT | GPT-5.5 Instant |
+| `web-chatgpt/gpt-5.5-thinking` | ChatGPT | GPT-5.5 Thinking |
+| `web-chatgpt/gpt-5.5-pro` | ChatGPT | GPT-5.5 Pro |
 
 ### API (direct SDK)
 
@@ -64,15 +62,14 @@ Web providers use browser session cookies (no API key); API providers require an
 | `api-claude/claude-sonnet-4-6` | Claude API | Claude Sonnet 4.6 |
 | `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
 | `api-claude/claude-sonnet-4-5` | Claude API | Claude Sonnet 4.5 |
-| `api-gemini/gemini-3-fast` | Gemini API | Gemini 3 Fast |
-| `api-gemini/gemini-3-thinking` | Gemini API | Gemini 3 Thinking |
+| `api-gemini/gemini-3.5-flash` | Gemini API | Gemini 3.5 Flash |
+| `api-gemini/gemini-3.1-flash-lite` | Gemini API | Gemini 3.1 Flash-Lite |
 | `api-gemini/gemini-3.1-pro` | Gemini API | Gemini 3.1 Pro |
+| `api-codex/gpt-5.5` | Codex API | GPT-5.5 |
+| `api-codex/gpt-5.5-pro` | Codex API | GPT-5.5 Pro |
+| `api-codex/gpt-5.4` | Codex API | GPT-5.4 |
+| `api-codex/gpt-5.4-mini` | Codex API | GPT-5.4 mini |
 | `api-codex/gpt-5.4-pro` | Codex API | GPT-5.4 Pro |
-| `api-codex/gpt-5.4-thinking` | Codex API | GPT-5.4 Thinking |
-| `api-codex/gpt-5.3-instant` | Codex API | GPT-5.3 Instant |
-| `api-codex/gpt-5-thinking-mini` | Codex API | GPT-5 Thinking Mini |
-| `api-codex/o3` | Codex API | o3 |
-| `api-codex/codex-mini` | Codex API | Codex Mini |
 
 The live model list is always available at `GET /v1/models`.
 
@@ -204,6 +201,13 @@ const status = await server.registry.getStatus();
 ---
 
 ## Changelog
+
+### 0.2.6 - 2026-07-01
+- Refresh the non-Claude providers to their mid-2026 lineups (model IDs verified against official vendor docs on 2026-07-01):
+  - Gemini API: add `gemini-3.5-flash` (GA) and `gemini-3.1-flash-lite`; drop the fabricated `gemini-3.0-flash` / `gemini-3.0-thinking` IDs (not real Gemini API models); point `gemini-3.1-pro` at `gemini-3.1-pro-preview`
+  - OpenAI/Codex API: add `gpt-5.5` and `gpt-5.5-pro` (GA); drop `codex-mini` (removed from the API 2026-02-12), `o3`, and the `-thinking`/`-instant` names that are ChatGPT effort labels rather than API model IDs
+  - Web labels refreshed: Grok Fast/Expert/Heavy/Auto, Gemini 3.5 Flash / 3.5 Pro, ChatGPT GPT-5.5 Instant/Thinking/Pro
+- Web selection remains advisory (the browser providers do not switch the model in the UI)
 
 ### 0.2.5 - 2026-07-01
 - Add Claude Fable 5 (`api-claude/claude-fable-5`) and Claude Opus 4.7 (`api-claude/claude-opus-4-7`) to the Claude API provider
