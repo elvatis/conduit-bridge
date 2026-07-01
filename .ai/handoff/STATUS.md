@@ -1,9 +1,10 @@
 # STATUS — conduit-bridge
 
-## Current Version: 0.1.0 (GitHub only — pre-release, not yet on npm)
+## Current Version: 0.2.5 (published to npm on GitHub Release)
 
 > 2026-06-29 (claude-opus-4-8): ignore .ai/logs handoff scratch (.gitignore).
 > 2026-07-01 (claude-opus-4-8): add Claude Opus 4.8 + Sonnet 5 to the web and API Claude providers; fix stale claude-api model strings (4.6/4.5 were mapped to non-existent -20250514 snapshots that would 404, now bare aliases); README + changelog; v0.2.4.
+> 2026-07-01 (claude-opus-4-8): add Claude Fable 5 + Opus 4.7 to the claude-api provider (API-only; web selection is a no-op so per-version web labels are not added); v0.2.5. Note: SDK 0.98.0 has no server-side `fallbacks` support, so Fable 5 is added plain (no refusal fallback). vite/esbuild Dependabot alerts were already patched in the lockfile (npm audit 0).
 
 ## Architecture Overview
 Standalone OpenAI-compatible HTTP proxy for headless browser AI sessions.

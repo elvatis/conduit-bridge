@@ -6,8 +6,10 @@ import { ApiBaseProvider } from './api-base.js';
 // Use the bare aliases (never date-suffixed): the aliases are complete as-is
 // and always resolve to the current snapshot. Do not append a date suffix.
 const MODEL_MAP: Record<string, string> = {
+  'api-claude/claude-fable-5':     'claude-fable-5',
   'api-claude/claude-opus-4-8':    'claude-opus-4-8',
   'api-claude/claude-sonnet-5':    'claude-sonnet-5',
+  'api-claude/claude-opus-4-7':    'claude-opus-4-7',
   'api-claude/claude-opus-4-6':    'claude-opus-4-6',
   'api-claude/claude-sonnet-4-6':  'claude-sonnet-4-6',
   'api-claude/claude-haiku-4-5':   'claude-haiku-4-5',
@@ -17,8 +19,10 @@ const MODEL_MAP: Record<string, string> = {
 // Default max output tokens per model (used when client doesn't specify)
 // Sources: platform.claude.com/docs/en/about-claude/models/overview (July 2026)
 const DEFAULT_MAX_TOKENS: Record<string, number> = {
+  'api-claude/claude-fable-5':     64_000,
   'api-claude/claude-opus-4-8':    128_000,
   'api-claude/claude-sonnet-5':    64_000,
+  'api-claude/claude-opus-4-7':    128_000,
   'api-claude/claude-opus-4-6':    128_000,
   'api-claude/claude-sonnet-4-6':  64_000,
   'api-claude/claude-haiku-4-5':   64_000,
@@ -29,8 +33,10 @@ export class ClaudeApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'claude-api';
 
   readonly models: ModelDefinition[] = [
+    { id: 'api-claude/claude-fable-5',     provider: 'claude-api', displayName: 'Claude Fable 5 (API)',     owned_by: 'anthropic' },
     { id: 'api-claude/claude-opus-4-8',    provider: 'claude-api', displayName: 'Claude Opus 4.8 (API)',    owned_by: 'anthropic' },
     { id: 'api-claude/claude-sonnet-5',    provider: 'claude-api', displayName: 'Claude Sonnet 5 (API)',    owned_by: 'anthropic' },
+    { id: 'api-claude/claude-opus-4-7',    provider: 'claude-api', displayName: 'Claude Opus 4.7 (API)',    owned_by: 'anthropic' },
     { id: 'api-claude/claude-opus-4-6',    provider: 'claude-api', displayName: 'Claude Opus 4.6 (API)',    owned_by: 'anthropic' },
     { id: 'api-claude/claude-sonnet-4-6',  provider: 'claude-api', displayName: 'Claude Sonnet 4.6 (API)',  owned_by: 'anthropic' },
     { id: 'api-claude/claude-haiku-4-5',   provider: 'claude-api', displayName: 'Claude Haiku 4.5 (API)',   owned_by: 'anthropic' },

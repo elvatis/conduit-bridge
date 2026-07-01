@@ -3,17 +3,17 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1782932848",
-    "timestamp": "2026-07-01T19:07:28Z",
-    "commit": "d1e72d2",
+    "session_id": "cli-1782933746",
+    "timestamp": "2026-07-01T19:22:27Z",
+    "commit": "6d94188",
     "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:cf4f1b298bf49d7f2e5136a1bf7b67bd52539ffe6b38510d5f5694977bbe8f9d",
-      "updated": "2026-07-01T19:07:17Z",
-      "lines": 65,
+      "checksum": "sha256:a70f085db9172d98bc3c40787b02ff7875c58c3029ed2e1c53a87b0615e68918",
+      "updated": "2026-07-01T19:22:12Z",
+      "lines": 66,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
@@ -62,7 +62,7 @@
   "quick_context": "(no summary available) _Last updated: 2026-03-12_ ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1189,
-    "full_read": 2926
+    "manifest_plus_core": 1260,
+    "full_read": 2997
   }
 }
