@@ -56,8 +56,10 @@ Web providers use browser session cookies (no API key); API providers require an
 
 | Model ID | Provider | Description |
 |---|---|---|
+| `api-claude/claude-fable-5` | Claude API | Claude Fable 5 |
 | `api-claude/claude-opus-4-8` | Claude API | Claude Opus 4.8 |
 | `api-claude/claude-sonnet-5` | Claude API | Claude Sonnet 5 |
+| `api-claude/claude-opus-4-7` | Claude API | Claude Opus 4.7 |
 | `api-claude/claude-opus-4-6` | Claude API | Claude Opus 4.6 |
 | `api-claude/claude-sonnet-4-6` | Claude API | Claude Sonnet 4.6 |
 | `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
@@ -202,6 +204,9 @@ const status = await server.registry.getStatus();
 ---
 
 ## Changelog
+
+### 0.2.5 - 2026-07-01
+- Add Claude Fable 5 (`api-claude/claude-fable-5`) and Claude Opus 4.7 (`api-claude/claude-opus-4-7`) to the Claude API provider
 
 ### 0.2.4 - 2026-07-01
 - Add Claude Opus 4.8 (`api-claude/claude-opus-4-8`) and Claude Sonnet 5 (`api-claude/claude-sonnet-5`) to the Claude API provider
