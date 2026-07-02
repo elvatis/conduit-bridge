@@ -27,7 +27,7 @@
     "playwright": "^1.61.1"
   },
   "devDependencies": {
-    "@types/node": "^25.8.0",
+    "@types/node": "^26.1.0",
     "esbuild": "^0.28.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
