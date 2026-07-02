@@ -9,12 +9,13 @@ export class ChatGPTProvider extends BaseProvider {
   readonly loginUrl = 'https://chatgpt.com';
   readonly verifySelector = '#prompt-textarea, [contenteditable="true"]';
 
+  // The ChatGPT picker is now GPT-5.5-family effort tiers (Instant / Thinking /
+  // Pro), having retired the o3 and 5.4/5.3 names. Web selection is a no-op in
+  // this provider, so these labels are advisory.
   readonly models: ModelDefinition[] = [
-    { id: 'web-chatgpt/gpt-5.4-pro',       provider: 'chatgpt', displayName: 'GPT-5.4 Pro',       owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-5.4-thinking',  provider: 'chatgpt', displayName: 'GPT-5.4 Thinking',  owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-5.3-instant',   provider: 'chatgpt', displayName: 'GPT-5.3 Instant',   owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-5-thinking-mini', provider: 'chatgpt', displayName: 'GPT-5 Thinking Mini', owned_by: 'openai' },
-    { id: 'web-chatgpt/o3',                provider: 'chatgpt', displayName: 'o3',                 owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5.5-instant',   provider: 'chatgpt', displayName: 'GPT-5.5 Instant',   owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5.5-thinking',  provider: 'chatgpt', displayName: 'GPT-5.5 Thinking',  owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5.5-pro',       provider: 'chatgpt', displayName: 'GPT-5.5 Pro',       owned_by: 'openai' },
   ];
 
   private _patchedCtx: BrowserContext | null = null;
