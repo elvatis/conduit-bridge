@@ -21,7 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.98.0",
+    "@anthropic-ai/sdk": "^0.111.0",
     "@google/generative-ai": "^0.24.1",
     "openai": "^6.39.0",
     "playwright": "^1.61.1"
