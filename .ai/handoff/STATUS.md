@@ -1,3 +1,5 @@
+> Note (2026-07-14, claude-opus-4-8): Synced the canonical Layer 3 tolerance fix from homeofe/improvements. verify-handoff.sh now downgrades a non-ancestor MANIFEST.last_session.commit from FAIL to WARN so a squash-merge or rebase-merge no longer trips AAHP Verify Layer 3 on main; Layers 1-2 still gate real staleness.
+
 # STATUS — conduit-bridge
 
 ## Current Version: 0.2.6 (published to npm on GitHub Release)
