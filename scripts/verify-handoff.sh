@@ -82,7 +82,16 @@ case "$LEVEL" in
         ;;
 esac
 
-HANDOFF_DIR="$PROJECT_ROOT/.ai/handoff"
+# Path-format-agnostic file access (cross-platform fix).
+# Windows-native Python/Node cannot open an absolute MSYS path like
+# /c/Users/...; helpers that read MANIFEST.json (aahp_manifest_field) would
+# fail. Change into the project root once, then drive everything off RELATIVE
+# paths (lint-handoff.sh ".", git -C ".", '.ai/handoff/...'); these resolve
+# identically on Windows git-bash and Linux CI. SCRIPT_DIR was already resolved
+# above against $0, so sourcing/exec of sibling scripts is unaffected by the cd.
+cd "$PROJECT_ROOT" || { echo -e "${RED}Error: cannot cd into project root: $PROJECT_ROOT${NC}" >&2; exit 1; }
+PROJECT_ROOT="."
+HANDOFF_DIR=".ai/handoff"
 
 if [ ! -d "$HANDOFF_DIR" ]; then
     echo -e "${RED}Error: $HANDOFF_DIR not found.${NC}" >&2

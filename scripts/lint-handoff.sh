@@ -37,6 +37,18 @@ PROJECT_ROOT="."
 HANDOFF_DIR=".ai/handoff"
 VIOLATIONS=0
 
+# Resolve validate-pii-allowlist.py as a path RELATIVE to the (post-cd) cwd, so
+# native-Windows python is handed a relative path rather than an absolute MSYS
+# one. An absolute /c/Users/... path intermittently fails MSYS->Windows argv
+# conversion and surfaces as a mangled "C:\c\Users\...: can't open file"
+# artifact (a false Check-3 failure). realpath --relative-to is coreutils
+# (present on git-bash and Linux CI); where it is unavailable (e.g. BSD realpath
+# on macOS) we keep the absolute path, which opens fine there.
+PII_VALIDATOR="$SCRIPT_DIR/validate-pii-allowlist.py"
+if PII_VALIDATOR_REL="$(realpath --relative-to="$PWD" "$SCRIPT_DIR/validate-pii-allowlist.py" 2>/dev/null)"; then
+    PII_VALIDATOR="$PII_VALIDATOR_REL"
+fi
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -136,7 +148,7 @@ if [ -f "$ALLOWLIST_FILE" ]; then
         VIOLATIONS=$((VIOLATIONS + 1))
     else
         ALLOWLIST_ERR="$(mktemp)"
-        if ALLOWLIST_ENTRIES=$("$PYTHON_CMD" "$SCRIPT_DIR/validate-pii-allowlist.py" "$ALLOWLIST_FILE" --format tsv 2>"$ALLOWLIST_ERR"); then
+        if ALLOWLIST_ENTRIES=$("$PYTHON_CMD" "$PII_VALIDATOR" "$ALLOWLIST_FILE" --format tsv 2>"$ALLOWLIST_ERR"); then
             echo -e "  ${GREEN}OK Valid PII allowlist.${NC}"
         else
             ALLOWLIST_MESSAGE="$ALLOWLIST_ENTRIES"
@@ -170,13 +182,21 @@ PY
     fi
 fi
 
+# Locale-robustness (T-027): use grep -E (POSIX ERE), never grep -P (PCRE). GNU
+# grep -P aborts under a non-UTF-8 locale ("supports only unibyte and UTF-8
+# locales") and the pipeline then finds nothing, a silent FALSE PASS that made
+# the gate non-deterministic by locale. LC_ALL=C.UTF-8 pins byte-for-byte
+# identical detection across Windows git-bash, the commit hook, and Linux CI.
+# Per-MATCH filtering (T-029): grep -o extracts each address, awk excludes per
+# ADDRESS (not per line), so an excluded token (noreply / example.com /
+# placeholder) elsewhere on the same line can no longer mask a real address.
 EMAIL_MATCHES=$(LC_ALL=C.UTF-8 grep -rHnoE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$HANDOFF_DIR"/*.md 2>/dev/null | awk -F: '{ addr=$NF; if (addr ~ /\.noreply\./ || addr ~ /^no-?reply@/ || index(addr,"example.com") || index(addr,"placeholder")) next; print }' || true)
 UNAPPROVED=""
 if [ -n "$EMAIL_MATCHES" ]; then
     while IFS= read -r match; do
         address="${match##*:}"
         allowed=0
-        while IFS=$'\t' read -r value owner expires reason; do
+        while IFS=$'\t' read -r value owner expires _; do
             [ -z "$value" ] && continue
             if [ "$address" = "$value" ]; then
                 echo -e "  ${GREEN}OK Allowed PII email '$address' via pii-allowlist.json (owner: $owner, expires: $expires).${NC}"
