@@ -231,8 +231,7 @@ if [ "$LEVEL" != "precommit" ]; then
             # Layer 2 already enforced that. Here we just inform.
             log_warn "MANIFEST commit ($MANIFEST_COMMIT) is behind HEAD ($HEAD_SHORT). Run /handoff if code changed."
         else
-            log_fail "MANIFEST commit ($MANIFEST_COMMIT) is not an ancestor of HEAD ($HEAD_SHORT). Stale manifest. Run /handoff."
-            FAILURES=$((FAILURES + 1))
+            log_warn "MANIFEST commit ($MANIFEST_COMMIT) is not an ancestor of HEAD ($HEAD_SHORT). A squash-merge or rebase-merge orphans the branch-local pointer; Layers 1-2 gate real staleness. Run /handoff if code changed."
         fi
     fi
 fi
