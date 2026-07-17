@@ -3,23 +3,23 @@
   "project": "conduit-bridge-newproviders",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1784307448",
-    "timestamp": "2026-07-17T16:57:29Z",
-    "commit": "cfbc0fb",
+    "session_id": "cli-1784307998",
+    "timestamp": "2026-07-17T17:06:38Z",
+    "commit": "6ce241b",
     "phase": "implementation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:f5a7fb577e9391000b18b73047edb68cf80c4e18a5016922de52a8bce0ca30e4",
-      "updated": "2026-07-17T16:57:17Z",
-      "lines": 69,
+      "checksum": "sha256:1c958f2e9ee7f1f01be54a0c58f87bee91cdf8e985b0329acdba6d21a3f9b396",
+      "updated": "2026-07-17T17:06:26Z",
+      "lines": 83,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:f30acae1f2186b0e0e5de2c51a54f52d451058f88b91c4f9309e6602fc6f5265",
-      "updated": "2026-07-17T16:29:34Z",
-      "lines": 73,
+      "checksum": "sha256:51f398c978d907fc1ddece0ea9b1f6853713b6bc3626a0f6c5d5c5809b42499e",
+      "updated": "2026-07-17T17:01:35Z",
+      "lines": 68,
       "summary": "_Last updated: 2026-03-12_"
     },
     "LOG.md": {
@@ -29,8 +29,8 @@
       "summary": "_Reverse chronological. Latest session first._"
     },
     "DASHBOARD.md": {
-      "checksum": "sha256:13d634d04dd61545ef75f09a9d5ac425fe9f4b7125b3f7714bbd5749907c4c84",
-      "updated": "2026-07-17T16:29:34Z",
+      "checksum": "sha256:dcc37496905a4de4cf3e92d166f8f69580233bd7d6640d31e0f51a18ebfac415",
+      "updated": "2026-07-17T17:01:35Z",
       "lines": 33,
       "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
     },
@@ -41,8 +41,8 @@
       "summary": "_What has been manually verified vs. assumed._"
     },
     "CONVENTIONS.md": {
-      "checksum": "sha256:4ee359ec1055a8c20f249d014ae305c3284e3911827659527ebe077ccb01eef7",
-      "updated": "2026-07-17T16:29:34Z",
+      "checksum": "sha256:ee8ebb4f69c0c759607bee7d75da869b50cd7943e64512b6968c0ce458fe3432",
+      "updated": "2026-07-17T17:01:35Z",
       "lines": 86,
       "summary": "- TypeScript strict mode, ESM (`\"type\": \"module\"`)"
     },
@@ -59,10 +59,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "feat/new-providers: port OpenRouter, Perplexity, LM Studio, Grok CLI providers + ownsModel passthrough routing + first vitest suite",
+  "quick_context": "feat/new-providers merged with origin/main: 4 new providers + ownsModel routing, integrated security/expiry/vitest from main",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1663,
-    "full_read": 3400
+    "manifest_plus_core": 2415,
+    "full_read": 4161
   }
 }

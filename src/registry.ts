@@ -1,4 +1,4 @@
-import type { BridgeConfig, ProviderName, ProviderStatus, BridgeStatus, ModelDefinition, ProviderAdapter } from './types.js';
+import type { BridgeConfig, ProviderName, ProviderStatus, BridgeStatus, ModelDefinition, ProviderAdapter, SessionInfo } from './types.js';
 import type { BaseProvider } from './providers/base.js';
 import { GrokProvider } from './providers/grok.js';
 import { ClaudeProvider } from './providers/claude.js';
@@ -132,12 +132,19 @@ export class ProviderRegistry {
     for (const [name, p] of this._providers) {
       const sessionValid = await p.checkSession();
       const isWebProvider = 'hasProfile' in p;
+      // Session expiry tracking (T-004): browser-login providers report a live
+      // session snapshot; API-key providers have no browser session to expire.
+      const session: SessionInfo = isWebProvider
+        ? (p as BaseProvider).sessionInfo
+        : { loggedIn: sessionValid, lastVerified: null, status: 'not_applicable' };
       providers.push({
         name,
         connected: sessionValid,
         hasProfile: isWebProvider ? (p as BaseProvider).hasProfile : sessionValid,
         sessionValid,
         models: p.models.map(m => m.id),
+        loginType: isWebProvider ? 'browser' : 'api-key',
+        session,
       });
     }
 

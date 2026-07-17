@@ -1,19 +1,38 @@
 import { chromium, type Browser, type BrowserContext } from 'playwright';
 import { existsSync, mkdirSync } from 'node:fs';
-import type { BridgeConfig, ProviderName, ChatRequest, ModelDefinition, ProviderAdapter } from '../types.js';
+import type { BridgeConfig, ProviderName, ChatRequest, ModelDefinition, ProviderAdapter, SessionInfo, SessionStatus } from '../types.js';
 import { profileDir } from '../config.js';
 import { logger } from '../logger.js';
 
-// Stealth args to reduce bot detection
+// Stealth args to reduce bot detection.
+//
+// Security note: two flags were removed from the defaults because they weaken
+// the browser's own protections and are not required for stealth:
+//   - '--no-sandbox' disabled the Chromium OS sandbox. It now stays ON by
+//     default and is re-enabled only via explicit opt-in (see resolveLaunchArgs).
+//   - '--disable-features=IsolateOrigins,site-per-process' disabled site
+//     isolation. Site isolation now stays ON.
+// '--disable-blink-features=AutomationControlled' is kept: it only hides the
+// navigator.webdriver automation flag (the load-bearing stealth signal) and
+// does not relax the sandbox or site isolation.
 const STEALTH_ARGS = [
-  '--no-sandbox',
   '--disable-blink-features=AutomationControlled',
-  '--disable-features=IsolateOrigins,site-per-process',
   '--disable-infobars',
   '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding',
   ...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []),
 ];
+
+/**
+ * Resolve the Chromium launch args for a config. The sandbox stays ON by
+ * default; '--no-sandbox' is appended only when explicitly opted in via
+ * BridgeConfig.chromiumNoSandbox or the CONDUIT_NO_SANDBOX=1 environment
+ * variable (needed for some root-in-container setups).
+ */
+export function resolveLaunchArgs(cfg: BridgeConfig): string[] {
+  const noSandbox = cfg.chromiumNoSandbox === true || process.env.CONDUIT_NO_SANDBOX === '1';
+  return noSandbox ? [...STEALTH_ARGS, '--no-sandbox'] : [...STEALTH_ARGS];
+}
 
 const STEALTH_OPTIONS = {
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -34,6 +53,14 @@ export abstract class BaseProvider implements ProviderAdapter {
   private _restoring = false;
   private _loginInProgress = false;
 
+  // ── Session expiry tracking (T-004) ──────────────────────────────────────
+  /** True when the last verification found a logged-in session. */
+  protected _loggedIn = false;
+  /** Epoch ms of the last verified-good login, or null if never verified. */
+  protected _lastVerified: number | null = null;
+  /** active = valid, expired = lapsed after a good login, unknown = not seen yet. */
+  protected _sessionStatus: SessionStatus = 'unknown';
+
   constructor(cfg: BridgeConfig) {
     this._cfg = cfg;
   }
@@ -49,19 +76,20 @@ export abstract class BaseProvider implements ProviderAdapter {
   // ── Session management ────────────────────────────────────────────────────
 
   async checkSession(): Promise<boolean> {
-    if (!this._ctx) return false;
+    if (!this._ctx) return this._recordSession(false, null);
     try {
       this._ctx.pages(); // throws if context is closed
       const page = this._ctx.pages()[0];
-      if (!page) return false;
+      if (!page) return this._recordSession(false, null);
       // Try quick check first, then fallback to longer timeout
       const quick = await page.locator(this.verifySelector).isVisible({ timeout: 3000 }).catch(() => false);
-      if (quick) return true;
+      if (quick) return this._recordSession(true, page.url());
       // Some providers (Gemini) need more time for the element to become visible
-      return page.locator(this.verifySelector).count().then(c => c > 0).catch(() => false);
+      const present = await page.locator(this.verifySelector).count().then(c => c > 0).catch(() => false);
+      return this._recordSession(present, page.url());
     } catch {
       this._ctx = null;
-      return false;
+      return this._recordSession(false, null);
     }
   }
 
@@ -94,7 +122,9 @@ export abstract class BaseProvider implements ProviderAdapter {
 
     this._restoring = true;
     try {
-      return await this._restoreWithRetry();
+      const ok = await this._restoreWithRetry();
+      if (ok) this._markVerified();
+      return ok;
     } finally {
       this._restoring = false;
     }
@@ -128,7 +158,7 @@ export abstract class BaseProvider implements ProviderAdapter {
         mkdirSync(this.profileDir, { recursive: true });
         this._ctx = await chromium.launchPersistentContext(this.profileDir, {
           headless: true,
-          args: STEALTH_ARGS,
+          args: resolveLaunchArgs(this._cfg),
           ...STEALTH_OPTIONS,
         });
 
@@ -233,7 +263,7 @@ export abstract class BaseProvider implements ProviderAdapter {
     // Launch headful (visible) browser so user can log in
     const loginCtx = await chromium.launchPersistentContext(this.profileDir, {
       headless: false,
-      args: STEALTH_ARGS,
+      args: resolveLaunchArgs(this._cfg),
       ...STEALTH_OPTIONS,
     });
     this._ctx = loginCtx;
@@ -247,6 +277,7 @@ export abstract class BaseProvider implements ProviderAdapter {
     // Wait until user is logged in (verifySelector appears)
     try {
       await page.locator(this.verifySelector).waitFor({ timeout: 300000 }); // 5min
+      this._markVerified();
       logger.info(`[${this.name}] login successful ✅`);
     } catch {
       logger.warn(`[${this.name}] login timed out`);
@@ -264,7 +295,66 @@ export abstract class BaseProvider implements ProviderAdapter {
       await this._ctx.close().catch(() => {});
       this._ctx = null;
     }
+    // Explicit logout: not an expiry, so reset to a clean unknown state.
+    this._loggedIn = false;
+    this._sessionStatus = 'unknown';
     logger.info(`[${this.name}] logged out`);
+  }
+
+  // ── Session expiry tracking (T-004) ──────────────────────────────────────
+
+  /**
+   * Snapshot of this browser-login provider's session validity, surfaced in
+   * ProviderStatus / the /v1/status response so a client can tell which
+   * browser-login providers hold a valid vs expired session.
+   */
+  get sessionInfo(): SessionInfo {
+    return {
+      loggedIn: this._loggedIn,
+      lastVerified: this._lastVerified,
+      status: this._sessionStatus,
+    };
+  }
+
+  /** Record a verified-good login (updates the last-known-good timestamp). */
+  protected _markVerified(): void {
+    this._loggedIn = true;
+    this._lastVerified = Date.now();
+    this._sessionStatus = 'active';
+  }
+
+  /**
+   * Fold a session-check result into the tracked session state and return the
+   * boolean unchanged. `url` is the current page URL when known, used to detect
+   * a redirect to a login/auth page (a logged-out signal).
+   */
+  protected _recordSession(loggedIn: boolean, url: string | null): boolean {
+    this._loggedIn = loggedIn;
+    if (loggedIn) {
+      this._lastVerified = Date.now();
+      this._sessionStatus = 'active';
+    } else if (url !== null && this._looksLoggedOut(url)) {
+      // Browser was redirected to a login/auth page -> session expired.
+      this._sessionStatus = 'expired';
+    } else if (this._lastVerified !== null) {
+      // Had a good session earlier; the verify selector has since disappeared.
+      this._sessionStatus = 'expired';
+    }
+    // Never verified and no logout signal -> leave status as 'unknown'.
+    return loggedIn;
+  }
+
+  /**
+   * Heuristic: does this URL look like a login / auth / sign-in page?
+   * Subclasses may override for a provider-specific logged-out signal.
+   */
+  protected _looksLoggedOut(url: string): boolean {
+    if (!url) return false;
+    const u = url.toLowerCase();
+    return /\b(login|signin|sign-in|sign_in|authenticate|oauth)\b/.test(u)
+      || u.includes('accounts.google.com')
+      || u.includes('auth.openai.com')
+      || u.includes('/i/flow/login');
   }
 
   // ── Chat — subclasses implement these ────────────────────────────────────

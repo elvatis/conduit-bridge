@@ -1,3 +1,17 @@
+> Note (2026-07-17, claude-opus-4-8): Merged origin/main into feat/new-providers (PR #63, the 4-provider port described below). Integrated security #23, session-expiry #34, and the vitest suite #33: resolved src/types.ts (kept lmStudioUrl alongside the new security fields + SessionInfo), src/cli.ts help (merged provider + security sections), and extended test/registry.test.ts ALL_PROVIDERS 7 -> 11 for the new providers. Full suite green 52/52 (10 new provider tests + 42 existing); tsc + esbuild clean.
+
+> Note (2026-07-17, claude-opus-4-8): Reconciled test/server.test.ts CORS tests with the new allowlist behavior from #23 (they asserted the old wildcard *; now they verify allowlisted-origin reflection via a raw request plus foreign-origin rejection). Full suite green: 42/42.
+
+> Note (2026-07-17, claude-opus-4-8): Added a vitest unit test suite (T-003, issue #33). New devDependency already present in the lockfile; added vitest.config.ts and npm scripts "test": "vitest run" and "test:watch": "vitest". 42 tests across test/config.test.ts (loadConfig defaults/overrides, saveConfig round-trip and merge precedence, path helpers, homedir mocked to a temp dir), test/logger.test.ts (level gating, ISO timestamp, onLine subscribe/unsubscribe, configureLogger singleton), test/registry.test.ts (provider registration, model lookup, unknown-model handling, status snapshot) and test/server.test.ts (HTTP handler with a mocked registry so no browser launches: CORS/OPTIONS, health, models, status, chat 200/400/404/503, SSE stream, api-key login rejection, logout, 404). tsconfig scoped to include ["src"] so tsc build ignores the config/test files. npm run build and npm test both green.
+> Note (2026-07-17, claude-opus-4-8): Add per-provider session expiry tracking (T-004, #34). BaseProvider records a last-known-good login timestamp on verified success and detects expiry via a login-page redirect or loss of the verify selector, exposing loggedIn + lastVerified + status (active/expired/unknown) through a sessionInfo getter. Surfaced additively in ProviderStatus (session + loginType) and the /v1/status response via registry.getStatus; API-key providers report not_applicable. Existing /status fields unchanged (backward compatible). Files: src/types.ts, src/providers/base.ts, src/registry.ts, src/index.ts. Build passes (tsc + esbuild); repo has no test files.
+> Note (2026-07-17, claude-opus-4-8): Security hardening (#23, reported by @Jaaaky). Four secure-by-default, backward-compatible fixes: (1) removed --no-sandbox from the Chromium STEALTH_ARGS defaults; sandbox stays ON, opt back in via BridgeConfig.chromiumNoSandbox or CONDUIT_NO_SANDBOX=1. (2) removed --disable-features=IsolateOrigins,site-per-process so site isolation stays ON (kept only --disable-blink-features=AutomationControlled for stealth). (3) replaced wildcard CORS with an allowlist: request Origin reflected only if in BridgeConfig.allowedOrigins (default localhost origins) plus the server host:port; no-Origin requests (curl, server-side clients) unchanged. (4) optional bearer-token auth via BridgeConfig.authToken (empty = off): when set, /v1/* require Authorization: Bearer <token> (401 otherwise), /health stays open. New config fields added to types.ts + config.ts defaults; CLI gains --auth-token and --no-sandbox; README Security section added. Build clean (tsc + esbuild). No version bump (separate PR owns versioning).
+
+> Note (2026-07-17, claude-opus-4-8): Removed the Auto-Publish (npm) workflow so conduit-bridge stops attempting npm publishes (every one failed E404 on the missing @elvatis scope; it was never on npm and is not meant to be). conduit-bridge stays a normal PUBLIC tool run from source, NOT marked private. Also fixed the version drift: README header + DASHBOARD were at 0.2.3 / 0.1.0 while package.json + changelog were 0.2.6; all current-version refs now 0.2.6 (historical changelog kept). Dropped task T-006.
+
+> Note (2026-07-14, claude-opus-4-8): Synced the canonical AAHP gate scripts from homeofe/improvements (v3.5.0 fixes: aahp-manifest.sh --phase documentation + cross_repo_ref preservation, lint-handoff.sh SC2034), AAHP_HANDOFF_FILES preserved, and refreshed the local hook tooling (scripts/hooks/, install-hooks.sh, verify-hooks.sh). Fleet re-sync.
+
+> Note (2026-07-14, claude-opus-4-8): Synced the canonical Layer 3 tolerance fix from homeofe/improvements. verify-handoff.sh now downgrades a non-ancestor MANIFEST.last_session.commit from FAIL to WARN so a squash-merge or rebase-merge no longer trips AAHP Verify Layer 3 on main; Layers 1-2 still gate real staleness.
+
 # STATUS — conduit-bridge
 
 ## Current Version: 0.2.6 (published to npm on GitHub Release)
@@ -42,7 +56,7 @@ No OpenClaw dependency. Designed to run locally on the developer's machine.
 - No tests yet (T-003)
 - Response polling is selector-based (fragile if UI changes) — needs proper streaming intercept (T-005)
 - No session expiry tracking yet (T-004)
-- No npm publish yet (T-006)
+- Not published to npm (auto-publisher removed 2026-07-17; T-006 dropped)
 - README missing on GitHub (fixed this session)
 
 ## Release History

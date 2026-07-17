@@ -2,7 +2,7 @@
 
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 
-**Current version:** `0.2.3`
+**Current version:** `0.2.6`
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex), OpenAI-compatible aggregators (OpenRouter, Perplexity), and local backends (LM Studio, Grok CLI).
 
@@ -100,7 +100,7 @@ The live model list is always available at `GET /v1/models`.
 ## Installation
 
 ```bash
-# From source (until npm publish)
+# From source (conduit-bridge is run from source, not published to npm)
 git clone https://github.com/elvatis/conduit-bridge
 cd conduit-bridge
 npm install
@@ -147,7 +147,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.2.3" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.2.6" }
 ```
 
 ### `GET /v1/models`
@@ -159,7 +159,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.2.3",
+  "version": "0.2.6",
   "uptime": 3600,
   "providers": [
     {
@@ -194,6 +194,64 @@ POST /v1/login/chatgpt
 
 ### `POST /v1/logout/:provider`
 Closes the browser context for that provider.
+
+---
+
+## Security
+
+conduit-bridge is secure by default and binds to `127.0.0.1` only. The options
+below are opt-in and backward compatible: leaving them unset behaves exactly as
+before.
+
+### Secure defaults
+
+- **Chromium sandbox stays ON.** The OS-level Chromium sandbox is no longer
+  disabled by default (the old `--no-sandbox` default was removed).
+- **Site isolation stays ON.** The flag that disabled site isolation
+  (`--disable-features=IsolateOrigins,site-per-process`) was removed from the
+  defaults.
+- **CORS is restricted to localhost.** The proxy no longer returns a wildcard
+  `Access-Control-Allow-Origin: *`. It reflects the request `Origin` header only
+  when the origin is in the allowlist; otherwise no CORS origin is sent.
+  Requests without an `Origin` header (curl, server-side OpenAI clients) are
+  unaffected and keep working.
+
+### Options
+
+| Option | Config key | CLI / env | Default | Effect |
+|---|---|---|---|---|
+| Local API auth | `authToken` | `--auth-token=<token>` | `""` (off) | When set, all `/v1/*` endpoints require `Authorization: Bearer <token>` (401 otherwise). `/health` stays open. |
+| CORS allowlist | `allowedOrigins` | config file | `["http://localhost","http://127.0.0.1"]` | Origins allowed to receive a reflected CORS header. The server's own `host:port` loopback origins are always included. |
+| Chromium sandbox opt-out | `chromiumNoSandbox` | `--no-sandbox=true` / `CONDUIT_NO_SANDBOX=1` | `false` | When true, launches Chromium with `--no-sandbox`. Only enable for environments that require it (e.g. running as root inside a container). |
+
+### Enabling local auth
+
+```bash
+# Persist a token in ~/.conduit/config.json
+conduit-bridge config authToken my-secret-token
+
+# Or set it per-invocation
+conduit-bridge start --auth-token=my-secret-token
+```
+
+Then call the API with the token:
+
+```bash
+curl http://127.0.0.1:31338/v1/models \
+  -H "Authorization: Bearer my-secret-token"
+```
+
+### Re-enabling the Chromium sandbox opt-out
+
+Only if your environment genuinely needs it (for example root inside a
+container):
+
+```bash
+CONDUIT_NO_SANDBOX=1 conduit-bridge start
+# or
+conduit-bridge start --no-sandbox=true
+# or set "chromiumNoSandbox": true in ~/.conduit/config.json
+```
 
 ---
 

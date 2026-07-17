@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
+import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { BridgeConfig } from './types.js';
@@ -76,18 +77,68 @@ export class BridgeServer {
     }
   }
 
+  /**
+   * Effective CORS allowlist: the configured origins plus the loopback origins
+   * the server itself is reachable on (so a browser app on the same host:port
+   * always works). Only a request Origin present in this set is reflected.
+   */
+  private _allowedOrigins(): Set<string> {
+    const list = new Set<string>(this._cfg.allowedOrigins ?? []);
+    const { host, port } = this._cfg;
+    for (const h of new Set([host, 'localhost', '127.0.0.1', '[::1]'])) {
+      list.add(`http://${h}`);
+      list.add(`http://${h}:${port}`);
+    }
+    return list;
+  }
+
+  /**
+   * Bearer-token auth check. Returns true when auth is disabled (no token
+   * configured) or when the request carries the correct 'Authorization: Bearer
+   * <token>' header. The token comparison is constant-time.
+   */
+  private _checkAuth(req: IncomingMessage): boolean {
+    const token = this._cfg.authToken ?? '';
+    if (!token) return true; // auth disabled (default)
+    const header = req.headers.authorization ?? '';
+    // Parse 'Bearer <token>' with plain string ops (no regex) to avoid any
+    // backtracking on attacker-controlled header values.
+    const sp = header.indexOf(' ');
+    if (sp === -1) return false;
+    if (header.slice(0, sp).toLowerCase() !== 'bearer') return false;
+    const provided = header.slice(sp + 1).trim();
+    if (!provided) return false;
+    return safeEqual(provided, token);
+  }
+
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? '/';
     const method = req.method ?? 'GET';
 
-    // CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // CORS: reflect the request Origin only when it is in the allowlist.
+    // Requests with no Origin header (curl, server-side OpenAI clients) are
+    // unaffected and continue to work.
+    const origin = req.headers.origin;
+    if (origin && this._allowedOrigins().has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
     // ── GET /health ──────────────────────────────────────────────────────────
+    // Always open (no auth) so health checks keep working.
     if (url === '/health' && method === 'GET') {
       json(res, 200, { status: 'ok', service: 'conduit-bridge', version: PKG_VERSION });
+      return;
+    }
+
+    // ── Optional bearer-token auth ─────────────────────────────────────────────
+    // When BridgeConfig.authToken is set, every endpoint below requires a
+    // matching 'Authorization: Bearer <token>' header. When unset (default),
+    // the server behaves exactly as before (no auth).
+    if (!this._checkAuth(req)) {
+      json(res, 401, { error: { message: 'Unauthorized: valid bearer token required', type: 'invalid_request' } });
       return;
     }
 
@@ -235,6 +286,14 @@ export class BridgeServer {
     // 404
     json(res, 404, { error: { message: `Not found: ${url}`, type: 'not_found' } });
   }
+}
+
+/** Constant-time string comparison (avoids leaking the token via timing). */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
 }
 
 function json(res: ServerResponse, status: number, body: object) {

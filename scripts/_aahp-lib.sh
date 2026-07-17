@@ -2,7 +2,17 @@
 # _aahp-lib.sh -Shared functions for AAHP tooling
 # Not intended to be run directly. Source this from other scripts.
 
-# Standard AAHP handoff files, in canonical order
+# Standard AAHP handoff files, in canonical order.
+#
+# PER-REPO CONFIG: this single line is the one legitimate point of variation
+# across consumer repos. It is the DEFAULT / superset used for a fresh install;
+# a consumer that tracks fewer files (e.g. no LOG-ARCHIVE.* or no
+# pii-allowlist.json) keeps its own narrower list. scripts/sync-gate-scripts.sh
+# treats exactly this line as per-repo-preserved: when it copies the canonical
+# gate scripts into a consumer it reads the consumer's existing
+# AAHP_HANDOFF_FILES=(...) line and substitutes it back in, so a sync never
+# overwrites a repo's tracked-file set. aahp-manifest.sh only indexes files that
+# actually exist, so listing a file a repo does not have is harmless.
 # shellcheck disable=SC2034
 AAHP_HANDOFF_FILES=(STATUS.md NEXT_ACTIONS.md LOG.md DASHBOARD.md TRUST.md CONVENTIONS.md WORKFLOW.md pii-allowlist.json)
 
@@ -50,7 +60,11 @@ aahp_line_count() {
 aahp_auto_summary() {
     local filepath="$1"
     local summary
+    # Strip CR so a CRLF working tree (Windows) yields the same summary as an
+    # LF checkout (Linux CI). The summary is written to the non-checksummed
+    # "summary" field, so this is a cosmetic robustness fix, not a gate change.
     summary=$(head -5 "$filepath" \
+        | tr -d '\r' \
         | grep -v '^#' | grep -v '^>' | grep -v '^---' | grep -v '^$' \
         | head -1 | cut -c1-150 || true)
     [ -z "$summary" ] && summary="(no summary available)"
