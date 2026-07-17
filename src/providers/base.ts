@@ -4,16 +4,35 @@ import type { BridgeConfig, ProviderName, ChatRequest, ModelDefinition, Provider
 import { profileDir } from '../config.js';
 import { logger } from '../logger.js';
 
-// Stealth args to reduce bot detection
+// Stealth args to reduce bot detection.
+//
+// Security note: two flags were removed from the defaults because they weaken
+// the browser's own protections and are not required for stealth:
+//   - '--no-sandbox' disabled the Chromium OS sandbox. It now stays ON by
+//     default and is re-enabled only via explicit opt-in (see resolveLaunchArgs).
+//   - '--disable-features=IsolateOrigins,site-per-process' disabled site
+//     isolation. Site isolation now stays ON.
+// '--disable-blink-features=AutomationControlled' is kept: it only hides the
+// navigator.webdriver automation flag (the load-bearing stealth signal) and
+// does not relax the sandbox or site isolation.
 const STEALTH_ARGS = [
-  '--no-sandbox',
   '--disable-blink-features=AutomationControlled',
-  '--disable-features=IsolateOrigins,site-per-process',
   '--disable-infobars',
   '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding',
   ...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []),
 ];
+
+/**
+ * Resolve the Chromium launch args for a config. The sandbox stays ON by
+ * default; '--no-sandbox' is appended only when explicitly opted in via
+ * BridgeConfig.chromiumNoSandbox or the CONDUIT_NO_SANDBOX=1 environment
+ * variable (needed for some root-in-container setups).
+ */
+export function resolveLaunchArgs(cfg: BridgeConfig): string[] {
+  const noSandbox = cfg.chromiumNoSandbox === true || process.env.CONDUIT_NO_SANDBOX === '1';
+  return noSandbox ? [...STEALTH_ARGS, '--no-sandbox'] : [...STEALTH_ARGS];
+}
 
 const STEALTH_OPTIONS = {
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -139,7 +158,7 @@ export abstract class BaseProvider implements ProviderAdapter {
         mkdirSync(this.profileDir, { recursive: true });
         this._ctx = await chromium.launchPersistentContext(this.profileDir, {
           headless: true,
-          args: STEALTH_ARGS,
+          args: resolveLaunchArgs(this._cfg),
           ...STEALTH_OPTIONS,
         });
 
@@ -244,7 +263,7 @@ export abstract class BaseProvider implements ProviderAdapter {
     // Launch headful (visible) browser so user can log in
     const loginCtx = await chromium.launchPersistentContext(this.profileDir, {
       headless: false,
-      args: STEALTH_ARGS,
+      args: resolveLaunchArgs(this._cfg),
       ...STEALTH_OPTIONS,
     });
     this._ctx = loginCtx;

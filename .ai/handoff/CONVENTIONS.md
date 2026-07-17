@@ -8,7 +8,7 @@
 
 ## Package
 - Name: `@elvatis/conduit-bridge`
-- npm scope: `@elvatis`
+- npm: not published (auto-publisher removed); run from source
 - Binary: `conduit-bridge` (via `bin.conduit-bridge` in package.json)
 - Default port: `31338` (different from OpenClaw cli-bridge's `31337`)
 
