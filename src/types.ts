@@ -40,6 +40,20 @@ export interface BridgeConfig {
   chromiumNoSandbox?: boolean;
 }
 
+// ── Session expiry tracking (T-004) ──────────────────────────────────────────
+// active        = a valid logged-in session was verified
+// expired       = provider was logged in before but the session has lapsed
+//                 (redirected to a login page / verify selector disappeared)
+// unknown       = session has not been verified yet this run
+// not_applicable = API-key provider (no browser session to expire)
+export type SessionStatus = 'active' | 'expired' | 'unknown' | 'not_applicable';
+
+export interface SessionInfo {
+  loggedIn: boolean;           // currently holds a valid logged-in session
+  lastVerified: number | null; // epoch ms of the last verified-good login
+  status: SessionStatus;
+}
+
 export interface ProviderStatus {
   name: ProviderName;
   connected: boolean;
@@ -47,6 +61,9 @@ export interface ProviderStatus {
   sessionValid: boolean;    // browser context is alive + verified
   models: string[];
   cookieExpiresAt?: Date;
+  // ── Session expiry tracking (T-004): additive, backward compatible ──
+  loginType?: 'browser' | 'api-key'; // browser-login vs API-key provider
+  session?: SessionInfo;             // per-provider session validity/expiry
 }
 
 export interface BridgeStatus {
