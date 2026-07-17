@@ -3,6 +3,7 @@ import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
 import { buildUserMessage } from './grok.js';
+import { streamMerged, CHATGPT_INTERCEPT, type InPageState } from './interception.js';
 
 export class ChatGPTProvider extends BaseProvider {
   readonly name = 'chatgpt' as const;
@@ -56,53 +57,31 @@ export class ChatGPTProvider extends BaseProvider {
     await textarea.fill(userMsg);
 
     await new Promise(r => setTimeout(r, 300));
+
+    // Arm the network-layer capture just before submitting so it locks onto
+    // this turn's backend completion response (primary path, issue #35).
+    const capture = this.startNetworkCapture(page, CHATGPT_INTERCEPT);
+    capture.arm();
     await page.keyboard.press('Enter');
 
-    logger.debug(`[chatgpt] message sent (${userMsg.length} chars), streaming via fetch interception...`);
+    logger.debug(`[chatgpt] message sent (${userMsg.length} chars), capturing backend stream...`);
 
-    // Poll the intercepted response text
-    const timeout = 120000;
-    const pollInterval = 400;
-    const start = Date.now();
-    let lastLength = 0;
-    let stableCount = 0;
-    let hasContent = false;
-
-    while (Date.now() - start < timeout) {
-      await new Promise(r => setTimeout(r, pollInterval));
-
-      const result = await page.evaluate(`
-        window.__conduitChatGPT ? {
-          text: window.__conduitChatGPT.text || '',
-          done: !!window.__conduitChatGPT.done
-        } : { text:'', done:false }
-      `) as { text: string; done: boolean };
-
-      if (!result.text && !hasContent) continue;
-
-      if (result.text.length > lastLength) {
-        yield result.text.slice(lastLength);
-        lastLength = result.text.length;
-        stableCount = 0;
-        hasContent = true;
-      } else if (result.done) {
-        logger.debug(`[chatgpt] stream complete (${lastLength} chars)`);
-        return;
-      } else {
-        stableCount++;
-        if (stableCount >= 4 && lastLength > 0) {
-          logger.debug(`[chatgpt] response stable (${lastLength} chars)`);
-          return;
-        }
-      }
-    }
-
-    // If fetch interception got nothing, fall back to DOM polling
-    if (lastLength === 0) {
-      logger.info('[chatgpt] fetch interception captured nothing, falling back to DOM polling...');
-      yield* pollForResponseDOM(page);
-    } else {
-      logger.warn('[chatgpt] response polling timed out');
+    // Primary: network interception via streamMerged (backed by the in-page
+    // reader for smooth streaming). Fallback: DOM polling if nothing captured.
+    try {
+      yield* streamMerged({
+        provider: 'chatgpt',
+        capture,
+        readInPage: () => page.evaluate(`
+          window.__conduitChatGPT ? {
+            text: window.__conduitChatGPT.text || '',
+            done: !!window.__conduitChatGPT.done
+          } : { text:'', done:false }
+        `) as Promise<InPageState>,
+        domFallback: () => pollForResponseDOM(page),
+      });
+    } finally {
+      capture.detach();
     }
   }
 

@@ -1,8 +1,9 @@
-import { chromium, type Browser, type BrowserContext } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { existsSync, mkdirSync } from 'node:fs';
 import type { BridgeConfig, ProviderName, ChatRequest, ModelDefinition, ProviderAdapter } from '../types.js';
 import { profileDir } from '../config.js';
 import { logger } from '../logger.js';
+import { NetworkCapture, type InterceptSpec } from './interception.js';
 
 // Stealth args to reduce bot detection
 const STEALTH_ARGS = [
@@ -265,6 +266,25 @@ export abstract class BaseProvider implements ProviderAdapter {
       this._ctx = null;
     }
     logger.info(`[${this.name}] logged out`);
+  }
+
+  // ------------------------------------------------------------------------
+  // Network interception capability (issue #35 / T-005)
+  // ------------------------------------------------------------------------
+  // Playwright-native response interception. The heavy lifting lives in
+  // ./interception.ts so this shared base file stays small (parallel PRs also
+  // edit base.ts). A provider arms a capture on its active page before sending
+  // a message; the capture observes the backend streaming endpoint from the
+  // network layer, which is markup-agnostic. DOM selector polling remains the
+  // automatic fallback inside each provider when the capture yields nothing.
+
+  /**
+   * Create a NetworkCapture bound to `page` for this provider's backend
+   * streaming endpoint. Call `.arm()` right before sending, poll `.text` /
+   * `.done`, and `.detach()` in a finally block.
+   */
+  protected startNetworkCapture(page: Page, spec: InterceptSpec): NetworkCapture {
+    return new NetworkCapture(page, spec, this.name);
   }
 
   // ── Chat — subclasses implement these ────────────────────────────────────

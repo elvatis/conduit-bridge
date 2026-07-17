@@ -3,6 +3,7 @@ import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
 import { buildUserMessage } from './grok.js';
+import { streamMerged, CLAUDE_INTERCEPT, type InPageState } from './interception.js';
 
 /** Metadata captured from Claude's SSE stream */
 export interface StreamMeta {
@@ -85,9 +86,14 @@ export class ClaudeProvider extends BaseProvider {
     }, userMsg);
 
     await new Promise(r => setTimeout(r, 300));
+
+    // Arm the network-layer capture just before submitting so it locks onto
+    // this turn's backend completion response (primary path, issue #35).
+    const capture = this.startNetworkCapture(page, CLAUDE_INTERCEPT);
+    capture.arm();
     await page.keyboard.press('Enter');
 
-    logger.debug(`[claude] message sent (${userMsg.length} chars), streaming via SSE interception...`);
+    logger.debug(`[claude] message sent (${userMsg.length} chars), capturing backend SSE stream...`);
 
     // Save conversation URL after redirect
     await new Promise(r => setTimeout(r, 1500));
@@ -97,62 +103,44 @@ export class ClaudeProvider extends BaseProvider {
       logger.debug(`[claude] conversation URL saved: ${convUrl}`);
     }
 
-    // Poll the intercepted SSE text + metadata
-    const timeout = 120000;
-    const pollInterval = 300;
-    const start = Date.now();
-    let lastLength = 0;
-    let stableCount = 0;
-
-    while (Date.now() - start < timeout) {
-      await new Promise(r => setTimeout(r, pollInterval));
-
-      const result = await page.evaluate(`
-        window.__conduit ? {
-          text: window.__conduit.text || '',
-          done: !!window.__conduit.done,
-          thinking: !!window.__conduit.thinking,
-          toolName: window.__conduit.toolName || null,
-          toolRunning: !!window.__conduit.toolRunning,
-          inputTokens: window.__conduit.inputTokens || 0,
-          outputTokens: window.__conduit.outputTokens || 0,
-          elapsed: window.__conduit.startTime ? Date.now() - window.__conduit.startTime : 0
-        } : { text:'', done:false, thinking:false, toolName:null, toolRunning:false, inputTokens:0, outputTokens:0, elapsed:0 }
-      `) as {
-        text: string; done: boolean;
-        thinking: boolean; toolName: string | null; toolRunning: boolean;
-        inputTokens: number; outputTokens: number; elapsed: number;
-      };
-
-      // Update metadata for server to read
-      this._meta = {
-        thinking: result.thinking,
-        toolName: result.toolName,
-        toolRunning: result.toolRunning,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        elapsedMs: result.elapsed,
-      };
-
-      if (!result.text) continue;
-
-      if (result.text.length > lastLength) {
-        yield result.text.slice(lastLength);
-        lastLength = result.text.length;
-        stableCount = 0;
-      } else if (result.done) {
-        logger.debug(`[claude] SSE stream complete (${lastLength} chars, ${result.elapsed}ms, ${result.outputTokens} tokens)`);
-        return;
-      } else {
-        stableCount++;
-        if (stableCount >= 6 && lastLength > 0) {
-          logger.debug(`[claude] response stable (${lastLength} chars)`);
-          return;
-        }
-      }
+    // Primary: network interception via streamMerged. Claude also surfaces
+    // streaming metadata (thinking / tool / token counts) via the in-page
+    // reader, which we keep fresh for the server through onTick. DOM polling is
+    // the automatic fallback if the network layer captures nothing.
+    try {
+      yield* streamMerged({
+        provider: 'claude',
+        capture,
+        pollInterval: 300,
+        stableTicks: 6,
+        readInPage: () => page.evaluate(`
+          window.__conduit ? {
+            text: window.__conduit.text || '',
+            done: !!window.__conduit.done,
+            thinking: !!window.__conduit.thinking,
+            toolName: window.__conduit.toolName || null,
+            toolRunning: !!window.__conduit.toolRunning,
+            inputTokens: window.__conduit.inputTokens || 0,
+            outputTokens: window.__conduit.outputTokens || 0,
+            elapsed: window.__conduit.startTime ? Date.now() - window.__conduit.startTime : 0
+          } : { text:'', done:false, thinking:false, toolName:null, toolRunning:false, inputTokens:0, outputTokens:0, elapsed:0 }
+        `) as Promise<InPageState>,
+        onTick: (state: InPageState) => {
+          // Keep server-visible metadata in sync with the in-page reader.
+          this._meta = {
+            thinking: state.thinking === true,
+            toolName: (state.toolName as string | null) ?? null,
+            toolRunning: state.toolRunning === true,
+            inputTokens: typeof state.inputTokens === 'number' ? state.inputTokens : 0,
+            outputTokens: typeof state.outputTokens === 'number' ? state.outputTokens : 0,
+            elapsedMs: typeof state.elapsed === 'number' ? state.elapsed : 0,
+          };
+        },
+        domFallback: () => pollForResponseDOM(page),
+      });
+    } finally {
+      capture.detach();
     }
-
-    logger.warn('[claude] response polling timed out');
   }
 
   /** Install fetch interceptor on the browser context - runs before any page JS */
@@ -260,4 +248,68 @@ export class ClaudeProvider extends BaseProvider {
   private _defaultMeta(): StreamMeta {
     return { thinking: false, toolName: null, toolRunning: false, inputTokens: 0, outputTokens: 0, elapsedMs: 0 };
   }
+}
+
+/**
+ * DOM-based fallback for response extraction, used only when network
+ * interception captures nothing (see streamMerged). Claude historically had no
+ * DOM poller; these selectors are current-markup guesses and NEED live
+ * verification against claude.ai before being relied upon.
+ */
+async function* pollForResponseDOM(
+  page: import('playwright').Page,
+): AsyncGenerator<string> {
+  const selectors = [
+    '[data-testid="assistant-message"] .prose',
+    'div.font-claude-message .prose',
+    'div.font-claude-message',
+    '[data-is-streaming] .prose',
+    // Generic fallbacks
+    '.prose:last-of-type',
+  ];
+
+  const timeout = 60000;
+  const pollInterval = 500;
+  const start = Date.now();
+  let lastLength = 0;
+  let stableCount = 0;
+  let matchedSelector = '';
+
+  while (Date.now() - start < timeout) {
+    await new Promise(r => setTimeout(r, pollInterval));
+
+    if (!matchedSelector) {
+      for (const sel of selectors) {
+        const count = await page.locator(sel).count().catch(() => 0);
+        if (count > 0) {
+          matchedSelector = sel;
+          logger.debug(`[claude] DOM fallback matched selector: ${sel}`);
+          break;
+        }
+      }
+      if (!matchedSelector) continue;
+    }
+
+    const elements = page.locator(matchedSelector);
+    const count = await elements.count().catch(() => 0);
+    if (count === 0) continue;
+
+    const lastEl = elements.last();
+    const text = await lastEl.textContent().catch(() => '');
+    if (!text) continue;
+
+    if (text.length > lastLength) {
+      yield text.slice(lastLength);
+      lastLength = text.length;
+      stableCount = 0;
+    } else {
+      stableCount++;
+      if (stableCount >= 3 && lastLength > 0) {
+        logger.debug(`[claude] DOM fallback complete (${lastLength} chars)`);
+        return;
+      }
+    }
+  }
+
+  logger.warn('[claude] DOM fallback timed out');
 }

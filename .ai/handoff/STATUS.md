@@ -1,5 +1,7 @@
 > Note (2026-07-17, claude-opus-4-8): Removed the Auto-Publish (npm) workflow so conduit-bridge stops attempting npm publishes (every one failed E404 on the missing @elvatis scope; it was never on npm and is not meant to be). conduit-bridge stays a normal PUBLIC tool run from source, NOT marked private. Also fixed the version drift: README header + DASHBOARD were at 0.2.3 / 0.1.0 while package.json + changelog were 0.2.6; all current-version refs now 0.2.6 (historical changelog kept). Dropped task T-006.
 
+> Note (2026-07-17, claude-opus-4-8): T-005 (#35) replace selector polling with proper response interception. Added a Playwright-native network-interception capability in the base (src/providers/interception.ts + BaseProvider.startNetworkCapture): NetworkCapture observes page.on('response') for each provider's backend completion endpoint and parses the assistant text from the finished SSE/chunked body, and streamMerged makes network capture the PRIMARY path while the existing in-page reader keeps smooth token streaming and DOM selector polling stays as the automatic fallback. Wired grok/claude/gemini/chatgpt (public chat/chatStream unchanged; added a DOM fallback to claude which had none). Added interception.test.ts (15 vitest cases, parsers + merge + fallback). Endpoint patterns: chatgpt /backend-api/conversation VERIFIED (ref #23), claude /completion, grok /rest/app-chat/conversations, gemini batchexecute/StreamGenerate are ASSUMED and need live-site verification before production trust.
+
 > Note (2026-07-14, claude-opus-4-8): Synced the canonical AAHP gate scripts from homeofe/improvements (v3.5.0 fixes: aahp-manifest.sh --phase documentation + cross_repo_ref preservation, lint-handoff.sh SC2034), AAHP_HANDOFF_FILES preserved, and refreshed the local hook tooling (scripts/hooks/, install-hooks.sh, verify-hooks.sh). Fleet re-sync.
 
 > Note (2026-07-14, claude-opus-4-8): Synced the canonical Layer 3 tolerance fix from homeofe/improvements. verify-handoff.sh now downgrades a non-ancestor MANIFEST.last_session.commit from FAIL to WARN so a squash-merge or rebase-merge no longer trips AAHP Verify Layer 3 on main; Layers 1-2 still gate real staleness.
@@ -44,8 +46,8 @@ No OpenClaw dependency. Designed to run locally on the developer's machine.
 - Config: `~/.conduit/config.json`
 
 ## Known Issues / Gaps
-- No tests yet (T-003)
-- Response polling is selector-based (fragile if UI changes) — needs proper streaming intercept (T-005)
+- No tests yet (T-003; interception module now has vitest coverage, rest still open)
+- Response capture: network interception is now the primary path with DOM polling as fallback (T-005, PR #62). Provider backend endpoints beyond ChatGPT still need live-site verification.
 - No session expiry tracking yet (T-004)
 - Not published to npm (auto-publisher removed 2026-07-17; T-006 dropped)
 - README missing on GitHub (fixed this session)

@@ -2,6 +2,7 @@ import type { BridgeConfig, ChatRequest, ModelDefinition } from '../types.js';
 import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
+import { streamMerged, GROK_INTERCEPT, type InPageState } from './interception.js';
 
 export class GrokProvider extends BaseProvider {
   readonly name = 'grok' as const;
@@ -62,54 +63,31 @@ export class GrokProvider extends BaseProvider {
     }, userMsg);
 
     await new Promise(r => setTimeout(r, 300));
+
+    // Arm the network-layer capture just before submitting so it locks onto
+    // this turn's backend completion response (primary path, issue #35).
+    const capture = this.startNetworkCapture(page, GROK_INTERCEPT);
+    capture.arm();
     await page.keyboard.press('Enter');
 
-    logger.debug(`[grok] message sent (${userMsg.length} chars), streaming via fetch interception...`);
+    logger.debug(`[grok] message sent (${userMsg.length} chars), capturing backend stream...`);
 
-    // Poll the intercepted response text
-    const timeout = 120000;
-    const pollInterval = 400;
-    const start = Date.now();
-    let lastLength = 0;
-    let stableCount = 0;
-    let hasContent = false;
-
-    while (Date.now() - start < timeout) {
-      await new Promise(r => setTimeout(r, pollInterval));
-
-      const result = await page.evaluate(`
-        window.__conduitGrok ? {
-          text: window.__conduitGrok.text || '',
-          done: !!window.__conduitGrok.done
-        } : { text:'', done:false }
-      `) as { text: string; done: boolean };
-
-      if (!result.text && !hasContent) continue;
-
-      if (result.text.length > lastLength) {
-        yield result.text.slice(lastLength);
-        lastLength = result.text.length;
-        stableCount = 0;
-        hasContent = true;
-      } else if (result.done) {
-        logger.debug(`[grok] stream complete (${lastLength} chars)`);
-        return;
-      } else {
-        stableCount++;
-        // If text hasn't changed for 4 polls (1.6s) and we have content, done
-        if (stableCount >= 4 && lastLength > 0) {
-          logger.debug(`[grok] response stable (${lastLength} chars)`);
-          return;
-        }
-      }
-    }
-
-    // If fetch interception got nothing, fall back to DOM polling
-    if (lastLength === 0) {
-      logger.info('[grok] fetch interception captured nothing, falling back to DOM polling...');
-      yield* pollForResponseDOM(page);
-    } else {
-      logger.warn('[grok] response polling timed out');
+    // Primary: network interception via streamMerged (backed by the in-page
+    // reader for smooth streaming). Fallback: DOM polling if nothing captured.
+    try {
+      yield* streamMerged({
+        provider: 'grok',
+        capture,
+        readInPage: () => page.evaluate(`
+          window.__conduitGrok ? {
+            text: window.__conduitGrok.text || '',
+            done: !!window.__conduitGrok.done
+          } : { text:'', done:false }
+        `) as Promise<InPageState>,
+        domFallback: () => pollForResponseDOM(page),
+      });
+    } finally {
+      capture.detach();
     }
   }
 
