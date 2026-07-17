@@ -3,17 +3,17 @@
   "project": "conduit-bridge-newproviders",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1784309489",
-    "timestamp": "2026-07-17T17:31:29Z",
-    "commit": "e4b6a14",
+    "session_id": "cli-1784311204",
+    "timestamp": "2026-07-17T18:00:05Z",
+    "commit": "a34dbac",
     "phase": "implementation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:c0b47620d2e1b36c89729de4fe4d424a741e1afea6ca4952b58a288e036bfdc0",
-      "updated": "2026-07-17T17:31:18Z",
-      "lines": 85,
+      "checksum": "sha256:bccffaf7843a49e72ab5683b39e68bd0d5306f3499cb46c684a367ddbfcf4fb8",
+      "updated": "2026-07-17T17:59:49Z",
+      "lines": 87,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
@@ -59,10 +59,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "v0.3.0 bump folded into PR #63; new providers + security/expiry/tests; release on merge",
+  "quick_context": "docs refresh post-0.3.0: How It Works, config-key guidance fix, API/local provider usage, /v1/status + File Locations accuracy",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 2513,
-    "full_read": 4261
+    "manifest_plus_core": 2708,
+    "full_read": 4456
   }
 }

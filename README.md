@@ -14,21 +14,24 @@ No OpenClaw required. Works on any machine with Node.js 20+ and Chromium.
 
 ## How It Works
 
-conduit-bridge launches Chromium via Playwright, logs into AI provider websites on your behalf, and exposes them as a local OpenAI-compatible API. Sessions are persisted to disk so you only need to log in once.
+conduit-bridge exposes a single local OpenAI-compatible API and routes each request to the right backend by its model id. Backends fall into four families: **browser sessions** driven by Playwright (Grok/Claude/Gemini/ChatGPT), **direct provider APIs** (Anthropic, Google, OpenAI Codex, plus the OpenRouter and Perplexity aggregators), and **local backends** (LM Studio's server and the Grok CLI). Browser sessions are persisted to disk so you only log in once; API providers use a key; local providers need neither.
 
 ```
 Your app / VS Code extension
-        ↓  OpenAI API (HTTP)
-conduit-bridge :31338
-        ↓  Playwright (headless Chromium)
-Grok / Claude / Gemini / ChatGPT
+        │  OpenAI API (HTTP, 127.0.0.1:31338)
+        ▼
+   conduit-bridge  ──►  route by model id
+        ├─ web-*        Playwright headless Chromium → Grok / Claude / Gemini / ChatGPT
+        ├─ api-*        provider SDK / REST → Anthropic · Google · OpenAI Codex · OpenRouter · Perplexity
+        ├─ lmstudio/*   local OpenAI-compatible server (LM Studio, live model discovery)
+        └─ cli-grok/*   local Grok CLI subprocess (--prompt-file headless)
 ```
 
 ---
 
 ## Available Models
 
-Web providers use browser session cookies (no API key); API providers require an API key in `~/.conduit/config.json` (`anthropicApiKey`, `googleApiKey`, OAuth via the OpenAI Codex CLI).
+Web providers use browser session cookies (no API key). API providers resolve a key in priority order — config (`conduit-bridge config apiKeys.<provider> <key>`), then auto-detected credentials from the provider's own CLI tool (`~/.claude`, `~/.gemini`, `~/.codex`), then the standard environment variable. Local providers (LM Studio, Grok CLI) need no key. See [Usage](#usage) for setup.
 
 ### Web (browser-automated)
 
@@ -120,9 +123,11 @@ conduit-bridge start
 
 Options:
 ```
---port=31338        Port to listen on (default: 31338)
---host=127.0.0.1    Host to bind to
---log-level=info    Log level: silent | info | debug
+--port=31338          Port to listen on (default: 31338)
+--host=127.0.0.1      Host to bind to
+--log-level=info      Log level: silent | info | debug
+--auth-token=<token>  Require 'Authorization: Bearer <token>' on /v1/* (see Security)
+--no-sandbox=true     Launch Chromium with --no-sandbox (off by default; see Security)
 ```
 
 ### Log into a provider (first time)
@@ -133,6 +138,26 @@ conduit-bridge login gemini
 conduit-bridge login chatgpt
 ```
 A browser window opens. Log in as you normally would. The session is saved to `~/.conduit/profiles/` and restored automatically on next start.
+
+### Configure API providers (no browser)
+
+Direct-API providers use a key instead of a browser login. A key is resolved in priority order: config → the provider's CLI credentials → environment variable.
+
+```bash
+# 1. Store a key in ~/.conduit/config.json
+conduit-bridge config apiKeys.openrouter-api  sk-or-v1-...
+conduit-bridge config apiKeys.perplexity-api  pplx-...
+conduit-bridge config apiKeys.claude-api      sk-ant-...
+conduit-bridge config apiKeys.gemini-api      <GOOGLE_AI_API_KEY>
+conduit-bridge config apiKeys.codex-api       <OPENAI_API_KEY>
+```
+
+If you already use the provider's CLI, its credentials are auto-detected (`~/.claude/.credentials.json`, `~/.gemini/oauth_creds.json`, `~/.codex/auth.json`). Failing that, the standard env vars are read: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `PERPLEXITY_API_KEY`.
+
+### Local providers (no key)
+
+- **LM Studio** — start LM Studio's local server; its loaded models are discovered live and exposed as `lmstudio/*` (use `lmstudio/auto` for whatever is loaded). Point at a non-default host with `LM_STUDIO_URL` (default `http://127.0.0.1:1234`).
+- **Grok CLI** — install the `grok` CLI and run `grok login`; models are exposed as `cli-grok/*`.
 
 ### Check status
 ```bash
@@ -167,11 +192,14 @@ Returns rich provider status:
       "connected": true,
       "hasProfile": true,
       "sessionValid": true,
-      "models": ["web-grok/grok-3", "web-grok/grok-3-fast", "..."]
+      "loginType": "browser",
+      "session": { "loggedIn": true, "lastVerified": 1750000000000, "status": "active" },
+      "models": ["web-grok/grok-expert", "web-grok/grok-auto", "..."]
     }
   ]
 }
 ```
+`loginType` is `"browser"` for web providers and `"api-key"` for everyone else; API/local providers report `session.status: "not_applicable"`.
 
 ### `POST /v1/chat/completions`
 Standard OpenAI chat completions. Supports `stream: true`.
@@ -184,7 +212,7 @@ Standard OpenAI chat completions. Supports `stream: true`.
 ```
 
 ### `POST /v1/login/:provider`
-Triggers login flow (opens headful browser).
+For a web provider (`grok`, `claude`, `gemini`, `chatgpt`) this opens the headful login browser. For an API or local provider it returns a `400` with setup guidance (use a key / start the local server) instead — there is no browser login.
 ```
 POST /v1/login/grok
 POST /v1/login/claude
@@ -274,9 +302,10 @@ const status = await server.registry.getStatus();
 
 | Path | Description |
 |---|---|
-| `~/.conduit/config.json` | Bridge configuration |
+| `~/.conduit/config.json` | Bridge configuration (port, host, `apiKeys`, security options) |
 | `~/.conduit/profiles/<provider>-profile/` | Playwright persistent browser profiles (cookies) |
-| `~/.conduit/<provider>-expiry.json` | Session expiry metadata |
+
+Per-provider session status and expiry are reported live at `GET /v1/status` (tracked in memory, not persisted to disk).
 
 ---
 
