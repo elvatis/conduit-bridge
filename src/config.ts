@@ -13,6 +13,11 @@ const DEFAULTS: BridgeConfig = {
   headless: false,       // show browser for login flows
   logLevel: 'info',
   apiKeys: {},
+  // Secure defaults: only localhost origins are allowed for CORS, no auth
+  // token (opt-in), and the Chromium sandbox stays ON (opt-in --no-sandbox).
+  allowedOrigins: ['http://localhost', 'http://127.0.0.1'],
+  authToken: '',
+  chromiumNoSandbox: false,
 };
 
 export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {

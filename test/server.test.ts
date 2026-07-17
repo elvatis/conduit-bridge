@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 import type { BridgeConfig } from '../src/types.js';
 
 // Shared, test-controllable registry behaviour. Defined via vi.hoisted so the
@@ -101,16 +101,31 @@ beforeEach(() => {
 
 describe('BridgeServer HTTP handler', () => {
   describe('CORS', () => {
-    it('answers a preflight OPTIONS with 204 and permissive CORS headers', async () => {
-      const res = await fetch(`${base}/v1/chat/completions`, { method: 'OPTIONS' });
+    // Raw request so we can set Origin (fetch strips it as a forbidden header).
+    const raw = (path: string, opts: { method?: string; headers?: Record<string, string> } = {}) =>
+      new Promise<{ status: number; headers: Record<string, string | string[] | undefined> }>((resolve, reject) => {
+        const u = new URL(base + path);
+        const req = request(
+          { hostname: u.hostname, port: u.port, path: u.pathname, method: opts.method ?? 'GET', headers: opts.headers ?? {} },
+          (res) => { res.on('data', () => {}); res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers })); },
+        );
+        req.on('error', reject);
+        req.end();
+      });
+
+    it('answers a preflight OPTIONS with 204 and reflects an allowlisted origin', async () => {
+      const res = await raw('/v1/chat/completions', { method: 'OPTIONS', headers: { origin: base } });
       expect(res.status).toBe(204);
-      expect(res.headers.get('access-control-allow-origin')).toBe('*');
-      expect(res.headers.get('access-control-allow-headers')).toContain('Authorization');
+      expect(res.headers['access-control-allow-origin']).toBe(base);
+      expect(res.headers['access-control-allow-headers']).toContain('Authorization');
     });
 
-    it('sets the CORS origin header on normal responses too', async () => {
-      const res = await fetch(`${base}/health`);
-      expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    it('reflects an allowlisted origin on normal responses and omits foreign origins', async () => {
+      const allowed = await raw('/health', { headers: { origin: base } });
+      expect(allowed.headers['access-control-allow-origin']).toBe(base);
+      expect(allowed.headers['vary']).toBe('Origin');
+      const foreign = await raw('/health', { headers: { origin: 'https://evil.example' } });
+      expect(foreign.headers['access-control-allow-origin']).toBeUndefined();
     });
   });
 

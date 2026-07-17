@@ -15,6 +15,43 @@ export interface BridgeConfig {
   headless: boolean;        // false = visible browser (for login)
   logLevel: 'silent' | 'info' | 'debug';
   apiKeys: ApiKeyConfig;    // API keys for CLI/SDK-based providers
+
+  // ── Security (all optional, secure-by-default) ─────────────────────────────
+  /**
+   * CORS allowlist. The request Origin header is reflected back in
+   * Access-Control-Allow-Origin ONLY when it appears in this list (the server's
+   * own host:port loopback origins are always allowed). Requests without an
+   * Origin header (curl, server-side OpenAI clients) are unaffected.
+   * Defaults to localhost origins.
+   */
+  allowedOrigins?: string[];
+  /**
+   * Optional bearer token for local API auth. When set, every /v1/* endpoint
+   * requires an 'Authorization: Bearer <token>' header (401 otherwise).
+   * When empty/unset (default), the server behaves exactly as before (no auth).
+   */
+  authToken?: string;
+  /**
+   * Opt-in to launch Chromium with '--no-sandbox'. Default false, so the
+   * Chromium sandbox stays ON. Only enable this for environments that require
+   * it (e.g. running as root inside a container). Can also be enabled via the
+   * CONDUIT_NO_SANDBOX=1 environment variable.
+   */
+  chromiumNoSandbox?: boolean;
+}
+
+// ── Session expiry tracking (T-004) ──────────────────────────────────────────
+// active        = a valid logged-in session was verified
+// expired       = provider was logged in before but the session has lapsed
+//                 (redirected to a login page / verify selector disappeared)
+// unknown       = session has not been verified yet this run
+// not_applicable = API-key provider (no browser session to expire)
+export type SessionStatus = 'active' | 'expired' | 'unknown' | 'not_applicable';
+
+export interface SessionInfo {
+  loggedIn: boolean;           // currently holds a valid logged-in session
+  lastVerified: number | null; // epoch ms of the last verified-good login
+  status: SessionStatus;
 }
 
 export interface ProviderStatus {
@@ -24,6 +61,9 @@ export interface ProviderStatus {
   sessionValid: boolean;    // browser context is alive + verified
   models: string[];
   cookieExpiresAt?: Date;
+  // ── Session expiry tracking (T-004): additive, backward compatible ──
+  loginType?: 'browser' | 'api-key'; // browser-login vs API-key provider
+  session?: SessionInfo;             // per-provider session validity/expiry
 }
 
 export interface BridgeStatus {
