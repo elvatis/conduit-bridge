@@ -87,6 +87,22 @@ function resolveApiKey(provider: ProviderName, cfg: BridgeConfig): string | unde
       }
       break;
     }
+
+    case 'openrouter-api': {
+      if (process.env.OPENROUTER_API_KEY) {
+        logger.info('[openrouter-api] using OPENROUTER_API_KEY from environment');
+        return process.env.OPENROUTER_API_KEY;
+      }
+      break;
+    }
+
+    case 'perplexity-api': {
+      if (process.env.PERPLEXITY_API_KEY) {
+        logger.info('[perplexity-api] using PERPLEXITY_API_KEY from environment');
+        return process.env.PERPLEXITY_API_KEY;
+      }
+      break;
+    }
   }
 
   return undefined;

@@ -34,6 +34,8 @@ const cfg = loadConfig({
   ...(flags.host ? { host: flags.host } : {}),
   ...(flags['log-level'] ? { logLevel: flags['log-level'] as any } : {}),
   ...(flags.headless !== undefined ? { headless: flags.headless !== 'false' } : {}),
+  ...(flags['auth-token'] ? { authToken: flags['auth-token'] } : {}),
+  ...(flags['no-sandbox'] !== undefined ? { chromiumNoSandbox: flags['no-sandbox'] !== 'false' } : {}),
 });
 
 configureLogger(cfg);
@@ -142,13 +144,27 @@ switch (cmd) {
 
 Usage:
   conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]
+                       [--auth-token=<token>] [--no-sandbox=true]
   conduit-bridge status
   conduit-bridge login <grok|claude|gemini|chatgpt>
   conduit-bridge config [key] [value]
 
 API providers (no browser needed):
-  conduit-bridge config apiKeys.claude-api <ANTHROPIC_API_KEY>
-  conduit-bridge config apiKeys.gemini-api <GOOGLE_AI_API_KEY>
-  conduit-bridge config apiKeys.codex-api  <OPENAI_API_KEY>
+  conduit-bridge config apiKeys.claude-api      <ANTHROPIC_API_KEY>
+  conduit-bridge config apiKeys.gemini-api      <GOOGLE_AI_API_KEY>
+  conduit-bridge config apiKeys.codex-api       <OPENAI_API_KEY>
+  conduit-bridge config apiKeys.openrouter-api  <OPENROUTER_API_KEY>
+  conduit-bridge config apiKeys.perplexity-api  <PERPLEXITY_API_KEY>
+
+Local providers (no key needed):
+  lmstudio   start LM Studio's local server (set LM_STUDIO_URL to override http://127.0.0.1:1234)
+  grok-cli   install the Grok CLI and run \`grok login\`
+
+Security (secure by default):
+  conduit-bridge config authToken <token>   Require 'Authorization: Bearer <token>' on /v1/*
+  --auth-token=<token>                       Same, per-invocation
+  Chromium runs sandboxed by default. To opt in to --no-sandbox (e.g. root in a
+  container), set CONDUIT_NO_SANDBOX=1, pass --no-sandbox=true, or set
+  chromiumNoSandbox true in the config file.
 `);
 }

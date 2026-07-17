@@ -1,4 +1,4 @@
-import type { BridgeConfig, ProviderName, ProviderStatus, BridgeStatus, ModelDefinition, ProviderAdapter } from './types.js';
+import type { BridgeConfig, ProviderName, ProviderStatus, BridgeStatus, ModelDefinition, ProviderAdapter, SessionInfo } from './types.js';
 import type { BaseProvider } from './providers/base.js';
 import { GrokProvider } from './providers/grok.js';
 import { ClaudeProvider } from './providers/claude.js';
@@ -7,6 +7,10 @@ import { ChatGPTProvider } from './providers/chatgpt.js';
 import { ClaudeApiProvider } from './providers/claude-api.js';
 import { GeminiApiProvider } from './providers/gemini-api.js';
 import { CodexApiProvider } from './providers/codex-api.js';
+import { OpenRouterApiProvider } from './providers/openrouter-api.js';
+import { PerplexityApiProvider } from './providers/perplexity-api.js';
+import { LmStudioProvider } from './providers/lmstudio.js';
+import { GrokCliProvider } from './providers/grok-cli.js';
 import { logger } from './logger.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +42,14 @@ export class ProviderRegistry {
     this._providers.set('claude-api', new ClaudeApiProvider(_cfg));
     this._providers.set('gemini-api', new GeminiApiProvider(_cfg));
     this._providers.set('codex-api',  new CodexApiProvider(_cfg));
+
+    // OpenAI-compatible API aggregators (no browser needed)
+    this._providers.set('openrouter-api', new OpenRouterApiProvider(_cfg));
+    this._providers.set('perplexity-api', new PerplexityApiProvider(_cfg));
+
+    // Local providers (no key needed / local subprocess)
+    this._providers.set('lmstudio', new LmStudioProvider(_cfg));
+    this._providers.set('grok-cli', new GrokCliProvider(_cfg));
   }
 
   get(name: ProviderName): ProviderAdapter {
@@ -49,9 +61,12 @@ export class ProviderRegistry {
   }
 
   providerForModel(modelId: string): ProviderAdapter | undefined {
-    return [...this._providers.values()].find(p =>
-      p.models.some(m => m.id === modelId),
-    );
+    const providers = [...this._providers.values()];
+    // Prefer an exact match against a provider's enumerated models…
+    const exact = providers.find(p => p.models.some(m => m.id === modelId));
+    if (exact) return exact;
+    // …then let passthrough/dynamic providers claim by prefix (e.g. api-openrouter/…).
+    return providers.find(p => p.ownsModel?.(modelId));
   }
 
   /** True while initial session restore is in progress */
@@ -117,12 +132,19 @@ export class ProviderRegistry {
     for (const [name, p] of this._providers) {
       const sessionValid = await p.checkSession();
       const isWebProvider = 'hasProfile' in p;
+      // Session expiry tracking (T-004): browser-login providers report a live
+      // session snapshot; API-key providers have no browser session to expire.
+      const session: SessionInfo = isWebProvider
+        ? (p as BaseProvider).sessionInfo
+        : { loggedIn: sessionValid, lastVerified: null, status: 'not_applicable' };
       providers.push({
         name,
         connected: sessionValid,
         hasProfile: isWebProvider ? (p as BaseProvider).hasProfile : sessionValid,
         sessionValid,
         models: p.models.map(m => m.id),
+        loginType: isWebProvider ? 'browser' : 'api-key',
+        session,
       });
     }
 

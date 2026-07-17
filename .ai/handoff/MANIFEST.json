@@ -1,68 +1,68 @@
 {
   "aahp_version": "3.0",
-  "project": "conduit-bridge",
+  "project": "conduit-bridge-newproviders",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1784306255",
-    "timestamp": "2026-07-17T16:37:35Z",
-    "commit": "ca7989b",
+    "session_id": "cli-1784311967",
+    "timestamp": "2026-07-17T18:12:47Z",
+    "commit": "6b31363",
     "phase": "implementation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:250914054dd091813dc8f16884846692ea3cfee7d957a5fdcb5d919b8dd57a4e",
-      "updated": "2026-07-17T16:37:20Z",
-      "lines": 76,
+      "checksum": "sha256:8591b4b1d527c8fee8f37246a9ec2c19dcabe3d479ff67cdc92815c804429660",
+      "updated": "2026-07-17T18:12:38Z",
+      "lines": 93,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
       "checksum": "sha256:51f398c978d907fc1ddece0ea9b1f6853713b6bc3626a0f6c5d5c5809b42499e",
-      "updated": "2026-07-17T16:36:46Z",
+      "updated": "2026-07-17T17:01:35Z",
       "lines": 68,
       "summary": "_Last updated: 2026-03-12_"
     },
     "LOG.md": {
       "checksum": "sha256:e4cc634168109c771d0d8a39f724ab860fa97e24a7bdf23edb494e9a559816c7",
-      "updated": "2026-07-17T16:20:00Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 42,
       "summary": "_Reverse chronological. Latest session first._"
     },
     "DASHBOARD.md": {
-      "checksum": "sha256:dcc37496905a4de4cf3e92d166f8f69580233bd7d6640d31e0f51a18ebfac415",
-      "updated": "2026-07-17T16:36:46Z",
+      "checksum": "sha256:e6cc1b39aa5da1aba91e7e99ff9aae15f7a286bc48803ab9bb3c8bcb8bf851a9",
+      "updated": "2026-07-17T18:09:13Z",
       "lines": 33,
       "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
     },
     "TRUST.md": {
       "checksum": "sha256:868e7c3fadd668f31015e22455dcff0a6071efa14efaa35c2239c19ba5b36693",
-      "updated": "2026-07-17T16:20:00Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 26,
       "summary": "_What has been manually verified vs. assumed._"
     },
     "CONVENTIONS.md": {
       "checksum": "sha256:ee8ebb4f69c0c759607bee7d75da869b50cd7943e64512b6968c0ce458fe3432",
-      "updated": "2026-07-17T16:36:46Z",
+      "updated": "2026-07-17T17:01:35Z",
       "lines": 86,
       "summary": "- TypeScript strict mode, ESM (`\"type\": \"module\"`)"
     },
     "WORKFLOW.md": {
       "checksum": "sha256:648d9d8f35285b0a06eacafc8365d49f47899616139fb0df88e349d1a7a5bd6d",
-      "updated": "2026-07-17T16:20:00Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 53,
       "summary": "(no summary available)"
     },
     "pii-allowlist.json": {
       "checksum": "sha256:7c1051f6e2bc3943b7c1dbe4da229694455681b8875a346c99279e555edb733f",
-      "updated": "2026-07-17T16:20:00Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 4,
       "summary": "{"
     }
   },
-  "quick_context": "(no summary available) _Last updated: 2026-03-12_ ",
+  "quick_context": "takeover PR #62: network interception refactor, resolved base.ts, vitest include fix; 67 tests",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1776,
-    "full_read": 3522
+    "manifest_plus_core": 3060,
+    "full_read": 4808
   }
 }
