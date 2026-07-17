@@ -6,7 +6,7 @@ _Quick-glance state for autonomous agents. Last updated: 2026-03-12_
 
 | Item | Value |
 |---|---|
-| Version | 0.3.0 |
+| Version | 0.4.0 |
 | Build | ✅ passes (`npm run build`) |
 | Tests | ✅ vitest suite (52 tests) |
 | npm published | N/A (not published to npm) |

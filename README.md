@@ -3,7 +3,7 @@
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 [![scanned by supply-chain-guard](https://img.shields.io/badge/scanned%20by-supply--chain--guard-2ea44f?logo=npm&logoColor=white)](https://github.com/homeofe/supply-chain-guard)
 
-**Current version:** `0.3.0`
+**Current version:** `0.4.0`
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex), OpenAI-compatible aggregators (OpenRouter, Perplexity), and local backends (LM Studio, Grok CLI).
 
@@ -173,7 +173,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.3.0" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.4.0" }
 ```
 
 ### `GET /v1/models`
@@ -185,7 +185,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "uptime": 3600,
   "providers": [
     {
@@ -311,6 +311,13 @@ Per-provider session status and expiry are reported live at `GET /v1/status` (tr
 ---
 
 ## Changelog
+
+### 0.4.0 - 2026-07-17
+- Web providers now capture responses via **network-layer interception** (Playwright `page.on('response')`) as the primary path, replacing brittle DOM-selector polling. DOM polling is kept as an automatic fallback so behaviour never regresses. New `src/providers/interception.ts` + `BaseProvider.startNetworkCapture`, per-provider stream parsers, and 15 unit tests. (#62, closes #35)
+  - The Claude/Grok/Gemini backend endpoint patterns are still being validated against the live sites; until then those providers fall back to DOM polling.
+- Toolchain/dependency updates: TypeScript 6 → 7, openai 6.48, `@anthropic-ai/sdk` 0.111, `@types/node` 26.1.1, vitest 4.1.10, `actions/setup-node` 7
+- Docs: refreshed the README for the full provider + security surface (How It Works, API/local provider setup, `/v1/status`); added the supply-chain-guard badge
+- Tests: run co-located `src/**/*.test.ts` (was `test/**` only)
 
 ### 0.3.0 - 2026-07-17
 - Add four new providers, ported from the `openclaw-cli-bridge-elvatis` project:
