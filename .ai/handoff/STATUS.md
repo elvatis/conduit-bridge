@@ -6,6 +6,7 @@
 > 2026-07-01 (claude-opus-4-8): add Claude Opus 4.8 + Sonnet 5 to the web and API Claude providers; fix stale claude-api model strings (4.6/4.5 were mapped to non-existent -20250514 snapshots that would 404, now bare aliases); README + changelog; v0.2.4.
 > 2026-07-01 (claude-opus-4-8): add Claude Fable 5 + Opus 4.7 to the claude-api provider (API-only; web selection is a no-op so per-version web labels are not added); v0.2.5. Note: SDK 0.98.0 has no server-side `fallbacks` support, so Fable 5 is added plain (no refusal fallback). vite/esbuild Dependabot alerts were already patched in the lockfile (npm audit 0).
 > 2026-07-01 (claude-opus-4-8): refresh non-Claude providers to mid-2026 lineups (web-researched, sources in PR); v0.2.6. Gemini API: drop fabricated gemini-3.0-flash/-thinking, add gemini-3.5-flash (GA) + 3.1-flash-lite, 3.1-pro -> 3.1-pro-preview. OpenAI/Codex API: add gpt-5.5 + gpt-5.5-pro (GA), drop codex-mini (removed 2026-02-12) + o3 + effort-label ids. Web labels refreshed (Grok Auto, Gemini 3.5, GPT-5.5). API IDs NOT runtime-validated (no provider keys) -> PR left OPEN for Emre's review.
+> 2026-07-17 (claude-opus-4-8): NEW PR (branch feat/new-providers) — port 4 providers from openclaw-cli-bridge-elvatis. openrouter-api (`api-openrouter/*`, OPENROUTER_API_KEY, openai SDK + custom baseURL/headers); perplexity-api (`api-perplexity/*`, sonar* + proxied upstreams, PERPLEXITY_API_KEY); lmstudio (`lmstudio/*`, keyless, live /v1/models discovery, LM_STUDIO_URL override); grok-cli (`cli-grok/*`, local `grok` CLI --prompt-file headless, cross-platform subprocess). Added optional `ProviderAdapter.ownsModel()` so any `<prefix>/<model>` routes by prefix (passthrough) even when not in the curated /v1/models list. No new deps (openai SDK + fetch + node:child_process). Added the repo's first vitest suite (test/providers.test.ts, 10 tests: catalogs, ownsModel, registry routing, grok-cli prompt flattening). tsc + esbuild + tests green; smoke-tested end-to-end (live LM Studio discovery of 14 models, passthrough routing -> 503 not 404, graceful 503/404, local-provider login guidance). Ran an adversarial multi-agent review -> fixed 4 grok-cli defects: deterministic temp-file name collision (now randomBytes + 0o600/wx), cmd.exe missing outer-quote pair (broke spaced install paths), Windows timeout killing only the cmd wrapper (now taskkill /T /F), and dead SIGKILL escalation (`!proc.killed` always false -> gate on a `closed` flag). Provider model IDs are curated (passthrough accepts any id) and NOT all runtime-validated (no API keys) -> PR left OPEN for Emre's review.
 
 ## Architecture Overview
 Standalone OpenAI-compatible HTTP proxy for headless browser AI sessions.
@@ -32,7 +33,7 @@ No OpenClaw dependency. Designed to run locally on the developer's machine.
 ## Build Status
 - TypeScript strict + ESM ✅
 - Build: `npm run build` → `dist/index.js` + `dist/cli.js` ✅
-- Tests: none yet (T-003)
+- Tests: provider-wiring vitest suite added on feat/new-providers (test/providers.test.ts, 10 tests — first tests in repo); broader provider/browser coverage still open (T-003)
 - Default port: 31338 (avoids conflict with OpenClaw cli-bridge on 31337)
 - Profile storage: `~/.conduit/profiles/<provider>-profile/`
 - Config: `~/.conduit/config.json`

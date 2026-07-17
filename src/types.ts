@@ -1,11 +1,18 @@
 // ── Public types for conduit-bridge ──────────────────────────────────────────
 
-export type ProviderName = 'grok' | 'claude' | 'gemini' | 'chatgpt' | 'claude-api' | 'gemini-api' | 'codex-api';
+export type ProviderName =
+  | 'grok' | 'claude' | 'gemini' | 'chatgpt'
+  | 'claude-api' | 'gemini-api' | 'codex-api'
+  | 'openrouter-api' | 'perplexity-api'   // OpenAI-compatible API aggregators
+  | 'lmstudio'                             // local OpenAI-compatible server
+  | 'grok-cli';                            // local Grok CLI subprocess
 
 export interface ApiKeyConfig {
-  'claude-api'?: string;    // Anthropic API key
-  'gemini-api'?: string;    // Google AI API key
-  'codex-api'?: string;     // OpenAI API key
+  'claude-api'?: string;        // Anthropic API key
+  'gemini-api'?: string;        // Google AI API key
+  'codex-api'?: string;         // OpenAI API key
+  'openrouter-api'?: string;    // OpenRouter API key (sk-or-v1-…)
+  'perplexity-api'?: string;    // Perplexity API key (pplx-…)
 }
 
 export interface BridgeConfig {
@@ -15,6 +22,7 @@ export interface BridgeConfig {
   headless: boolean;        // false = visible browser (for login)
   logLevel: 'silent' | 'info' | 'debug';
   apiKeys: ApiKeyConfig;    // API keys for CLI/SDK-based providers
+  lmStudioUrl?: string;     // LM Studio server URL (default http://127.0.0.1:1234)
 }
 
 export interface ProviderStatus {
@@ -80,4 +88,11 @@ export interface ProviderAdapter {
 
   /** Restore session from saved profile (called on startup) */
   restoreSession(): Promise<boolean>;
+
+  /**
+   * Optional: claim a model id whose exact match isn't in `models`.
+   * Lets passthrough/dynamic providers (OpenRouter, Perplexity, LM Studio, Grok CLI)
+   * route "<prefix>/<anything>" without enumerating every model up front.
+   */
+  ownsModel?(modelId: string): boolean;
 }

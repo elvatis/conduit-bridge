@@ -7,6 +7,10 @@ import { ChatGPTProvider } from './providers/chatgpt.js';
 import { ClaudeApiProvider } from './providers/claude-api.js';
 import { GeminiApiProvider } from './providers/gemini-api.js';
 import { CodexApiProvider } from './providers/codex-api.js';
+import { OpenRouterApiProvider } from './providers/openrouter-api.js';
+import { PerplexityApiProvider } from './providers/perplexity-api.js';
+import { LmStudioProvider } from './providers/lmstudio.js';
+import { GrokCliProvider } from './providers/grok-cli.js';
 import { logger } from './logger.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +42,14 @@ export class ProviderRegistry {
     this._providers.set('claude-api', new ClaudeApiProvider(_cfg));
     this._providers.set('gemini-api', new GeminiApiProvider(_cfg));
     this._providers.set('codex-api',  new CodexApiProvider(_cfg));
+
+    // OpenAI-compatible API aggregators (no browser needed)
+    this._providers.set('openrouter-api', new OpenRouterApiProvider(_cfg));
+    this._providers.set('perplexity-api', new PerplexityApiProvider(_cfg));
+
+    // Local providers (no key needed / local subprocess)
+    this._providers.set('lmstudio', new LmStudioProvider(_cfg));
+    this._providers.set('grok-cli', new GrokCliProvider(_cfg));
   }
 
   get(name: ProviderName): ProviderAdapter {
@@ -49,9 +61,12 @@ export class ProviderRegistry {
   }
 
   providerForModel(modelId: string): ProviderAdapter | undefined {
-    return [...this._providers.values()].find(p =>
-      p.models.some(m => m.id === modelId),
-    );
+    const providers = [...this._providers.values()];
+    // Prefer an exact match against a provider's enumerated models…
+    const exact = providers.find(p => p.models.some(m => m.id === modelId));
+    if (exact) return exact;
+    // …then let passthrough/dynamic providers claim by prefix (e.g. api-openrouter/…).
+    return providers.find(p => p.ownsModel?.(modelId));
   }
 
   /** True while initial session restore is in progress */

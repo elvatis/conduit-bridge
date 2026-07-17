@@ -1,68 +1,68 @@
 {
   "aahp_version": "3.0",
-  "project": "conduit-bridge",
+  "project": "conduit-bridge-newproviders",
   "last_session": {
-    "agent": "claude-fable-5",
-    "session_id": "cli-1783072009",
-    "timestamp": "2026-07-03T09:46:49Z",
-    "commit": "0473b23",
-    "phase": "fix",
+    "agent": "claude-opus-4-8",
+    "session_id": "cli-1784307448",
+    "timestamp": "2026-07-17T16:57:29Z",
+    "commit": "cfbc0fb",
+    "phase": "implementation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:b93749fd08d3e2e91c0b0f4796aa442687837dcfc0e1245050b094f1a4259ac6",
-      "updated": "2026-07-03T09:46:49Z",
-      "lines": 68,
+      "checksum": "sha256:f5a7fb577e9391000b18b73047edb68cf80c4e18a5016922de52a8bce0ca30e4",
+      "updated": "2026-07-17T16:57:17Z",
+      "lines": 69,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
       "checksum": "sha256:f30acae1f2186b0e0e5de2c51a54f52d451058f88b91c4f9309e6602fc6f5265",
-      "updated": "2026-06-29T06:23:44Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 73,
       "summary": "_Last updated: 2026-03-12_"
     },
     "LOG.md": {
       "checksum": "sha256:e4cc634168109c771d0d8a39f724ab860fa97e24a7bdf23edb494e9a559816c7",
-      "updated": "2026-05-05T16:11:01Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 42,
       "summary": "_Reverse chronological. Latest session first._"
     },
     "DASHBOARD.md": {
       "checksum": "sha256:13d634d04dd61545ef75f09a9d5ac425fe9f4b7125b3f7714bbd5749907c4c84",
-      "updated": "2026-05-05T16:11:01Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 33,
       "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
     },
     "TRUST.md": {
       "checksum": "sha256:868e7c3fadd668f31015e22455dcff0a6071efa14efaa35c2239c19ba5b36693",
-      "updated": "2026-05-05T16:11:01Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 26,
       "summary": "_What has been manually verified vs. assumed._"
     },
     "CONVENTIONS.md": {
       "checksum": "sha256:4ee359ec1055a8c20f249d014ae305c3284e3911827659527ebe077ccb01eef7",
-      "updated": "2026-05-05T16:11:01Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 86,
       "summary": "- TypeScript strict mode, ESM (`\"type\": \"module\"`)"
     },
     "WORKFLOW.md": {
       "checksum": "sha256:648d9d8f35285b0a06eacafc8365d49f47899616139fb0df88e349d1a7a5bd6d",
-      "updated": "2026-05-05T16:11:01Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 53,
       "summary": "(no summary available)"
     },
     "pii-allowlist.json": {
       "checksum": "sha256:7c1051f6e2bc3943b7c1dbe4da229694455681b8875a346c99279e555edb733f",
-      "updated": "2026-06-30T08:35:52Z",
+      "updated": "2026-07-17T16:29:34Z",
       "lines": 4,
       "summary": "{"
     }
   },
-  "quick_context": "(no summary available) _Last updated: 2026-03-12_ ",
+  "quick_context": "feat/new-providers: port OpenRouter, Perplexity, LM Studio, Grok CLI providers + ownsModel passthrough routing + first vitest suite",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1398,
-    "full_read": 3135
+    "manifest_plus_core": 1663,
+    "full_read": 3400
   }
 }
