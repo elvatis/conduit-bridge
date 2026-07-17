@@ -3,17 +3,17 @@
   "project": "conduit-bridge-newproviders",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1784307998",
-    "timestamp": "2026-07-17T17:06:38Z",
-    "commit": "6ce241b",
+    "session_id": "cli-1784309489",
+    "timestamp": "2026-07-17T17:31:29Z",
+    "commit": "e4b6a14",
     "phase": "implementation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:1c958f2e9ee7f1f01be54a0c58f87bee91cdf8e985b0329acdba6d21a3f9b396",
-      "updated": "2026-07-17T17:06:26Z",
-      "lines": 83,
+      "checksum": "sha256:c0b47620d2e1b36c89729de4fe4d424a741e1afea6ca4952b58a288e036bfdc0",
+      "updated": "2026-07-17T17:31:18Z",
+      "lines": 85,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
@@ -29,8 +29,8 @@
       "summary": "_Reverse chronological. Latest session first._"
     },
     "DASHBOARD.md": {
-      "checksum": "sha256:dcc37496905a4de4cf3e92d166f8f69580233bd7d6640d31e0f51a18ebfac415",
-      "updated": "2026-07-17T17:01:35Z",
+      "checksum": "sha256:e6cc1b39aa5da1aba91e7e99ff9aae15f7a286bc48803ab9bb3c8bcb8bf851a9",
+      "updated": "2026-07-17T17:30:18Z",
       "lines": 33,
       "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
     },
@@ -59,10 +59,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "feat/new-providers merged with origin/main: 4 new providers + ownsModel routing, integrated security/expiry/vitest from main",
+  "quick_context": "v0.3.0 bump folded into PR #63; new providers + security/expiry/tests; release on merge",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 2415,
-    "full_read": 4161
+    "manifest_plus_core": 2513,
+    "full_read": 4261
   }
 }

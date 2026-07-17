@@ -2,7 +2,7 @@
 
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 
-**Current version:** `0.2.6`
+**Current version:** `0.3.0`
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex), OpenAI-compatible aggregators (OpenRouter, Perplexity), and local backends (LM Studio, Grok CLI).
 
@@ -147,7 +147,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.2.6" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.3.0" }
 ```
 
 ### `GET /v1/models`
@@ -159,7 +159,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.2.6",
+  "version": "0.3.0",
   "uptime": 3600,
   "providers": [
     {
@@ -282,14 +282,17 @@ const status = await server.registry.getStatus();
 
 ## Changelog
 
-### Unreleased
+### 0.3.0 - 2026-07-17
 - Add four new providers, ported from the `openclaw-cli-bridge-elvatis` project:
   - **OpenRouter** (`api-openrouter/*`) — OpenAI-compatible aggregator (Anthropic, OpenAI, Google, xAI, DeepSeek, Meta, …) behind `OPENROUTER_API_KEY`
   - **Perplexity** (`api-perplexity/*`) — OpenAI-compatible; native `sonar*` web-search models plus proxied upstreams, behind `PERPLEXITY_API_KEY`
   - **LM Studio** (`lmstudio/*`) — local OpenAI-compatible server with live model discovery; no key. Override the endpoint with `LM_STUDIO_URL`
   - **Grok CLI** (`cli-grok/*`) — drives the local `grok` CLI in `--prompt-file` headless mode; requires the CLI installed
 - Passthrough routing: any `api-openrouter/…`, `api-perplexity/…`, `lmstudio/…`, or `cli-grok/…` model id routes to its provider even when not in the curated `/v1/models` list (via a new optional `ownsModel()` hook)
-- No new runtime dependencies (reuses the `openai` SDK, `fetch`, and `node:child_process`)
+- Security hardening (secure-by-default): the Chromium sandbox now stays ON (opt out via `chromiumNoSandbox` or `CONDUIT_NO_SANDBOX=1`), site isolation is kept on, wildcard CORS is replaced with an origin allowlist (`allowedOrigins`), and optional bearer-token auth guards `/v1/*` (`authToken`)
+- Per-provider session expiry tracking surfaced through `/v1/status` (`session` + `loginType`)
+- Added the project's first vitest unit-test suite; stopped the failing npm auto-publish and reconciled the version drift (README/DASHBOARD/package.json)
+- No new runtime dependencies for the new providers (reuses the `openai` SDK, `fetch`, and `node:child_process`)
 
 ### 0.2.6 - 2026-07-01
 - Refresh the non-Claude providers to their mid-2026 lineups (model IDs verified against official vendor docs on 2026-07-01):
