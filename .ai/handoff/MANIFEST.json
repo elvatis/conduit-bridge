@@ -3,17 +3,17 @@
   "project": "conduit-bridge-newproviders",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1784311596",
-    "timestamp": "2026-07-17T18:06:36Z",
-    "commit": "7396104",
-    "phase": "idle",
+    "session_id": "cli-1784312977",
+    "timestamp": "2026-07-17T18:29:38Z",
+    "commit": "f6aabc7",
+    "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:c4d1032d2ee0f0076aff5b5f0318b195264bfbc9ab4f79f1bd63b1749c22f18a",
-      "updated": "2026-07-17T18:06:23Z",
-      "lines": 89,
+      "checksum": "sha256:6024502ff94aa213fff514b98a5a7073ca1f8cdfb06f303ba86499cf204b243b",
+      "updated": "2026-07-17T18:29:25Z",
+      "lines": 95,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
@@ -30,7 +30,7 @@
     },
     "DASHBOARD.md": {
       "checksum": "sha256:e6cc1b39aa5da1aba91e7e99ff9aae15f7a286bc48803ab9bb3c8bcb8bf851a9",
-      "updated": "2026-07-17T17:30:18Z",
+      "updated": "2026-07-17T18:09:13Z",
       "lines": 33,
       "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
     },
@@ -59,10 +59,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "add supply-chain-guard README badge",
+  "quick_context": "PR #62 review fixes: listener-leak try/finally in 4 providers + gemini parser unescape/uXXXX",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 2740,
-    "full_read": 4488
+    "manifest_plus_core": 3220,
+    "full_read": 4968
   }
 }

@@ -3,6 +3,7 @@ import type { BrowserContext } from 'playwright';
 import { BaseProvider } from './base.js';
 import { logger } from '../logger.js';
 import { buildUserMessage } from './grok.js';
+import { streamMerged, GEMINI_INTERCEPT, type InPageState } from './interception.js';
 
 export class GeminiProvider extends BaseProvider {
   readonly name = 'gemini' as const;
@@ -56,53 +57,35 @@ export class GeminiProvider extends BaseProvider {
     await editor.fill(userMsg);
 
     await new Promise(r => setTimeout(r, 300));
-    await page.keyboard.press('Enter');
 
-    logger.debug(`[gemini] message sent (${userMsg.length} chars), streaming via fetch interception...`);
+    // Arm the network-layer capture just before submitting so it locks onto
+    // this turn's backend completion response (primary path, issue #35).
+    const capture = this.startNetworkCapture(page, GEMINI_INTERCEPT);
 
-    // Poll the intercepted response text
-    const timeout = 120000;
-    const pollInterval = 400;
-    const start = Date.now();
-    let lastLength = 0;
-    let stableCount = 0;
-    let hasContent = false;
+    // arm + submit live inside the try so capture.detach() always runs — even
+    // if the submit keypress throws (page navigated/closed). Otherwise the
+    // page.on('response') listener would leak on the long-lived reused page.
+    try {
+      capture.arm();
+      await page.keyboard.press('Enter');
 
-    while (Date.now() - start < timeout) {
-      await new Promise(r => setTimeout(r, pollInterval));
+      logger.debug(`[gemini] message sent (${userMsg.length} chars), capturing backend stream...`);
 
-      const result = await page.evaluate(`
-        window.__conduitGemini ? {
-          text: window.__conduitGemini.text || '',
-          done: !!window.__conduitGemini.done
-        } : { text:'', done:false }
-      `) as { text: string; done: boolean };
-
-      if (!result.text && !hasContent) continue;
-
-      if (result.text.length > lastLength) {
-        yield result.text.slice(lastLength);
-        lastLength = result.text.length;
-        stableCount = 0;
-        hasContent = true;
-      } else if (result.done) {
-        logger.debug(`[gemini] stream complete (${lastLength} chars)`);
-        return;
-      } else {
-        stableCount++;
-        if (stableCount >= 4 && lastLength > 0) {
-          logger.debug(`[gemini] response stable (${lastLength} chars)`);
-          return;
-        }
-      }
-    }
-
-    // If fetch interception got nothing, fall back to DOM polling
-    if (lastLength === 0) {
-      logger.info('[gemini] fetch interception captured nothing, falling back to DOM polling...');
-      yield* pollForResponseDOM(page);
-    } else {
-      logger.warn('[gemini] response polling timed out');
+      // Primary: network interception via streamMerged (backed by the in-page
+      // reader for smooth streaming). Fallback: DOM polling if nothing captured.
+      yield* streamMerged({
+        provider: 'gemini',
+        capture,
+        readInPage: () => page.evaluate(`
+          window.__conduitGemini ? {
+            text: window.__conduitGemini.text || '',
+            done: !!window.__conduitGemini.done
+          } : { text:'', done:false }
+        `) as Promise<InPageState>,
+        domFallback: () => pollForResponseDOM(page),
+      });
+    } finally {
+      capture.detach();
     }
   }
 
