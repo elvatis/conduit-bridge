@@ -3,58 +3,58 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "claude-opus-4-8",
-    "session_id": "cli-1784032741",
-    "timestamp": "2026-07-14T12:39:01Z",
-    "commit": "471399e",
-    "phase": "fix",
+    "session_id": "cli-1784305694",
+    "timestamp": "2026-07-17T16:28:14Z",
+    "commit": "af511db",
+    "phase": "implementation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:0e44b085ba45adf1e3491911cbaa321f4b9caf92ac58190e7581f978ed3311bb",
-      "updated": "2026-07-14T12:38:51Z",
-      "lines": 72,
+      "checksum": "sha256:02f1c97895981cd706b9db37318ad38118fc750cef1c707b411ffd42cd8f3d68",
+      "updated": "2026-07-17T16:28:02Z",
+      "lines": 74,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
       "checksum": "sha256:f30acae1f2186b0e0e5de2c51a54f52d451058f88b91c4f9309e6602fc6f5265",
-      "updated": "2026-07-14T12:36:48Z",
+      "updated": "2026-07-17T16:19:28Z",
       "lines": 73,
       "summary": "_Last updated: 2026-03-12_"
     },
     "LOG.md": {
       "checksum": "sha256:e4cc634168109c771d0d8a39f724ab860fa97e24a7bdf23edb494e9a559816c7",
-      "updated": "2026-07-14T12:36:48Z",
+      "updated": "2026-07-17T16:19:28Z",
       "lines": 42,
       "summary": "_Reverse chronological. Latest session first._"
     },
     "DASHBOARD.md": {
       "checksum": "sha256:13d634d04dd61545ef75f09a9d5ac425fe9f4b7125b3f7714bbd5749907c4c84",
-      "updated": "2026-07-14T12:36:48Z",
+      "updated": "2026-07-17T16:19:28Z",
       "lines": 33,
       "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
     },
     "TRUST.md": {
       "checksum": "sha256:868e7c3fadd668f31015e22455dcff0a6071efa14efaa35c2239c19ba5b36693",
-      "updated": "2026-07-14T12:36:48Z",
+      "updated": "2026-07-17T16:19:28Z",
       "lines": 26,
       "summary": "_What has been manually verified vs. assumed._"
     },
     "CONVENTIONS.md": {
       "checksum": "sha256:4ee359ec1055a8c20f249d014ae305c3284e3911827659527ebe077ccb01eef7",
-      "updated": "2026-07-14T12:36:48Z",
+      "updated": "2026-07-17T16:19:28Z",
       "lines": 86,
       "summary": "- TypeScript strict mode, ESM (`\"type\": \"module\"`)"
     },
     "WORKFLOW.md": {
       "checksum": "sha256:648d9d8f35285b0a06eacafc8365d49f47899616139fb0df88e349d1a7a5bd6d",
-      "updated": "2026-07-14T12:36:48Z",
+      "updated": "2026-07-17T16:19:28Z",
       "lines": 53,
       "summary": "(no summary available)"
     },
     "pii-allowlist.json": {
       "checksum": "sha256:7c1051f6e2bc3943b7c1dbe4da229694455681b8875a346c99279e555edb733f",
-      "updated": "2026-07-14T12:36:48Z",
+      "updated": "2026-07-17T16:19:28Z",
       "lines": 4,
       "summary": "{"
     }
@@ -62,7 +62,7 @@
   "quick_context": "(no summary available) _Last updated: 2026-03-12_ ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1499,
-    "full_read": 3236
+    "manifest_plus_core": 1646,
+    "full_read": 3383
   }
 }
