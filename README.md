@@ -2,7 +2,7 @@
 
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 
-**Current version:** `0.2.3`
+**Current version:** `0.2.6`
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex).
 
@@ -78,7 +78,7 @@ The live model list is always available at `GET /v1/models`.
 ## Installation
 
 ```bash
-# From source (until npm publish)
+# From source (conduit-bridge is run from source, not published to npm)
 git clone https://github.com/elvatis/conduit-bridge
 cd conduit-bridge
 npm install
@@ -125,7 +125,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.2.3" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.2.6" }
 ```
 
 ### `GET /v1/models`
@@ -137,7 +137,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.2.3",
+  "version": "0.2.6",
   "uptime": 3600,
   "providers": [
     {
