@@ -1,3 +1,5 @@
+> Note (2026-07-17, claude-opus-4-8): Removed the Auto-Publish (npm) workflow so conduit-bridge stops attempting npm publishes (every one failed E404 on the missing @elvatis scope; it was never on npm and is not meant to be). conduit-bridge stays a normal PUBLIC tool run from source, NOT marked private. Also fixed the version drift: README header + DASHBOARD were at 0.2.3 / 0.1.0 while package.json + changelog were 0.2.6; all current-version refs now 0.2.6 (historical changelog kept). Dropped task T-006.
+
 > Note (2026-07-14, claude-opus-4-8): Synced the canonical AAHP gate scripts from homeofe/improvements (v3.5.0 fixes: aahp-manifest.sh --phase documentation + cross_repo_ref preservation, lint-handoff.sh SC2034), AAHP_HANDOFF_FILES preserved, and refreshed the local hook tooling (scripts/hooks/, install-hooks.sh, verify-hooks.sh). Fleet re-sync.
 
 > Note (2026-07-14, claude-opus-4-8): Synced the canonical Layer 3 tolerance fix from homeofe/improvements. verify-handoff.sh now downgrades a non-ancestor MANIFEST.last_session.commit from FAIL to WARN so a squash-merge or rebase-merge no longer trips AAHP Verify Layer 3 on main; Layers 1-2 still gate real staleness.
@@ -45,7 +47,7 @@ No OpenClaw dependency. Designed to run locally on the developer's machine.
 - No tests yet (T-003)
 - Response polling is selector-based (fragile if UI changes) — needs proper streaming intercept (T-005)
 - No session expiry tracking yet (T-004)
-- No npm publish yet (T-006)
+- Not published to npm (auto-publisher removed 2026-07-17; T-006 dropped)
 - README missing on GitHub (fixed this session)
 
 ## Release History

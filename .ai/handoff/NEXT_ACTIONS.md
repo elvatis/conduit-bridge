@@ -47,15 +47,10 @@ _Last updated: 2026-03-12_
   5. Fall back to DOM polling only if intercept fails
 - **Definition of done:** Responses are captured via network layer, not DOM polling.
 
-### T-006: [medium] — Publish to npm + write README
+### T-006: [dropped 2026-07-17] npm publish (will not do)
 
-- **Goal:** Make `@elvatis/conduit-bridge` available on npm. README already added.
-- **Prerequisite:** T-003 (tests) must be done first.
-- **What to do:**
-  1. Verify all version strings match
-  2. `npm publish --access public`
-  3. Update STATUS.md
-- **Definition of done:** `npm install @elvatis/conduit-bridge` works.
+- **Decision:** conduit-bridge is run from source and is NOT published to npm. The Auto-Publish workflow was removed. The public GitHub repo and source usage are unchanged; only the npm publish path is gone.
+- **Status:** closed, will not do.
 
 ---
 
