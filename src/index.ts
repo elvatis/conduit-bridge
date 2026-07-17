@@ -7,6 +7,8 @@ export type {
   BridgeConfig,
   BridgeStatus,
   ProviderStatus,
+  SessionInfo,
+  SessionStatus,
   ProviderName,
   ChatMessage,
   ChatRequest,
