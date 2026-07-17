@@ -392,15 +392,20 @@ export function parseGeminiStream(body: string): string {
   let longest = '';
   for (const m of matches) {
     const s = m.slice(1, -1);
-    if (s.startsWith('http') || s.includes('\\u')) continue;
-    if (s.length > longest.length) longest = s;
+    if (s.startsWith('http')) continue; // skip URLs / opaque ids
+    // Decode JSON string escapes in one correct pass. This handles \n, \t, \",
+    // \\ and \uXXXX together: an ordered replace chain mis-decodes an escaped
+    // backslash followed by n/t (\\n -> backslash+newline), and \uXXXX text was
+    // being dropped entirely.
+    let decoded: string;
+    try {
+      decoded = JSON.parse(`"${s}"`);
+    } catch {
+      continue; // not a well-formed JSON string body
+    }
+    if (decoded.length > longest.length) longest = decoded;
   }
-  if (!longest) return '';
-  return longest
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, '\\');
+  return longest;
 }
 
 // Per-provider specs. `match` is deliberately tighter than the broad in-page

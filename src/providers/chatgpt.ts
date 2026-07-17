@@ -61,14 +61,18 @@ export class ChatGPTProvider extends BaseProvider {
     // Arm the network-layer capture just before submitting so it locks onto
     // this turn's backend completion response (primary path, issue #35).
     const capture = this.startNetworkCapture(page, CHATGPT_INTERCEPT);
-    capture.arm();
-    await page.keyboard.press('Enter');
 
-    logger.debug(`[chatgpt] message sent (${userMsg.length} chars), capturing backend stream...`);
-
-    // Primary: network interception via streamMerged (backed by the in-page
-    // reader for smooth streaming). Fallback: DOM polling if nothing captured.
+    // arm + submit live inside the try so capture.detach() always runs — even
+    // if the submit keypress throws (page navigated/closed). Otherwise the
+    // page.on('response') listener would leak on the long-lived reused page.
     try {
+      capture.arm();
+      await page.keyboard.press('Enter');
+
+      logger.debug(`[chatgpt] message sent (${userMsg.length} chars), capturing backend stream...`);
+
+      // Primary: network interception via streamMerged (backed by the in-page
+      // reader for smooth streaming). Fallback: DOM polling if nothing captured.
       yield* streamMerged({
         provider: 'chatgpt',
         capture,

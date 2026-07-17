@@ -90,24 +90,29 @@ export class ClaudeProvider extends BaseProvider {
     // Arm the network-layer capture just before submitting so it locks onto
     // this turn's backend completion response (primary path, issue #35).
     const capture = this.startNetworkCapture(page, CLAUDE_INTERCEPT);
-    capture.arm();
-    await page.keyboard.press('Enter');
 
-    logger.debug(`[claude] message sent (${userMsg.length} chars), capturing backend SSE stream...`);
-
-    // Save conversation URL after redirect
-    await new Promise(r => setTimeout(r, 1500));
-    const convUrl = page.url();
-    if (convUrl.includes('claude.ai/chat/')) {
-      this._conversationUrl = convUrl;
-      logger.debug(`[claude] conversation URL saved: ${convUrl}`);
-    }
-
-    // Primary: network interception via streamMerged. Claude also surfaces
-    // streaming metadata (thinking / tool / token counts) via the in-page
-    // reader, which we keep fresh for the server through onTick. DOM polling is
-    // the automatic fallback if the network layer captures nothing.
+    // arm + submit + the post-submit URL capture live inside the try so
+    // capture.detach() always runs even if a page op throws (e.g. page.url()
+    // after a submit-time navigation). Otherwise the page.on('response')
+    // listener would leak on the long-lived reused page.
     try {
+      capture.arm();
+      await page.keyboard.press('Enter');
+
+      logger.debug(`[claude] message sent (${userMsg.length} chars), capturing backend SSE stream...`);
+
+      // Save conversation URL after redirect
+      await new Promise(r => setTimeout(r, 1500));
+      const convUrl = page.url();
+      if (convUrl.includes('claude.ai/chat/')) {
+        this._conversationUrl = convUrl;
+        logger.debug(`[claude] conversation URL saved: ${convUrl}`);
+      }
+
+      // Primary: network interception via streamMerged. Claude also surfaces
+      // streaming metadata (thinking / tool / token counts) via the in-page
+      // reader, which we keep fresh for the server through onTick. DOM polling is
+      // the automatic fallback if the network layer captures nothing.
       yield* streamMerged({
         provider: 'claude',
         capture,
