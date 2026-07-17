@@ -1,6 +1,6 @@
 {
   "name": "@elvatis/conduit-bridge",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Standalone OpenAI-compatible AI proxy: Grok, Claude, Gemini, ChatGPT via headless browser",
   "type": "module",
   "main": "./dist/index.js",
