@@ -1,3 +1,7 @@
+> Note (2026-07-17, claude-opus-4-8): Bump 0.2.6 -> 0.3.0 (minor: new providers + the security/expiry/vitest work that landed since the last release). Updated package.json, README (version header, changelog 0.3.0 entry, /health + /v1/models JSON examples) and DASHBOARD. Folded into PR #63; a v0.3.0 GitHub release is cut on merge to reconcile the drift (files said 0.2.6 but the latest GitHub release was v0.2.5 — no 0.2.6 release ever existed). Build + 52 tests green.
+
+> Note (2026-07-17, claude-opus-4-8): Merged origin/main into feat/new-providers (PR #63, the 4-provider port described below). Integrated security #23, session-expiry #34, and the vitest suite #33: resolved src/types.ts (kept lmStudioUrl alongside the new security fields + SessionInfo), src/cli.ts help (merged provider + security sections), and extended test/registry.test.ts ALL_PROVIDERS 7 -> 11 for the new providers. Full suite green 52/52 (10 new provider tests + 42 existing); tsc + esbuild clean.
+
 > Note (2026-07-17, claude-opus-4-8): Reconciled test/server.test.ts CORS tests with the new allowlist behavior from #23 (they asserted the old wildcard *; now they verify allowlisted-origin reflection via a raw request plus foreign-origin rejection). Full suite green: 42/42.
 
 > Note (2026-07-17, claude-opus-4-8): Added a vitest unit test suite (T-003, issue #33). New devDependency already present in the lockfile; added vitest.config.ts and npm scripts "test": "vitest run" and "test:watch": "vitest". 42 tests across test/config.test.ts (loadConfig defaults/overrides, saveConfig round-trip and merge precedence, path helpers, homedir mocked to a temp dir), test/logger.test.ts (level gating, ISO timestamp, onLine subscribe/unsubscribe, configureLogger singleton), test/registry.test.ts (provider registration, model lookup, unknown-model handling, status snapshot) and test/server.test.ts (HTTP handler with a mocked registry so no browser launches: CORS/OPTIONS, health, models, status, chat 200/400/404/503, SSE stream, api-key login rejection, logout, 404). tsconfig scoped to include ["src"] so tsc build ignores the config/test files. npm run build and npm test both green.
@@ -12,12 +16,13 @@
 
 # STATUS — conduit-bridge
 
-## Current Version: 0.2.6 (published to npm on GitHub Release)
+## Current Version: 0.3.0 (run from source; GitHub Release only, not npm)
 
 > 2026-06-29 (claude-opus-4-8): ignore .ai/logs handoff scratch (.gitignore).
 > 2026-07-01 (claude-opus-4-8): add Claude Opus 4.8 + Sonnet 5 to the web and API Claude providers; fix stale claude-api model strings (4.6/4.5 were mapped to non-existent -20250514 snapshots that would 404, now bare aliases); README + changelog; v0.2.4.
 > 2026-07-01 (claude-opus-4-8): add Claude Fable 5 + Opus 4.7 to the claude-api provider (API-only; web selection is a no-op so per-version web labels are not added); v0.2.5. Note: SDK 0.98.0 has no server-side `fallbacks` support, so Fable 5 is added plain (no refusal fallback). vite/esbuild Dependabot alerts were already patched in the lockfile (npm audit 0).
 > 2026-07-01 (claude-opus-4-8): refresh non-Claude providers to mid-2026 lineups (web-researched, sources in PR); v0.2.6. Gemini API: drop fabricated gemini-3.0-flash/-thinking, add gemini-3.5-flash (GA) + 3.1-flash-lite, 3.1-pro -> 3.1-pro-preview. OpenAI/Codex API: add gpt-5.5 + gpt-5.5-pro (GA), drop codex-mini (removed 2026-02-12) + o3 + effort-label ids. Web labels refreshed (Grok Auto, Gemini 3.5, GPT-5.5). API IDs NOT runtime-validated (no provider keys) -> PR left OPEN for Emre's review.
+> 2026-07-17 (claude-opus-4-8): NEW PR (branch feat/new-providers) — port 4 providers from openclaw-cli-bridge-elvatis. openrouter-api (`api-openrouter/*`, OPENROUTER_API_KEY, openai SDK + custom baseURL/headers); perplexity-api (`api-perplexity/*`, sonar* + proxied upstreams, PERPLEXITY_API_KEY); lmstudio (`lmstudio/*`, keyless, live /v1/models discovery, LM_STUDIO_URL override); grok-cli (`cli-grok/*`, local `grok` CLI --prompt-file headless, cross-platform subprocess). Added optional `ProviderAdapter.ownsModel()` so any `<prefix>/<model>` routes by prefix (passthrough) even when not in the curated /v1/models list. No new deps (openai SDK + fetch + node:child_process). Added the repo's first vitest suite (test/providers.test.ts, 10 tests: catalogs, ownsModel, registry routing, grok-cli prompt flattening). tsc + esbuild + tests green; smoke-tested end-to-end (live LM Studio discovery of 14 models, passthrough routing -> 503 not 404, graceful 503/404, local-provider login guidance). Ran an adversarial multi-agent review -> fixed 4 grok-cli defects: deterministic temp-file name collision (now randomBytes + 0o600/wx), cmd.exe missing outer-quote pair (broke spaced install paths), Windows timeout killing only the cmd wrapper (now taskkill /T /F), and dead SIGKILL escalation (`!proc.killed` always false -> gate on a `closed` flag). Provider model IDs are curated (passthrough accepts any id) and NOT all runtime-validated (no API keys) -> PR left OPEN for Emre's review.
 
 ## Architecture Overview
 Standalone OpenAI-compatible HTTP proxy for headless browser AI sessions.
@@ -44,7 +49,7 @@ No OpenClaw dependency. Designed to run locally on the developer's machine.
 ## Build Status
 - TypeScript strict + ESM ✅
 - Build: `npm run build` → `dist/index.js` + `dist/cli.js` ✅
-- Tests: none yet (T-003)
+- Tests: provider-wiring vitest suite added on feat/new-providers (test/providers.test.ts, 10 tests — first tests in repo); broader provider/browser coverage still open (T-003)
 - Default port: 31338 (avoids conflict with OpenClaw cli-bridge on 31337)
 - Profile storage: `~/.conduit/profiles/<provider>-profile/`
 - Config: `~/.conduit/config.json`

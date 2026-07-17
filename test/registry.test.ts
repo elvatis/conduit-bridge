@@ -18,6 +18,7 @@ import { ProviderRegistry } from '../src/registry.js';
 
 const ALL_PROVIDERS: ProviderName[] = [
   'grok', 'claude', 'gemini', 'chatgpt', 'claude-api', 'gemini-api', 'codex-api',
+  'openrouter-api', 'perplexity-api', 'lmstudio', 'grok-cli',
 ];
 
 function testConfig(): BridgeConfig {
@@ -39,7 +40,7 @@ describe('ProviderRegistry', () => {
   });
 
   describe('provider registration', () => {
-    it('registers all seven built-in providers', () => {
+    it('registers all eleven built-in providers', () => {
       for (const name of ALL_PROVIDERS) {
         expect(registry.get(name).name).toBe(name);
       }

@@ -150,9 +150,15 @@ Usage:
   conduit-bridge config [key] [value]
 
 API providers (no browser needed):
-  conduit-bridge config apiKeys.claude-api <ANTHROPIC_API_KEY>
-  conduit-bridge config apiKeys.gemini-api <GOOGLE_AI_API_KEY>
-  conduit-bridge config apiKeys.codex-api  <OPENAI_API_KEY>
+  conduit-bridge config apiKeys.claude-api      <ANTHROPIC_API_KEY>
+  conduit-bridge config apiKeys.gemini-api      <GOOGLE_AI_API_KEY>
+  conduit-bridge config apiKeys.codex-api       <OPENAI_API_KEY>
+  conduit-bridge config apiKeys.openrouter-api  <OPENROUTER_API_KEY>
+  conduit-bridge config apiKeys.perplexity-api  <PERPLEXITY_API_KEY>
+
+Local providers (no key needed):
+  lmstudio   start LM Studio's local server (set LM_STUDIO_URL to override http://127.0.0.1:1234)
+  grok-cli   install the Grok CLI and run \`grok login\`
 
 Security (secure by default):
   conduit-bridge config authToken <token>   Require 'Authorization: Bearer <token>' on /v1/*

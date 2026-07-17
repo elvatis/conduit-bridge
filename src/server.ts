@@ -162,14 +162,20 @@ export class BridgeServer {
     }
 
     // ── POST /v1/login/:provider ─────────────────────────────────────────────
-    const loginMatch = url.match(/^\/v1\/login\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api)$/);
+    const loginMatch = url.match(/^\/v1\/login\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api|openrouter-api|perplexity-api|lmstudio|grok-cli)$/);
     if (loginMatch && method === 'POST') {
       const name = loginMatch[1] as import('./types.js').ProviderName;
       const provider = this._registry.get(name);
 
-      // API providers don't use browser login - return helpful message
-      if (name.endsWith('-api')) {
-        json(res, 400, { status: 'error', provider: name, message: `${name} uses API keys, not browser login. Set your key via: conduit-bridge config apiKeys.${name} <key>` });
+      // Only the web providers use browser login; everyone else gets guidance.
+      const WEB_LOGIN = new Set(['grok', 'claude', 'gemini', 'chatgpt']);
+      if (!WEB_LOGIN.has(name)) {
+        const message = name.endsWith('-api')
+          ? `${name} uses API keys, not browser login. Set your key via: conduit-bridge config apiKeys.${name} <key>`
+          : name === 'lmstudio'
+            ? `lmstudio needs no login — start LM Studio's local server and set LM_STUDIO_URL if it isn't on http://127.0.0.1:1234.`
+            : `grok-cli uses the local Grok CLI — install it and run \`grok login\` (not a browser login).`;
+        json(res, 400, { status: 'error', provider: name, message });
         return;
       }
 
@@ -185,7 +191,7 @@ export class BridgeServer {
     }
 
     // ── POST /v1/logout/:provider ────────────────────────────────────────────
-    const logoutMatch = url.match(/^\/v1\/logout\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api)$/);
+    const logoutMatch = url.match(/^\/v1\/logout\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api|openrouter-api|perplexity-api|lmstudio|grok-cli)$/);
     if (logoutMatch && method === 'POST') {
       const name = logoutMatch[1] as import('./types.js').ProviderName;
       await this._registry.get(name).logout();
