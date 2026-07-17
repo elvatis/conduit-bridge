@@ -4,8 +4,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { BridgeServer } from './server.js';
-import { loadConfig, saveConfig } from './config.js';
+import { loadConfig, saveConfig, loadDotEnv } from './config.js';
 import { logger, configureLogger } from './logger.js';
+
+// Load .env (<cwd>/.env, then ~/.conduit/.env) into process.env before anything
+// resolves keys. Never overrides variables already set in the real environment.
+const _dotenvKeys = loadDotEnv();
 
 const __cli_dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_VERSION = (() => {
@@ -39,6 +43,10 @@ const cfg = loadConfig({
 });
 
 configureLogger(cfg);
+
+if (_dotenvKeys.length) {
+  logger.info(`Loaded ${_dotenvKeys.length} var(s) from .env: ${_dotenvKeys.join(', ')}`);
+}
 
 switch (cmd) {
   case 'start': {

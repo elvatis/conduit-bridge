@@ -142,7 +142,7 @@ A browser window opens. Log in as you normally would. The session is saved to `~
 
 ### Configure API providers (no browser)
 
-Direct-API providers use a key instead of a browser login. A key is resolved in priority order: config → the provider's CLI credentials → environment variable.
+Direct-API providers use a key instead of a browser login. A key is resolved in priority order: config → the provider's CLI credentials → environment variable (which can come from a `.env` file).
 
 ```bash
 # 1. Store a key in ~/.conduit/config.json
@@ -153,7 +153,14 @@ conduit-bridge config apiKeys.gemini-api      <GOOGLE_AI_API_KEY>
 conduit-bridge config apiKeys.codex-api       <OPENAI_API_KEY>
 ```
 
-If you already use the provider's CLI, its credentials are auto-detected (`~/.claude/.credentials.json`, `~/.gemini/oauth_creds.json`, `~/.codex/auth.json`). Failing that, the standard env vars are read: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `PERPLEXITY_API_KEY`.
+If you already use the provider's CLI, its credentials are auto-detected (`~/.claude/.credentials.json`, `~/.gemini/oauth_creds.json`, `~/.codex/auth.json`). Failing that, the standard env vars are read: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `PERPLEXITY_API_KEY` (and `LM_STUDIO_URL`).
+
+These variables can be real environment variables **or** lines in a **`.env` file** — loaded from the directory you run the bridge from, then from `~/.conduit/.env`. Real environment variables always take precedence. Copy [`.env.example`](.env.example) to `.env` to get started:
+
+```dotenv
+OPENROUTER_API_KEY=sk-or-v1-...
+PERPLEXITY_API_KEY=pplx-...
+```
 
 ### Local providers (no key)
 
@@ -311,6 +318,9 @@ Per-provider session status and expiry are reported live at `GET /v1/status` (tr
 ---
 
 ## Changelog
+
+### Unreleased
+- Load provider keys from a **`.env` file** — read from the working directory then `~/.conduit/.env` (real environment variables still take precedence). Added `.env.example` and gitignored `.env`. Keys like `OPENROUTER_API_KEY` / `PERPLEXITY_API_KEY` / `LM_STUDIO_URL` now work from `.env` in addition to `conduit-bridge config apiKeys.<provider>`.
 
 ### 0.4.0 - 2026-07-17
 - Web providers now capture responses via **network-layer interception** (Playwright `page.on('response')`) as the primary path, replacing brittle DOM-selector polling. DOM polling is kept as an automatic fallback so behaviour never regresses. New `src/providers/interception.ts` + `BaseProvider.startNetworkCapture`, per-provider stream parsers, and 15 unit tests. (#62, closes #35)
