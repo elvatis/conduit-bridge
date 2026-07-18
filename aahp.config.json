@@ -1,0 +1,14 @@
+{
+  "pinnedDep": {
+    "name": "@elvatis_com/aahp",
+    "location": "devDependencies",
+    "allowRange": false
+  },
+  "forbiddenPatterns": [
+    {
+      "id": "em-dash",
+      "pattern": "\\u2014",
+      "message": "em dash (U+2014) is banned; use a hyphen"
+    }
+  ]
+}
