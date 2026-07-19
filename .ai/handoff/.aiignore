@@ -1,0 +1,58 @@
+# .aiignore -AAHP v2 Safety Firewall
+# Patterns that must NEVER appear in handoff files.
+# Validated by CI hooks and agents before committing.
+
+# ============================================
+# Secrets & API Keys
+# ============================================
+*_KEY=*
+*_SECRET=*
+*_TOKEN=*
+*_PASSWORD=*
+*_CREDENTIALS=*
+Bearer *
+sk-*
+ghp_*
+gho_*
+glpat-*
+xoxb-*
+xoxp-*
+AKIA*
+-----BEGIN*PRIVATE KEY-----
+-----BEGIN*RSA*-----
+
+# ============================================
+# PII (Personally Identifiable Information)
+# ============================================
+# Email patterns
+*@*.com
+*@*.de
+*@*.org
+*@*.net
+*@*.io
+
+# SSN pattern (US)
+# \b\d{3}-\d{2}-\d{4}\b
+
+# Phone numbers (international)
+# \+\d{1,3}[\s-]?\d{3,14}
+
+# ============================================
+# Prompt Injection Patterns
+# ============================================
+ignore all previous*
+ignore prior*
+disregard*instructions*
+you are now*
+new system prompt*
+override*safety*
+act as*unrestricted*
+jailbreak*
+
+# ============================================
+# Internal Infrastructure
+# ============================================
+# Add your internal hostnames, IPs, endpoints here
+# 10.0.0.*
+# 192.168.*
+# *.internal.company.com
