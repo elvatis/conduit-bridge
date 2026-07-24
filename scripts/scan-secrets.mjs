@@ -13,8 +13,9 @@
  *
  * Exit codes: 0 = clean, 1 = findings, 2 = scanner error.
  *
- * Matches are printed with the value truncated, so a real finding never gets
- * echoed in full into CI logs.
+ * Findings are printed with every long token redacted down to its first 8
+ * characters, so a real credential is never echoed into a public CI log. The
+ * vendor prefix survives, which is enough to know which key to rotate.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -78,9 +79,17 @@ function gitGrep(args) {
   }
 }
 
-function truncate(text) {
+/**
+ * Keep the first 8 characters of any long token and drop the rest. This report
+ * goes into a public CI log, so it must not reprint the credential it found.
+ */
+function redact(text) {
   const trimmed = text.trim();
-  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}...` : trimmed;
+  const masked = trimmed.replace(
+    /[A-Za-z0-9_+./-]{20,}/g,
+    (token) => `${token.slice(0, 8)}...[redacted, ${token.length} chars]`,
+  );
+  return masked.length > 120 ? `${masked.slice(0, 120)}...` : masked;
 }
 
 /**
@@ -135,7 +144,7 @@ function main() {
   }
 
   for (const match of scan([])) {
-    findings.push(`${match.location}: ${truncate(match.content)}`);
+    findings.push(`${match.location}: ${redact(match.content)}`);
   }
 
   if (HISTORY) {
@@ -143,7 +152,7 @@ function main() {
     // Chunked so the argument list stays inside the Windows command-line limit.
     for (let i = 0; i < revs.length; i += 150) {
       for (const match of scan(revs.slice(i, i + 150))) {
-        findings.push(`history ${match.location}: ${truncate(match.content)}`);
+        findings.push(`history ${match.location}: ${redact(match.content)}`);
       }
     }
   }

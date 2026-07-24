@@ -3,16 +3,16 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "claude-opus-5",
-    "session_id": "cli-1784917818",
-    "timestamp": "2026-07-24T18:30:18Z",
-    "commit": "80825b2",
+    "session_id": "cli-1784918138",
+    "timestamp": "2026-07-24T18:35:39Z",
+    "commit": "475e40e",
     "phase": "implementation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:004afb24f3798afbd83b2c6e38bf39b4a2f015f787d9f45604e5f1845884300e",
-      "updated": "2026-07-24T18:30:09Z",
+      "checksum": "sha256:148ff0b70c85fe338c3126ba72884aa613409371a9754d96cfaea68d77ab7d97",
+      "updated": "2026-07-24T18:35:27Z",
       "lines": 107,
       "summary": "(no summary available)"
     },
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Tier 0 secret-exposure audit: no credential ever committed; added scan-secrets.mjs + secret-scan workflow + gitignore/SECURITY hardening.",
+  "quick_context": "Secret-scan gate: redact findings before printing.",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 4267,
-    "full_read": 8508
+    "manifest_plus_core": 4315,
+    "full_read": 8556
   }
 }
