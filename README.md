@@ -7,7 +7,7 @@
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex), OpenAI-compatible aggregators (OpenRouter, Perplexity), and local backends (LM Studio, Grok CLI).
 
-No OpenClaw required. Works on any machine with Node.js 20+ and Chromium.
+No OpenClaw required. Works on any machine with Node.js 24+ and Chromium.
 
 > Part of the [Conduit](https://github.com/elvatis/conduit-vscode) ecosystem, powers the conduit-vscode VS Code extension.
 

@@ -4,7 +4,7 @@
 - TypeScript strict mode, ESM (`"type": "module"`)
 - Node 16 module resolution (`"moduleResolution": "Node16"`)
 - Target: ES2022
-- Node.js >= 20 required
+- Node.js >= 24 required
 
 ## Package
 - Name: `@elvatis/conduit-bridge`
