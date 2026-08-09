@@ -15,24 +15,27 @@ import { ApiBaseProvider } from './api-base.js';
 const PERPLEXITY_BASE_URL = 'https://api.perplexity.ai';
 const PREFIX = 'api-perplexity/';
 
-// Perplexity-native (web-search) models — owned_by "perplexity".
+// Perplexity-native (web-search) models - owned_by "perplexity".
+// Pricing list (docs.perplexity.ai, 2026-08): sonar, sonar-pro,
+// sonar-reasoning-pro, sonar-deep-research. Dropped bare sonar-reasoning.
 const SONAR_MODELS = [
   'sonar',
   'sonar-pro',
-  'sonar-reasoning',
   'sonar-reasoning-pro',
   'sonar-deep-research',
 ];
 
-// Upstream models proxied through Perplexity — owned_by is the first path segment.
+// Upstream models proxied through Perplexity Agent API (changelog Jul 2026).
+// owned_by is the first path segment.
 const PROXIED_MODELS = [
-  'anthropic/claude-opus-4-8',
-  'anthropic/claude-sonnet-4-6',
+  'anthropic/claude-opus-5',
+  'anthropic/claude-sonnet-5',
   'anthropic/claude-haiku-4-5',
-  'openai/gpt-5.5',
-  'openai/gpt-5.4',
+  'openai/gpt-5.6-sol',
+  'openai/gpt-5.6-terra',
+  'openai/gpt-5.6-luna',
   'xai/grok-4.5',
-  'google/gemini-2.5-pro',
+  'google/gemini-3.6-flash',
 ];
 
 export class PerplexityApiProvider extends ApiBaseProvider {

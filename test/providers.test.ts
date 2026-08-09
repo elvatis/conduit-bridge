@@ -21,8 +21,9 @@ describe('new provider catalogs + ownsModel', () => {
     expect(p.name).toBe('openrouter-api');
     expect(p.models.length).toBeGreaterThan(0);
     expect(p.models.every(m => m.id.startsWith('api-openrouter/'))).toBe(true);
-    expect(p.ownsModel('api-openrouter/anthropic/claude-opus-4-8')).toBe(true);
+    expect(p.ownsModel('api-openrouter/anthropic/claude-opus-5')).toBe(true);
     expect(p.ownsModel('api-perplexity/sonar')).toBe(false);
+    expect(p.models.some(m => m.id === 'api-openrouter/openai/gpt-5.6-sol')).toBe(true);
   });
 
   it('Perplexity: prefixed catalog incl. sonar, owns its namespace', () => {
@@ -30,7 +31,7 @@ describe('new provider catalogs + ownsModel', () => {
     expect(p.name).toBe('perplexity-api');
     expect(p.models.some(m => m.id === 'api-perplexity/sonar')).toBe(true);
     expect(p.models.every(m => m.id.startsWith('api-perplexity/'))).toBe(true);
-    expect(p.ownsModel('api-perplexity/openai/gpt-5.5')).toBe(true);
+    expect(p.ownsModel('api-perplexity/openai/gpt-5.6-sol')).toBe(true);
     expect(p.ownsModel('cli-grok/grok-4.5')).toBe(false);
   });
 
@@ -57,7 +58,7 @@ describe('registry routing', () => {
   const reg = new ProviderRegistry(cfg);
 
   it('routes exact catalog ids to the right provider', () => {
-    expect(reg.providerForModel('api-openrouter/openai/gpt-5.5')?.name).toBe('openrouter-api');
+    expect(reg.providerForModel('api-openrouter/openai/gpt-5.6-sol')?.name).toBe('openrouter-api');
     expect(reg.providerForModel('api-perplexity/sonar')?.name).toBe('perplexity-api');
     expect(reg.providerForModel('cli-grok/grok-4.5')?.name).toBe('grok-cli');
     expect(reg.providerForModel('lmstudio/auto')?.name).toBe('lmstudio');

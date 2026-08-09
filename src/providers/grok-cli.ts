@@ -24,7 +24,10 @@ const PREFIX = 'cli-grok/';
 const DEFAULT_TIMEOUT_MS = 300_000; // 5 min
 const GRACE_MS = 5_000;
 
-const CATALOG = ['grok-4.5', 'grok-4', 'grok-3', 'grok-3-fast', 'grok-3-mini', 'grok-3-mini-fast'];
+// Curated API/CLI model ids (docs.x.ai/developers/models, 2026-08). Grok 3 and
+// the May-2026-retired 4.x fast slugs were removed; retired slugs still redirect
+// server-side but should not be advertised. ownsModel still accepts any cli-grok/*.
+const CATALOG = ['grok-4.5', 'grok-4.3', 'grok-4'];
 
 interface CliRunResult {
   stdout: string;
