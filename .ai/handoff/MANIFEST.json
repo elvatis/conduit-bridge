@@ -3,9 +3,9 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "grok",
-    "session_id": "cli-1786287619",
-    "timestamp": "2026-08-09T15:00:19Z",
-    "commit": "fc32114",
+    "session_id": "cli-1786287670",
+    "timestamp": "2026-08-09T15:01:11Z",
+    "commit": "f8e09b7",
     "phase": "documentation",
     "duration_minutes": 50
   },
@@ -71,7 +71,7 @@
       "summary": "{"
     }
   },
-  "quick_context": "Release v0.5.0 (2026-08-09): fix CHANGELOG grammar for aahp doctor",
+  "quick_context": "Release v0.5.0 (2026-08-09)",
   "token_budget": {
     "manifest_only": 85,
     "manifest_plus_core": 4992,
