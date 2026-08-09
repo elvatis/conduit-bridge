@@ -14,6 +14,7 @@ import {
   stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { toOpenAiEffort } from '../effort.js';
 
 // OpenAI Codex CLI (@openai/codex) — non-interactive via `codex exec`.
 // Install: npm i -g @openai/codex  then  codex login
@@ -84,16 +85,19 @@ export class CodexCliProvider implements ProviderAdapter {
 
     const model = stripPrefix(req.model, PREFIX);
     const prompt = flattenMessages(req.messages);
+    const effort = toOpenAiEffort(req.effort);
 
     // codex exec: final agent message on stdout; progress on stderr.
     // Prompt via stdin (`-`) to avoid ARG_MAX / Windows cmd length limits.
     // read-only sandbox + skip git check so chat-proxy use works outside a repo.
+    // reasoning_effort via -c for GPT-5.x reasoning models.
     const args = [
       'exec',
       '-m', model,
       '--skip-git-repo-check',
       '--sandbox', 'read-only',
       '--ephemeral',
+      ...(effort ? ['-c', `model_reasoning_effort=${effort}`] : []),
       '-',
     ];
 

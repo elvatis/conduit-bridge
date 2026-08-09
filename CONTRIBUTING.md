@@ -15,6 +15,11 @@ Thanks for your interest in contributing!
 2. Link any relevant issues.
 3. Ensure tests pass and documentation is updated.
 
+## Releases
+
+See **[docs/RELEASING.md](docs/RELEASING.md)** for the full process (version bump,
+changelog, tag, GitHub Release). This package is **not** published to npm.
+
 ## Code Style
 
 - Follow existing patterns in the codebase.

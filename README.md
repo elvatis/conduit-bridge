@@ -3,7 +3,7 @@
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 [![scanned by supply-chain-guard](https://img.shields.io/badge/scanned%20by-supply--chain--guard-2ea44f?logo=npm&logoColor=white)](https://github.com/homeofe/supply-chain-guard)
 
-**Current version:** `0.4.0`
+**Current version:** `0.5.0`
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex), OpenAI-compatible aggregators (OpenRouter, Perplexity), and local backends (LM Studio, Grok CLI).
 
@@ -185,7 +185,7 @@ The proxy implements the OpenAI API:
 
 ### `GET /health`
 ```json
-{ "status": "ok", "service": "conduit-bridge", "version": "0.4.0" }
+{ "status": "ok", "service": "conduit-bridge", "version": "0.5.0" }
 ```
 
 ### `GET /v1/models`
@@ -197,7 +197,7 @@ Returns rich provider status:
 {
   "running": true,
   "port": 31338,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "uptime": 3600,
   "providers": [
     {
@@ -322,10 +322,56 @@ Per-provider session status and expiry are reported live at `GET /v1/status` (tr
 
 ---
 
+## Reasoning effort
+
+`POST /v1/chat/completions` accepts either `effort` or OpenAI-compatible `reasoning_effort`:
+
+```json
+{
+  "model": "api-claude/claude-opus-5",
+  "messages": [{ "role": "user", "content": "Plan a migration" }],
+  "effort": "high"
+}
+```
+
+| Level | Notes |
+|---|---|
+| `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | OpenAI ladder; providers with fewer levels map down |
+
+**Provider support**
+
+| Backend | How effort is applied |
+|---|---|
+| Claude API | `output_config.effort` (Claude ladder; none/minimal -> low) |
+| Codex API / OpenRouter / Perplexity | `reasoning_effort` on chat completions |
+| Claude Code CLI (`cli-claude`) | `--effort` |
+| Codex CLI (`cli-codex`) | `-c model_reasoning_effort=...` |
+| Antigravity CLI (`cli-gemini` / `agy`) | `--effort` low\|medium\|high |
+| Grok CLI (`cli-grok`) | `--reasoning-effort` |
+| Gemini API SDK | not exposed by current SDK surface (no-op) |
+| Web browser providers | not applicable (UI session; no-op) |
+| LM Studio | no-op |
+
+---
+
 ## Changelog
 
+### 0.5.0 - 2026-08-09
+- **Coding CLI providers**: shell out to local CLIs in headless mode
+  - `cli-codex/*` via `@openai/codex` (`codex exec`)
+  - `cli-claude/*` via `@anthropic-ai/claude-code` (`claude -p`)
+  - `cli-gemini/*` via Antigravity CLI binary **`agy`** (fallback: `gemini` / `antigravity`)
+  - existing `cli-grok/*` unchanged
+- **Model catalog refresh** (official docs, 2026-08): GPT-5.6 Sol/Terra/Luna; Claude Fable 5 / Opus 5 / Sonnet 5 / Haiku 4.5; Gemini 3.6 Flash (+ 3.5 Flash-Lite); Grok 4.5 line; OpenRouter/Perplexity curated lists updated
+- **Reasoning effort**: request field `effort` or `reasoning_effort` wired through Claude API, Codex/OpenRouter/Perplexity, and coding CLIs
+- **Node engines floor**: `>=24.0.0` (CI + `.nvmrc`); `openai` bumped to ^7.4.0
+- **AAHP** exact-pin 3.9.2; supply-chain-guard stays on floating `@v5` with Dependabot ignore
+- **Secret-scan gate** (`npm run scan:secrets`, CI workflow) + hardened credential gitignores
+- Login/logout routes cover all CLI provider names with install guidance
+- Docs: `docs/RELEASING.md` agent release process; root `CHANGELOG.md`
+
 ### Unreleased
-- Load provider keys from a **`.env` file** — read from the working directory then `~/.conduit/.env` (real environment variables still take precedence). Added `.env.example` and gitignored `.env`. Keys like `OPENROUTER_API_KEY` / `PERPLEXITY_API_KEY` / `LM_STUDIO_URL` now work from `.env` in addition to `conduit-bridge config apiKeys.<provider>`.
+- (none)
 
 ### 0.4.0 - 2026-07-17
 - Web providers now capture responses via **network-layer interception** (Playwright `page.on('response')`) as the primary path, replacing brittle DOM-selector polling. DOM polling is kept as an automatic fallback so behaviour never regresses. New `src/providers/interception.ts` + `BaseProvider.startNetworkCapture`, per-provider stream parsers, and 15 unit tests. (#62, closes #35)

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
+import { toClaudeEffort } from '../effort.js';
 
 // Map friendly model IDs to Anthropic API model strings.
 // Bare aliases (never date-suffixed). Curated: Fable 5, Opus 5, Sonnet 5, Haiku 4.5
@@ -44,10 +45,12 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
+    const effort = toClaudeEffort(req.effort);
     const response = await client.messages.create({
       model: apiModel,
       max_tokens: req.max_tokens ?? DEFAULT_MAX_TOKENS[req.model] ?? 64_000,
       ...(systemMsg ? { system: systemMsg.content } : {}),
+      ...(effort ? { output_config: { effort } } : {}),
       messages: conversationMsgs,
     });
 
@@ -66,10 +69,12 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
+    const effort = toClaudeEffort(req.effort);
     const stream = client.messages.stream({
       model: apiModel,
       max_tokens: req.max_tokens ?? DEFAULT_MAX_TOKENS[req.model] ?? 64_000,
       ...(systemMsg ? { system: systemMsg.content } : {}),
+      ...(effort ? { output_config: { effort } } : {}),
       messages: conversationMsgs,
     });
 

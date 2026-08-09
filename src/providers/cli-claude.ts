@@ -14,6 +14,7 @@ import {
   stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { toClaudeEffort } from '../effort.js';
 
 // Anthropic Claude Code CLI (@anthropic-ai/claude-code) — headless via -p/--print.
 // Install: npm i -g @anthropic-ai/claude-code  then authenticate (claude /login or API key)
@@ -84,15 +85,17 @@ export class ClaudeCliProvider implements ProviderAdapter {
 
     const model = stripPrefix(req.model, PREFIX);
     const prompt = flattenMessages(req.messages);
+    const effort = toClaudeEffort(req.effort);
 
     // -p/--print: non-interactive. --output-format text: plain assistant text.
     // --permission-mode plan: read-only agent tools for chat-proxy safety.
-    // Prompt as last argv (Node spawn handles long args better than cmd.exe).
+    // --effort: Claude Code reasoning effort (low|medium|high|xhigh|max).
     const args = [
       '-p',
       '--output-format', 'text',
       '--model', model,
       '--permission-mode', 'plan',
+      ...(effort ? ['--effort', effort] : []),
       prompt,
     ];
 
