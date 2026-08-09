@@ -18,6 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Intentionally on the rolling major tag @v5, not an exact version or SHA.
+      # SCG publishes new threat indicators as new releases; @v5 is how those
+      # reach this repo. Pinning freezes the indicator set while the scan still
+      # reports green. Dependabot is told to ignore this action for the same
+      # reason (see .github/dependabot.yml). The scanner's own GHA_TAG_NOT_SHA
+      # finding against this line is accepted by design.
       - uses: homeofe/supply-chain-guard@v5
         with:
           fail-on: critical
