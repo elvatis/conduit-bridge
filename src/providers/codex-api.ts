@@ -2,29 +2,28 @@ import OpenAI from 'openai';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
 
-// Model IDs verified against developers.openai.com/api/docs/pricing and
-// /codex/models (2026-07-01). GPT-5.5 / gpt-5.5-pro are the current flagships;
-// Codex now defaults to the general gpt-5.5. Dropped: gpt-5.4-thinking /
-// gpt-5.3-instant / gpt-5-thinking-mini (ChatGPT effort labels, not API IDs),
-// o3 (retired from the current lineup), and codex-mini-latest (removed from the
-// API on 2026-02-12; would 404).
+// Model IDs verified against developers.openai.com/api/docs/models (2026-08-09).
+// GPT-5.6 family: Sol (flagship, alias gpt-5.6), Terra (balanced), Luna (cost).
+// Prior generation gpt-5.5 / gpt-5.5-pro remain available. Dropped from the
+// curated catalog: gpt-5.4* (superseded), effort-label IDs, o3, codex-mini.
 const MODEL_MAP: Record<string, string> = {
-  'api-codex/gpt-5.5':               'gpt-5.5',
-  'api-codex/gpt-5.5-pro':           'gpt-5.5-pro',
-  'api-codex/gpt-5.4':               'gpt-5.4',
-  'api-codex/gpt-5.4-mini':          'gpt-5.4-mini',
-  'api-codex/gpt-5.4-pro':           'gpt-5.4-pro',
+  'api-codex/gpt-5.6-sol':   'gpt-5.6-sol',
+  'api-codex/gpt-5.6-terra': 'gpt-5.6-terra',
+  'api-codex/gpt-5.6-luna':  'gpt-5.6-luna',
+  'api-codex/gpt-5.6':       'gpt-5.6', // alias -> Sol
+  'api-codex/gpt-5.5':       'gpt-5.5',
+  'api-codex/gpt-5.5-pro':   'gpt-5.5-pro',
 };
 
 export class CodexApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'codex-api';
 
   readonly models: ModelDefinition[] = [
-    { id: 'api-codex/gpt-5.5',              provider: 'codex-api', displayName: 'GPT-5.5 (API)',              owned_by: 'openai' },
-    { id: 'api-codex/gpt-5.5-pro',          provider: 'codex-api', displayName: 'GPT-5.5 Pro (API)',          owned_by: 'openai' },
-    { id: 'api-codex/gpt-5.4',              provider: 'codex-api', displayName: 'GPT-5.4 (API)',              owned_by: 'openai' },
-    { id: 'api-codex/gpt-5.4-mini',         provider: 'codex-api', displayName: 'GPT-5.4 mini (API)',         owned_by: 'openai' },
-    { id: 'api-codex/gpt-5.4-pro',          provider: 'codex-api', displayName: 'GPT-5.4 Pro (API)',          owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.6-sol',   provider: 'codex-api', displayName: 'GPT-5.6 Sol (API)',   owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.6-terra', provider: 'codex-api', displayName: 'GPT-5.6 Terra (API)', owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.6-luna',  provider: 'codex-api', displayName: 'GPT-5.6 Luna (API)',  owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.5',       provider: 'codex-api', displayName: 'GPT-5.5 (API)',       owned_by: 'openai' },
+    { id: 'api-codex/gpt-5.5-pro',   provider: 'codex-api', displayName: 'GPT-5.5 Pro (API)',   owned_by: 'openai' },
   ];
 
   private _client(): OpenAI {

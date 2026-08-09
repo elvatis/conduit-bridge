@@ -22,22 +22,27 @@ const OPENROUTER_HEADERS: Record<string, string> = {
   'X-Title': 'conduit-bridge',
 };
 
+// Curated subset of openrouter.ai/api/v1/models (2026-08-09). Any
+// api-openrouter/<provider>/<model> still routes via ownsModel.
 const CATALOG = [
-  'anthropic/claude-opus-4-8',
-  'anthropic/claude-sonnet-4-6',
-  'anthropic/claude-haiku-4-5',
+  'anthropic/claude-opus-5',
+  'anthropic/claude-fable-5',
+  'anthropic/claude-sonnet-5',
+  'anthropic/claude-haiku-4.5',
+  'anthropic/claude-opus-4.8',
+  'anthropic/claude-sonnet-4.6',
+  'openai/gpt-5.6-sol',
+  'openai/gpt-5.6-terra',
+  'openai/gpt-5.6-luna',
   'openai/gpt-5.5',
-  'openai/gpt-5.4',
-  'openai/o3',
-  'google/gemini-2.5-pro',
-  'google/gemini-2.5-flash',
+  'google/gemini-3.6-flash',
+  'google/gemini-3.5-flash',
+  'google/gemini-3.5-flash-lite',
   'x-ai/grok-4.5',
-  'x-ai/grok-3',
+  'x-ai/grok-4.3',
   'deepseek/deepseek-r1',
   'deepseek/deepseek-chat',
   'meta-llama/llama-4-maverick',
-  'mistralai/mistral-large-2411',
-  'qwen/qwen-2.5-72b-instruct',
 ];
 
 export class OpenRouterApiProvider extends ApiBaseProvider {

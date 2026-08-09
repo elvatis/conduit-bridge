@@ -65,12 +65,15 @@ export class LmStudioProvider implements ProviderAdapter {
       });
       if (!resp.ok) return this._discovered;
       const data = (await resp.json()) as { data?: LmStudioApiModel[] };
-      this._discovered = (data.data ?? []).map(m => ({
-        id: `${PREFIX}${m.id}`,
-        provider: 'lmstudio' as ProviderName,
-        displayName: `${m.id} (LM Studio)`,
-        owned_by: m.owned_by ?? 'lmstudio',
-      }));
+      // Skip embedding-only models so /v1/models stays chat-usable.
+      this._discovered = (data.data ?? [])
+        .filter(m => !/embed/i.test(m.id))
+        .map(m => ({
+          id: `${PREFIX}${m.id}`,
+          provider: 'lmstudio' as ProviderName,
+          displayName: `${m.id} (LM Studio)`,
+          owned_by: m.owned_by ?? 'lmstudio',
+        }));
       return this._discovered;
     } catch {
       return this._discovered;

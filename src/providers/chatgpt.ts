@@ -10,13 +10,14 @@ export class ChatGPTProvider extends BaseProvider {
   readonly loginUrl = 'https://chatgpt.com';
   readonly verifySelector = '#prompt-textarea, [contenteditable="true"]';
 
-  // The ChatGPT picker is now GPT-5.5-family effort tiers (Instant / Thinking /
-  // Pro), having retired the o3 and 5.4/5.3 names. Web selection is a no-op in
-  // this provider, so these labels are advisory.
+  // ChatGPT now ships the GPT-5.6 family as durable capability tiers: Sol
+  // (flagship), Terra (balanced), Luna (fast/affordable). Web selection is a
+  // no-op in this provider, so these labels are advisory.
+  // Docs: developers.openai.com/api/docs/models (gpt-5.6-sol / -terra / -luna)
   readonly models: ModelDefinition[] = [
-    { id: 'web-chatgpt/gpt-5.5-instant',   provider: 'chatgpt', displayName: 'GPT-5.5 Instant',   owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-5.5-thinking',  provider: 'chatgpt', displayName: 'GPT-5.5 Thinking',  owned_by: 'openai' },
-    { id: 'web-chatgpt/gpt-5.5-pro',       provider: 'chatgpt', displayName: 'GPT-5.5 Pro',       owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5.6-sol',   provider: 'chatgpt', displayName: 'GPT-5.6 Sol',   owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5.6-terra', provider: 'chatgpt', displayName: 'GPT-5.6 Terra', owned_by: 'openai' },
+    { id: 'web-chatgpt/gpt-5.6-luna',  provider: 'chatgpt', displayName: 'GPT-5.6 Luna',  owned_by: 'openai' },
   ];
 
   private _patchedCtx: BrowserContext | null = null;

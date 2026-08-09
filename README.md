@@ -42,38 +42,42 @@ Web providers use browser session cookies (no API key). API providers resolve a 
 | `web-grok/grok-expert` | Grok | Grok Expert |
 | `web-grok/grok-heavy` | Grok | Grok Heavy |
 | `web-grok/grok-auto` | Grok | Grok Auto |
-| `web-claude/claude-opus` | Claude | Claude Opus 4.8 |
+| `web-claude/claude-opus` | Claude | Claude Opus 5 |
 | `web-claude/claude-sonnet` | Claude | Claude Sonnet 5 |
 | `web-claude/claude-haiku` | Claude | Claude Haiku 4.5 |
-| `web-claude/claude-sonnet-4-5` | Claude | Claude Sonnet 4.5 |
+| `web-claude/claude-fable` | Claude | Claude Fable 5 |
 | `web-claude/claude-opus-4-5` | Claude | Claude Opus 4.5 |
+| `web-claude/claude-sonnet-4-5` | Claude | Claude Sonnet 4.5 |
+| `web-gemini/gemini-3.6-flash` | Gemini | Gemini 3.6 Flash |
 | `web-gemini/gemini-3.5-flash` | Gemini | Gemini 3.5 Flash |
-| `web-gemini/gemini-3.5-pro` | Gemini | Gemini 3.5 Pro |
 | `web-gemini/gemini-3.1-pro` | Gemini | Gemini 3.1 Pro |
-| `web-chatgpt/gpt-5.5-instant` | ChatGPT | GPT-5.5 Instant |
-| `web-chatgpt/gpt-5.5-thinking` | ChatGPT | GPT-5.5 Thinking |
-| `web-chatgpt/gpt-5.5-pro` | ChatGPT | GPT-5.5 Pro |
+| `web-chatgpt/gpt-5.6-sol` | ChatGPT | GPT-5.6 Sol |
+| `web-chatgpt/gpt-5.6-terra` | ChatGPT | GPT-5.6 Terra |
+| `web-chatgpt/gpt-5.6-luna` | ChatGPT | GPT-5.6 Luna |
 
 ### API (direct SDK)
 
 | Model ID | Provider | Description |
 |---|---|---|
 | `api-claude/claude-fable-5` | Claude API | Claude Fable 5 |
-| `api-claude/claude-opus-4-8` | Claude API | Claude Opus 4.8 |
+| `api-claude/claude-opus-5` | Claude API | Claude Opus 5 |
 | `api-claude/claude-sonnet-5` | Claude API | Claude Sonnet 5 |
+| `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
+| `api-claude/claude-opus-4-8` | Claude API | Claude Opus 4.8 |
 | `api-claude/claude-opus-4-7` | Claude API | Claude Opus 4.7 |
 | `api-claude/claude-opus-4-6` | Claude API | Claude Opus 4.6 |
 | `api-claude/claude-sonnet-4-6` | Claude API | Claude Sonnet 4.6 |
-| `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
 | `api-claude/claude-sonnet-4-5` | Claude API | Claude Sonnet 4.5 |
+| `api-gemini/gemini-3.6-flash` | Gemini API | Gemini 3.6 Flash |
 | `api-gemini/gemini-3.5-flash` | Gemini API | Gemini 3.5 Flash |
+| `api-gemini/gemini-3.5-flash-lite` | Gemini API | Gemini 3.5 Flash-Lite |
 | `api-gemini/gemini-3.1-flash-lite` | Gemini API | Gemini 3.1 Flash-Lite |
 | `api-gemini/gemini-3.1-pro` | Gemini API | Gemini 3.1 Pro |
+| `api-codex/gpt-5.6-sol` | Codex API | GPT-5.6 Sol |
+| `api-codex/gpt-5.6-terra` | Codex API | GPT-5.6 Terra |
+| `api-codex/gpt-5.6-luna` | Codex API | GPT-5.6 Luna |
 | `api-codex/gpt-5.5` | Codex API | GPT-5.5 |
 | `api-codex/gpt-5.5-pro` | Codex API | GPT-5.5 Pro |
-| `api-codex/gpt-5.4` | Codex API | GPT-5.4 |
-| `api-codex/gpt-5.4-mini` | Codex API | GPT-5.4 mini |
-| `api-codex/gpt-5.4-pro` | Codex API | GPT-5.4 Pro |
 
 ### OpenAI-compatible aggregators
 
@@ -81,21 +85,21 @@ One API key each; any `<prefix>/<model>` is accepted (passthrough), so you're ne
 
 | Model ID (example) | Provider | Key |
 |---|---|---|
-| `api-openrouter/anthropic/claude-opus-4-8` | OpenRouter | `OPENROUTER_API_KEY` |
-| `api-openrouter/openai/gpt-5.5` | OpenRouter | `OPENROUTER_API_KEY` |
-| `api-openrouter/deepseek/deepseek-r1` | OpenRouter | `OPENROUTER_API_KEY` |
+| `api-openrouter/anthropic/claude-opus-5` | OpenRouter | `OPENROUTER_API_KEY` |
+| `api-openrouter/openai/gpt-5.6-sol` | OpenRouter | `OPENROUTER_API_KEY` |
+| `api-openrouter/google/gemini-3.6-flash` | OpenRouter | `OPENROUTER_API_KEY` |
 | `api-perplexity/sonar-pro` | Perplexity | `PERPLEXITY_API_KEY` |
 | `api-perplexity/sonar-reasoning-pro` | Perplexity | `PERPLEXITY_API_KEY` |
-| `api-perplexity/anthropic/claude-opus-4-8` | Perplexity | `PERPLEXITY_API_KEY` |
+| `api-perplexity/anthropic/claude-opus-5` | Perplexity | `PERPLEXITY_API_KEY` |
 
 ### Local (no API key)
 
 | Model ID | Provider | Notes |
 |---|---|---|
 | `lmstudio/auto` | LM Studio | Uses whichever model is loaded in LM Studio |
-| `lmstudio/<model>` | LM Studio | Any model reported by LM Studio's `/v1/models` (discovered live). Set `LM_STUDIO_URL` to override `http://127.0.0.1:1234` |
+| `lmstudio/<model>` | LM Studio | Any model reported by LM Studio's `/v1/models` (discovered live; embedding ids filtered). Set `LM_STUDIO_URL` to override `http://127.0.0.1:1234` |
 | `cli-grok/grok-4.5` | Grok CLI | Runs the local `grok` CLI (`--prompt-file` headless mode). Requires the CLI installed + `grok login` |
-| `cli-grok/grok-4` / `grok-3` / `grok-3-fast` / `grok-3-mini` / `grok-3-mini-fast` | Grok CLI | Additional Grok CLI models |
+| `cli-grok/grok-4.3` / `grok-4` | Grok CLI | Additional Grok CLI models |
 
 The live model list is always available at `GET /v1/models`.
 
