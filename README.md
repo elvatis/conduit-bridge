@@ -42,6 +42,7 @@ Web providers use browser session cookies (no API key). API providers resolve a 
 | `web-grok/grok-expert` | Grok | Grok Expert |
 | `web-grok/grok-heavy` | Grok | Grok Heavy |
 | `web-grok/grok-auto` | Grok | Grok Auto |
+| `web-claude/claude-fable` | Claude | Claude Fable 5 |
 | `web-claude/claude-opus` | Claude | Claude Opus 5 |
 | `web-claude/claude-sonnet` | Claude | Claude Sonnet 5 |
 | `web-claude/claude-haiku` | Claude | Claude Haiku 4.5 |
@@ -56,6 +57,7 @@ Web providers use browser session cookies (no API key). API providers resolve a 
 
 | Model ID | Provider | Description |
 |---|---|---|
+| `api-claude/claude-fable-5` | Claude API | Claude Fable 5 |
 | `api-claude/claude-opus-5` | Claude API | Claude Opus 5 |
 | `api-claude/claude-sonnet-5` | Claude API | Claude Sonnet 5 |
 | `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
@@ -83,14 +85,22 @@ One API key each; any `<prefix>/<model>` is accepted (passthrough), so you're ne
 | `api-perplexity/sonar-reasoning-pro` | Perplexity | `PERPLEXITY_API_KEY` |
 | `api-perplexity/anthropic/claude-opus-5` | Perplexity | `PERPLEXITY_API_KEY` |
 
-### Local (no API key)
+### Local (no API key / coding CLIs)
 
 | Model ID | Provider | Notes |
 |---|---|---|
 | `lmstudio/auto` | LM Studio | Uses whichever model is loaded in LM Studio |
 | `lmstudio/<model>` | LM Studio | Any model reported by LM Studio's `/v1/models` (discovered live; embedding ids filtered). Set `LM_STUDIO_URL` to override `http://127.0.0.1:1234` |
-| `cli-grok/grok-4.5` | Grok CLI | Runs the local `grok` CLI (`--prompt-file` headless mode). Requires the CLI installed + `grok login` |
+| `cli-grok/grok-4.5` | Grok CLI | Local `grok` binary ([x.ai/build](https://x.ai/build)). Install + `grok login` |
 | `cli-grok/grok-4.3` / `grok-4` | Grok CLI | Additional Grok CLI models |
+| `cli-codex/gpt-5.6-sol` | Codex CLI | Local `codex` from [`@openai/codex`](https://www.npmjs.com/package/@openai/codex). `npm i -g @openai/codex && codex login` |
+| `cli-codex/gpt-5.6-terra` / `luna` / `gpt-5.5*` | Codex CLI | Other curated Codex CLI models (passthrough: any `cli-codex/*`) |
+| `cli-claude/claude-opus-5` | Claude Code CLI | Local `claude` from [`@anthropic-ai/claude-code`](https://www.npmjs.com/package/@anthropic-ai/claude-code) |
+| `cli-claude/claude-sonnet-5` / `claude-haiku-4-5` / `claude-fable-5` | Claude Code CLI | Curated Claude Code models (passthrough: any `cli-claude/*`) |
+| `cli-gemini/gemini-3.6-flash-high` | Gemini CLI | Local **`agy`** binary (Antigravity CLI). Install from [antigravity.google](https://antigravity.google/docs/cli/getting-started) |
+| `cli-gemini/gemini-3.6-flash-*` / `3.5-flash-*` / `3.1-pro-*` | Gemini CLI | Effort-tier ids from `agy models` (passthrough: any `cli-gemini/*`) |
+
+Coding CLIs must be installed on the machine and on `PATH`. conduit-bridge shells out to them in headless/print mode; it does not bundle the CLIs as npm dependencies.
 
 The live model list is always available at `GET /v1/models`.
 
