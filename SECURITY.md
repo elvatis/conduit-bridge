@@ -15,3 +15,23 @@ If you believe you have found a security vulnerability in this project, please r
 3. Do not publicly disclose the issue until we have had a reasonable time to address it.
 
 We appreciate responsible disclosure.
+
+## Handling API Keys
+
+This is a **public** repository and the bridge talks to several paid AI APIs, so a
+single committed key is a live credential leak.
+
+- Keep provider keys in a local `.env`, in `~/.conduit/.env`, or in real environment
+  variables. `.gitignore` blocks `.env` and `.env.*` (with `.env.example` as the one
+  allowed exception), plus other credential artifacts such as `*.pem` and `*.key`.
+- `.env.example` documents the supported variables and must contain **placeholders
+  only**, never a working key.
+- Never paste a key into a README, an issue, a test fixture or a config file.
+- `npm run scan:secrets` scans the tracked tree for credential-shaped strings, and
+  `npm run scan:secrets:history` also scans every blob in git history. The same
+  scanner runs in CI (`.github/workflows/secret-scan.yml`) on every push and pull
+  request, so a leak fails the build instead of shipping.
+
+If a key does reach a public commit, treat it as compromised: **rotate it at the
+provider first**, then clean up the repository. Rotation is the fix; deleting the
+commit is not, because the value is already public.

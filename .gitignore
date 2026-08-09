@@ -3,7 +3,18 @@ dist/
 *.js.map
 .ai/logs/
 
-# Secrets / local environment — never commit API keys
+# Secrets / local environment. Never commit API keys.
 .env
 .env.*
 !.env.example
+
+# Other credential artifacts that must never reach this public repo.
+*.pem
+*.p12
+*.pfx
+*.key
+.npmrc
+.netrc
+secrets.json
+credentials.json
+service-account*.json
