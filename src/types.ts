@@ -5,7 +5,10 @@ export type ProviderName =
   | 'claude-api' | 'gemini-api' | 'codex-api'
   | 'openrouter-api' | 'perplexity-api'   // OpenAI-compatible API aggregators
   | 'lmstudio'                             // local OpenAI-compatible server
-  | 'grok-cli';                            // local Grok CLI subprocess
+  | 'grok-cli'                             // local Grok CLI (x.ai/build, binary: grok)
+  | 'cli-codex'                            // @openai/codex (binary: codex)
+  | 'cli-claude'                           // @anthropic-ai/claude-code (binary: claude)
+  | 'cli-gemini';                           // Antigravity CLI (binary: agy)
 
 export interface ApiKeyConfig {
   'claude-api'?: string;        // Anthropic API key

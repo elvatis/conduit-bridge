@@ -11,6 +11,9 @@ import { OpenRouterApiProvider } from './providers/openrouter-api.js';
 import { PerplexityApiProvider } from './providers/perplexity-api.js';
 import { LmStudioProvider } from './providers/lmstudio.js';
 import { GrokCliProvider } from './providers/grok-cli.js';
+import { CodexCliProvider } from './providers/cli-codex.js';
+import { ClaudeCliProvider } from './providers/cli-claude.js';
+import { GeminiCliProvider } from './providers/cli-gemini.js';
 import { logger } from './logger.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -47,9 +50,12 @@ export class ProviderRegistry {
     this._providers.set('openrouter-api', new OpenRouterApiProvider(_cfg));
     this._providers.set('perplexity-api', new PerplexityApiProvider(_cfg));
 
-    // Local providers (no key needed / local subprocess)
+    // Local providers (no key needed / local subprocess / coding CLIs)
     this._providers.set('lmstudio', new LmStudioProvider(_cfg));
     this._providers.set('grok-cli', new GrokCliProvider(_cfg));
+    this._providers.set('cli-codex', new CodexCliProvider(_cfg));
+    this._providers.set('cli-claude', new ClaudeCliProvider(_cfg));
+    this._providers.set('cli-gemini', new GeminiCliProvider(_cfg));
   }
 
   get(name: ProviderName): ProviderAdapter {

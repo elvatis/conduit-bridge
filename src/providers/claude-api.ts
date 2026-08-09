@@ -3,9 +3,10 @@ import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
 
 // Map friendly model IDs to Anthropic API model strings.
-// Bare aliases (never date-suffixed). Curated set: Opus 5, Sonnet 5, Haiku 4.5
-// only (platform.claude.com/docs/en/about-claude/models/overview, 2026-08).
+// Bare aliases (never date-suffixed). Curated: Fable 5, Opus 5, Sonnet 5, Haiku 4.5
+// (platform.claude.com/docs/en/about-claude/models/overview, 2026-08).
 const MODEL_MAP: Record<string, string> = {
+  'api-claude/claude-fable-5':   'claude-fable-5',
   'api-claude/claude-opus-5':    'claude-opus-5',
   'api-claude/claude-sonnet-5':  'claude-sonnet-5',
   'api-claude/claude-haiku-4-5': 'claude-haiku-4-5',
@@ -13,6 +14,7 @@ const MODEL_MAP: Record<string, string> = {
 
 // Default max output tokens per model (used when client doesn't specify)
 const DEFAULT_MAX_TOKENS: Record<string, number> = {
+  'api-claude/claude-fable-5':   128_000,
   'api-claude/claude-opus-5':    128_000,
   'api-claude/claude-sonnet-5':  128_000,
   'api-claude/claude-haiku-4-5':  64_000,
@@ -22,6 +24,7 @@ export class ClaudeApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'claude-api';
 
   readonly models: ModelDefinition[] = [
+    { id: 'api-claude/claude-fable-5',   provider: 'claude-api', displayName: 'Claude Fable 5 (API)',   owned_by: 'anthropic' },
     { id: 'api-claude/claude-opus-5',    provider: 'claude-api', displayName: 'Claude Opus 5 (API)',    owned_by: 'anthropic' },
     { id: 'api-claude/claude-sonnet-5',  provider: 'claude-api', displayName: 'Claude Sonnet 5 (API)',  owned_by: 'anthropic' },
     { id: 'api-claude/claude-haiku-4-5', provider: 'claude-api', displayName: 'Claude Haiku 4.5 (API)', owned_by: 'anthropic' },

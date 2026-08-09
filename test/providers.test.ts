@@ -3,7 +3,11 @@ import { ProviderRegistry } from '../src/registry.js';
 import { OpenRouterApiProvider } from '../src/providers/openrouter-api.js';
 import { PerplexityApiProvider } from '../src/providers/perplexity-api.js';
 import { LmStudioProvider } from '../src/providers/lmstudio.js';
-import { GrokCliProvider, flattenMessages } from '../src/providers/grok-cli.js';
+import { GrokCliProvider } from '../src/providers/grok-cli.js';
+import { CodexCliProvider } from '../src/providers/cli-codex.js';
+import { ClaudeCliProvider } from '../src/providers/cli-claude.js';
+import { GeminiCliProvider } from '../src/providers/cli-gemini.js';
+import { flattenMessages } from '../src/providers/cli-util.js';
 import type { BridgeConfig } from '../src/types.js';
 
 const cfg: BridgeConfig = {
@@ -52,6 +56,34 @@ describe('new provider catalogs + ownsModel', () => {
     expect(p.ownsModel('cli-grok/grok-3-mini')).toBe(true);
     expect(p.ownsModel('lmstudio/auto')).toBe(false);
   });
+
+  it('Codex CLI: prefixed catalog, owns its namespace', () => {
+    const p = new CodexCliProvider(cfg);
+    expect(p.name).toBe('cli-codex');
+    expect(p.models.some(m => m.id === 'cli-codex/gpt-5.6-sol')).toBe(true);
+    expect(p.ownsModel('cli-codex/gpt-5.6-luna')).toBe(true);
+    expect(p.ownsModel('cli-claude/claude-opus-5')).toBe(false);
+  });
+
+  it('Claude Code CLI: includes Fable 5 + Opus/Sonnet/Haiku', () => {
+    const p = new ClaudeCliProvider(cfg);
+    expect(p.name).toBe('cli-claude');
+    expect(p.models.map(m => m.id)).toEqual(expect.arrayContaining([
+      'cli-claude/claude-opus-5',
+      'cli-claude/claude-sonnet-5',
+      'cli-claude/claude-haiku-4-5',
+      'cli-claude/claude-fable-5',
+    ]));
+    expect(p.ownsModel('cli-claude/claude-opus-5')).toBe(true);
+  });
+
+  it('Gemini CLI (agy): prefixed catalog, owns its namespace', () => {
+    const p = new GeminiCliProvider(cfg);
+    expect(p.name).toBe('cli-gemini');
+    expect(p.models.some(m => m.id === 'cli-gemini/gemini-3.6-flash-high')).toBe(true);
+    expect(p.ownsModel('cli-gemini/gemini-3.5-flash-medium')).toBe(true);
+    expect(p.ownsModel('cli-codex/gpt-5.6-sol')).toBe(false);
+  });
 });
 
 describe('registry routing', () => {
@@ -61,6 +93,9 @@ describe('registry routing', () => {
     expect(reg.providerForModel('api-openrouter/openai/gpt-5.6-sol')?.name).toBe('openrouter-api');
     expect(reg.providerForModel('api-perplexity/sonar')?.name).toBe('perplexity-api');
     expect(reg.providerForModel('cli-grok/grok-4.5')?.name).toBe('grok-cli');
+    expect(reg.providerForModel('cli-codex/gpt-5.6-sol')?.name).toBe('cli-codex');
+    expect(reg.providerForModel('cli-claude/claude-fable-5')?.name).toBe('cli-claude');
+    expect(reg.providerForModel('cli-gemini/gemini-3.6-flash-high')?.name).toBe('cli-gemini');
     expect(reg.providerForModel('lmstudio/auto')?.name).toBe('lmstudio');
   });
 
@@ -69,6 +104,9 @@ describe('registry routing', () => {
     expect(reg.providerForModel('api-perplexity/anything-goes')?.name).toBe('perplexity-api');
     expect(reg.providerForModel('lmstudio/llama-3.1-8b-instruct')?.name).toBe('lmstudio');
     expect(reg.providerForModel('cli-grok/grok-9-future')?.name).toBe('grok-cli');
+    expect(reg.providerForModel('cli-codex/some-future')?.name).toBe('cli-codex');
+    expect(reg.providerForModel('cli-claude/some-future')?.name).toBe('cli-claude');
+    expect(reg.providerForModel('cli-gemini/some-future')?.name).toBe('cli-gemini');
   });
 
   it('returns undefined for genuinely unknown ids', () => {
@@ -81,10 +119,13 @@ describe('registry routing', () => {
     expect(ids.some(i => i.startsWith('api-openrouter/'))).toBe(true);
     expect(ids.some(i => i.startsWith('api-perplexity/'))).toBe(true);
     expect(ids.some(i => i.startsWith('cli-grok/'))).toBe(true);
+    expect(ids.some(i => i.startsWith('cli-codex/'))).toBe(true);
+    expect(ids.some(i => i.startsWith('cli-claude/'))).toBe(true);
+    expect(ids.some(i => i.startsWith('cli-gemini/'))).toBe(true);
   });
 });
 
-describe('grok-cli message flattening', () => {
+describe('cli message flattening', () => {
   it('renders the system preamble then labelled turns', () => {
     const out = flattenMessages([
       { role: 'system', content: 'Be terse.' },
