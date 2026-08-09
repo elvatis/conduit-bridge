@@ -45,9 +45,6 @@ Web providers use browser session cookies (no API key). API providers resolve a 
 | `web-claude/claude-opus` | Claude | Claude Opus 5 |
 | `web-claude/claude-sonnet` | Claude | Claude Sonnet 5 |
 | `web-claude/claude-haiku` | Claude | Claude Haiku 4.5 |
-| `web-claude/claude-fable` | Claude | Claude Fable 5 |
-| `web-claude/claude-opus-4-5` | Claude | Claude Opus 4.5 |
-| `web-claude/claude-sonnet-4-5` | Claude | Claude Sonnet 4.5 |
 | `web-gemini/gemini-3.6-flash` | Gemini | Gemini 3.6 Flash |
 | `web-gemini/gemini-3.5-flash` | Gemini | Gemini 3.5 Flash |
 | `web-gemini/gemini-3.1-pro` | Gemini | Gemini 3.1 Pro |
@@ -59,15 +56,9 @@ Web providers use browser session cookies (no API key). API providers resolve a 
 
 | Model ID | Provider | Description |
 |---|---|---|
-| `api-claude/claude-fable-5` | Claude API | Claude Fable 5 |
 | `api-claude/claude-opus-5` | Claude API | Claude Opus 5 |
 | `api-claude/claude-sonnet-5` | Claude API | Claude Sonnet 5 |
 | `api-claude/claude-haiku-4-5` | Claude API | Claude Haiku 4.5 |
-| `api-claude/claude-opus-4-8` | Claude API | Claude Opus 4.8 |
-| `api-claude/claude-opus-4-7` | Claude API | Claude Opus 4.7 |
-| `api-claude/claude-opus-4-6` | Claude API | Claude Opus 4.6 |
-| `api-claude/claude-sonnet-4-6` | Claude API | Claude Sonnet 4.6 |
-| `api-claude/claude-sonnet-4-5` | Claude API | Claude Sonnet 4.5 |
 | `api-gemini/gemini-3.6-flash` | Gemini API | Gemini 3.6 Flash |
 | `api-gemini/gemini-3.5-flash` | Gemini API | Gemini 3.5 Flash |
 | `api-gemini/gemini-3.5-flash-lite` | Gemini API | Gemini 3.5 Flash-Lite |

@@ -26,11 +26,8 @@ const OPENROUTER_HEADERS: Record<string, string> = {
 // api-openrouter/<provider>/<model> still routes via ownsModel.
 const CATALOG = [
   'anthropic/claude-opus-5',
-  'anthropic/claude-fable-5',
   'anthropic/claude-sonnet-5',
   'anthropic/claude-haiku-4.5',
-  'anthropic/claude-opus-4.8',
-  'anthropic/claude-sonnet-4.6',
   'openai/gpt-5.6-sol',
   'openai/gpt-5.6-terra',
   'openai/gpt-5.6-luna',

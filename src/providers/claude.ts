@@ -24,15 +24,11 @@ export class ClaudeProvider extends BaseProvider {
   // NOTE: the web provider does not switch the model in the browser UI; every
   // web-claude id routes to the account's active claude.ai model. These labels
   // are advisory (what claude.ai serves today), not per-id model selection.
-  // Current line (2026-08): Opus 5 / Sonnet 5 / Haiku 4.5 / Fable 5, plus the
-  // previous Opus/Sonnet labels so existing clients keep resolving.
+  // Curated line (2026-08): Opus 5, Sonnet 5, Haiku 4.5 only.
   readonly models: ModelDefinition[] = [
-    { id: 'web-claude/claude-opus',       provider: 'claude', displayName: 'Claude Opus 5',     owned_by: 'anthropic' },
-    { id: 'web-claude/claude-sonnet',     provider: 'claude', displayName: 'Claude Sonnet 5',   owned_by: 'anthropic' },
-    { id: 'web-claude/claude-haiku',      provider: 'claude', displayName: 'Claude Haiku 4.5',  owned_by: 'anthropic' },
-    { id: 'web-claude/claude-fable',      provider: 'claude', displayName: 'Claude Fable 5',    owned_by: 'anthropic' },
-    { id: 'web-claude/claude-opus-4-5',   provider: 'claude', displayName: 'Claude Opus 4.5',   owned_by: 'anthropic' },
-    { id: 'web-claude/claude-sonnet-4-5', provider: 'claude', displayName: 'Claude Sonnet 4.5', owned_by: 'anthropic' },
+    { id: 'web-claude/claude-opus',   provider: 'claude', displayName: 'Claude Opus 5',    owned_by: 'anthropic' },
+    { id: 'web-claude/claude-sonnet', provider: 'claude', displayName: 'Claude Sonnet 5',  owned_by: 'anthropic' },
+    { id: 'web-claude/claude-haiku',  provider: 'claude', displayName: 'Claude Haiku 4.5', owned_by: 'anthropic' },
   ];
 
   private _conversationUrl: string | null = null;
