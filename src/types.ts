@@ -96,6 +96,12 @@ export interface ChatRequest {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  /**
+   * Reasoning / thinking effort. Accepted from either `effort` or OpenAI-style
+   * `reasoning_effort` on the HTTP body. Levels: none | minimal | low | medium |
+   * high | xhigh | max (providers that only support a subset map down).
+   */
+  effort?: string;
 }
 
 export interface ModelDefinition {

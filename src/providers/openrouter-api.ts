@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
+import { toOpenAiEffort } from '../effort.js';
 
 // OpenRouter is an OpenAI-compatible aggregator that fronts hundreds of models
 // from Anthropic, OpenAI, Google, xAI, DeepSeek, Meta, Mistral, Qwen, and more —
@@ -72,23 +73,27 @@ export class OpenRouterApiProvider extends ApiBaseProvider {
 
   async chat(req: ChatRequest): Promise<string> {
     const client = this._client();
+    const reasoning_effort = toOpenAiEffort(req.effort);
     const response = await client.chat.completions.create({
       model: this._toApiModel(req.model),
       messages: req.messages.map(m => ({ role: m.role, content: m.content })),
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(reasoning_effort ? { reasoning_effort } : {}),
     });
     return response.choices[0]?.message?.content ?? '';
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
     const client = this._client();
+    const reasoning_effort = toOpenAiEffort(req.effort);
     const stream = await client.chat.completions.create({
       model: this._toApiModel(req.model),
       messages: req.messages.map(m => ({ role: m.role, content: m.content })),
       stream: true,
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(reasoning_effort ? { reasoning_effort } : {}),
     });
 
     for await (const chunk of stream) {

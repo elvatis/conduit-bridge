@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
+import { toOpenAiEffort } from '../effort.js';
 
 // Model IDs verified against developers.openai.com/api/docs/models (2026-08-09).
 // GPT-5.6 family: Sol (flagship, alias gpt-5.6), Terra (balanced), Luna (cost).
@@ -34,11 +35,13 @@ export class CodexApiProvider extends ApiBaseProvider {
     const client = this._client();
     const apiModel = MODEL_MAP[req.model] ?? req.model;
 
+    const reasoning_effort = toOpenAiEffort(req.effort);
     const response = await client.chat.completions.create({
       model: apiModel,
       messages: req.messages.map(m => ({ role: m.role, content: m.content })),
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(reasoning_effort ? { reasoning_effort } : {}),
     });
 
     return response.choices[0]?.message?.content ?? '';
@@ -48,12 +51,14 @@ export class CodexApiProvider extends ApiBaseProvider {
     const client = this._client();
     const apiModel = MODEL_MAP[req.model] ?? req.model;
 
+    const reasoning_effort = toOpenAiEffort(req.effort);
     const stream = await client.chat.completions.create({
       model: apiModel,
       messages: req.messages.map(m => ({ role: m.role, content: m.content })),
       stream: true,
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(reasoning_effort ? { reasoning_effort } : {}),
     });
 
     for await (const chunk of stream) {

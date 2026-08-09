@@ -3,6 +3,14 @@ export { BridgeServer } from './server.js';
 export { ProviderRegistry } from './registry.js';
 export { loadConfig, saveConfig, loadDotEnv } from './config.js';
 export { logger, configureLogger } from './logger.js';
+export {
+  pickEffort,
+  parseEffort,
+  toOpenAiEffort,
+  toClaudeEffort,
+  toAgyEffort,
+  toGrokEffort,
+} from './effort.js';
 export type {
   BridgeConfig,
   BridgeStatus,

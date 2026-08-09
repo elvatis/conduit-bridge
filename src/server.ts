@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import type { BridgeConfig } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
+import { pickEffort } from './effort.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -162,7 +163,7 @@ export class BridgeServer {
     }
 
     // ── POST /v1/login/:provider ─────────────────────────────────────────────
-    const loginMatch = url.match(/^\/v1\/login\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api|openrouter-api|perplexity-api|lmstudio|grok-cli)$/);
+    const loginMatch = url.match(/^\/v1\/login\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api|openrouter-api|perplexity-api|lmstudio|grok-cli|cli-codex|cli-claude|cli-gemini)$/);
     if (loginMatch && method === 'POST') {
       const name = loginMatch[1] as import('./types.js').ProviderName;
       const provider = this._registry.get(name);
@@ -170,11 +171,16 @@ export class BridgeServer {
       // Only the web providers use browser login; everyone else gets guidance.
       const WEB_LOGIN = new Set(['grok', 'claude', 'gemini', 'chatgpt']);
       if (!WEB_LOGIN.has(name)) {
+        const CLI_HINTS: Record<string, string> = {
+          lmstudio: `lmstudio needs no login - start LM Studio's local server and set LM_STUDIO_URL if it isn't on http://127.0.0.1:1234.`,
+          'grok-cli': `grok-cli uses the local Grok CLI - install it and run \`grok login\` (not a browser login).`,
+          'cli-codex': `cli-codex uses @openai/codex - npm i -g @openai/codex && codex login.`,
+          'cli-claude': `cli-claude uses @anthropic-ai/claude-code - npm i -g @anthropic-ai/claude-code and authenticate.`,
+          'cli-gemini': `cli-gemini uses the Antigravity CLI binary \`agy\` - install from antigravity.google and authenticate there.`,
+        };
         const message = name.endsWith('-api')
           ? `${name} uses API keys, not browser login. Set your key via: conduit-bridge config apiKeys.${name} <key>`
-          : name === 'lmstudio'
-            ? `lmstudio needs no login — start LM Studio's local server and set LM_STUDIO_URL if it isn't on http://127.0.0.1:1234.`
-            : `grok-cli uses the local Grok CLI — install it and run \`grok login\` (not a browser login).`;
+          : CLI_HINTS[name] ?? `${name} does not use browser login.`;
         json(res, 400, { status: 'error', provider: name, message });
         return;
       }
@@ -191,7 +197,7 @@ export class BridgeServer {
     }
 
     // ── POST /v1/logout/:provider ────────────────────────────────────────────
-    const logoutMatch = url.match(/^\/v1\/logout\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api|openrouter-api|perplexity-api|lmstudio|grok-cli)$/);
+    const logoutMatch = url.match(/^\/v1\/logout\/(grok|claude|gemini|chatgpt|claude-api|gemini-api|codex-api|openrouter-api|perplexity-api|lmstudio|grok-cli|cli-codex|cli-claude|cli-gemini)$/);
     if (logoutMatch && method === 'POST') {
       const name = logoutMatch[1] as import('./types.js').ProviderName;
       await this._registry.get(name).logout();
@@ -211,6 +217,8 @@ export class BridgeServer {
       }
 
       const { model, messages, stream = false, temperature, max_tokens } = req_data;
+      // Accept either effort or OpenAI-style reasoning_effort
+      const effort = pickEffort(req_data);
       if (!model || !messages) {
         json(res, 400, { error: { message: 'model and messages required', type: 'invalid_request' } });
         return;
@@ -222,12 +230,14 @@ export class BridgeServer {
         return;
       }
 
-      // Try to ensure connected — will auto-restore session if needed
+      // Try to ensure connected - will auto-restore session if needed
       const connected = await provider.ensureConnected();
       if (!connected) {
         json(res, 503, { error: { message: `${provider.name} is not connected. POST /v1/login/${provider.name} to log in.`, type: 'provider_unavailable' } });
         return;
       }
+
+      const chatReq = { model, messages, temperature, max_tokens, effort };
 
       if (stream) {
         res.writeHead(200, {
@@ -238,7 +248,7 @@ export class BridgeServer {
 
         const id = `chatcmpl-${Date.now()}`;
         try {
-          for await (const chunk of provider.chatStream({ model, messages, temperature, max_tokens })) {
+          for await (const chunk of provider.chatStream(chatReq)) {
             // Include provider metadata if available (thinking status, tokens, timing)
             const meta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
             const data = JSON.stringify({
@@ -264,7 +274,7 @@ export class BridgeServer {
         res.end();
       } else {
         try {
-          const content = await provider.chat({ model, messages, temperature, max_tokens });
+          const content = await provider.chat(chatReq);
           json(res, 200, {
             id: `chatcmpl-${Date.now()}`,
             object: 'chat.completion',

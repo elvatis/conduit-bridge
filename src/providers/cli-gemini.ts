@@ -14,6 +14,7 @@ import {
   stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { toAgyEffort } from '../effort.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Headless: agy -p/--print with --model and --output-format text.
@@ -97,8 +98,9 @@ export class GeminiCliProvider implements ProviderAdapter {
     const model = stripPrefix(req.model, PREFIX);
     const prompt = flattenMessages(req.messages);
     const isAgy = /agy(\.exe)?$/i.test(binPath);
+    const effort = toAgyEffort(req.effort);
 
-    // agy: -p/--print, --model, --output-format, --mode plan (read-only tools)
+    // agy: -p/--print, --model, --output-format, --mode plan, --effort low|medium|high
     // legacy gemini: -p, -m, -o text, --approval-mode plan
     const args = isAgy
       ? [
@@ -106,6 +108,7 @@ export class GeminiCliProvider implements ProviderAdapter {
           '--model', model,
           '--output-format', 'text',
           '--mode', 'plan',
+          ...(effort ? ['--effort', effort] : []),
         ]
       : [
           '-p', prompt,

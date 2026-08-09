@@ -225,12 +225,21 @@ export class GrokCliProvider implements ProviderAdapter {
     const promptFile = join(tmpdir(), `conduit-grok-${randomBytes(12).toString('hex')}.txt`);
     writeFileSync(promptFile, prompt, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
 
+    // Map effort -> grok --reasoning-effort (aliases --effort)
+    const effortRaw = req.effort?.trim().toLowerCase();
+    const effort =
+      !effortRaw ? undefined
+      : ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effortRaw)
+        ? effortRaw
+        : 'medium';
+
     const args = [
       '--prompt-file', promptFile,
       '--model', model,
       '--output-format', 'plain',
       '--no-plan',
       '--always-approve',
+      ...(effort ? ['--reasoning-effort', effort] : []),
     ];
 
     try {
