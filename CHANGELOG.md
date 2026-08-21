@@ -8,6 +8,18 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-21
+
+### Changed
+- Upgraded AAHP conformance to `@elvatis_com/aahp` 3.10.0 exact pin
+- Updated AAHP Verify workflow (`.github/workflows/aahp-verify.yml`) with AAHP 3.10.0 contract (`AAHP_BASE_SHA`, `permissions: contents: read`, `persist-credentials: false`, and `inputs.base`)
+- Bumped dependencies: `@anthropic-ai/sdk` to `^0.117.1`, `@types/node` to `^26.2.0`, `esbuild` to `^0.28.2` (resolves PR #91, #92, #93)
+- Pinned and verified native network-interception specs in `src/providers/interception.ts` across live providers (closes #71)
+
+### Fixed
+- Added `BardChatUi` matching to `GEMINI_INTERCEPT` for live `batchexecute` streaming endpoints
+- Hardened Gemini editor input in `src/providers/gemini.ts` using `insertText` to prevent `locator.fill` errors on non-input container elements
+
 ## [0.5.0] - 2026-08-09
 
 ### Added
@@ -97,7 +109,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/elvatis/conduit-bridge/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/elvatis/conduit-bridge/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/elvatis/conduit-bridge/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/elvatis/conduit-bridge/compare/v0.2.6...v0.3.0

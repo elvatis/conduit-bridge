@@ -51,10 +51,14 @@ export class GeminiProvider extends BaseProvider {
       window.__conduitGemini = { text:'', done:false, startTime:Date.now() };
     `);
 
-    const editor = page.locator('.ql-editor, [contenteditable="true"], rich-textarea, .input-area textarea, .text-input-field').first();
+    const editor = page.locator('.ql-editor, [contenteditable="true"], rich-textarea p, .input-area textarea').first();
     await editor.waitFor({ timeout: 15000 });
     await editor.click();
-    await editor.fill(userMsg);
+    await editor.evaluate((el: { focus: () => void }, msg: string) => {
+      el.focus();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).document.execCommand('insertText', false, msg);
+    }, userMsg);
 
     await new Promise(r => setTimeout(r, 300));
 
@@ -67,7 +71,12 @@ export class GeminiProvider extends BaseProvider {
     // page.on('response') listener would leak on the long-lived reused page.
     try {
       capture.arm();
-      await page.keyboard.press('Enter');
+      const sendBtn = page.locator('button[aria-label*="Send"], button.send-button, .send-button-container button').first();
+      if (await sendBtn.count() > 0 && await sendBtn.isVisible()) {
+        await sendBtn.click();
+      } else {
+        await page.keyboard.press('Enter');
+      }
 
       logger.debug(`[gemini] message sent (${userMsg.length} chars), capturing backend stream...`);
 

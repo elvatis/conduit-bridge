@@ -412,19 +412,19 @@ export function parseGeminiStream(body: string): string {
 // hooks so the native capture locks onto the real completion endpoint.
 
 export const CHATGPT_INTERCEPT: InterceptSpec = {
-  label: 'chatgpt:/backend-api/conversation', // VERIFIED (issue #23)
+  label: 'chatgpt:/backend-api/conversation', // VERIFIED (issue #23, #71)
   match: url => url.includes('/backend-api/conversation') || url.includes('/backend-anon/conversation'),
   parse: parseChatGPTStream,
 };
 
 export const CLAUDE_INTERCEPT: InterceptSpec = {
-  label: 'claude:/completion', // ASSUMED
+  label: 'claude:/completion', // VERIFIED (issue #71)
   match: url => url.includes('/completion') || url.includes('chat_conversations'),
   parse: parseClaudeStream,
 };
 
 export const GROK_INTERCEPT: InterceptSpec = {
-  label: 'grok:/rest/app-chat/conversations', // ASSUMED
+  label: 'grok:/rest/app-chat/conversations', // VERIFIED (issue #71)
   match: url =>
     url.includes('/rest/app-chat/conversations/') ||
     url.includes('/responses') ||
@@ -433,10 +433,11 @@ export const GROK_INTERCEPT: InterceptSpec = {
 };
 
 export const GEMINI_INTERCEPT: InterceptSpec = {
-  label: 'gemini:StreamGenerate/batchexecute', // ASSUMED (needs verification)
+  label: 'gemini:StreamGenerate/batchexecute', // VERIFIED (issue #71)
   match: url =>
     url.includes('StreamGenerate') ||
     url.includes('batchexecute') ||
+    url.includes('BardChatUi') ||
     url.includes('assistant.lamda') ||
     url.includes('BardFrontendService'),
   parse: parseGeminiStream,

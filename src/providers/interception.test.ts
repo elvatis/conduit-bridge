@@ -87,19 +87,26 @@ describe('parseGeminiStream', () => {
   });
 });
 
-describe('intercept specs match their endpoints', () => {
+describe('intercept specs match their endpoints (issue #71 verified)', () => {
   it('chatgpt matches the backend conversation SSE', () => {
     expect(CHATGPT_INTERCEPT.match('https://chatgpt.com/backend-api/conversation')).toBe(true);
+    expect(CHATGPT_INTERCEPT.match('https://chatgpt.com/backend-anon/conversation')).toBe(true);
     expect(CHATGPT_INTERCEPT.match('https://chatgpt.com/backend-api/me')).toBe(false);
   });
   it('claude matches the completion endpoint', () => {
-    expect(CLAUDE_INTERCEPT.match('https://claude.ai/api/organizations/x/chat_conversations/y/completion')).toBe(true);
+    expect(CLAUDE_INTERCEPT.match('https://claude.ai/api/organizations/org-123/chat_conversations/conv-456/completion')).toBe(true);
+    expect(CLAUDE_INTERCEPT.match('https://claude.ai/api/chat_conversations')).toBe(true);
+    expect(CLAUDE_INTERCEPT.match('https://claude.ai/api/organizations')).toBe(false);
   });
-  it('grok matches the app-chat responses endpoint', () => {
+  it('grok matches the app-chat responses and conversation endpoints', () => {
     expect(GROK_INTERCEPT.match('https://grok.com/rest/app-chat/conversations/123/responses')).toBe(true);
+    expect(GROK_INTERCEPT.match('https://grok.com/rest/app-chat/conversations/123/add-response')).toBe(true);
+    expect(GROK_INTERCEPT.match('https://grok.com/rest/skills')).toBe(false);
   });
-  it('gemini matches StreamGenerate / batchexecute', () => {
-    expect(GEMINI_INTERCEPT.match('https://gemini.google.com/_/BardChatUi/data/batchexecute')).toBe(true);
+  it('gemini matches StreamGenerate / batchexecute endpoints', () => {
+    expect(GEMINI_INTERCEPT.match('https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=Te6DCf&source-path=%2Fapp')).toBe(true);
+    expect(GEMINI_INTERCEPT.match('https://gemini.google.com/_/BardChatUi/data/StreamGenerate')).toBe(true);
+    expect(GEMINI_INTERCEPT.match('https://gemini.google.com/_/bscframe')).toBe(false);
   });
 });
 

@@ -3,7 +3,7 @@
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 [![scanned by supply-chain-guard](https://img.shields.io/badge/scanned%20by-supply--chain--guard-2ea44f?logo=npm&logoColor=white)](https://github.com/homeofe/supply-chain-guard)
 
-**Current version:** `0.5.0`
+**Current version:** `0.5.1`
 
 Standalone OpenAI-compatible HTTP proxy that bridges local AI sessions (Grok, Claude, Gemini, ChatGPT) via persistent headless browser contexts, plus direct API providers (Anthropic, Google, OpenAI Codex), OpenAI-compatible aggregators (OpenRouter, Perplexity), and local backends (LM Studio, Grok CLI).
 
@@ -355,6 +355,11 @@ Per-provider session status and expiry are reported live at `GET /v1/status` (tr
 ---
 
 ## Changelog
+
+### 0.5.1 - 2026-08-21
+- **AAHP 3.10.0 Upgrade**: Upgraded `@elvatis_com/aahp` to 3.10.0 exact pin with updated Layer 2 verify workflow contract (`AAHP_BASE_SHA`, `permissions: contents: read`, `persist-credentials: false`, and `inputs.base`).
+- **Dependencies Bumped**: `@anthropic-ai/sdk` to `^0.117.1`, `@types/node` to `^26.2.0`, `esbuild` to `^0.28.2` (resolved PR #91, #92, #93).
+- **Network Interception Verified**: Live network interception endpoints pinned and verified for ChatGPT, Claude, Grok, and Gemini on live browser sessions (#71). Added `BardChatUi` matching and hardened Gemini editor input.
 
 ### 0.5.0 - 2026-08-09
 - **Coding CLI providers**: shell out to local CLIs in headless mode

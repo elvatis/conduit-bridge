@@ -3,17 +3,17 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "antigravity",
-    "session_id": "cli-1787338144",
-    "timestamp": "2026-08-21T18:49:04Z",
-    "commit": "e05b2cc",
-    "phase": "fix",
+    "session_id": "cli-1787341173",
+    "timestamp": "2026-08-21T19:39:33Z",
+    "commit": "d2ba467",
+    "phase": "documentation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:386f2832fc85af87faaddbef5648bda00d4856a241a9c551291ccc1951982e00",
-      "updated": "2026-08-21T18:48:24Z",
-      "lines": 114,
+      "checksum": "sha256:856e8cc81017041470ebb2c0d2d66c16cc8e1ceaf2bcbda4bbbf3c79b4335533",
+      "updated": "2026-08-21T19:37:07Z",
+      "lines": 115,
       "summary": "(no summary available)"
     },
     "NEXT_ACTIONS.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Upgrade AAHP to 3.10.0 and sync Dependabot updates",
+  "quick_context": "Release v0.5.1",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 5093,
-    "full_read": 9331
+    "manifest_plus_core": 5117,
+    "full_read": 9355
   }
 }
