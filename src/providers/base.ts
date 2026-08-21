@@ -364,17 +364,23 @@ export abstract class BaseProvider implements ProviderAdapter {
     return loggedIn;
   }
 
-  /**
-   * Heuristic: does this URL look like a login / auth / sign-in page?
-   * Subclasses may override for a provider-specific logged-out signal.
-   */
   protected _looksLoggedOut(url: string): boolean {
     if (!url) return false;
     const u = url.toLowerCase();
-    return /\b(login|signin|sign-in|sign_in|authenticate|oauth)\b/.test(u)
-      || u.includes('accounts.google.com')
-      || u.includes('auth.openai.com')
-      || u.includes('/i/flow/login');
+    if (/\b(login|signin|sign-in|sign_in|authenticate|oauth)\b/.test(u) || u.includes('/i/flow/login')) {
+      return true;
+    }
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      if (host === 'accounts.google.com' || host.endsWith('.accounts.google.com') ||
+          host === 'auth.openai.com' || host.endsWith('.auth.openai.com')) {
+        return true;
+      }
+    } catch {
+      // url was not a valid absolute URL
+    }
+    return false;
   }
 
   // ── Chat — subclasses implement these ────────────────────────────────────

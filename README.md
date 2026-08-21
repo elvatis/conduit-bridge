@@ -360,6 +360,7 @@ Per-provider session status and expiry are reported live at `GET /v1/status` (tr
 - **AAHP 3.10.0 Upgrade**: Upgraded `@elvatis_com/aahp` to 3.10.0 exact pin with updated Layer 2 verify workflow contract (`AAHP_BASE_SHA`, `permissions: contents: read`, `persist-credentials: false`, and `inputs.base`).
 - **Dependencies Bumped**: `@anthropic-ai/sdk` to `^0.117.1`, `@types/node` to `^26.2.0`, `esbuild` to `^0.28.2` (resolved PR #91, #92, #93).
 - **Network Interception Verified**: Live network interception endpoints pinned and verified for ChatGPT, Claude, Grok, and Gemini on live browser sessions (#71). Added `BardChatUi` matching and hardened Gemini editor input.
+- **Security Hardening**: Resolved CodeQL alerts #10 and #11 (`js/incomplete-url-substring-sanitization`) by strictly parsing URL hostnames in `BaseProvider._looksLoggedOut` and Claude navigation checks.
 
 ### 0.5.0 - 2026-08-09
 - **Coding CLI providers**: shell out to local CLIs in headless mode

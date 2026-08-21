@@ -57,10 +57,10 @@ export class ClaudeProvider extends BaseProvider {
     await this._ensureInitScript();
 
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
-    const currentUrl = page.url();
 
-    // Navigate only when needed
-    if (!currentUrl.includes('claude.ai')) {
+    let _onClaudePage = false;
+    try { const _p = new URL(page.url()); _onClaudePage = _p.hostname === 'claude.ai' || _p.hostname.endsWith('.claude.ai'); } catch { _onClaudePage = false; }
+    if (!_onClaudePage) {
       const target = this._conversationUrl || 'https://claude.ai/new';
       logger.debug(`[claude] navigating to ${target}`);
       await page.goto(target, { waitUntil: 'domcontentloaded' });
@@ -243,7 +243,11 @@ export class ClaudeProvider extends BaseProvider {
 
     // Reload current page so init script takes effect
     const page = this._ctx.pages()[0];
-    if (page && page.url().includes('claude.ai')) {
+    let _onClaude = false;
+    if (page) {
+      try { const _p = new URL(page.url()); _onClaude = _p.hostname === 'claude.ai' || _p.hostname.endsWith('.claude.ai'); } catch { _onClaude = false; }
+    }
+    if (_onClaude && page) {
       logger.debug('[claude] reloading page for init script...');
       await page.reload({ waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));

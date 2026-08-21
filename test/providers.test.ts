@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ProviderRegistry } from '../src/registry.js';
+import { BaseProvider } from '../src/providers/base.js';
 import { OpenRouterApiProvider } from '../src/providers/openrouter-api.js';
 import { PerplexityApiProvider } from '../src/providers/perplexity-api.js';
 import { LmStudioProvider } from '../src/providers/lmstudio.js';
@@ -142,5 +143,33 @@ describe('cli message flattening', () => {
   it('works with no system message', () => {
     const out = flattenMessages([{ role: 'user', content: 'Just this' }]);
     expect(out).toBe('User: Just this');
+  });
+});
+
+describe('BaseProvider._looksLoggedOut URL sanitization', () => {
+  class TestWebProvider extends BaseProvider {
+    readonly name = 'grok' as const;
+    readonly loginUrl = 'https://grok.com';
+    readonly verifySelector = '.ProseMirror';
+    readonly models = [];
+    async chat(): Promise<string> { return ''; }
+    async *chatStream(): AsyncGenerator<string> { yield ''; }
+    testLooksLoggedOut(url: string): boolean { return this._looksLoggedOut(url); }
+  }
+
+  const p = new TestWebProvider(cfg);
+
+  it('detects standard login, signin, and auth URLs', () => {
+    expect(p.testLooksLoggedOut('https://accounts.google.com/signin/v2')).toBe(true);
+    expect(p.testLooksLoggedOut('https://auth.openai.com/authorize')).toBe(true);
+    expect(p.testLooksLoggedOut('https://sub.accounts.google.com/oauth')).toBe(true);
+    expect(p.testLooksLoggedOut('https://x.com/i/flow/login')).toBe(true);
+  });
+
+  it('rejects legitimate non-auth URLs and attack subpaths', () => {
+    expect(p.testLooksLoggedOut('https://example.com/search?q=accounts.google.com')).toBe(false);
+    expect(p.testLooksLoggedOut('https://gemini.google.com/app')).toBe(false);
+    expect(p.testLooksLoggedOut('https://chatgpt.com/')).toBe(false);
+    expect(p.testLooksLoggedOut('')).toBe(false);
   });
 });

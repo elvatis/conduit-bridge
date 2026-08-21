@@ -3,16 +3,16 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "antigravity",
-    "session_id": "cli-1787341173",
-    "timestamp": "2026-08-21T19:39:33Z",
-    "commit": "d2ba467",
-    "phase": "documentation",
+    "session_id": "cli-1787342281",
+    "timestamp": "2026-08-21T19:58:01Z",
+    "commit": "15c3807",
+    "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:856e8cc81017041470ebb2c0d2d66c16cc8e1ceaf2bcbda4bbbf3c79b4335533",
-      "updated": "2026-08-21T19:37:07Z",
+      "checksum": "sha256:7bbba154f26d1e574b43cf1870d8ee652bbfe018cc9b99006d82e68731b5e354",
+      "updated": "2026-08-21T19:57:38Z",
       "lines": 115,
       "summary": "(no summary available)"
     },
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Release v0.5.1",
+  "quick_context": "Fix CodeQL URL sanitization alerts #10 and #11",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 5117,
-    "full_read": 9355
+    "manifest_plus_core": 5140,
+    "full_read": 9378
   }
 }

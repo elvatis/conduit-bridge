@@ -38,7 +38,7 @@ export class GeminiProvider extends BaseProvider {
     const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
 
     let _onGeminiPage = false;
-    try { const _p = new URL(page.url()); _onGeminiPage = _p.hostname === 'gemini.google.com'; } catch { _onGeminiPage = false; }
+    try { const _p = new URL(page.url()); _onGeminiPage = _p.hostname === 'gemini.google.com' || _p.hostname.endsWith('.gemini.google.com'); } catch { _onGeminiPage = false; }
     if (!_onGeminiPage) {
       await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
       await new Promise(r => setTimeout(r, 2000));

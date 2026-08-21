@@ -19,6 +19,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Added `BardChatUi` matching to `GEMINI_INTERCEPT` for live `batchexecute` streaming endpoints
 - Hardened Gemini editor input in `src/providers/gemini.ts` using `insertText` to prevent `locator.fill` errors on non-input container elements
+- Security: resolved CodeQL alerts #10 & #11 (`js/incomplete-url-substring-sanitization`) by strictly parsing URL hostnames in `BaseProvider._looksLoggedOut` and Claude navigation checks
 
 ## [0.5.0] - 2026-08-09
 
