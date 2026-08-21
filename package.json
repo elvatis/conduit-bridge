@@ -30,9 +30,9 @@
     "playwright": "^1.62.1"
   },
   "devDependencies": {
-    "@elvatis_com/aahp": "3.9.2",
+    "@elvatis_com/aahp": "3.10.0",
     "@types/node": "^26.2.0",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
