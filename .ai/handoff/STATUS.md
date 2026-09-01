@@ -14,6 +14,7 @@ Standalone OpenAI-compatible gateway for browser, API, CLI, and local model prov
 - Node.js 24 or newer
 - Chromium through Playwright
 - Dashboard, API, events, metrics, and browser-login viewer on port 31338
+- Recommended remote-client mode: local workstation bridge plus SSH reverse tunnel to server loopback 31338
 - Desktop Chromium locally or Xvfb on remote Linux
 - Private random loopback DevTools endpoints for attached Chromium processes
 - Persistent browser profiles below `~/.conduit/profiles/`
@@ -29,6 +30,7 @@ Browser login now starts ordinary headed Chromium and attaches after launch.
 - Provider-specific authentication signals
 - Stale profile-lock handling
 - Built-in JPEG and input viewer through port 31338
+- Atomic serialized input with coalesced pointer movement and scrolling
 - Static viewer document with no reflected route values
 - Active provider sessions override obsolete terminal login-attempt states
 - Detection-only security-check handling
@@ -89,6 +91,8 @@ Live browser restore on the current host:
 ## Documentation
 
 - README fully describes standalone desktop and remote SSH use.
+- README and Help recommend keeping the bridge on the workstation and reverse-forwarding it to remote OpenClaw.
+- The dashboard model catalog groups models by transport and provider with readiness, source, filtering, and Playground selection.
 - Dashboard Help and standalone Help match the current architecture.
 - `docs/BROWSER-LOGIN.md` documents lifecycle, Xvfb, SSH forwarding, security, and troubleshooting.
 - CHANGELOG records the added, changed, removed, fixed, and security-relevant behavior.

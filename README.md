@@ -28,7 +28,7 @@ All user-facing traffic uses port `31338`:
 
 Browser login does not require a remote-desktop stack. Conduit starts ordinary headed Chromium, then attaches over a private loopback DevTools endpoint. The browser keeps its native identity and reports `navigator.webdriver === false`.
 
-On a desktop, Chromium is visible locally. On a remote Linux server, Xvfb provides an internal rendering target. The built-in viewer sends JPEG frames and validated pointer and keyboard events through port `31338`.
+On a desktop, Chromium is visible locally. This is the recommended setup. If OpenClaw or another client runs on a remote server, an SSH reverse tunnel can expose the local bridge on that server's loopback port without copying cookies. On a fully remote Linux deployment, Xvfb provides an internal rendering target and the built-in viewer remains available.
 
 ## Requirements
 
@@ -72,6 +72,26 @@ Windows, macOS, and desktop Linux need no separate display service.
 7. Choose **Check login status**.
 
 Profiles are stored below `~/.conduit/profiles/` and reused after restart.
+
+## Recommended: local bridge with a remote client
+
+When the browser and daily workstation are on Windows, macOS, or desktop Linux, run Conduit Bridge there. Browser profiles, cookies, local CLIs, and the visible Chromium window then stay on the workstation.
+
+If OpenClaw runs on a remote server, expose the local bridge to the server with an SSH reverse tunnel:
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -R 127.0.0.1:31338:127.0.0.1:31338 <server>
+```
+
+The server can keep using:
+
+```text
+http://127.0.0.1:31338/v1
+```
+
+Port 31338 must be free on the server, so do not run a second remote Conduit Bridge instance at the same time. The bridge is available to the server only while the workstation and SSH tunnel are online.
+
+This avoids cookie export entirely. A dashboard page cannot safely read another site's `HttpOnly` cookies, encrypted browser storage, IndexedDB data, service-worker state, or device-bound tokens. Copying only cookies would also produce incomplete and fragile provider sessions.
 
 ## Remote Linux over SSH
 
@@ -136,6 +156,17 @@ systemctl --user enable --now conduit-xvfb conduit-bridge
 ```
 
 Only the bridge listener must be forwarded. Xvfb opens no TCP listener in this configuration.
+
+## Model catalog
+
+The dashboard groups models first by transport and then by the exact provider route. Each provider group shows whether it is ready, how many models it exposes, the complete model ID, availability, and catalog source. Search, transport, and provider filters reduce large catalogs without hiding the routing prefix.
+
+Examples:
+
+- `web-grok/grok-fast` routes through the Grok browser provider.
+- `api-openrouter/openai/gpt-5.6-sol` routes through the OpenRouter API provider.
+- `cli-codex/gpt-5.6-sol` routes through the local Codex CLI.
+- `lmstudio/auto` routes through the local LM Studio endpoint.
 
 ## Browser login behavior
 
@@ -242,7 +273,7 @@ conduit-bridge login <provider> --local
 conduit-bridge config
 ```
 
-`--local` opens a browser in the CLI process and is intended for a machine with a visible desktop. On a remote server, use the running bridge and its dashboard viewer.
+`--local` opens a browser in the CLI process and is intended for a machine with a visible desktop. Prefer running the complete bridge on that workstation and reverse-forwarding port 31338 to a remote client. Use the remote Xvfb viewer only when the bridge itself must stay on the server.
 
 ## Configuration
 

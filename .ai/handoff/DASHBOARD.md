@@ -22,7 +22,9 @@ _Quick-glance state. Last updated: 2026-09-01_
 |---|---|
 | Login identity | native, `navigator.webdriver === false` |
 | Remote login | built-in viewer through 31338 |
+| Preferred remote client mode | local bridge plus reverse SSH tunnel |
 | Viewer HTML | static, no reflected route values |
+| Viewer input | serialized, atomic clicks, coalesced movement and wheel |
 | Remote display | Xvfb only |
 | Stable ports 5900 and 6080 | absent |
 | Separate remote-desktop services | removed |
@@ -44,6 +46,13 @@ _Quick-glance state. Last updated: 2026-09-01_
 1. Validate fresh Claude and ChatGPT logins.
 2. Add Xauthority hardening for shared hosts.
 3. Purge inactive legacy host packages with administrator access.
+
+## Model Catalog
+
+- Grouped first by transport, then by exact route provider
+- Search plus transport and provider filters
+- Provider readiness, model availability, and catalog source visible
+- Direct selection into Playground
 
 ## Related Projects
 

@@ -603,6 +603,10 @@ export abstract class BaseProvider implements ProviderAdapter {
     const page = this._activeLoginPage();
     if (!page) return false;
     if (input.type === 'pointer') {
+      if (input.action === 'click') {
+        await page.mouse.click(input.x, input.y, { button: input.button ?? 'left' });
+        return true;
+      }
       await page.mouse.move(input.x, input.y);
       if (input.action === 'down') await page.mouse.down({ button: input.button ?? 'left' });
       if (input.action === 'up') await page.mouse.up({ button: input.button ?? 'left' });

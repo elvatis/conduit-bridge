@@ -8,7 +8,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type LoginViewerInput =
-  | { type: 'pointer'; action: 'move' | 'down' | 'up'; x: number; y: number; button?: 'left' | 'middle' | 'right' }
+  | { type: 'pointer'; action: 'move' | 'down' | 'up' | 'click'; x: number; y: number; button?: 'left' | 'middle' | 'right' }
   | { type: 'wheel'; deltaX: number; deltaY: number }
   | { type: 'key'; action: 'down' | 'up'; key: string }
   | { type: 'text'; text: string };
@@ -34,7 +34,7 @@ function viewerHtml(): string {
     header span{color:#93a9c3}
     #status{margin-left:auto;padding:5px 9px;border-radius:999px;background:#18304e}
     #stage{display:grid;place-items:center;min-height:0;padding:12px;overflow:hidden}
-    #screen{display:block;max-width:100%;max-height:100%;object-fit:contain;outline:none;cursor:default;box-shadow:0 14px 50px #000a;background:#fff}
+    #screen{display:block;max-width:100%;max-height:100%;object-fit:contain;outline:none;cursor:crosshair;box-shadow:0 14px 50px #000a;background:#fff;touch-action:none}
     #screen:focus{box-shadow:0 0 0 2px #4da3ff,0 14px 50px #000a}
   </style>
 </head>
@@ -53,18 +53,26 @@ function viewerHtml(): string {
     let stopped = false;
     let naturalWidth = 1;
     let naturalHeight = 1;
+    let inputChain = Promise.resolve();
+    let pendingMove = null;
+    let moveTimer = null;
+    let pendingWheel = {deltaX:0,deltaY:0};
+    let wheelTimer = null;
 
-    async function send(event) {
-      try {
-        const response = await fetch(base + '/input', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(event),
-        });
-        if (!response.ok) status.textContent = response.status === 409 ? 'Login browser closed' : 'Input rejected';
-      } catch {
-        status.textContent = 'Connection lost';
-      }
+    function send(event) {
+      inputChain = inputChain.then(async () => {
+        try {
+          const response = await fetch(base + '/input', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(event),
+          });
+          if (!response.ok) status.textContent = response.status === 409 ? 'Login browser closed' : 'Input rejected';
+        } catch {
+          status.textContent = 'Connection lost';
+        }
+      });
+      return inputChain;
     }
 
     function point(event) {
@@ -76,25 +84,41 @@ function viewerHtml(): string {
     }
 
     screen.addEventListener('pointermove', event => {
-      const p = point(event);
-      send({type:'pointer',action:'move',x:p.x,y:p.y});
+      pendingMove = point(event);
+      if (moveTimer) return;
+      moveTimer = setTimeout(() => {
+        moveTimer = null;
+        const p = pendingMove;
+        pendingMove = null;
+        if (p) send({type:'pointer',action:'move',x:p.x,y:p.y});
+      }, 75);
     });
     screen.addEventListener('pointerdown', event => {
       event.preventDefault();
       screen.focus();
-      screen.setPointerCapture(event.pointerId);
-      const p = point(event);
-      send({type:'pointer',action:'down',x:p.x,y:p.y,button:event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left'});
+      try { screen.setPointerCapture(event.pointerId); } catch {}
     });
     screen.addEventListener('pointerup', event => {
       event.preventDefault();
+      try { screen.releasePointerCapture(event.pointerId); } catch {}
+    });
+    screen.addEventListener('click', event => {
+      event.preventDefault();
       const p = point(event);
-      send({type:'pointer',action:'up',x:p.x,y:p.y,button:event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left'});
+      send({type:'pointer',action:'click',x:p.x,y:p.y,button:event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left'});
     });
     screen.addEventListener('contextmenu', event => event.preventDefault());
     screen.addEventListener('wheel', event => {
       event.preventDefault();
-      send({type:'wheel',deltaX:event.deltaX,deltaY:event.deltaY});
+      pendingWheel.deltaX += event.deltaX;
+      pendingWheel.deltaY += event.deltaY;
+      if (wheelTimer) return;
+      wheelTimer = setTimeout(() => {
+        wheelTimer = null;
+        const wheel = pendingWheel;
+        pendingWheel = {deltaX:0,deltaY:0};
+        send({type:'wheel',deltaX:wheel.deltaX,deltaY:wheel.deltaY});
+      }, 50);
     }, {passive:false});
     screen.addEventListener('keydown', event => {
       event.preventDefault();
@@ -164,12 +188,12 @@ export function validateLoginViewerInput(value: unknown): LoginViewerInput | nul
   if (input.type === 'pointer') {
     const action = input.action;
     const button = input.button ?? 'left';
-    if (!['move', 'down', 'up'].includes(String(action))) return null;
+    if (!['move', 'down', 'up', 'click'].includes(String(action))) return null;
     if (!['left', 'middle', 'right'].includes(String(button))) return null;
     if (!Number.isFinite(input.x) || !Number.isFinite(input.y)) return null;
     return {
       type: 'pointer',
-      action: action as 'move' | 'down' | 'up',
+      action: action as 'move' | 'down' | 'up' | 'click',
       x: Math.max(0, Math.min(10_000, Number(input.x))),
       y: Math.max(0, Math.min(10_000, Number(input.y))),
       button: button as 'left' | 'middle' | 'right',

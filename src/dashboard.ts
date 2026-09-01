@@ -66,12 +66,26 @@ const SHARED_STYLE = `
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
   .dot.ok { background: var(--ok); }
   .dot.warn { background: var(--warn); }
-  .model-group { border-top: 1px solid var(--line); padding: 12px 0; }
-  .model-group:first-child { border-top: 0; padding-top: 0; }
-  .model-group h3 { display: flex; justify-content: space-between; }
   .model-list { display: grid; gap: 5px; }
-  .model-tools { display: flex; gap: 8px; margin-bottom: 12px; }
+  .model-tools { display: grid; grid-template-columns: minmax(220px,1fr) 160px 210px auto; gap: 8px; margin-bottom: 12px; }
   .model-tools input { flex: 1; min-width: 0; }
+  .model-summary { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0 14px; }
+  .model-summary span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--muted); font-size: 12px; }
+  .model-transport-group { margin: 14px 0 20px; }
+  .model-transport-group > h3 { display: flex; justify-content: space-between; color: var(--blue); margin-bottom: 8px; }
+  .model-provider-group { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; margin: 8px 0; overflow: hidden; }
+  .model-provider-group > summary { display: grid; grid-template-columns: minmax(190px,1fr) auto auto; align-items: center; gap: 12px; padding: 11px 13px; cursor: pointer; list-style-position: inside; }
+  .model-provider-group > summary strong { color: var(--text); }
+  .model-provider-group > summary small { display: block; font-weight: 400; }
+  .model-provider-group > summary .ready { color: var(--ok); }
+  .model-provider-group > summary .unavailable { color: var(--warn); }
+  .model-provider-models { border-top: 1px solid var(--line); padding: 4px 13px 8px; }
+  .model-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(150px,.45fr) auto; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding: 9px 0; }
+  .model-row:first-child { border-top: 0; }
+  .model-row strong, .model-row code { display: block; }
+  .model-row strong { color: var(--text); overflow-wrap: anywhere; }
+  .model-row code { font-size: 12px; }
+  .model-row .model-meta { color: var(--muted); font-size: 12px; }
   #model-list { max-height: 70vh; overflow: auto; padding-right: 4px; }
   .setting-list { display: grid; gap: 10px; margin: 12px 0 24px; }
   .setting-row { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(180px, 1fr) auto; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; }
@@ -122,7 +136,7 @@ const SHARED_STYLE = `
   main.help { display: block; max-width: 1040px; margin: 0 auto; padding: 32px 20px 56px; }
   li { margin: 7px 0; }
   pre { overflow-x: auto; background: #111827; border: 1px solid var(--line); padding: 14px; border-radius: 6px; }
-  @media (max-width: 760px) { main { display: block; } .sidebar { position: fixed; z-index: 30; width: min(290px,86vw); transform: translateX(-102%); transition: transform .18s ease; box-shadow: 18px 0 45px rgba(0,0,0,.35); } .sidebar.open { transform: translateX(0); } .workspace { padding: 0 16px 42px; } .appbar { gap: 9px; } .summary { grid-template-columns: repeat(2, 1fr); } #menu-toggle { display: inline-block !important; order: -1; } .actions { grid-column: 1 / -1; grid-row: auto; justify-content: start; } .setting-row { grid-template-columns: 1fr; gap: 6px; } }
+  @media (max-width: 760px) { main { display: block; } .sidebar { position: fixed; z-index: 30; width: min(290px,86vw); transform: translateX(-102%); transition: transform .18s ease; box-shadow: 18px 0 45px rgba(0,0,0,.35); } .sidebar.open { transform: translateX(0); } .workspace { padding: 0 16px 42px; } .appbar { gap: 9px; } .summary { grid-template-columns: repeat(2, 1fr); } #menu-toggle { display: inline-block !important; order: -1; } .actions { grid-column: 1 / -1; grid-row: auto; justify-content: start; } .setting-row, .model-tools, .model-row { grid-template-columns: 1fr; gap: 6px; } .model-provider-group > summary { grid-template-columns: 1fr auto; } .model-provider-group > summary .provider-state { grid-column: 1; } }
   #menu-toggle { display: none; }
 `;
 
@@ -149,7 +163,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     <pre id="play-output" aria-live="polite">No test run yet.</pre>
   </section>
   <div id="providers-section" class="wide page-section"><section><header><div><h2>Browser sign-in</h2><div class="muted">Sign in to a web provider in a browser window on this machine</div></div></header><div id="login-panel">Loading...</div></section><section class="wide"><header><div><h2>Providers</h2><div class="muted">Grouped by how requests are executed</div></div></header><div id="provider-list">Loading...</div></section></div>
-  <div id="models-section" class="wide page-section"><section><h2>Models by transport</h2><div class="model-tools"><input id="model-search" type="search" placeholder="Filter models by name or provider"><button id="model-refresh" type="button">Refresh catalogs</button></div><div id="model-count" class="muted"></div><div id="model-list">Loading...</div></section></div>
+  <div id="models-section" class="wide page-section"><section><h2>Models by transport and provider</h2><p class="muted">Choose a transport first, then expand a provider to see its exact model IDs.</p><div class="model-tools"><input id="model-search" type="search" placeholder="Search model, owner, or provider"><select id="model-transport-filter" aria-label="Filter by transport"><option value="">All transports</option><option value="web-*">Browser sessions</option><option value="api-*">Direct APIs</option><option value="cli-*">Coding CLIs</option><option value="lmstudio/*">Local models</option></select><select id="model-provider-filter" aria-label="Filter by provider"><option value="">All providers</option></select><button id="model-refresh" type="button">Refresh catalogs</button></div><div id="model-count" class="muted"></div><div id="model-summary" class="model-summary"></div><div id="model-list">Loading...</div></section></div>
   <section id="orchestrator-section" class="wide page-section"><h2>Orchestrator</h2><p class="muted">Configure a multi-model run. Each role receives the same task, so you can compare viewpoints or build a staged review.</p><label><span>Enabled</span><select id="orch-enabled"><option value="false">Disabled</option><option value="true">Enabled</option></select></label><label><span>Strategy</span><select id="orch-strategy"><option value="sequential">Sequential review</option><option value="parallel">Parallel panel</option><option value="debate">Debate chain</option></select></label><div id="orch-roles"></div><label><span>Fallback models</span><select id="orch-fallbacks" multiple size="4"></select></label><div class="play-actions"><button id="orch-save" type="button">Save orchestration</button><button id="orch-run" type="button">Run orchestration</button><span id="orch-note" class="muted"></span></div><pre id="orch-output">No orchestration run yet.</pre></section>
   <section id="integration-section" class="wide page-section"><h2>Integration tests</h2><p class="muted">These tests use the same local OpenAI-compatible route that OpenClaw WebChat, Conduit VS Code, curl, and other clients use.</p><pre>Base URL: http://127.0.0.1:31338/v1
 Model:    cli-grok/grok-4.6
@@ -159,7 +173,9 @@ Request:  POST /chat/completions</pre><div class="play-actions"><button id="test
   <section id="usage-section" class="wide page-section"><h2>Usage statistics</h2><p class="muted">In-memory usage since the last bridge restart. No prompt or response content is stored.</p><div class="summary"><div class="summary-item"><strong id="usage-total">0</strong><span>Total requests</span></div><div class="summary-item"><strong id="usage-success">0</strong><span>Successful</span></div><div class="summary-item"><strong id="usage-failure">0</strong><span>Failed</span></div><div class="summary-item"><strong id="usage-latency">-</strong><span>Average latency</span></div></div><div id="usage-table" class="model-list">No usage yet.</div></section>
   <section id="settings-section" class="wide page-section"><h2>Settings</h2><p class="muted">Manage provider configuration. Secret values are write-only and never returned by the bridge.</p><section><h3>API credentials</h3><div id="settings-keys">Loading...</div><h3>Browser sessions</h3><p class="muted">Start a provider login on the Providers page. Its browser viewer appears on that provider's card and uses this same port.</p><div id="settings-profiles">Loading...</div><h3>CLI accounts</h3><div id="settings-accounts">Loading...</div></section></section>
   <section id="help-section-v2" class="wide page-section"><h2>Help and operating guide</h2><p class="muted">Install, connect clients, sign in to browser providers, and diagnose the bridge.</p>
-    <section><h3>Run anywhere</h3><p>Conduit Bridge needs Node.js 24 or newer and Chromium. OpenClaw is optional. On Windows, macOS, or desktop Linux, start the bridge and open <code>http://127.0.0.1:31338/</code>. On a remote Linux server, keep 31338 bound to loopback and forward it with SSH.</p><pre>ssh -L 31338:127.0.0.1:31338 &lt;server&gt;</pre></section>
+    <section><h3>Run anywhere</h3><p>Conduit Bridge needs Node.js 24 or newer and Chromium. OpenClaw is optional. On Windows, macOS, or desktop Linux, start the bridge and open <code>http://127.0.0.1:31338/</code>.</p></section>
+    <section><h3>Recommended for a remote OpenClaw server</h3><p>Run Conduit Bridge on the local workstation so Chromium, cookies, browser storage, and coding CLIs remain local. Reverse-forward the complete bridge to the server. OpenClaw can keep calling <code>http://127.0.0.1:31338/v1</code>.</p><pre>ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -R 127.0.0.1:31338:127.0.0.1:31338 &lt;server&gt;</pre><p>The server port must be free and the tunnel works only while the workstation is online. A dashboard page cannot safely extract another site's HttpOnly cookies or complete browser profile.</p></section>
+    <section><h3>Fully remote bridge</h3><p>If Conduit Bridge itself must run on Linux, keep 31338 bound to loopback, render Chromium on Xvfb, and forward the dashboard to the workstation.</p><pre>ssh -L 31338:127.0.0.1:31338 &lt;server&gt;</pre></section>
     <section><h3>Browser sign-in</h3><p>Choose <strong>Providers</strong>, then <strong>Start login</strong>. Conduit starts ordinary headed Chromium, attaches after launch, and keeps <code>navigator.webdriver</code> false. Choose <strong>Open login browser</strong> to use the built-in page viewer. Its frames and validated mouse and keyboard events use port 31338. No separate remote-desktop service is involved.</p><p>On a desktop the Chromium window is also visible locally. A remote server can render Chromium on Xvfb. Complete security checks yourself, then choose <strong>Check login status</strong>. Profiles stay below <code>~/.conduit/profiles/</code>.</p></section>
     <section><h3>Model transports</h3><ul><li><code>web-*</code>: persistent browser sessions.</li><li><code>api-*</code>: direct provider APIs and aggregators.</li><li><code>cli-*</code>: installed coding CLIs and isolated accounts.</li><li><code>lmstudio/*</code>: a local OpenAI-compatible LM Studio endpoint.</li></ul><p>Send the complete model ID shown on the Models page.</p></section>
     <section><h3>Client endpoints</h3><pre>Base URL: http://127.0.0.1:31338/v1
@@ -178,6 +194,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre><p>Use <code>fallback_models</code
   const legend = document.createElement('div'); legend.className = 'status-legend'; legend.innerHTML = '<span><i class="dot ok"></i>Green: connected and ready</span><span><i class="dot warn"></i>Yellow: profile exists, session needs attention</span><span><i class="dot"></i>Red: not configured or unavailable</span>'; $('overview-section').insertBefore(legend, $('overview-section').querySelector('.grid'));
   const family = id => id.startsWith('web-') ? 'web-*' : id.startsWith('api-') ? 'api-*' : id.startsWith('cli-') ? 'cli-*' : id.startsWith('lmstudio/') ? 'lmstudio/*' : 'other';
   const familyHelp = {'web-*':'Browser sessions','api-*':'Direct APIs','cli-*':'Local coding CLIs','lmstudio/*':'Local models','other':'Other'};
+  const familyOrder = ['web-*','api-*','cli-*','lmstudio/*','other'];
   const providerForModel = id => id.startsWith('web-grok/') ? 'grok' : id.startsWith('web-claude/') ? 'claude' : id.startsWith('web-gemini/') ? 'gemini' : id.startsWith('web-chatgpt/') ? 'chatgpt' : id.startsWith('web-perplexity/') ? 'perplexity' : id.startsWith('api-claude/') ? 'claude-api' : id.startsWith('api-gemini/') ? 'gemini-api' : id.startsWith('api-codex/') ? 'codex-api' : id.startsWith('api-openrouter/') ? 'openrouter-api' : id.startsWith('api-perplexity/') ? 'perplexity-api' : id.startsWith('cli-grok/') ? 'grok-cli' : id.startsWith('cli-codex/') ? 'cli-codex' : id.startsWith('cli-claude/') ? 'cli-claude' : id.startsWith('cli-gemini/') ? 'cli-gemini' : 'lmstudio';
   let models = [], capabilities = {};
   const sectionIds = { overview: 'overview-section', playground: 'playground-section', providers: 'providers-section', models: 'models-section', usage: 'usage-section', orchestrator: 'orchestrator-section', integration: 'integration-section', recommendations: 'recommendations-section', activity: 'activity-section', settings: 'settings-section', help: 'help-section-v2' };
@@ -214,19 +231,60 @@ Events:   ws://127.0.0.1:31338/v1/events</pre><p>Use <code>fallback_models</code
     $('provider-list').querySelectorAll('[data-login]').forEach(button => button.addEventListener('click', () => login(button.dataset.login, button)));
     $('provider-list').querySelectorAll('[data-logout]').forEach(button => button.addEventListener('click', () => logout(button.dataset.logout, button)));
   }
+  function modelOptionGroups(selected) {
+    const selectedIds = new Set(Array.isArray(selected) ? selected : [selected]);
+    const groups = {};
+    models.forEach(model => ((groups[providerForModel(model.id)] ||= []).push(model)));
+    return Object.entries(groups).sort(([a],[b]) => a.localeCompare(b)).map(([provider, grouped]) =>
+      '<optgroup label="' + esc(provider) + '">' + grouped.sort((a,b) => a.id.localeCompare(b.id)).map(model =>
+        '<option value="' + esc(model.id) + '"' + (selectedIds.has(model.id) ? ' selected' : '') + '>' + esc(model.id.slice(model.id.indexOf('/') + 1)) + '</option>'
+      ).join('') + '</optgroup>'
+    ).join('');
+  }
   function renderModels(items) {
+    const selectedPlayModel = $('play-model').value;
     models = items;
-    $('play-model').innerHTML = items.map(m => '<option value="' + esc(m.id) + '">' + esc(m.id) + '</option>').join('');
+    $('play-model').innerHTML = modelOptionGroups(selectedPlayModel || items[0]?.id || '');
     updateEffortOptions();
     const query = ($('model-search')?.value || '').trim().toLowerCase();
-    const visible = query ? items.filter(m => m.id.toLowerCase().includes(query) || m.owned_by.toLowerCase().includes(query)) : items;
+    const transport = $('model-transport-filter').value;
+    const providerFilter = $('model-provider-filter');
+    const selectedProvider = providerFilter.value;
+    const providerCounts = {};
+    items.forEach(model => { const provider = providerForModel(model.id); providerCounts[provider] = (providerCounts[provider] || 0) + 1; });
+    providerFilter.innerHTML = '<option value="">All providers</option>' + Object.entries(providerCounts).sort(([a],[b]) => a.localeCompare(b)).map(([provider,count]) => '<option value="' + esc(provider) + '">' + esc(provider) + ' (' + count + ')</option>').join('');
+    if (providerCounts[selectedProvider]) providerFilter.value = selectedProvider;
+    const provider = providerFilter.value;
+    const visible = items.filter(model => {
+      const routeProvider = providerForModel(model.id);
+      return (!query || model.id.toLowerCase().includes(query) || String(model.owned_by || '').toLowerCase().includes(query) || routeProvider.toLowerCase().includes(query)) &&
+        (!transport || family(model.id) === transport) && (!provider || routeProvider === provider);
+    });
     $('model-count').textContent = visible.length + ' of ' + items.length + ' models';
-    const groups = {}; visible.forEach(model => (groups[family(model.id)] ||= []).push(model));
-    $('model-list').innerHTML = Object.entries(groups).map(([name, grouped]) => '<div class="model-group"><h3><span>' + familyHelp[name] + '</span><small>' + grouped.length + '</small></h3><div class="model-list">' + grouped.map(m => '<div><code>' + esc(m.id) + '</code> <small>' + esc(m.availability || 'dynamic') + '</small></div>').join('') + '</div></div>').join('') || '<span class="muted">No matching models.</span>';
+    const familyCounts = {}; visible.forEach(model => { const name = family(model.id); familyCounts[name] = (familyCounts[name] || 0) + 1; });
+    $('model-summary').innerHTML = familyOrder.filter(name => familyCounts[name]).map(name => '<span><strong>' + esc(name) + '</strong> ' + familyCounts[name] + ' · ' + esc(familyHelp[name]) + '</span>').join('');
+    const groups = {};
+    visible.forEach(model => (((groups[family(model.id)] ||= {})[providerForModel(model.id)] ||= []).push(model)));
+    const expand = Boolean(query || transport || provider);
+    $('model-list').innerHTML = familyOrder.filter(name => groups[name]).map(name => {
+      const providerGroups = Object.entries(groups[name]).sort(([a],[b]) => a.localeCompare(b));
+      return '<div class="model-transport-group"><h3><span>' + esc(familyHelp[name]) + ' <code>' + esc(name) + '</code></span><small>' + familyCounts[name] + ' models across ' + providerGroups.length + ' providers</small></h3>' + providerGroups.map(([routeProvider, grouped]) => {
+        const providerStatus = (lastProviders || []).find(item => item.name === routeProvider);
+        const ready = Boolean(providerStatus?.sessionValid);
+        const providerState = ready ? 'Ready' : (providerStatus?.hasProfile ? 'Needs authentication' : 'Unavailable');
+        const ordered = grouped.sort((a,b) => a.id.localeCompare(b.id));
+        return '<details class="model-provider-group"' + (expand || ordered.length <= 8 ? ' open' : '') + '><summary><span><strong>' + esc(routeProvider) + '</strong><small>Route through ' + esc(familyHelp[name].toLowerCase()) + '</small></span><span class="provider-state ' + (ready ? 'ready' : 'unavailable') + '">' + esc(providerState) + '</span><span>' + ordered.length + ' models</span></summary><div class="model-provider-models">' + ordered.map(model => {
+          const target = model.id.slice(model.id.indexOf('/') + 1);
+          const source = model.conduit?.source || model.source || model.owned_by || 'provider catalog';
+          const availability = model.conduit?.availability || model.availability || 'dynamic';
+          return '<div class="model-row"><div><strong>' + esc(target) + '</strong><code>' + esc(model.id) + '</code></div><span class="model-meta">' + esc(availability) + ' · ' + esc(source) + '</span><button type="button" data-use-model="' + esc(model.id) + '">Use in Playground</button></div>';
+        }).join('') + '</div></details>';
+      }).join('') + '</div>';
+    }).join('') || '<span class="muted">No matching models.</span>';
   }
   function renderMetrics(data) { const rows = Object.entries(data.models || {}).sort((a,b) => (b[1].requests || 0) - (a[1].requests || 0)); $('metrics').innerHTML = rows.length ? '<div class="model-list">' + rows.map(([model, m]) => '<div><code>' + esc(model) + '</code> · ' + m.successes + '/' + m.requests + ' successful · ' + (m.averageLatencyMs ?? '-') + ' ms avg · ' + m.inFlight + ' active' + (m.lastError ? ' · <span class="muted">last error: ' + esc(m.lastError) + '</span>' : '') + '</div>').join('') + '</div>' : 'No requests yet.'; }
   function renderActivity(data) { const events = data.events || []; $('activity-log').innerHTML = events.length ? events.map(event => '<div class="activity-event ' + esc(event.level) + '"><time>' + new Date(event.time).toLocaleTimeString() + '</time><span class="scope">' + esc(event.scope) + '</span><span><strong class="level">' + esc(event.level) + '</strong> · ' + esc(event.message) + '</span></div>').join('') : 'No events yet.'; }
-  function renderOrchestrator(data) { $('orch-enabled').value = String(Boolean(data.enabled)); $('orch-strategy').value = data.strategy || 'sequential'; $('orch-roles').innerHTML = (data.roles || []).map((role, i) => '<label><span>Role ' + (i + 1) + ': ' + esc(role.name) + '</span><select data-orch-role="' + i + '"><option value="">Select a model</option>' + models.map(m => '<option value="' + esc(m.id) + '"' + (m.id === role.model ? ' selected' : '') + '>' + esc(m.id) + '</option>').join('') + '</select></label>').join(''); $('orch-fallbacks').innerHTML = models.map(m => '<option value="' + esc(m.id) + '"' + ((data.fallbackModels || []).includes(m.id) ? ' selected' : '') + '>' + esc(m.id) + '</option>').join(''); }
+  function renderOrchestrator(data) { $('orch-enabled').value = String(Boolean(data.enabled)); $('orch-strategy').value = data.strategy || 'sequential'; $('orch-roles').innerHTML = (data.roles || []).map((role, i) => '<label><span>Role ' + (i + 1) + ': ' + esc(role.name) + '</span><select data-orch-role="' + i + '"><option value="">Select a model</option>' + modelOptionGroups(role.model) + '</select></label>').join(''); $('orch-fallbacks').innerHTML = modelOptionGroups(data.fallbackModels || []); }
   async function saveOrchestrator() { const roles = [...document.querySelectorAll('[data-orch-role]')].map((select, i) => ({ name: ['Analyst', 'Reviewer', 'Synthesizer'][i] || 'Role ' + (i + 1), model: select.value })); const fallbackModels = [...$('orch-fallbacks').selectedOptions].map(option => option.value); const data = await request('/v1/orchestrator', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:$('orch-enabled').value === 'true', strategy:$('orch-strategy').value, roles, fallbackModels})}); renderOrchestrator(data); $('orch-note').textContent = 'Configuration saved'; }
   async function runOrchestrator() { $('orch-run').disabled = true; $('orch-note').textContent = 'Running...'; try { await saveOrchestrator(); const data = await request('/v1/orchestrator/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:'Compare the current project state and identify the most important next engineering action.'})}); $('orch-output').textContent = data.results.map(r => r.role + ' (' + r.model + ')\\n' + r.content).join('\\n\\n'); $('orch-note').textContent = 'Completed'; showSection('activity'); } catch (error) { $('orch-output').textContent = error.message; $('orch-note').textContent = 'Failed'; } finally { $('orch-run').disabled = false; } }
   async function runCliTests() { $('test-all-cli').disabled = true; $('test-output').textContent = 'Running CLI provider matrix...'; try { const data = await request('/v1/tests/cli', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}); $('test-output').innerHTML = data.results.map(r => '<div class="activity-event ' + (r.ok ? 'success' : 'error') + '"><span class="scope">' + esc(r.provider) + '</span><span>' + (r.ok ? 'PASS' : 'FAIL') + '</span><span>' + esc(r.model || '') + ' · ' + esc(r.output || r.error || '') + ' · ' + r.latencyMs + ' ms</span></div>').join(''); showSection('activity'); } catch (error) { $('test-output').textContent = error.message; } finally { $('test-all-cli').disabled = false; } }
@@ -420,10 +478,18 @@ Events:   ws://127.0.0.1:31338/v1/events</pre><p>Use <code>fallback_models</code
     const cancel = event.target.closest('[data-login-cancel]');
     if (cancel) return loginCancel(cancel.dataset.loginCancel, cancel);
   });
+  $('model-list').addEventListener('click', event => {
+    const use = event.target.closest('[data-use-model]');
+    if (!use) return;
+    $('play-model').value = use.dataset.useModel;
+    updateEffortOptions();
+    showSection('playground');
+    $('notice').textContent = use.dataset.useModel + ' selected in Playground.';
+  });
   async function logout(provider, button) { button.disabled = true; try { await request('/v1/logout/' + encodeURIComponent(provider), { method: 'POST' }); $('notice').textContent = provider + ' logged out'; } catch (error) { $('notice').textContent = error.message; } finally { button.disabled = false; refresh(); } }
   async function runPlayground() { const button = $('play-run'); button.disabled = true; $('play-note').textContent = 'Running...'; $('play-output').textContent = ''; try { const result = await request('/v1/chat/completions', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ model: $('play-model').value, effort: $('play-effort').value, messages: [{role:'user', content: $('play-prompt').value}], max_tokens: 64 }) }); $('play-output').textContent = result.choices?.[0]?.message?.content || JSON.stringify(result, null, 2); $('play-note').textContent = 'Completed'; } catch (error) { $('play-output').textContent = error.message; $('play-note').textContent = 'Failed'; } finally { button.disabled = false; } }
   document.querySelectorAll('[data-section]').forEach(button => button.addEventListener('click', () => showSection(button.dataset.section))); $('menu-toggle').addEventListener('click', () => $('sidebar').classList.toggle('open')); $('play-model').addEventListener('change', updateEffortOptions); $('play-run').addEventListener('click', runPlayground);
-  $('refresh').addEventListener('click', refresh); $('model-search').addEventListener('input', () => renderModels(models)); $('model-refresh').addEventListener('click', async () => { $('model-refresh').disabled = true; try { await request('/v1/models/refresh', {method:'POST'}); await refresh(); } finally { $('model-refresh').disabled = false; } }); $('orch-save').addEventListener('click', () => saveOrchestrator().catch(error => $('orch-note').textContent = error.message)); $('orch-run').addEventListener('click', runOrchestrator); $('test-all-cli').addEventListener('click', runCliTests); $('test-openai').addEventListener('click', runOpenAiTest);
+  $('refresh').addEventListener('click', refresh); $('model-search').addEventListener('input', () => renderModels(models)); $('model-transport-filter').addEventListener('change', () => renderModels(models)); $('model-provider-filter').addEventListener('change', () => renderModels(models)); $('model-refresh').addEventListener('click', async () => { $('model-refresh').disabled = true; try { await request('/v1/models/refresh', {method:'POST'}); await refresh(); } finally { $('model-refresh').disabled = false; } }); $('orch-save').addEventListener('click', () => saveOrchestrator().catch(error => $('orch-note').textContent = error.message)); $('orch-run').addEventListener('click', runOrchestrator); $('test-all-cli').addEventListener('click', runCliTests); $('test-openai').addEventListener('click', runOpenAiTest);
   $('usage-section').querySelector('.muted').textContent = 'Persistent local telemetry inspired by Winbar. Token and cost values are estimates unless the provider reports exact usage. No prompt or response content is stored.';
   let eventsConnected = false;
   function connectEvents() {
@@ -450,10 +516,11 @@ export const HELP_HTML = `<!doctype html>
 npx playwright install chromium
 npm run build
 node dist/cli.js start --host=127.0.0.1 --port=31338</pre><p>Open <code>http://127.0.0.1:31338/</code>. The dashboard, API, event stream, and browser-login viewer share this one listener.</p></section>
-  <section><h2>Remote Linux over SSH</h2><p>Keep the bridge bound to loopback. Forward its only user-facing port from your workstation:</p><pre>ssh -L 31338:127.0.0.1:31338 &lt;server&gt;</pre><p>Then open <code>http://127.0.0.1:31338/</code> locally. A server without a desktop needs Xvfb so Chromium has a rendering target:</p><pre>Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp
+  <section><h2>Recommended: local bridge for remote OpenClaw</h2><p>Run Conduit Bridge on the workstation where Chromium is visible. Keep the complete browser profile local and reverse-forward the bridge to the remote server:</p><pre>ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -R 127.0.0.1:31338:127.0.0.1:31338 &lt;server&gt;</pre><p>OpenClaw can keep using <code>http://127.0.0.1:31338/v1</code> on the server. Port 31338 must be free there, and the tunnel is available only while the workstation is online. This is safer and more complete than trying to export HttpOnly cookies, encrypted storage, or device-bound session state.</p></section>
+  <section><h2>Fully remote Linux over SSH</h2><p>When the bridge itself must stay on the server, keep it bound to loopback and forward its only user-facing port from your workstation:</p><pre>ssh -L 31338:127.0.0.1:31338 &lt;server&gt;</pre><p>Then open <code>http://127.0.0.1:31338/</code> locally. A server without a desktop needs Xvfb so Chromium has a rendering target:</p><pre>Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp
 DISPLAY=:99 node dist/cli.js start --host=127.0.0.1 --port=31338</pre><p>Xvfb does not expose a remote-desktop port. Conduit captures the active login page itself and carries frames and validated input through 31338.</p></section>
   <section><h2>Browser-provider sign-in</h2><ol><li>Open <strong>Providers</strong> in the dashboard.</li><li>Choose <strong>Start login</strong> for Grok, Claude, Gemini, ChatGPT, or Perplexity.</li><li>Choose <strong>Open login browser</strong> on that provider card.</li><li>Complete the provider sign-in and any security check yourself.</li><li>Choose <strong>Check login status</strong>.</li></ol><p>Conduit starts ordinary headed Chromium first and attaches to its fixed loopback DevTools endpoint afterwards. The browser keeps its native Linux or desktop identity and reports <code>navigator.webdriver === false</code>. Conduit never applies a user-agent override or stealth flag.</p><p>The viewer exposes only JPEG frames and bounded pointer, wheel, keyboard, and text events. Raw DevTools commands are not accepted. Profiles are stored below <code>~/.conduit/profiles/</code> and reused by restore.</p><p>Security checks are detected and reported. Conduit never solves, suppresses, replays, or bypasses one.</p></section>
-  <section><h2>Model routing</h2><ul><li><code>web-*</code> uses a persistent browser profile.</li><li><code>api-*</code> uses a direct provider API or aggregator.</li><li><code>cli-*</code> invokes an installed coding CLI and can isolate accounts.</li><li><code>lmstudio/*</code> forwards to a local OpenAI-compatible LM Studio server.</li></ul><p>Use the complete model ID returned by <code>GET /v1/models</code>. Availability labels are <strong>verified</strong>, <strong>documented</strong>, or <strong>dynamic</strong>.</p></section>
+  <section><h2>Model routing</h2><ul><li><code>web-*</code> uses a persistent browser profile.</li><li><code>api-*</code> uses a direct provider API or aggregator.</li><li><code>cli-*</code> invokes an installed coding CLI and can isolate accounts.</li><li><code>lmstudio/*</code> forwards to a local OpenAI-compatible LM Studio server.</li></ul><p>The Models page groups the catalog by transport and provider, shows readiness and source, and filters by search, transport, or provider. Use the complete model ID shown there. Availability labels are <strong>verified</strong>, <strong>documented</strong>, or <strong>dynamic</strong>.</p></section>
   <section><h2>OpenAI-compatible endpoints</h2><pre>GET  /health
 GET  /v1/status
 GET  /v1/models

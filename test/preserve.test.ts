@@ -543,6 +543,10 @@ describe('regression preservation: pre-login behaviour still holds', () => {
 
     expect(DASHBOARD_HTML).toContain('id="model-search"');
     expect(DASHBOARD_HTML).toContain(`$('model-search').addEventListener('input'`);
+    expect(DASHBOARD_HTML).toContain('id="model-transport-filter"');
+    expect(DASHBOARD_HTML).toContain('id="model-provider-filter"');
+    expect(DASHBOARD_HTML).toContain('Models by transport and provider');
+    expect(DASHBOARD_HTML).toContain('data-use-model');
     expect(DASHBOARD_HTML).toContain('id="login-panel"');
 
     expect(DASHBOARD_HTML).toContain('Open login browser');
@@ -560,7 +564,7 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     const text = await res.text();
     expect(text).toBe(HELP_HTML);
     expect(text).toContain('Requirements and installation');
-    expect(text).toContain('Remote Linux over SSH');
+    expect(text).toContain('Fully remote Linux over SSH');
     expect(text).toContain('Browser-provider sign-in');
     expect(text).toContain('Security');
     expect(text.endsWith('</main></body></html>')).toBe(true);

@@ -22,6 +22,9 @@ _Reverse chronological. Latest session first._
 - Added native-identity restore, stale-lock recovery, challenge detection, and multi-signal authentication.
 - Added provider-scoped viewer, frame, and validated input routes.
 - Removed all route-value reflection from the viewer document after CodeQL review.
+- Serialized viewer input, coalesced high-rate events, and changed clicks to one atomic request.
+- Replaced the flat model catalog with transport and provider groups, filters, readiness, source, and Playground selection.
+- Documented local workstation bridge plus reverse SSH tunnel as the recommended remote-client architecture.
 - Reconciled browser-login attempt state with provider session state so an active session cannot be shown as cancelled or failed.
 - Added metrics, activity, orchestration, fallbacks, request limits, model refresh, Perplexity browser support, and isolated CLI accounts.
 - Rewrote README, dashboard Help, standalone Help, browser-login guide, and changelog.

@@ -55,6 +55,20 @@ Open `http://127.0.0.1:31338/`, choose **Providers**, and start a login.
 
 The Chromium window appears on the local Windows, macOS, or Linux desktop. The provider card also exposes the built-in viewer.
 
+## Recommended remote-client setup
+
+If the person works on a Windows, macOS, or Linux desktop but OpenClaw runs on a remote server, keep Conduit Bridge on the desktop. This keeps the entire browser profile and visible Chromium window local.
+
+Create a reverse tunnel from the workstation:
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -R 127.0.0.1:31338:127.0.0.1:31338 <server>
+```
+
+The remote client continues to call `http://127.0.0.1:31338/v1`. Port 31338 must not already be occupied by a remote bridge process. This mode works only while the workstation and SSH connection remain online.
+
+The dashboard does not export cookies from another browser. Browser same-origin rules and `HttpOnly` prevent a page from reading provider cookies, Chromium encrypts cookie storage, and modern sessions can also depend on local storage, IndexedDB, service workers, or device-bound state. Running the bridge beside the browser preserves the complete profile instead.
+
 ## Remote Linux server
 
 ### 1. Provide an internal display
@@ -264,4 +278,4 @@ conduit-bridge login <provider> --recheck
 conduit-bridge login <provider> --cancel
 ```
 
-`--local` is for a machine with a locally visible desktop. Use the dashboard viewer for a remote server.
+`--local` is for a machine with a locally visible desktop. Prefer the local bridge plus reverse tunnel when the remote server only consumes the API. Use the dashboard viewer when the bridge itself must run on the remote server.

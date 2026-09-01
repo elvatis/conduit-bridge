@@ -25,6 +25,8 @@ describe('built-in browser viewer', () => {
       expect(html).toContain("base + '/frame");
       expect(html).toContain("base + '/input'");
       expect(html).toContain('location.pathname');
+      expect(html).toContain("action:'click'");
+      expect(html).toContain('inputChain = inputChain.then');
       expect(html).not.toContain('perplexity');
       expect(html).not.toMatch(/VNC|websockify|RFB/i);
     } finally {
@@ -52,7 +54,9 @@ describe('built-in browser viewer', () => {
   it('validates and bounds pointer input', () => {
     expect(validateLoginViewerInput({ type: 'pointer', action: 'down', x: -2, y: 90_000, button: 'left' }))
       .toEqual({ type: 'pointer', action: 'down', x: 0, y: 10_000, button: 'left' });
-    expect(validateLoginViewerInput({ type: 'pointer', action: 'click', x: 1, y: 2 })).toBeNull();
+    expect(validateLoginViewerInput({ type: 'pointer', action: 'click', x: 4, y: 8, button: 'left' }))
+      .toEqual({ type: 'pointer', action: 'click', x: 4, y: 8, button: 'left' });
+    expect(validateLoginViewerInput({ type: 'pointer', action: 'drag', x: 1, y: 2 })).toBeNull();
   });
 
   it('validates keyboard, wheel and text input', () => {

@@ -501,6 +501,14 @@ describe('built-in login viewer on port 31338', () => {
     expect(accepted.status).toBe(204);
     expect(h.state.viewerInputs).toEqual([{ type: 'key', action: 'down', key: 'Enter' }]);
 
+    const click = await fetch(base + '/v1/login/perplexity/input', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'pointer', action: 'click', x: 120, y: 240, button: 'left' }),
+    });
+    expect(click.status).toBe(204);
+    expect(h.state.viewerInputs.at(-1)).toEqual({ type: 'pointer', action: 'click', x: 120, y: 240, button: 'left' });
+
     const rejected = await fetch(base + '/v1/login/perplexity/input', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

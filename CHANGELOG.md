@@ -18,6 +18,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - `docs/BROWSER-LOGIN.md` with local desktop, remote SSH, Xvfb, systemd, security, and troubleshooting guidance.
 
 ### Changed
+- Local workstation deployment plus an SSH reverse tunnel is now the recommended way to serve a remote OpenClaw client while keeping the complete browser profile local.
+- The dashboard model catalog now groups large catalogs by transport and provider, adds transport and provider filters, shows provider readiness and catalog source, and links models directly to the Playground.
 - Browser authentication now combines provider-specific positive signals, origin-scoped cookie names, expected host and path, and logged-out vetoes. Selector presence alone no longer marks a session authenticated.
 - Session restore uses the browser's native user agent and platform. Historical Windows identity overrides and stealth flags are gone.
 - Browser login on a remote server now uses the same SSH-forwarded port as the API and dashboard.
@@ -33,6 +35,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - The dynamically patched Help page and its stale viewer instructions.
 
 ### Fixed
+- Viewer input is serialized, pointer movement and scrolling are coalesced, and clicks use one atomic event so SSH latency cannot reorder mouse-button actions.
 - The built-in login viewer is now a static document and never reflects a route value into HTML or inline JavaScript.
 - A valid provider session now overrides and clears an older cancelled, failed, blocked, or timed-out browser-login attempt in both the API and dashboard.
 - Stale Chromium profile locks are detected with `lstat` and removed only when safe.
