@@ -20,9 +20,19 @@ describe('desktop autostart installers', () => {
     const script = readFileSync(join(root, 'install-autostart.ps1'), 'utf8');
     expect(script).toContain('New-ScheduledTaskTrigger');
     expect(script).toContain('-AtLogOn');
+    expect(script).toContain('IsNullOrWhiteSpace($InstallDir)');
     expect(script).toContain('$RuntimeDir');
     expect(script).toContain('conduit-bridge-start.ps1');
+    expect(script).toContain('conduit-bridge.out.log');
+    expect(script).toContain('conduit-bridge.error.log');
+    expect(script).toContain('conduit-bridge.pid');
+    expect(script).toContain('Start-Process');
     expect(script).toContain('127.0.0.1:31338');
     expect(script).not.toMatch(/Xvfb|x11vnc|noVNC|websockify|5900|6080/i);
+
+    const uninstall = readFileSync(join(root, 'uninstall-autostart.ps1'), 'utf8');
+    expect(uninstall).toContain('Stop-ScheduledTask');
+    expect(uninstall).toContain('Unregister-ScheduledTask');
+    expect(uninstall).toContain('Stop-Process');
   });
 });

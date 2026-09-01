@@ -7,8 +7,8 @@ import type { Duplex } from 'node:stream';
 import type { BridgeConfig } from '../src/types.js';
 
 // Regression-preservation suite. Everything asserted here already shipped
-// before the browser-login work; a failure means that work broke something
-// unrelated to logging in. Assertions pin CURRENT behaviour, not intent.
+// before the provider cleanup; a failure means that work broke unrelated
+// gateway behaviour. Assertions pin CURRENT behaviour, not intent.
 
 // Redirect the home directory so MetricsStore, RunHistory and saveConfig never
 // touch the real ~/.conduit while the suite runs. Self-contained because
@@ -28,7 +28,7 @@ const h = vi.hoisted(() => {
   const PROMPT_MARKER = 'preserve-prompt-marker-91f2';
   const REPLY_MARKER = 'preserve-reply-marker-44ad';
   const primaryModel = {
-    id: 'web-grok/grok-fast', provider: 'grok', displayName: 'Grok Fast',
+    id: 'cli-grok/grok-4.5', provider: 'cli-grok', displayName: 'Grok 4.5',
     owned_by: 'xai', availability: 'verified', source: 'catalog',
   };
   // Deliberately carries neither availability nor source, so /v1/models has to
@@ -49,17 +49,13 @@ const h = vi.hoisted(() => {
   return { PROMPT_MARKER, REPLY_MARKER, primaryModel, fallbackModel, state };
 });
 
-// Lightweight stand-in for the real ProviderRegistry: no Playwright, no SDKs,
-// no network. The fake records whether the AbortSignal it was handed fired.
+// Lightweight stand-in for the real ProviderRegistry: no SDKs or network.
 vi.mock('../src/registry.js', () => {
   const makeProvider = (name: string, models: unknown[]) => ({
     name,
     models,
     async ensureConnected() { return h.state.connected; },
     async checkSession() { return h.state.connected; },
-    async restoreSession() { return true; },
-    async login(onReady: (url: string) => void) { onReady('https://example.invalid/login'); },
-    async logout() { /* no-op */ },
     async chat(req: { model: string; signal?: AbortSignal }) {
       h.state.chatCalls++;
       h.state.signalSeen = Boolean(req.signal);
@@ -83,7 +79,7 @@ vi.mock('../src/registry.js', () => {
     },
   });
 
-  const grok = makeProvider('grok', [h.primaryModel]);
+  const grok = makeProvider('cli-grok', [h.primaryModel]);
   const openrouter = {
     ...makeProvider('openrouter-api', [h.fallbackModel]),
     async embeddings(_input: string | string[], model: string) {
@@ -111,16 +107,13 @@ vi.mock('../src/registry.js', () => {
         port: this.cfg.port,
         version: '9.9.9',
         providers: [
-          { name: 'grok', connected: true, hasProfile: true, sessionValid: true, models: [h.primaryModel.id], loginType: 'browser' },
-          { name: 'openrouter-api', connected: true, hasProfile: false, sessionValid: true, models: [h.fallbackModel.id], loginType: 'api-key' },
+          { name: 'cli-grok', connected: true, models: [h.primaryModel.id], loginType: 'cli' },
+          { name: 'openrouter-api', connected: true, models: [h.fallbackModel.id], loginType: 'api-key', credentialSource: 'Bridge config' },
         ],
         uptime: 1,
       };
     }
-    async restoreSessions() { /* no-op */ }
-    async keepaliveSessions() { /* no-op */ }
     async refreshApiModels() { return {}; }
-    get isRestoring() { return false; }
   }
   return { ProviderRegistry: FakeRegistry };
 });
@@ -150,8 +143,6 @@ function config(port: number, extra: Partial<BridgeConfig> = {}): BridgeConfig {
   return {
     port,
     host: '127.0.0.1',
-    profileBaseDir: join(TEST_HOME, '.conduit', 'profiles'),
-    headless: true,
     logLevel: 'silent',
     apiKeys: {},
     ...extra,
@@ -547,10 +538,13 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(DASHBOARD_HTML).toContain('id="model-provider-filter"');
     expect(DASHBOARD_HTML).toContain('Models by transport and provider');
     expect(DASHBOARD_HTML).toContain('data-use-model');
-    expect(DASHBOARD_HTML).toContain('id="login-panel"');
-
-    expect(DASHBOARD_HTML).toContain('Open login browser');
-    expect(DASHBOARD_HTML).toContain('Built into port 31338');
+    expect(DASHBOARD_HTML).toContain('id="api-provider-list"');
+    expect(DASHBOARD_HTML).toContain('id="cli-provider-list"');
+    expect(DASHBOARD_HTML).toContain('id="local-provider-list"');
+    expect(DASHBOARD_HTML).not.toContain('Open login browser');
+    const dashboardScript = DASHBOARD_HTML.match(/<script>([\s\S]*)<\/script>/)?.[1] ?? '';
+    expect(dashboardScript.length).toBeGreaterThan(0);
+    expect(() => new Function(dashboardScript)).not.toThrow();
     expect(DASHBOARD_HTML).toContain('Supported desktop platforms');
     expect(DASHBOARD_HTML).toContain('Desktop autostart');
     expect(DASHBOARD_HTML).not.toContain('Fully remote bridge');
@@ -567,10 +561,10 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     const text = await res.text();
     expect(text).toBe(HELP_HTML);
     expect(text).toContain('Requirements and installation');
-    expect(text).toContain('Remote client through SSH');
+    expect(text).not.toContain('Remote client through SSH');
     expect(text).toContain('Desktop autostart');
     expect(text).not.toContain('Xvfb');
-    expect(text).toContain('Browser-provider sign-in');
+    expect(text).toContain('Provider authentication');
     expect(text).toContain('Security');
     expect(text.endsWith('</main></body></html>')).toBe(true);
   });

@@ -14,7 +14,7 @@ import type {
 import { logger } from '../logger.js';
 
 // Grok CLI runs locally as the `grok` binary (xAI's CLI). This provider drives it
-// in single-turn headless mode, delivering the prompt via --prompt-file (never on
+// in single-turn non-interactive mode, delivering the prompt via --prompt-file (never on
 // argv) to avoid E2BIG on long conversations. The binary must be installed and on
 // PATH; the provider reports "not connected" otherwise.
 //
@@ -110,7 +110,7 @@ function runCli(
 
     const timeoutTimer = setTimeout(() => {
       timedOut = true;
-      log(`[grok-cli] timeout after ${Math.round(timeoutMs / 1000)}s — terminating grok`);
+      log(`[cli-grok] timeout after ${Math.round(timeoutMs / 1000)}s — terminating grok`);
       if (isWin && proc.pid !== undefined) {
         // `proc` may be the cmd.exe wrapper; /t kills the grok grandchild too and
         // /f forces it — otherwise grok is orphaned and 'close' never fires.
@@ -133,7 +133,7 @@ function runCli(
     const onAbort = () => {
       if (closed) return;
       aborted = true;
-      log('[grok-cli] client disconnected — terminating grok');
+      log('[cli-grok] client disconnected — terminating grok');
       proc.kill('SIGTERM');
       killTimer = setTimeout(() => { if (!closed) proc.kill('SIGKILL'); }, GRACE_MS);
     };
@@ -177,16 +177,16 @@ export function flattenMessages(messages: ChatMessage[]): string {
 }
 
 export class GrokCliProvider implements ProviderAdapter {
-  readonly name: ProviderName = 'grok-cli';
+  readonly name: ProviderName = 'cli-grok';
 
   readonly models: ModelDefinition[] = CATALOG.map(id => ({
     id: `${PREFIX}${id}`,
-    provider: 'grok-cli',
+    provider: 'cli-grok',
     displayName: `${id} (Grok CLI)`,
     owned_by: 'xai',
   }));
 
-  // cfg accepted for registry uniformity; grok-cli configures itself from PATH + env.
+  // cfg accepted for registry uniformity; cli-grok configures itself from PATH + env.
   constructor(_cfg: BridgeConfig) {}
 
   /** Route any "cli-grok/…" model here. */
@@ -202,7 +202,7 @@ export class GrokCliProvider implements ProviderAdapter {
   async ensureConnected(): Promise<boolean> {
     const ok = await this.checkSession();
     if (!ok) {
-      logger.warn('[grok-cli] `grok` CLI not found on PATH. Install it and run `grok login`.');
+      logger.warn('[cli-grok] `grok` CLI not found on PATH. Install it and run `grok login`.');
     }
     return ok;
   }
@@ -213,12 +213,12 @@ export class GrokCliProvider implements ProviderAdapter {
 
   async login(_onReady: (loginUrl: string) => void): Promise<void> {
     throw new Error(
-      'grok-cli uses the local Grok CLI — install it and authenticate with `grok login` (not a browser login).',
+      'cli-grok uses the local Grok CLI — install it and authenticate with `grok login`.',
     );
   }
 
   async logout(): Promise<void> {
-    logger.info('[grok-cli] local CLI — nothing to disconnect');
+    logger.info('[cli-grok] local CLI — nothing to disconnect');
   }
 
   private _toApiModel(pluginId: string): string {

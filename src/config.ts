@@ -10,20 +10,13 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const DEFAULTS: BridgeConfig = {
   port: 31338,           // different from OpenClaw's 31337 to avoid conflicts
   host: '127.0.0.1',
-  profileBaseDir: join(CONFIG_DIR, 'profiles'),
-  headless: false,       // show browser for login flows
   logLevel: 'info',
   apiKeys: {},
   // Secure defaults: only localhost origins are allowed for CORS, no auth
-  // token (opt-in), and the Chromium sandbox stays ON (opt-in --no-sandbox).
+  // token (opt-in).
   allowedOrigins: ['http://localhost', 'http://127.0.0.1'],
   authToken: '',
-  chromiumNoSandbox: false,
   rateLimit: { perMinute: 60, maxConcurrent: 16 },
-  // Interactive login opens an ordinary browser the person drives. Restore
-  // starts the same native browser identity and attaches to it afterwards.
-  login: { mode: 'handoff', honestRestoreIdentity: true },
-  browser: { useDefaultProfile: true },
 };
 
 export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
@@ -39,7 +32,6 @@ export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
 
   return { ...DEFAULTS, ...saved, ...overrides };
 }
-
 export function saveConfig(cfg: Partial<BridgeConfig>): void {
   mkdirSync(CONFIG_DIR, { recursive: true });
   const existing = loadConfig();
@@ -92,12 +84,4 @@ export function loadDotEnv(dirs: string[] = [process.cwd(), CONFIG_DIR]): string
     }
   }
   return loaded;
-}
-
-export function profileDir(cfg: BridgeConfig, provider: string): string {
-  return join(cfg.profileBaseDir, `${provider}-profile`);
-}
-
-export function cookieFile(cfg: BridgeConfig, provider: string): string {
-  return join(CONFIG_DIR, `${provider}-expiry.json`);
 }

@@ -1,7 +1,6 @@
 // Supported host platforms for the local desktop bridge.
 //
-// Conduit keeps the browser profile and the visible Chromium window on a
-// workstation. The supported desktop targets are intentionally explicit so a
+// The supported desktop targets are intentionally explicit so a
 // different operating system does not look supported until it has been
 // validated end to end.
 

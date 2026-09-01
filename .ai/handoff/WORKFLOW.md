@@ -1,53 +1,20 @@
-# WORKFLOW.md — conduit-bridge
+# Workflow
 
-> Based on the [AAHP Protocol](https://github.com/homeofe/AAHP).
+Based on the [AAHP Protocol](https://github.com/homeofe/AAHP).
 
-## Agent Roles
+## Phases
 
-| Agent | Model | Role |
-|---|---|---|
-| 🔭 Researcher | perplexity/sonar-pro | Playwright API research, browser fingerprinting, network intercept patterns |
-| 🏛️ Architect | claude-opus | Provider adapter design, API surface decisions |
-| ⚙️ Implementer | claude-sonnet | Code, tests, refactoring, commits |
-| 💬 Reviewer | gpt-5 / second model | Security review, edge cases, cross-platform checks |
+1. Read `NEXT_ACTIONS.md`, `STATUS.md`, and relevant source files.
+2. Reproduce the issue and record evidence without secrets.
+3. Make the smallest coherent source, test, dashboard, and documentation change.
+4. Run tests, typecheck, build, diff check, secret scans, and audit.
+5. Update handoff files and generated metadata.
+6. Commit and push only after validation.
 
-## Pipeline
+## Provider rules
 
-### Phase 1: Research
-```
-Reads:   NEXT_ACTIONS.md (top unblocked task)
-         STATUS.md (current state)
-Does:    Research Playwright APIs, provider UI selectors, network intercept patterns
-Writes:  LOG.md — findings + recommendation
-```
-
-### Phase 2: Architecture
-```
-Reads:   LOG.md research, STATUS.md, relevant src/ files
-Does:    Decide implementation approach, define interfaces
-Writes:  LOG.md — ADR
-```
-
-### Phase 3: Implementation
-```
-Reads:   LOG.md ADR, CONVENTIONS.md
-Does:    Code changes, npm run build, npm test
-Writes:  src/ changes, LOG.md implementation notes
-```
-
-### Phase 4: Handoff
-```
-Updates: STATUS.md (version, build status, known issues)
-         NEXT_ACTIONS.md (mark done, add new tasks)
-         DASHBOARD.md (quick state)
-         MANIFEST.json (checksums, quick_context)
-         LOG.md (session summary)
-Commits: git add -u && git commit && git tag && git push
-```
-
-## Key Rules
-- Never skip the handoff phase
-- `gh release create` is mandatory — git tags alone don't create GitHub Releases
-- Sequential browser spawning only — never parallel Playwright contexts
-- All provider adapters extend BaseProvider — never duplicate session logic
-- Tests must pass before any npm publish
+- API, CLI, and local transports remain independent.
+- Provider IDs and model namespaces must remain consistent.
+- Do not infer API credentials from CLI login files.
+- Do not log credentials, tokens, prompts, or responses.
+- Test adapters without real provider requests unless a user explicitly asks.

@@ -53,10 +53,10 @@ export function effortCapabilities(provider: string): { values: string[]; aliase
   if (provider === 'cli-gemini') {
     return { values: ['low', 'medium', 'high'], note: 'agy supports low, medium, and high.' };
   }
-  if (provider === 'grok-cli' || provider === 'codex-api' || provider === 'openrouter-api' || provider === 'perplexity-api') {
+  if (provider === 'cli-grok' || provider === 'codex-api' || provider === 'openrouter-api' || provider === 'perplexity-api') {
     return { values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], note: 'The upstream model may support only a subset.' };
   }
-  return { values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], note: 'The selected web or API provider may ignore unsupported levels.' };
+  return { values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], note: 'The selected provider may ignore unsupported levels.' };
 }
 
 /** Map to agy `--effort` (only low|medium|high). */

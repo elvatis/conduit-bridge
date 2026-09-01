@@ -17,21 +17,18 @@ vi.mock('node:os', async (importOriginal) => {
 // Shared, test-controllable registry behaviour. Defined via vi.hoisted so the
 // mock factory (which is hoisted above imports) can reference it safely.
 const h = vi.hoisted(() => {
-  const grokModel = { id: 'web-grok/grok-fast', provider: 'grok', displayName: 'Grok Fast', owned_by: 'xai' };
+  const grokModel = { id: 'cli-grok/grok-4.5', provider: 'cli-grok', displayName: 'Grok 4.5', owned_by: 'xai' };
   const state = {
     connected: true,      // provider.ensureConnected() result
     chatThrows: false,    // provider.chat() throws when true
-    loginCalls: [] as string[],
-    logoutCalls: [] as string[],
   };
   return { grokModel, state };
 });
 
-// Replace the real ProviderRegistry (which would construct Playwright/SDK
-// providers) with a lightweight fake. No browser is ever launched.
+// Replace the real ProviderRegistry with a lightweight fake.
 vi.mock('../src/registry.js', () => {
   const provider = {
-    name: 'grok',
+    name: 'cli-grok',
     models: [h.grokModel],
     async ensureConnected() { return h.state.connected; },
     async chat() {
@@ -39,8 +36,6 @@ vi.mock('../src/registry.js', () => {
       return 'mocked completion';
     },
     async *chatStream() { yield 'mocked'; yield ' completion'; },
-    async login(onReady: (url: string) => void) { h.state.loginCalls.push('grok'); onReady('https://grok.com'); },
-    async logout() { h.state.logoutCalls.push('grok'); },
     async checkSession() { return true; },
     async restoreSession() { return true; },
   };
@@ -57,14 +52,11 @@ vi.mock('../src/registry.js', () => {
         running: true,
         port: this.cfg.port,
         version: '9.9.9',
-        providers: [{ name: 'grok', connected: true, hasProfile: false, sessionValid: true, models: [h.grokModel.id] }],
+        providers: [{ name: 'cli-grok', connected: true, models: [h.grokModel.id], loginType: 'cli' }],
         uptime: 1,
       };
     }
-    async restoreSessions() { /* no-op */ }
-    async keepaliveSessions() { /* no-op */ }
     async refreshApiModels() { return {}; }
-    get isRestoring() { return false; }
   }
   return { ProviderRegistry: FakeRegistry };
 });
@@ -91,8 +83,6 @@ beforeAll(async () => {
   const cfg: BridgeConfig = {
     port,
     host: '127.0.0.1',
-    profileBaseDir: '/tmp/conduit-test-profiles',
-    headless: true,
     logLevel: 'silent',
     apiKeys: {},
   };
@@ -108,8 +98,6 @@ afterAll(async () => {
 beforeEach(() => {
   h.state.connected = true;
   h.state.chatThrows = false;
-  h.state.loginCalls = [];
-  h.state.logoutCalls = [];
 });
 
 describe('BridgeServer HTTP handler', () => {
@@ -160,7 +148,7 @@ describe('BridgeServer HTTP handler', () => {
       const body = await res.json();
       expect(body.object).toBe('list');
       expect(Array.isArray(body.data)).toBe(true);
-      expect(body.data[0]).toMatchObject({ id: 'web-grok/grok-fast', object: 'model', owned_by: 'xai' });
+      expect(body.data[0]).toMatchObject({ id: 'cli-grok/grok-4.5', object: 'model', owned_by: 'xai' });
     });
   });
 
@@ -191,7 +179,7 @@ describe('BridgeServer HTTP handler', () => {
       const res = await fetch(`${base}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'web-grok/grok-fast' }),
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5' }),
       });
       expect(res.status).toBe(400);
       const body = await res.json();
@@ -213,7 +201,7 @@ describe('BridgeServer HTTP handler', () => {
       const res = await fetch(`${base}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'web-grok/grok-fast', messages: [{ role: 'user', content: 'hi' }] }),
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }] }),
       });
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -227,7 +215,7 @@ describe('BridgeServer HTTP handler', () => {
       const res = await fetch(`${base}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'web-grok/grok-fast', messages: [{ role: 'user', content: 'hi' }] }),
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }] }),
       });
       expect(res.status).toBe(503);
       const body = await res.json();
@@ -239,7 +227,7 @@ describe('BridgeServer HTTP handler', () => {
       const res = await fetch(`${base}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'web-grok/grok-fast', messages: [{ role: 'user', content: 'hi' }] }),
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }] }),
       });
       expect(res.status).toBe(503);
       const body = await res.json();
@@ -251,7 +239,7 @@ describe('BridgeServer HTTP handler', () => {
       const res = await fetch(`${base}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'web-grok/grok-fast', messages: [{ role: 'user', content: 'hi' }], stream: true }),
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }], stream: true }),
       });
       expect(res.status).toBe(200);
       expect(res.headers.get('content-type')).toContain('text/event-stream');
@@ -262,30 +250,19 @@ describe('BridgeServer HTTP handler', () => {
     });
   });
 
-  describe('login / logout routes', () => {
-    it('rejects browser login for API-key providers with 400', async () => {
+  describe('removed browser routes', () => {
+    it('does not expose browser login routes', async () => {
       const res = await fetch(`${base}/v1/login/claude-api`, { method: 'POST' });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.status).toBe('error');
-      expect(body.message).toContain('API credential');
-      expect(body.message).toContain('write-only Settings');
+      expect(body.error.type).toBe('not_found');
     });
 
-    it('starts browser login for a web provider with 202', async () => {
-      const res = await fetch(`${base}/v1/login/grok`, { method: 'POST' });
-      expect(res.status).toBe(202);
+    it('does not expose browser logout routes', async () => {
+      const res = await fetch(`${base}/v1/logout/cli-grok`, { method: 'POST' });
+      expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.status).toBe('login_started');
-      expect(body.provider).toBe('grok');
-    });
-
-    it('logs out a provider with 200', async () => {
-      const res = await fetch(`${base}/v1/logout/grok`, { method: 'POST' });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.status).toBe('ok');
-      expect(h.state.logoutCalls).toContain('grok');
+      expect(body.error.type).toBe('not_found');
     });
   });
 

@@ -22,8 +22,7 @@ const TEST_HOME = join(tmpdir(), 'conduit-bridge-test-home');
 const CONFIG_DIR = join(TEST_HOME, '.conduit');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
-import { cookieFile, loadConfig, profileDir, saveConfig } from '../src/config.js';
-import type { BridgeConfig } from '../src/types.js';
+import { loadConfig, saveConfig } from '../src/config.js';
 
 function cleanHome() {
   rmSync(TEST_HOME, { recursive: true, force: true });
@@ -43,14 +42,8 @@ describe('config', () => {
       const cfg = loadConfig();
       expect(cfg.port).toBe(31338);
       expect(cfg.host).toBe('127.0.0.1');
-      expect(cfg.headless).toBe(false);
       expect(cfg.logLevel).toBe('info');
       expect(cfg.apiKeys).toEqual({});
-      expect(cfg.profileBaseDir).toBe(join(CONFIG_DIR, 'profiles'));
-    });
-
-    it('keeps runtime data under the central conduit directory by default', () => {
-      expect(profileDir(loadConfig(), 'grok')).toBe(join(CONFIG_DIR, 'profiles', 'grok-profile'));
     });
 
     it('merges overrides on top of the defaults', () => {
@@ -59,7 +52,6 @@ describe('config', () => {
       expect(cfg.logLevel).toBe('debug');
       // untouched fields keep their default values
       expect(cfg.host).toBe('127.0.0.1');
-      expect(cfg.headless).toBe(false);
     });
 
     it('does not create the config directory as a side effect', () => {
@@ -114,25 +106,4 @@ describe('config', () => {
     });
   });
 
-  describe('path helpers', () => {
-    const cfg: BridgeConfig = {
-      port: 31338,
-      host: '127.0.0.1',
-      profileBaseDir: join(CONFIG_DIR, 'profiles'),
-      headless: false,
-      logLevel: 'info',
-      apiKeys: {},
-    };
-
-    it('profileDir joins the base dir with a per-provider folder', () => {
-      const dir = profileDir(cfg, 'grok');
-      expect(dir).toBe(join(cfg.profileBaseDir, 'grok-profile'));
-    });
-
-    it('cookieFile lives under the config dir and is named per provider', () => {
-      const file = cookieFile(cfg, 'claude');
-      expect(file).toBe(join(CONFIG_DIR, 'claude-expiry.json'));
-      expect(file.endsWith('claude-expiry.json')).toBe(true);
-    });
-  });
 });

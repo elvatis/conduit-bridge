@@ -67,7 +67,7 @@ export class CodexCliProvider implements ProviderAdapter {
 
   async login(_onReady: (loginUrl: string) => void): Promise<void> {
     throw new Error(
-      'cli-codex uses the local Codex CLI — install @openai/codex and run `codex login` (not a browser login).',
+      'cli-codex uses the local Codex CLI — install @openai/codex and run `codex login`.',
     );
   }
 

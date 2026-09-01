@@ -16,7 +16,7 @@ import {
 import { toClaudeEffort } from '../effort.js';
 import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.js';
 
-// Anthropic Claude Code CLI (@anthropic-ai/claude-code) — headless via -p/--print.
+// Anthropic Claude Code CLI (@anthropic-ai/claude-code) — non-interactive via -p/--print.
 // Install: npm i -g @anthropic-ai/claude-code  then authenticate (claude /login or API key)
 // Docs: https://www.npmjs.com/package/@anthropic-ai/claude-code
 const PREFIX = 'cli-claude/';
@@ -75,7 +75,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
   async login(_onReady: (loginUrl: string) => void): Promise<void> {
     throw new Error(
       'cli-claude uses the local Claude Code CLI — install @anthropic-ai/claude-code and authenticate ' +
-        '(claude login / ANTHROPIC_API_KEY), not a browser login via conduit-bridge.',
+        '(for example, claude login or the CLI-supported credential flow).',
     );
   }
 

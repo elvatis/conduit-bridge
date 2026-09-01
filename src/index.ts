@@ -15,28 +15,12 @@ export type {
   BridgeConfig,
   BridgeStatus,
   ProviderStatus,
-  SessionInfo,
-  SessionStatus,
   ProviderName,
   ChatMessage,
   ChatRequest,
   ModelDefinition,
   ProviderAdapter,
-  LoginConfig,
 } from './types.js';
-export type {
-  LoginState,
-  LoginSnapshot,
-  LoginDiagnostics,
-  LoginMode,
-  LoginTimings,
-  ChallengeKind,
-} from './login/state.js';
-export { LOGIN_STATES, TERMINAL_LOGIN_STATES, isTerminalLoginState, canTransition } from './login/state.js';
-export { probeDisplay } from './login/display.js';
-export type { DisplayProbe } from './login/display.js';
-export { loginViewerUrl } from './login/viewer.js';
-export type { LoginViewerInput } from './login/viewer.js';
 export {
   SUPPORTED_DESKTOP_PLATFORMS,
   platformSupport,

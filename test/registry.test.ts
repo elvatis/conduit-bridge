@@ -1,24 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { BridgeConfig, ProviderName } from '../src/types.js';
-
-// Point credential auto-detection at an empty temp home so API providers never
-// read the real ~/.claude, ~/.gemini or ~/.codex files during these tests.
-vi.mock('node:os', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:os')>();
-  const path = await import('node:path');
-  return {
-    ...actual,
-    homedir: () => path.join(actual.tmpdir(), 'conduit-bridge-registry-test-home'),
-  };
-});
 
 import { ProviderRegistry } from '../src/registry.js';
 
 const ALL_PROVIDERS: ProviderName[] = [
-  'grok', 'claude', 'gemini', 'chatgpt', 'perplexity', 'claude-api', 'gemini-api', 'codex-api',
-  'openrouter-api', 'perplexity-api', 'lmstudio', 'grok-cli',
+  'claude-api', 'gemini-api', 'codex-api',
+  'openrouter-api', 'perplexity-api', 'lmstudio', 'cli-grok',
   'cli-codex', 'cli-claude', 'cli-gemini',
 ];
 
@@ -26,8 +13,6 @@ function testConfig(): BridgeConfig {
   return {
     port: 31338,
     host: '127.0.0.1',
-    profileBaseDir: join(tmpdir(), 'conduit-bridge-registry-test-home', '.conduit', 'profiles'),
-    headless: true,
     logLevel: 'silent',
     apiKeys: {},
   };
@@ -41,7 +26,7 @@ describe('ProviderRegistry', () => {
   });
 
   describe('provider registration', () => {
-    it('registers all fifteen built-in providers', () => {
+    it('registers all ten built-in providers', () => {
       for (const name of ALL_PROVIDERS) {
         expect(registry.get(name).name).toBe(name);
       }
@@ -65,13 +50,6 @@ describe('ProviderRegistry', () => {
   });
 
   describe('providerForModel lookup', () => {
-    it('resolves a web model id to the owning provider', () => {
-      const grokModelId = registry.get('grok').models[0].id;
-      const provider = registry.providerForModel(grokModelId);
-      expect(provider).toBeDefined();
-      expect(provider!.name).toBe('grok');
-    });
-
     it('resolves an API model id to the owning provider', () => {
       const claudeApiModelId = registry.get('claude-api').models[0].id;
       const provider = registry.providerForModel(claudeApiModelId);
@@ -107,12 +85,8 @@ describe('ProviderRegistry', () => {
       for (const p of status.providers) {
         expect(Array.isArray(p.models)).toBe(true);
         expect(typeof p.connected).toBe('boolean');
-        expect(typeof p.sessionValid).toBe('boolean');
+        expect(['api-key', 'cli', 'local']).toContain(p.loginType);
       }
-    });
-
-    it('is not restoring before restoreSessions is called', () => {
-      expect(registry.isRestoring).toBe(false);
     });
   });
 });

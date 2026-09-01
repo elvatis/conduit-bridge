@@ -13,12 +13,6 @@
 # pinned in devDependencies (@elvatis_com/aahp), installed by `npm ci`. This
 # repo no longer vendors the AAHP bash scripts; the pinned package owns them.
 #
-# Dependabot exemption: a pure dependency bump introduces no handoff-state change,
-# so the AAHP handoff gate does not apply to it. The job stays a REQUIRED check but
-# no-ops to success when the change originates from dependabot[bot] - on both the PR
-# (github.actor) and the resulting push to main (head_commit.author). Security and
-# build remain gated by the supply-chain-guard and CodeQL checks, which still run.
-#
 # NOTE: GitHub Actions is currently OFF org-wide (cost sweep). This workflow is
 # committed anyway so it activates automatically when Actions is re-enabled.
 # Once Actions is on, mark this job as a REQUIRED status check in branch
@@ -46,15 +40,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Dependabot exemption (handoff gate not applicable)
-        if: ${{ github.actor == 'dependabot[bot]' || github.event.head_commit.author.username == 'dependabot[bot]' }}
-        run: |
-          echo "Dependabot change detected: the AAHP handoff gate does not apply."
-          echo "A pure dependency bump introduces no handoff-state change."
-          echo "Security and build remain gated by the supply-chain-guard and CodeQL checks."
-
       - name: Checkout code
-        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         uses: actions/checkout@v7
         with:
           # Full history so the content-drift gate can diff against the base.
@@ -62,22 +48,18 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node.js
-        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         uses: actions/setup-node@v7
         with:
           node-version: '24'
 
       - name: Install dependencies (pinned AAHP CLI)
-        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         run: npm ci --ignore-scripts
 
       - name: Run aahp verify (CI level, no escape hatch)
-        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         run: npx --no-install aahp verify . --level ci
         env:
           AAHP_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base }}
 
       - name: Print aahp doctor conformance record
-        if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         run: npx --no-install aahp doctor . --json
 

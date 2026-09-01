@@ -17,7 +17,7 @@ import {
 import { toAgyEffort } from '../effort.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
-// Headless: agy -p/--print with --model and --output-format text.
+// Non-interactive: agy -p/--print with --model and --output-format text.
 // Fallback: legacy `gemini` binary if still on PATH.
 // Docs: https://antigravity.google/docs/cli/getting-started
 const PREFIX = 'cli-gemini/';
@@ -79,7 +79,7 @@ export class GeminiCliProvider implements ProviderAdapter {
   async login(_onReady: (loginUrl: string) => void): Promise<void> {
     throw new Error(
       'cli-gemini uses the local Antigravity CLI (`agy`) — install and authenticate there ' +
-        '(not a browser login via conduit-bridge).',
+        'using the CLI-supported authentication flow.',
     );
   }
 
