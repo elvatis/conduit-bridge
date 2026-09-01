@@ -29,6 +29,7 @@ Browser login now starts ordinary headed Chromium and attaches after launch.
 - Provider-specific authentication signals
 - Stale profile-lock handling
 - Built-in JPEG and input viewer through port 31338
+- Static viewer document with no reflected route values
 - Active provider sessions override obsolete terminal login-attempt states
 - Detection-only security-check handling
 
@@ -57,7 +58,7 @@ Project integration with x11vnc, noVNC, websockify, VNC sockets, and ports 5900 
 
 - Typecheck: pass
 - Build: pass
-- Tests: 340 pass across 21 files
+- Tests: 341 pass across 21 files
 - Secret scan: tracked and untracked files pass
 - Secret history scan: pass
 - npm audit: zero vulnerabilities

@@ -21,13 +21,14 @@ _Reverse chronological. Latest session first._
 - Added observable login state, status, cancel, recheck, dashboard controls, and live events.
 - Added native-identity restore, stale-lock recovery, challenge detection, and multi-signal authentication.
 - Added provider-scoped viewer, frame, and validated input routes.
+- Removed all route-value reflection from the viewer document after CodeQL review.
 - Reconciled browser-login attempt state with provider session state so an active session cannot be shown as cancelled or failed.
 - Added metrics, activity, orchestration, fallbacks, request limits, model refresh, Perplexity browser support, and isolated CLI accounts.
 - Rewrote README, dashboard Help, standalone Help, browser-login guide, and changelog.
 - Removed the navigation footer text requested by the maintainer.
 
 **Verification:**
-- 340 tests pass across 21 files.
+- 341 tests pass across 21 files.
 - Typecheck, build, both secret scans, npm audit, and diff check pass.
 - Grok, Gemini, and Perplexity restore on the live host.
 - Grok viewer returned a real JPEG frame through 31338 and accepted bounded input.

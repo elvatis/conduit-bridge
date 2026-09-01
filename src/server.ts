@@ -351,7 +351,7 @@ export class BridgeServer {
     // It exposes page frames and a narrow input vocabulary, never raw CDP.
     const viewerMatch = path.match(new RegExp(`^/v1/login/(${[...WEB_LOGIN_PROVIDERS].join('|')})/viewer$`));
     if (viewerMatch && (method === 'GET' || method === 'HEAD')) {
-      serveLoginViewer(req, res, viewerMatch[1]);
+      serveLoginViewer(req, res);
       return;
     }
 

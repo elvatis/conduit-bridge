@@ -12,7 +12,7 @@ describe('built-in browser viewer', () => {
   });
 
   it('serves a self-contained page that polls frames and sends inputs', async () => {
-    const server = createServer((req, res) => serveLoginViewer(req, res, 'perplexity'));
+    const server = createServer((req, res) => serveLoginViewer(req, res));
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
     const port = typeof address === 'object' && address ? address.port : 0;
@@ -24,7 +24,26 @@ describe('built-in browser viewer', () => {
       expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
       expect(html).toContain("base + '/frame");
       expect(html).toContain("base + '/input'");
+      expect(html).toContain('location.pathname');
+      expect(html).not.toContain('perplexity');
       expect(html).not.toMatch(/VNC|websockify|RFB/i);
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  });
+
+  it('never reflects the request path into the viewer document', async () => {
+    const server = createServer((req, res) => serveLoginViewer(req, res));
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+    const marker = encodeURIComponent('</script><img src=x onerror=alert(1)>');
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/v1/login/${marker}/viewer`);
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).not.toContain(marker);
+      expect(html).not.toContain('</script><img src=x onerror=alert(1)>');
     } finally {
       await new Promise<void>(resolve => server.close(() => resolve()));
     }

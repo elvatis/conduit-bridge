@@ -9,7 +9,7 @@ _Quick-glance state. Last updated: 2026-09-01_
 | Version | 0.5.1 plus unreleased changes |
 | Branch | `fix/browser-login-single-port` |
 | Build | pass |
-| Tests | 340 pass, 21 files |
+| Tests | 341 pass, 21 files |
 | Audit | zero vulnerabilities |
 | Secret scans | current tree and full history pass |
 | npm published | no |
@@ -22,6 +22,7 @@ _Quick-glance state. Last updated: 2026-09-01_
 |---|---|
 | Login identity | native, `navigator.webdriver === false` |
 | Remote login | built-in viewer through 31338 |
+| Viewer HTML | static, no reflected route values |
 | Remote display | Xvfb only |
 | Stable ports 5900 and 6080 | absent |
 | Separate remote-desktop services | removed |

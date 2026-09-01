@@ -3,17 +3,17 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "gpt-5.6-sol",
-    "session_id": "cli-1788278430",
-    "timestamp": "2026-09-01T15:58:58Z",
-    "commit": "f6269f0",
+    "session_id": "cli-1788279200",
+    "timestamp": "2026-09-01T16:13:02Z",
+    "commit": "4dd2ef5",
     "phase": "fix",
     "duration_minutes": 8
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:69c081743e154cc3c0a9ecaf1d840e3a5e649c2d61415f4227dca55d513ccb0d",
-      "updated": "2026-09-01T15:58:53Z",
-      "lines": 93,
+      "checksum": "sha256:80414b1c3a749bad108949e2e09e0d94adb948ab07e49ab45376b44fb4f179b2",
+      "updated": "2026-09-01T16:12:57Z",
+      "lines": 94,
       "summary": "0.5.1 with an unreleased feature set on branch `fix/browser-login-single-port`."
     },
     "NEXT_ACTIONS.md": {
@@ -23,9 +23,9 @@
       "summary": "_Last updated: 2026-09-01_"
     },
     "LOG.md": {
-      "checksum": "sha256:e54c2188608cf95afe5b6a4a4461f7033c991b93270468656412aad9d201534d",
-      "updated": "2026-09-01T15:58:53Z",
-      "lines": 80,
+      "checksum": "sha256:59eef11cb7930800cfce390272d21ce317538e7d74e09a5fe3f08fa30b43d8c3",
+      "updated": "2026-09-01T16:12:57Z",
+      "lines": 81,
       "summary": "_Reverse chronological. Latest session first._"
     },
     "LOG-ARCHIVE.md": {
@@ -35,9 +35,9 @@
       "summary": "(no summary available)"
     },
     "DASHBOARD.md": {
-      "checksum": "sha256:8ad961da617ca4e041a5ba0a0fc4bbdcd03264f7c7697e930f0e1566c0e01580",
-      "updated": "2026-09-01T15:58:53Z",
-      "lines": 50,
+      "checksum": "sha256:038ea132439880235e8f22cb4202884dbea2246eb9515e9ec1a54e99114e499f",
+      "updated": "2026-09-01T16:12:57Z",
+      "lines": 51,
       "summary": "_Quick-glance state. Last updated: 2026-09-01_"
     },
     "TRUST.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Reconcile browser-login attempt state with active provider sessions",
+  "quick_context": "Remove reflected route values from the login viewer",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1063,
-    "full_read": 5764
+    "manifest_plus_core": 1075,
+    "full_read": 5805
   }
 }

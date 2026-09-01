@@ -17,8 +17,7 @@ export function loginViewerUrl(provider: string): string {
   return `/v1/login/${encodeURIComponent(provider)}/viewer`;
 }
 
-function viewerHtml(provider: string): string {
-  const encoded = encodeURIComponent(provider);
+function viewerHtml(): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -40,13 +39,17 @@ function viewerHtml(provider: string): string {
   </style>
 </head>
 <body>
-  <header><strong>Conduit login</strong><span>${encoded}</span><span id="status">Connecting</span></header>
+  <header><strong>Conduit login</strong><span id="provider"></span><span id="status">Connecting</span></header>
   <div id="stage"><img id="screen" alt="Live browser page" tabindex="0" draggable="false"></div>
   <script>
-    const provider = ${JSON.stringify(provider)};
-    const base = '/v1/login/' + encodeURIComponent(provider);
+    const viewerSuffix = '/viewer';
+    const base = location.pathname.endsWith(viewerSuffix)
+      ? location.pathname.slice(0, -viewerSuffix.length)
+      : '';
+    const provider = base.split('/').pop() || '';
     const screen = document.getElementById('screen');
     const status = document.getElementById('status');
+    document.getElementById('provider').textContent = decodeURIComponent(provider);
     let stopped = false;
     let naturalWidth = 1;
     let naturalHeight = 1;
@@ -138,13 +141,13 @@ function viewerHtml(provider: string): string {
 </html>`;
 }
 
-export function serveLoginViewer(req: IncomingMessage, res: ServerResponse, provider: string): void {
+export function serveLoginViewer(req: IncomingMessage, res: ServerResponse): void {
   if ((req.method ?? 'GET') !== 'GET' && (req.method ?? 'GET') !== 'HEAD') {
     res.writeHead(405, { Allow: 'GET, HEAD' });
     res.end();
     return;
   }
-  const html = viewerHtml(provider);
+  const html = viewerHtml();
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Length': Buffer.byteLength(html),
