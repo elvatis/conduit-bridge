@@ -2,7 +2,9 @@
 
 Conduit Bridge supports interactive sign-in for Grok, Claude, Gemini, ChatGPT, and Perplexity.
 
-The same flow works on a local desktop and on a Linux server reachable only through SSH.
+The supported login environments are Windows Desktop and Linux Desktop. A
+remote OpenClaw server should consume a bridge running on one of those desktop
+workstations through an SSH reverse tunnel.
 
 ## Design goals
 
@@ -43,7 +45,7 @@ Conduit starts Chromium as a normal process with:
 
 After attachment, Conduit evaluates the browser identity. Login and restore stop if the browser reports `navigator.webdriver === true`.
 
-## Local desktop
+## Supported desktop
 
 Start Conduit Bridge:
 
@@ -53,11 +55,20 @@ node dist/cli.js start --host=127.0.0.1 --port=31338
 
 Open `http://127.0.0.1:31338/`, choose **Providers**, and start a login.
 
-The Chromium window appears on the local Windows, macOS, or Linux desktop. The provider card also exposes the built-in viewer.
+The Chromium window appears on the local Windows or Linux desktop. The
+provider card also exposes the built-in viewer through port `31338`.
+
+Use [Desktop autostart](AUTOSTART.md) to start the bridge automatically when
+the desktop user logs in. Runtime files, profiles, and generated launchers are
+kept together below `~/.conduit` on Linux or `%USERPROFILE%\.conduit` on
+Windows. The operating system's registration entry remains in its standard
+autostart location.
 
 ## Recommended remote-client setup
 
-If the person works on a Windows, macOS, or Linux desktop but OpenClaw runs on a remote server, keep Conduit Bridge on the desktop. This keeps the entire browser profile and visible Chromium window local.
+If the person works on a Windows or Linux desktop but OpenClaw runs on a remote
+server, keep Conduit Bridge on the desktop. This keeps the entire browser
+profile and visible Chromium window local.
 
 Create a reverse tunnel from the workstation:
 
@@ -69,44 +80,16 @@ The remote client continues to call `http://127.0.0.1:31338/v1`. Port 31338 must
 
 The dashboard does not export cookies from another browser. Browser same-origin rules and `HttpOnly` prevent a page from reading provider cookies, Chromium encrypts cookie storage, and modern sessions can also depend on local storage, IndexedDB, service workers, or device-bound state. Running the bridge beside the browser preserves the complete profile instead.
 
-## Remote Linux server
+## Remote client through SSH
 
-### 1. Provide an internal display
-
-A server without a desktop needs Xvfb:
+Run the bridge on the supported desktop and reverse-forward it to the server:
 
 ```bash
-Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp
+ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -R 127.0.0.1:31338:127.0.0.1:31338 <server>
 ```
 
-Start the bridge with the same display:
-
-```bash
-DISPLAY=:99 node dist/cli.js start --host=127.0.0.1 --port=31338
-```
-
-### 2. Forward the bridge
-
-On your workstation:
-
-```bash
-ssh -L 31338:127.0.0.1:31338 <server>
-```
-
-Open:
-
-```text
-http://127.0.0.1:31338/
-```
-
-### 3. Sign in
-
-1. Open **Providers**.
-2. Choose **Start login**.
-3. Wait for `browser_ready` or `waiting_for_user`.
-4. Choose **Open login browser**.
-5. Sign in and complete any provider security check.
-6. Return to the provider card and choose **Check login status**.
+The remote client uses `http://127.0.0.1:31338/v1`. Do not start a second
+bridge on the server. The bridge and SSH connection must remain online.
 
 The viewer route is provider-scoped:
 
@@ -121,67 +104,8 @@ GET  /v1/login/<provider>/frame
 POST /v1/login/<provider>/input
 ```
 
-Raw DevTools commands are not exposed.
-
-## systemd user services
-
-Virtual display:
-
-```ini
-# ~/.config/systemd/user/conduit-xvfb.service
-[Unit]
-Description=Conduit Bridge virtual display
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp
-Restart=always
-RestartSec=2
-PrivateTmp=true
-
-[Install]
-WantedBy=default.target
-```
-
-Bridge:
-
-```ini
-# ~/.config/systemd/user/conduit-bridge.service
-[Unit]
-Description=Conduit Bridge
-After=network-online.target conduit-xvfb.service
-Wants=network-online.target conduit-xvfb.service
-
-[Service]
-Type=simple
-WorkingDirectory=/path/to/conduit-bridge
-Environment=DISPLAY=:99
-ExecStart=/usr/bin/node /path/to/conduit-bridge/dist/cli.js start --host=127.0.0.1 --port=31338
-Restart=on-failure
-RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=default.target
-```
-
-Enable both:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now conduit-xvfb conduit-bridge
-```
-
-Verify:
-
-```bash
-systemctl --user is-active conduit-xvfb conduit-bridge
-ss -ltnp | grep 31338
-curl http://127.0.0.1:31338/health
-```
-
-The expected user-facing listener is `127.0.0.1:31338`.
+Raw DevTools commands are not exposed. Headless Linux server operation and
+Xvfb are not supported deployment modes at this stage.
 
 ## Login states
 
@@ -235,8 +159,8 @@ Prefer fixing the host's Chromium sandbox support. Use `chromiumNoSandbox` only 
 
 ### No graphical session
 
-- Confirm `DISPLAY` is set in the bridge service.
-- Confirm Xvfb is active.
+- Confirm the bridge is running inside the logged-in desktop session.
+- On Linux, confirm `DISPLAY` or `WAYLAND_DISPLAY` is available to the process.
 - Run `xdpyinfo -display :99`.
 
 ### Chromium is not installed
@@ -278,4 +202,5 @@ conduit-bridge login <provider> --recheck
 conduit-bridge login <provider> --cancel
 ```
 
-`--local` is for a machine with a locally visible desktop. Prefer the local bridge plus reverse tunnel when the remote server only consumes the API. Use the dashboard viewer when the bridge itself must run on the remote server.
+`--local` is for a supported machine with a locally visible desktop. Prefer the
+local bridge plus reverse tunnel when the remote server only consumes the API.

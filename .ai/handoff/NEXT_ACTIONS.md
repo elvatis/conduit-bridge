@@ -19,20 +19,19 @@ _Last updated: 2026-09-01_
 - Verify restore after a full bridge restart.
 - Confirm a real `web-claude/*` and `web-chatgpt/*` request.
 
-### T-008: Harden Xvfb for shared hosts
+### T-008: Validate Windows Desktop autostart
 
-- Add owner-only Xauthority to the deployment unit.
-- Verify Chromium and Conduit can still reach the display.
-- Prove another local account cannot capture or inject input.
-- Keep Xvfb TCP disabled.
+- Switch the checkout to `fix/browser-login-single-port`.
+- Run the PowerShell installer from a built checkout.
+- Confirm the per-user logon task starts the bridge as the interactive desktop user.
+- Confirm Chromium opens locally and browser login can be completed.
 
-## Blocked
+## Out of scope
 
-### T-009: Purge unused remote-desktop packages from the current host
+### T-009: Headless Linux and macOS support
 
-- Project code, dependencies, services, sockets, and listeners are removed.
-- Host packages remain installed but inactive.
-- Package purge requires administrator authentication outside this session.
+- Explicitly not supported by the current product scope.
+- Revisit only with a separate architecture and validation plan.
 
 ## Recently Completed
 
@@ -46,3 +45,4 @@ _Last updated: 2026-09-01_
 | T-006 | npm publishing dropped by decision | 2026-07-17 |
 | T-010 | Native-identity browser restore | 2026-09-01 |
 | T-011 | Single-port built-in login viewer and documentation refresh | 2026-09-01 |
+| T-012 | Explicit desktop support scope and autostart installers | 2026-09-01 |

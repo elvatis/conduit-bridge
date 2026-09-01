@@ -1,8 +1,7 @@
 // Graphical-session probe for browser login and session restore.
 //
-// A local desktop can show Chromium directly. A remote Linux server can use
-// Xvfb and Conduit's built-in CDP viewer over port 31338. No VNC component or
-// second user-facing listener is required.
+// A supported local desktop shows Chromium directly. Headless servers and
+// remote-display stacks are outside the supported desktop scope.
 
 import { execFile } from 'node:child_process';
 import { hostname as osHostname } from 'node:os';
@@ -41,6 +40,7 @@ export interface DisplayProbe {
 
 export interface ProbeDeps {
   env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform | string;
   run?: (file: string, args: string[], env: NodeJS.ProcessEnv, timeoutMs: number) => Promise<{ ok: boolean; stdout: string }>;
   hostname?: () => string;
   /** Resolves the full Chromium binary; returns null when unavailable. */
@@ -117,6 +117,7 @@ export async function probeDisplay(
 
 async function runProbe(profileDirPath: string | undefined, deps: ProbeDeps): Promise<DisplayProbe> {
   const env = deps.env ?? process.env;
+  const platform = deps.platform ?? process.platform;
   const run = deps.run ?? defaultRun;
   const hostname = deps.hostname ?? osHostname;
   const readLock = deps.readProfileLock ?? defaultReadProfileLock;
@@ -155,9 +156,9 @@ async function runProbe(profileDirPath: string | undefined, deps: ProbeDeps): Pr
 
   let ok = true;
   let reason: string | undefined;
-  if (!display && !wayland) {
+  if (platform !== 'win32' && !display && !wayland) {
     ok = false;
-    reason = 'No graphical session is available. On a remote Linux server, start Xvfb for Conduit Bridge.';
+    reason = 'No local graphical session is available. Conduit Bridge supports Windows Desktop and Linux Desktop.';
   } else if (display && !xReachable && !wayland) {
     ok = false;
     reason = `The graphical session ${display} is configured but is not responding.`;

@@ -4,6 +4,31 @@ _Reverse chronological. Latest session first._
 
 ---
 
+## Session 3, 2026-09-01, supported desktop scope and autostart
+
+**Goal:** Limit the supported host platforms to Windows Desktop and Linux Desktop and provide reliable per-user autostart.
+
+**Decisions:**
+- Browser profiles and visible Chromium stay on the interactive desktop workstation.
+- macOS and headless Linux server operation are not current support targets.
+- Runtime data and generated launchers belong below `~/.conduit` by default. `CONDUIT_HOME` can relocate that root.
+- Linux uses the graphical desktop autostart directory. Windows uses a per-user interactive Task Scheduler logon task.
+- A remote OpenClaw server consumes the desktop bridge through the existing SSH reverse tunnel.
+
+**Implementation:**
+- Added supported-platform helpers and startup rejection for unsupported operating systems.
+- Made Windows display probing valid without `DISPLAY` and kept Linux display checks desktop-local.
+- Added Linux and Windows autostart installers and uninstallers.
+- Generated launcher files are kept under `.conduit/bin`; OS registration remains in the native OS autostart mechanism.
+- Added `docs/AUTOSTART.md` and updated README, Help, browser-login docs, changelog, and AAHP handoff.
+
+**Verification:**
+- 348 tests pass across 23 files.
+- Typecheck, build, shell syntax, secret scan, and diff check pass.
+- Linux autostart installer and uninstaller were exercised with temporary runtime roots.
+
+---
+
 ## Session 2, 2026-09-01, browser login and single-port remote access
 
 **Goal:** Repair browser login and restore, remove the remote-desktop stack, and make remote SSH use work through port 31338.

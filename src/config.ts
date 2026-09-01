@@ -1,9 +1,10 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import type { BridgeConfig } from './types.js';
 
-const CONFIG_DIR = join(homedir(), '.conduit');
+/** Central runtime directory. Override for a managed desktop installation. */
+const CONFIG_DIR = resolve(process.env.CONDUIT_HOME || join(homedir(), '.conduit'));
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 const DEFAULTS: BridgeConfig = {

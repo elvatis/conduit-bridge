@@ -19,6 +19,7 @@ import { LoginSessionManager, DuplicateLoginError } from './login/session-manage
 import { probeDisplay } from './login/display.js';
 import { loginViewerUrl, serveLoginViewer, validateLoginViewerInput } from './login/viewer.js';
 import type { LoginSnapshot, LoginState } from './login/state.js';
+import { assertSupportedPlatform } from './platform.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -81,6 +82,7 @@ export class BridgeServer {
   }
 
   async start(): Promise<void> {
+    assertSupportedPlatform();
     this._server = createServer((req, res) => {
       this._handleRequest(req, res).catch(err => {
         logger.error(`Unhandled request error: ${err.message}`);
@@ -753,7 +755,7 @@ export class BridgeServer {
         // A provider without the observable-login surface (or a stub) keeps the
         // original fire-and-forget behaviour so existing embedders still work.
         if ('hasProfile' in provider && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-          const message = 'Interactive browser login needs a graphical session. On a remote Linux host, start Xvfb and use the built-in viewer through port 31338.';
+          const message = 'Interactive browser login needs a local graphical session on Windows or Linux Desktop. Start Conduit inside the logged-in desktop session.';
           this._activity.add('error', name, 'Login unavailable: no graphical session');
           json(res, 503, { status: 'error', provider: name, message, type: 'interactive_session_required' });
           return;

@@ -37,3 +37,9 @@ export { probeDisplay } from './login/display.js';
 export type { DisplayProbe } from './login/display.js';
 export { loginViewerUrl } from './login/viewer.js';
 export type { LoginViewerInput } from './login/viewer.js';
+export {
+  SUPPORTED_DESKTOP_PLATFORMS,
+  platformSupport,
+  assertSupportedPlatform,
+} from './platform.js';
+export type { PlatformSupport, SupportedDesktopPlatform } from './platform.js';

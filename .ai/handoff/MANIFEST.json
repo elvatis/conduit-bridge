@@ -3,29 +3,29 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "gpt-5.6-sol",
-    "session_id": "cli-1788279830",
-    "timestamp": "2026-09-01T16:24:01Z",
-    "commit": "7cf90da",
-    "phase": "implementation",
-    "duration_minutes": 18
+    "session_id": "cli-1788287904",
+    "timestamp": "2026-09-01T18:38:24Z",
+    "commit": "ca729d9",
+    "phase": "documentation",
+    "duration_minutes": 15
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:e2ff70642fb6d1500d1094cb475f07c05e9ea31b609c962a8ba3b197ca07f1fe",
-      "updated": "2026-09-01T16:23:54Z",
-      "lines": 98,
+      "checksum": "sha256:4e6f288c108c0c64e1c57255e04a82d20f902f22c87df0763380ee7a73095632",
+      "updated": "2026-09-01T18:37:35Z",
+      "lines": 101,
       "summary": "0.5.1 with an unreleased feature set on branch `fix/browser-login-single-port`."
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:152d9246351b5c65b5ae3ef73505bf1f28700463ae0fb587c1ceb4f6140d5102",
-      "updated": "2026-09-01T15:52:35Z",
+      "checksum": "sha256:7ec0cab74b8257344881146571448ea46ee425eb4c7aaa2998e04bd820a81283",
+      "updated": "2026-09-01T18:37:47Z",
       "lines": 48,
       "summary": "_Last updated: 2026-09-01_"
     },
     "LOG.md": {
-      "checksum": "sha256:36d3bfa65a932981b166fd701c671601bad01bcc3cc572bc7752b95737052923",
-      "updated": "2026-09-01T16:23:54Z",
-      "lines": 84,
+      "checksum": "sha256:9c3decff8f2058c91d204d51832cdea7a106a760887dc111cada712357ee64e0",
+      "updated": "2026-09-01T18:37:57Z",
+      "lines": 109,
       "summary": "_Reverse chronological. Latest session first._"
     },
     "LOG-ARCHIVE.md": {
@@ -35,9 +35,9 @@
       "summary": "(no summary available)"
     },
     "DASHBOARD.md": {
-      "checksum": "sha256:de56d447d90b172765d7cd080c88a82a83ba57e179a45c2c7b7a0e1c26167402",
-      "updated": "2026-09-01T16:23:54Z",
-      "lines": 60,
+      "checksum": "sha256:3f1f11ea9730274987f759d79dfbd5163b638558c2f4f1ae66ed4d64b9a1f7f0",
+      "updated": "2026-09-01T18:37:47Z",
+      "lines": 61,
       "summary": "_Quick-glance state. Last updated: 2026-09-01_"
     },
     "TRUST.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Make remote login practical and organize large model catalogs",
+  "quick_context": "Explicit Windows/Linux desktop support with centralized .conduit runtime and desktop autostart installers",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1153,
-    "full_read": 6019
+    "manifest_plus_core": 1221,
+    "full_read": 6377
   }
 }

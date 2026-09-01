@@ -360,7 +360,7 @@ describe('GET /v1/login/:provider/status', () => {
       xReachable: false,
       windowManager: false,
       windowToolsAvailable: false,
-      warnings: ['The virtual desktop has no window manager.'],
+      warnings: ['No local window manager was detected.'],
     };
     const { status, body } = await call('GET', '/v1/login/perplexity/status');
     expect(status).toBe(200);

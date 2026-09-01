@@ -8,6 +8,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Desktop autostart installers for Linux (`~/.config/autostart`) and Windows (per-user Task Scheduler).
 - Structured browser login with ten observable states, provider-scoped status, cancel and recheck routes, duplicate-attempt protection, and live WebSocket updates.
 - Built-in browser viewer on port 31338. It serves JPEG page frames and accepts only validated pointer, wheel, keyboard, and text input.
 - Browser login and restore launch ordinary headed Chromium first, attach afterwards, and reject a browser that reports `navigator.webdriver === true`.
@@ -18,6 +19,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - `docs/BROWSER-LOGIN.md` with local desktop, remote SSH, Xvfb, systemd, security, and troubleshooting guidance.
 
 ### Changed
+- Supported host scope is now explicit: Windows Desktop and Linux Desktop. macOS and headless Linux server deployments are not supported at this stage.
+- Autostart and browser-login documentation now recommends keeping the bridge on the desktop and using an SSH reverse tunnel for remote clients.
 - Local workstation deployment plus an SSH reverse tunnel is now the recommended way to serve a remote OpenClaw client while keeping the complete browser profile local.
 - The dashboard model catalog now groups large catalogs by transport and provider, adds transport and provider filters, shows provider readiness and catalog source, and links models directly to the Playground.
 - Browser authentication now combines provider-specific positive signals, origin-scoped cookie names, expected host and path, and logged-out vetoes. Selector presence alone no longer marks a session authenticated.

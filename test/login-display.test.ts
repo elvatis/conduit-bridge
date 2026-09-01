@@ -34,12 +34,12 @@ function deps(over: ProbeDeps = {}): ProbeDeps {
 }
 
 describe('probeDisplay', () => {
-  it('reports a missing graphical session with remote-server guidance', async () => {
+  it('reports a missing local graphical session', async () => {
     const runner = makeRun();
     const probe = await probeDisplay(undefined, deps({ env: {}, run: runner.run }));
     expect(probe.ok).toBe(false);
     expect(probe.reason).toMatch(/graphical session/i);
-    expect(probe.reason).toMatch(/Xvfb/i);
+    expect(probe.reason).toMatch(/Windows Desktop and Linux Desktop/i);
     expect(runner.calls).toHaveLength(0);
   });
 
@@ -74,6 +74,14 @@ describe('probeDisplay', () => {
     const probe = await probeDisplay(undefined, deps({ env: { WAYLAND_DISPLAY: 'wayland-0' }, run: runner.run }));
     expect(probe.ok).toBe(true);
     expect(probe.wayland).toBe(true);
+    expect(runner.calls).toHaveLength(0);
+  });
+
+  it('accepts a Windows desktop without DISPLAY', async () => {
+    const runner = makeRun();
+    const probe = await probeDisplay(undefined, deps({ platform: 'win32', env: {}, run: runner.run }));
+    expect(probe.ok).toBe(true);
+    expect(probe.headfulBinary).toBe(HEADFUL_BINARY);
     expect(runner.calls).toHaveLength(0);
   });
 

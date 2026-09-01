@@ -49,6 +49,10 @@ describe('config', () => {
       expect(cfg.profileBaseDir).toBe(join(CONFIG_DIR, 'profiles'));
     });
 
+    it('keeps runtime data under the central conduit directory by default', () => {
+      expect(profileDir(loadConfig(), 'grok')).toBe(join(CONFIG_DIR, 'profiles', 'grok-profile'));
+    });
+
     it('merges overrides on top of the defaults', () => {
       const cfg = loadConfig({ port: 9999, logLevel: 'debug' });
       expect(cfg.port).toBe(9999);

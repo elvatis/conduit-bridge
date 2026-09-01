@@ -2,7 +2,8 @@
 
 Conduit Bridge is a standalone OpenAI-compatible gateway for browser sessions, provider APIs, coding CLIs, and LM Studio.
 
-No OpenClaw installation is required. It runs on any machine with Node.js 24 or newer and Chromium.
+No OpenClaw installation is required. The current supported host platforms are
+Windows Desktop and Linux Desktop, with Node.js 24 or newer and Chromium.
 
 ## What it provides
 
@@ -28,14 +29,18 @@ All user-facing traffic uses port `31338`:
 
 Browser login does not require a remote-desktop stack. Conduit starts ordinary headed Chromium, then attaches over a private loopback DevTools endpoint. The browser keeps its native identity and reports `navigator.webdriver === false`.
 
-On a desktop, Chromium is visible locally. This is the recommended setup. If OpenClaw or another client runs on a remote server, an SSH reverse tunnel can expose the local bridge on that server's loopback port without copying cookies. On a fully remote Linux deployment, Xvfb provides an internal rendering target and the built-in viewer remains available.
+Chromium runs visibly on the supported desktop. This is the recommended setup.
+If OpenClaw or another client runs on a remote server, an SSH reverse tunnel can
+expose the local bridge on that server's loopback port without copying cookies.
+Headless servers, macOS, and other operating systems are outside the current
+support scope.
 
 ## Requirements
 
 - Node.js 24 or newer
 - npm
 - Chromium installed by Playwright
-- Linux remote server only: Xvfb
+- Windows Desktop or Linux Desktop
 
 ## Install
 
@@ -59,9 +64,9 @@ Open:
 http://127.0.0.1:31338/
 ```
 
-## Local desktop use
+## Supported desktop use
 
-Windows, macOS, and desktop Linux need no separate display service.
+Windows Desktop and Linux Desktop need no separate display service.
 
 1. Start Conduit Bridge.
 2. Open the dashboard.
@@ -71,11 +76,64 @@ Windows, macOS, and desktop Linux need no separate display service.
 6. Complete sign-in.
 7. Choose **Check login status**.
 
-Profiles are stored below `~/.conduit/profiles/` and reused after restart.
+Configuration, profiles, metrics, and generated launchers are stored below
+`~/.conduit/` and reused after restart. Set `CONDUIT_HOME` before starting the
+bridge to use a different central runtime directory.
+
+## Desktop autostart
+
+The repository includes installers for the two supported desktop platforms.
+Run them after `npm run build` and from the checked-out project directory.
+
+### Linux Desktop
+
+Install a graphical-session autostart entry:
+
+```bash
+./scripts/install-autostart.sh
+```
+
+The optional first argument selects the project directory:
+
+```bash
+./scripts/install-autostart.sh /path/to/conduit-bridge
+```
+
+The OS entry is written to `~/.config/autostart/conduit-bridge.desktop`. It
+starts the Conduit launcher at `~/.conduit/bin/conduit-bridge-start`, which
+keeps the runtime entry point in the central `.conduit` directory. It starts
+after the next desktop login. Remove both with:
+
+```bash
+./scripts/uninstall-autostart.sh
+```
+
+### Windows Desktop
+
+Run PowerShell from the project directory:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-autostart.ps1
+```
+
+This creates a launcher at `%USERPROFILE%\.conduit\bin\conduit-bridge-start.ps1`
+and starts a per-user Task Scheduler logon task named `Conduit Bridge`. To
+remove both:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\uninstall-autostart.ps1
+```
+
+Both installers start the bridge on `127.0.0.1:31338` and run it in the
+interactive desktop user's context, so Chromium can open its local window.
+See [Desktop Autostart](docs/AUTOSTART.md) for troubleshooting and the remote
+OpenClaw tunnel setup.
 
 ## Recommended: local bridge with a remote client
 
-When the browser and daily workstation are on Windows, macOS, or desktop Linux, run Conduit Bridge there. Browser profiles, cookies, local CLIs, and the visible Chromium window then stay on the workstation.
+When the browser and daily workstation are on Windows Desktop or Linux Desktop,
+run Conduit Bridge there. Browser profiles, cookies, local CLIs, and the visible
+Chromium window then stay on the workstation.
 
 If OpenClaw runs on a remote server, expose the local bridge to the server with an SSH reverse tunnel:
 
@@ -93,69 +151,13 @@ Port 31338 must be free on the server, so do not run a second remote Conduit Bri
 
 This avoids cookie export entirely. A dashboard page cannot safely read another site's `HttpOnly` cookies, encrypted browser storage, IndexedDB data, service-worker state, or device-bound tokens. Copying only cookies would also produce incomplete and fragile provider sessions.
 
-## Remote Linux over SSH
+## Unsupported host modes
 
-Keep the service bound to `127.0.0.1`. From your workstation:
-
-```bash
-ssh -L 31338:127.0.0.1:31338 <server>
-```
-
-Then open `http://127.0.0.1:31338/` on your workstation.
-
-A server without a desktop needs Xvfb:
-
-```bash
-Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp
-DISPLAY=:99 node dist/cli.js start --host=127.0.0.1 --port=31338
-```
-
-Example user services:
-
-```ini
-# ~/.config/systemd/user/conduit-xvfb.service
-[Unit]
-Description=Conduit Bridge virtual display
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=default.target
-```
-
-```ini
-# ~/.config/systemd/user/conduit-bridge.service
-[Unit]
-Description=Conduit Bridge
-After=network-online.target conduit-xvfb.service
-Wants=network-online.target conduit-xvfb.service
-
-[Service]
-Type=simple
-WorkingDirectory=/path/to/conduit-bridge
-Environment=DISPLAY=:99
-ExecStart=/usr/bin/node /path/to/conduit-bridge/dist/cli.js start --host=127.0.0.1 --port=31338
-Restart=on-failure
-RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=default.target
-```
-
-Enable them:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now conduit-xvfb conduit-bridge
-```
-
-Only the bridge listener must be forwarded. Xvfb opens no TCP listener in this configuration.
+Conduit Bridge currently supports Windows Desktop and Linux Desktop only. A
+Linux server without a graphical desktop, Xvfb-based operation, macOS, and
+other operating systems are not supported deployment targets yet. For a
+remote OpenClaw server, keep the bridge on the supported desktop and use the
+reverse tunnel above.
 
 ## Model catalog
 
@@ -273,7 +275,9 @@ conduit-bridge login <provider> --local
 conduit-bridge config
 ```
 
-`--local` opens a browser in the CLI process and is intended for a machine with a visible desktop. Prefer running the complete bridge on that workstation and reverse-forwarding port 31338 to a remote client. Use the remote Xvfb viewer only when the bridge itself must stay on the server.
+`--local` opens a browser in the CLI process and is intended for a supported
+machine with a visible desktop. Prefer running the complete bridge on that
+workstation and reverse-forwarding port 31338 to a remote client.
 
 ## Configuration
 
@@ -284,6 +288,7 @@ The default configuration file is `~/.conduit/config.json`.
 | `host` | `127.0.0.1` | Listener address |
 | `port` | `31338` | Dashboard and API port |
 | `profileBaseDir` | `~/.conduit/profiles` | Browser profiles |
+| `CONDUIT_HOME` | `~/.conduit` | Central runtime directory for config, profiles, metrics, and launchers |
 | `logLevel` | `info` | `silent`, `info`, or `debug` |
 | `chromiumNoSandbox` | `false` | Explicit Chromium sandbox opt-out |
 | `authToken` | empty | Bearer token required for external binds |

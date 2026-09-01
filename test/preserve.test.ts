@@ -551,6 +551,9 @@ describe('regression preservation: pre-login behaviour still holds', () => {
 
     expect(DASHBOARD_HTML).toContain('Open login browser');
     expect(DASHBOARD_HTML).toContain('Built into port 31338');
+    expect(DASHBOARD_HTML).toContain('Supported desktop platforms');
+    expect(DASHBOARD_HTML).toContain('Desktop autostart');
+    expect(DASHBOARD_HTML).not.toContain('Fully remote bridge');
     expect(DASHBOARD_HTML).not.toContain('Local-first model infrastructure');
 
     for (const machineSpecific of ['thread-chef', '/home/chef-linux']) {
@@ -564,7 +567,9 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     const text = await res.text();
     expect(text).toBe(HELP_HTML);
     expect(text).toContain('Requirements and installation');
-    expect(text).toContain('Fully remote Linux over SSH');
+    expect(text).toContain('Remote client through SSH');
+    expect(text).toContain('Desktop autostart');
+    expect(text).not.toContain('Xvfb');
     expect(text).toContain('Browser-provider sign-in');
     expect(text).toContain('Security');
     expect(text.endsWith('</main></body></html>')).toBe(true);

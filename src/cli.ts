@@ -7,6 +7,7 @@ import { BridgeServer } from './server.js';
 import { ProviderRegistry } from './registry.js';
 import { loadConfig, saveConfig, loadDotEnv } from './config.js';
 import { logger, configureLogger } from './logger.js';
+import { assertSupportedPlatform } from './platform.js';
 
 // Load .env (<cwd>/.env, then ~/.conduit/.env) into process.env before anything
 // resolves keys. Never overrides variables already set in the real environment.
@@ -94,6 +95,10 @@ if (_dotenvKeys.length) {
 
 switch (cmd) {
   case 'start': {
+    try { assertSupportedPlatform(); } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
     logger.info(`conduit-bridge v${CLI_VERSION} starting on ${cfg.host}:${cfg.port}…`);
     const server = new BridgeServer(cfg);
     server.start().catch(err => {
@@ -139,6 +144,10 @@ switch (cmd) {
   }
 
   case 'login': {
+    try { assertSupportedPlatform(); } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
     const provider = args[1];
     if (!provider || !(WEB_PROVIDERS as readonly string[]).includes(provider)) {
       console.error(`Usage: conduit-bridge login <${WEB_PROVIDERS.join('|')}> [--local] [--status] [--cancel] [--recheck]`);

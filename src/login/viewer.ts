@@ -1,6 +1,6 @@
 // Built-in browser-login viewer.
 //
-// Chromium renders on the local desktop or Xvfb. Conduit captures only the
+// Chromium renders on the supported local desktop. Conduit captures only the
 // active login page and accepts a small, validated set of input events through
 // its existing authenticated HTTP listener. VNC, noVNC and websockify are not
 // part of this path.

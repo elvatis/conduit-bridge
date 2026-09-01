@@ -9,7 +9,7 @@ _Quick-glance state. Last updated: 2026-09-01_
 | Version | 0.5.1 plus unreleased changes |
 | Branch | `fix/browser-login-single-port` |
 | Build | pass |
-| Tests | 341 pass, 21 files |
+| Tests | 348 pass, 23 files |
 | Audit | zero vulnerabilities |
 | Secret scans | current tree and full history pass |
 | npm published | no |
@@ -25,7 +25,8 @@ _Quick-glance state. Last updated: 2026-09-01_
 | Preferred remote client mode | local bridge plus reverse SSH tunnel |
 | Viewer HTML | static, no reflected route values |
 | Viewer input | serialized, atomic clicks, coalesced movement and wheel |
-| Remote display | Xvfb only |
+| Supported desktop | Windows Desktop and Linux Desktop |
+| Desktop autostart | Linux `.desktop` and Windows Task Scheduler, launchers under `.conduit/bin` |
 | Stable ports 5900 and 6080 | absent |
 | Separate remote-desktop services | removed |
 | Session restore | ordinary Chromium plus private loopback attachment |
@@ -43,9 +44,9 @@ _Quick-glance state. Last updated: 2026-09-01_
 
 ## Next
 
-1. Validate fresh Claude and ChatGPT logins.
-2. Add Xauthority hardening for shared hosts.
-3. Purge inactive legacy host packages with administrator access.
+1. Validate fresh Claude and ChatGPT logins on a supported Windows Desktop.
+2. Review the desktop autostart flow from a clean Windows checkout.
+3. Keep headless Linux and macOS explicitly unsupported until separately designed.
 
 ## Model Catalog
 

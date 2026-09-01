@@ -15,7 +15,8 @@ Standalone OpenAI-compatible gateway for browser, API, CLI, and local model prov
 - Chromium through Playwright
 - Dashboard, API, events, metrics, and browser-login viewer on port 31338
 - Recommended remote-client mode: local workstation bridge plus SSH reverse tunnel to server loopback 31338
-- Desktop Chromium locally or Xvfb on remote Linux
+- Desktop Chromium locally on Windows Desktop or Linux Desktop
+- Desktop autostart installers use the central `~/.conduit` runtime directory
 - Private random loopback DevTools endpoints for attached Chromium processes
 - Persistent browser profiles below `~/.conduit/profiles/`
 
@@ -60,7 +61,7 @@ Project integration with x11vnc, noVNC, websockify, VNC sockets, and ports 5900 
 
 - Typecheck: pass
 - Build: pass
-- Tests: 341 pass across 21 files
+- Tests: 348 pass across 23 files
 - Secret scan: tracked and untracked files pass
 - Secret history scan: pass
 - npm audit: zero vulnerabilities
@@ -85,14 +86,16 @@ Live browser restore on the current host:
 - Claude can still require a person to complete its security check.
 - ChatGPT authentication is deliberately conservative and currently reports signed out on this host.
 - Attached Chromium needs a private random loopback DevTools listener while active. It is internal and is not a user-facing service port.
-- Xvfb access control still needs host-specific Xauthority hardening on shared multi-user systems.
 - Legacy system packages remain installed on the current deployment host because package removal requires administrator authentication. Their services and project integration are removed.
+- macOS and headless Linux server operation are explicitly outside the current support scope.
 
 ## Documentation
 
 - README fully describes standalone desktop and remote SSH use.
 - README and Help recommend keeping the bridge on the workstation and reverse-forwarding it to remote OpenClaw.
+- `docs/AUTOSTART.md` documents Windows Task Scheduler and Linux graphical-session autostart.
+- Runtime configuration, profiles, metrics, and generated launchers live below `~/.conduit` by default. `CONDUIT_HOME` can relocate the root.
 - The dashboard model catalog groups models by transport and provider with readiness, source, filtering, and Playground selection.
 - Dashboard Help and standalone Help match the current architecture.
-- `docs/BROWSER-LOGIN.md` documents lifecycle, Xvfb, SSH forwarding, security, and troubleshooting.
+- `docs/BROWSER-LOGIN.md` documents lifecycle, desktop login, SSH forwarding, security, and troubleshooting.
 - CHANGELOG records the added, changed, removed, fixed, and security-relevant behavior.
