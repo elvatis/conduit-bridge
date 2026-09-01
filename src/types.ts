@@ -60,6 +60,12 @@ export interface BridgeConfig {
 
   /** Interactive browser-login behaviour. All fields optional. */
   login?: LoginConfig;
+  /** Local desktop browser selection. Defaults to the detected browser/profile. */
+  browser?: {
+    executablePath?: string;
+    userDataDir?: string;
+    useDefaultProfile?: boolean;
+  };
 }
 
 // ── Interactive browser login (issue: provider security verification) ────────

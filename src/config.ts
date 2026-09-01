@@ -23,6 +23,7 @@ const DEFAULTS: BridgeConfig = {
   // Interactive login opens an ordinary browser the person drives. Restore
   // starts the same native browser identity and attaches to it afterwards.
   login: { mode: 'handoff', honestRestoreIdentity: true },
+  browser: { useDefaultProfile: true },
 };
 
 export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {

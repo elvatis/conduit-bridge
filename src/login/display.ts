@@ -7,7 +7,7 @@ import { execFile } from 'node:child_process';
 import { hostname as osHostname } from 'node:os';
 import { readlinkSync, existsSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
+import { detectDefaultBrowser, type BrowserFamily } from './browser-discovery.js';
 
 export interface ProfileLockInfo {
   present: boolean;
@@ -32,6 +32,10 @@ export interface DisplayProbe {
   windowToolsAvailable: boolean;
   /** Full Chromium binary used for ordinary headed processes. */
   headfulBinary: string | null;
+  browserName: string | null;
+  browserFamily: BrowserFamily;
+  browserProfileDir: string | null;
+  browserSupported: boolean;
   /** Null when no profile directory was supplied. */
   profileLock: ProfileLockInfo | null;
   /** Advice the dashboard can show, already plain-language. */
@@ -45,6 +49,7 @@ export interface ProbeDeps {
   hostname?: () => string;
   /** Resolves the full Chromium binary; returns null when unavailable. */
   resolveHeadfulBinary?: () => string | null;
+  resolveDefaultBrowser?: () => ReturnType<typeof detectDefaultBrowser>;
   readProfileLock?: (profileDirPath: string) => { host: string; pid: number } | null;
   processAlive?: (pid: number) => boolean;
 }
@@ -81,17 +86,6 @@ function defaultProcessAlive(pid: number): boolean {
   }
 }
 
-function defaultResolveHeadfulBinary(): string | null {
-  try {
-    const requireFrom = createRequire(import.meta.url);
-    const { chromium } = requireFrom('playwright') as typeof import('playwright');
-    const path = chromium.executablePath();
-    return path && existsSync(path) ? path : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function probeDisplay(
   profileDirPath?: string,
   deps: ProbeDeps = {},
@@ -109,6 +103,10 @@ export async function probeDisplay(
       windowManager: false,
       windowToolsAvailable: false,
       headfulBinary: null,
+      browserName: null,
+      browserFamily: 'unknown',
+      browserProfileDir: null,
+      browserSupported: false,
       profileLock: null,
       warnings: [],
     };
@@ -122,7 +120,11 @@ async function runProbe(profileDirPath: string | undefined, deps: ProbeDeps): Pr
   const hostname = deps.hostname ?? osHostname;
   const readLock = deps.readProfileLock ?? defaultReadProfileLock;
   const alive = deps.processAlive ?? defaultProcessAlive;
-  const resolveBinary = deps.resolveHeadfulBinary ?? defaultResolveHeadfulBinary;
+  const browser = deps.resolveDefaultBrowser?.()
+    ?? (deps.resolveHeadfulBinary
+      ? { name: 'Configured browser', family: 'chromium' as const, executablePath: null, userDataDir: null, supported: true }
+      : detectDefaultBrowser({ platform, env }));
+  const resolveBinary = deps.resolveHeadfulBinary ?? (() => browser.supported ? browser.executablePath : null);
   const display = env.DISPLAY ?? null;
   const wayland = Boolean(env.WAYLAND_DISPLAY);
   const headfulBinary = resolveBinary();
@@ -162,9 +164,14 @@ async function runProbe(profileDirPath: string | undefined, deps: ProbeDeps): Pr
   } else if (display && !xReachable && !wayland) {
     ok = false;
     reason = `The graphical session ${display} is configured but is not responding.`;
+  } else if (!browser.supported) {
+    ok = false;
+    reason = browser.reason ?? 'The default desktop browser is not available for Conduit profile attachment.';
   } else if (!headfulBinary) {
     ok = false;
-    reason = 'Chromium is not installed. Run "npx playwright install chromium".';
+    reason = deps.resolveHeadfulBinary
+      ? 'Chromium is not installed. Run "npx playwright install chromium".'
+      : `The detected browser (${browser.name}) is not installed or cannot be started.`;
   }
 
   if (ok && display && !windowManager) {
@@ -183,6 +190,10 @@ async function runProbe(profileDirPath: string | undefined, deps: ProbeDeps): Pr
     windowManager,
     windowToolsAvailable,
     headfulBinary,
+    browserName: browser.name,
+    browserFamily: browser.family,
+    browserProfileDir: browser.userDataDir,
+    browserSupported: browser.supported,
     profileLock,
     warnings,
   };

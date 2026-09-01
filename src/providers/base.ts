@@ -13,6 +13,7 @@ import { probeDisplay, type DisplayProbe } from '../login/display.js';
 import { removeStaleProfileLocks } from '../login/handoff.js';
 import { launchAttachedRestoreBrowser, type AttachedRestoreBrowser } from '../login/restore-browser.js';
 import { loginViewerUrl, type LoginViewerInput } from '../login/viewer.js';
+import { detectDefaultBrowser } from '../login/browser-discovery.js';
 import { sanitize, type LoginBrowserObservation, type LoginDriver, type LoginVerification } from '../login/session-manager.js';
 import { restoreFailureCopy } from '../login/copy.js';
 import type { LoginDiagnostics, LoginMode, LoginSnapshot } from '../login/state.js';
@@ -116,6 +117,11 @@ export abstract class BaseProvider implements ProviderAdapter {
   }
 
   get profileDir(): string {
+    if (this._cfg.browser?.userDataDir) return this._cfg.browser.userDataDir;
+    if (this._cfg.browser?.useDefaultProfile && process.env.NODE_ENV !== 'test') {
+      const detected = detectDefaultBrowser();
+      if (detected.supported && detected.userDataDir) return detected.userDataDir;
+    }
     return profileDir(this._cfg, this.name);
   }
 
