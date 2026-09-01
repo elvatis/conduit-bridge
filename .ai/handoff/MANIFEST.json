@@ -3,17 +3,17 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "gpt-5.6-sol",
-    "session_id": "cli-1788277960",
-    "timestamp": "2026-09-01T15:52:40Z",
-    "commit": "d2bfd5a",
-    "phase": "documentation",
-    "duration_minutes": 0
+    "session_id": "cli-1788278430",
+    "timestamp": "2026-09-01T15:58:58Z",
+    "commit": "f6269f0",
+    "phase": "fix",
+    "duration_minutes": 8
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:a5e4807f314e9b98430723c7c7e4bbf54a71fbc25b3f4912d9e342f04904ada7",
-      "updated": "2026-09-01T15:52:35Z",
-      "lines": 92,
+      "checksum": "sha256:69c081743e154cc3c0a9ecaf1d840e3a5e649c2d61415f4227dca55d513ccb0d",
+      "updated": "2026-09-01T15:58:53Z",
+      "lines": 93,
       "summary": "0.5.1 with an unreleased feature set on branch `fix/browser-login-single-port`."
     },
     "NEXT_ACTIONS.md": {
@@ -23,9 +23,9 @@
       "summary": "_Last updated: 2026-09-01_"
     },
     "LOG.md": {
-      "checksum": "sha256:00205174e257571a638416868a71c2db4b63ad1dfe79d330e8341ce946e2ec57",
-      "updated": "2026-09-01T15:52:07Z",
-      "lines": 79,
+      "checksum": "sha256:e54c2188608cf95afe5b6a4a4461f7033c991b93270468656412aad9d201534d",
+      "updated": "2026-09-01T15:58:53Z",
+      "lines": 80,
       "summary": "_Reverse chronological. Latest session first._"
     },
     "LOG-ARCHIVE.md": {
@@ -35,9 +35,9 @@
       "summary": "(no summary available)"
     },
     "DASHBOARD.md": {
-      "checksum": "sha256:355ebd41acf801c58d5d142010e54533391b6a7746a8bf167f668cffed94f62a",
-      "updated": "2026-09-01T15:52:35Z",
-      "lines": 49,
+      "checksum": "sha256:8ad961da617ca4e041a5ba0a0fc4bbdcd03264f7c7697e930f0e1566c0e01580",
+      "updated": "2026-09-01T15:58:53Z",
+      "lines": 50,
       "summary": "_Quick-glance state. Last updated: 2026-09-01_"
     },
     "TRUST.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Native browser identity, built-in viewer on 31338, remote SSH support, and complete documentation refresh",
+  "quick_context": "Reconcile browser-login attempt state with active provider sessions",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1051,
-    "full_read": 5711
+    "manifest_plus_core": 1063,
+    "full_read": 5764
   }
 }

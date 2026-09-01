@@ -33,6 +33,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - The dynamically patched Help page and its stale viewer instructions.
 
 ### Fixed
+- A valid provider session now overrides and clears an older cancelled, failed, blocked, or timed-out browser-login attempt in both the API and dashboard.
 - Stale Chromium profile locks are detected with `lstat` and removed only when safe.
 - Browser spawn failures no longer crash the bridge process.
 - A failed login no longer leaves a provider frozen for the lifetime of the bridge.

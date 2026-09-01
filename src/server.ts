@@ -18,7 +18,7 @@ import { RunHistory } from './run-history.js';
 import { LoginSessionManager, DuplicateLoginError } from './login/session-manager.js';
 import { probeDisplay } from './login/display.js';
 import { loginViewerUrl, serveLoginViewer, validateLoginViewerInput } from './login/viewer.js';
-import type { LoginSnapshot } from './login/state.js';
+import type { LoginSnapshot, LoginState } from './login/state.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -42,6 +42,7 @@ const PROVIDER_PATTERN = PROVIDER_NAMES.join('|');
 
 /** The providers that authenticate through a visible browser. */
 const WEB_LOGIN_PROVIDERS = new Set<string>(['grok', 'claude', 'gemini', 'chatgpt', 'perplexity']);
+const LOGIN_FAILURE_STATES = new Set<LoginState>(['blocked', 'timeout', 'failed', 'cancelled']);
 
 export class BridgeServer {
   private _registry: ProviderRegistry;
@@ -136,12 +137,26 @@ export class BridgeServer {
     }
   }
 
-  /** Attach the latest login snapshot to each provider in a status payload. */
+  /**
+   * Returns the attempt that still describes the provider's current state.
+   * A valid provider session makes an older failure or cancellation obsolete.
+   */
+  private _reconciledLoginSnapshot(
+    provider: import('./types.js').ProviderName,
+    sessionValid: boolean,
+  ): LoginSnapshot | undefined {
+    const login = this._logins.snapshot(provider);
+    if (!login || !sessionValid || !LOGIN_FAILURE_STATES.has(login.state)) return login;
+    this._logins.forgetFinished(provider, login.sessionId);
+    return undefined;
+  }
+
+  /** Attach the latest relevant login snapshot to each provider status. */
   private _withLoginState(status: import('./types.js').BridgeStatus): import('./types.js').BridgeStatus {
     return {
       ...status,
       providers: status.providers.map(p => {
-        const login = this._logins.snapshot(p.name);
+        const login = this._reconciledLoginSnapshot(p.name, p.sessionValid);
         return login ? { ...p, login } : p;
       }),
     };
@@ -666,15 +681,18 @@ export class BridgeServer {
           message: restored
             ? `${name} is signed in. The saved profile will be reused automatically.`
             : `${name} is not signed in yet. Start a browser login to complete it.`,
-          login: this._logins.snapshot(name) ?? null,
+          login: this._reconciledLoginSnapshot(name, Boolean(entry?.sessionValid)) ?? null,
           session: entry?.session ?? null,
         });
         return;
       }
 
       // status
-      const snapshot = this._logins.snapshot(name) ?? null;
-      const statusProvider = this._registry.get(name) as { profileDir?: string } | undefined;
+      const statusProvider = this._registry.get(name) as {
+        profileDir?: string;
+        sessionInfo?: { loggedIn: boolean };
+      } | undefined;
+      const snapshot = this._reconciledLoginSnapshot(name, Boolean(statusProvider?.sessionInfo?.loggedIn)) ?? null;
       const display = await probeDisplay(statusProvider?.profileDir);
       json(res, 200, {
         provider: name,

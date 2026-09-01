@@ -120,12 +120,22 @@ vi.mock('../src/registry.js', () => {
 
   const providers = new Map<string, Record<string, unknown>>();
   for (const name of DRIVER_PROVIDERS) {
-    providers.set(name, { ...baseProvider(name), loginDriver: () => driverFor(name) });
+    const provider = { ...baseProvider(name), loginDriver: () => driverFor(name) };
+    Object.defineProperty(provider, 'sessionInfo', {
+      enumerable: true,
+      get: () => ({ loggedIn: h.state.restored, lastVerified: null, status: h.state.restored ? 'active' : 'expired' }),
+    });
+    providers.set(name, provider);
   }
   // grok deliberately has no loginDriver: it exercises the legacy
   // fire-and-forget path. `hasProfile` is what that path keys its
   // graphical-session guard off.
-  providers.set('grok', { ...baseProvider('grok'), hasProfile: true });
+  const grok = { ...baseProvider('grok'), hasProfile: true };
+  Object.defineProperty(grok, 'sessionInfo', {
+    enumerable: true,
+    get: () => ({ loggedIn: h.state.restored, lastVerified: null, status: h.state.restored ? 'active' : 'expired' }),
+  });
+  providers.set('grok', grok);
   providers.set('claude-api', baseProvider('claude-api'));
 
   class FakeRegistry {
@@ -420,6 +430,7 @@ describe('POST /v1/login/:provider', () => {
   });
 
   it('cancels an attempt and then accepts a fresh one', async () => {
+    h.state.restored = false;
     const first = await startLogin('perplexity');
     await waitForLoginState('perplexity', ['browser_ready', 'waiting_for_user']);
 
@@ -437,6 +448,24 @@ describe('POST /v1/login/:provider', () => {
     const again = await startLogin('perplexity');
     expect(again.status).toBe(202);
     expect(again.body.login.sessionId).not.toBe(first.body.login.sessionId);
+  });
+
+  it('does not let a cancelled attempt override a valid provider session', async () => {
+    h.state.restored = true;
+    await startLogin('perplexity');
+    await waitForLoginState('perplexity', ['browser_ready', 'waiting_for_user']);
+
+    const cancelled = await cancelLogin('perplexity');
+    expect(cancelled.body.login.state).toBe('cancelled');
+
+    const loginStatus = await call('GET', '/v1/login/perplexity/status');
+    expect(loginStatus.body.active).toBe(false);
+    expect(loginStatus.body.login).toBeNull();
+
+    const bridgeStatus = await call('GET', '/v1/status');
+    const provider = bridgeStatus.body.providers.find((entry: { name: string }) => entry.name === 'perplexity');
+    expect(provider.sessionValid).toBe(true);
+    expect(provider.login).toBeUndefined();
   });
 
   it('rejects GET on /cancel with 405', async () => {
@@ -582,6 +611,7 @@ describe('missing graphical session', () => {
 
 describe('provider blocked', () => {
   it('reports the block, explains it and does not retry around it', async () => {
+    h.state.restored = false;
     h.state.hold = false;
     h.state.verdict = { verdict: 'blocked', kind: 'cloudflare_block', rayId: '8fa1c0d2e3b4', signal: 'error 1015' };
 

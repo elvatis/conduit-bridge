@@ -239,14 +239,18 @@ Events:   ws://127.0.0.1:31338/v1/events</pre><p>Use <code>fallback_models</code
   const LOGIN_LABELS = { grok: 'Grok', claude: 'Claude', gemini: 'Gemini', chatgpt: 'ChatGPT', perplexity: 'Perplexity' };
   const LOGIN_TONE = { authenticated: 'ok', browser_ready: 'warn', waiting_for_user: 'warn', verifying: 'warn', starting: 'warn', challenge_detected: 'warn', blocked: 'bad', timeout: 'bad', failed: 'bad', cancelled: '' };
   const LOGIN_TERMINAL = ['authenticated', 'blocked', 'timeout', 'failed', 'cancelled'];
+  const LOGIN_OVERRIDDEN_BY_SESSION = ['blocked', 'timeout', 'failed', 'cancelled'];
   const loginProviders = () => (lastProviders || []).filter(p => p.loginType === 'browser').map(p => p.name);
   let lastProviders = [], loginStates = {}, loginEnv = {}, loginViewer = {}, restoringSessions = false;
 
   const relTime = ms => { if (!ms && ms !== 0) return 'never'; const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); if (s < 60) return s + 's ago'; if (s < 3600) return Math.round(s / 60) + 'm ago'; return Math.round(s / 3600) + 'h ago'; };
 
   function loginCardHtml(provider) {
-    const state = loginStates[provider];
     const status = (lastProviders || []).find(p => p.name === provider) || {};
+    const reportedState = loginStates[provider];
+    const staleAttempt = status.sessionValid && reportedState && LOGIN_OVERRIDDEN_BY_SESSION.indexOf(reportedState.state) !== -1;
+    const state = staleAttempt ? null : reportedState;
+    if (staleAttempt) delete loginStates[provider];
     const env = loginEnv[provider] || {};
     const viewer = loginViewer[provider] || {};
     const name = LOGIN_LABELS[provider] || provider;

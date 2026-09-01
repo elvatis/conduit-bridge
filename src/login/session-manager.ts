@@ -114,6 +114,17 @@ export class LoginSessionManager {
     return [...out.values()];
   }
 
+  /**
+   * Drops a completed attempt once a newer provider check proves that the
+   * saved browser session is valid. A live attempt is never removed.
+   */
+  forgetFinished(provider: ProviderName, sessionId?: string): boolean {
+    if (this._active.has(provider)) return false;
+    const snapshot = this._last.get(provider);
+    if (!snapshot || (sessionId && snapshot.sessionId !== sessionId)) return false;
+    return this._last.delete(provider);
+  }
+
   /** Starts an attempt. Throws DuplicateLoginError when one is already running. */
   start(driver: LoginDriver): LoginSnapshot {
     if (this._active.has(driver.name)) throw new DuplicateLoginError(driver.name);
