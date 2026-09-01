@@ -17,7 +17,7 @@ vi.mock('node:os', async (importOriginal) => {
 import { ProviderRegistry } from '../src/registry.js';
 
 const ALL_PROVIDERS: ProviderName[] = [
-  'grok', 'claude', 'gemini', 'chatgpt', 'claude-api', 'gemini-api', 'codex-api',
+  'grok', 'claude', 'gemini', 'chatgpt', 'perplexity', 'claude-api', 'gemini-api', 'codex-api',
   'openrouter-api', 'perplexity-api', 'lmstudio', 'grok-cli',
   'cli-codex', 'cli-claude', 'cli-gemini',
 ];
@@ -41,7 +41,7 @@ describe('ProviderRegistry', () => {
   });
 
   describe('provider registration', () => {
-    it('registers all fourteen built-in providers', () => {
+    it('registers all fifteen built-in providers', () => {
       for (const name of ALL_PROVIDERS) {
         expect(registry.get(name).name).toBe(name);
       }

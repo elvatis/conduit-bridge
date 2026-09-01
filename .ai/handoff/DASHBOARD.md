@@ -1,33 +1,49 @@
-# DASHBOARD — conduit-bridge
+# DASHBOARD - conduit-bridge
 
-_Quick-glance state for autonomous agents. Last updated: 2026-03-12_
+_Quick-glance state. Last updated: 2026-09-01_
 
-## 🚦 Current State
+## Current State
 
 | Item | Value |
 |---|---|
-| Version | 0.4.0 |
-| Build | ✅ passes (`npm run build`) |
-| Tests | ✅ vitest suite (52 tests) |
-| npm published | N/A (not published to npm) |
-| GitHub | ✅ https://github.com/elvatis/conduit-bridge |
-| Next task | T-003 — Add test suite |
+| Version | 0.5.1 plus unreleased changes |
+| Branch | `fix/browser-login-single-port` |
+| Build | pass |
+| Tests | 339 pass, 21 files |
+| Audit | zero vulnerabilities |
+| Secret scans | current tree and full history pass |
+| npm published | no |
+| GitHub | https://github.com/elvatis/conduit-bridge |
+| User-facing port | 31338 on loopback |
 
-## 📦 Providers
+## Browser Runtime
 
-| Provider | Adapter | Status |
-|---|---|---|
-| Grok | GrokProvider | ✅ implemented |
-| Claude | ClaudeProvider | ✅ implemented |
-| Gemini | GeminiProvider | ✅ implemented |
-| ChatGPT | ChatGPTProvider | ✅ implemented |
+| Item | State |
+|---|---|
+| Login identity | native, `navigator.webdriver === false` |
+| Remote login | built-in viewer through 31338 |
+| Remote display | Xvfb only |
+| Stable ports 5900 and 6080 | absent |
+| Separate remote-desktop services | removed |
+| Session restore | ordinary Chromium plus private loopback attachment |
 
-## ⚡ Unblocked Tasks (priority order)
-1. **T-003** [high] — Add vitest test suite
-2. **T-005** [high] — Network intercept instead of DOM polling
-3. **T-004** [medium] — Session expiry tracking
-(T-006 npm publish dropped 2026-07-17: not published to npm)
+## Live Provider State
 
-## 🔗 Related Projects
-- `conduit-vscode` — VS Code extension that embeds/manages this bridge
-- `openclaw-cli-bridge-elvatis` — Server-side version (OpenClaw plugin, same concept)
+| Provider | State |
+|---|---|
+| Grok | connected and live request proven |
+| Gemini | connected |
+| Perplexity | connected |
+| Claude | security check requires a person |
+| ChatGPT | sign-in required |
+
+## Next
+
+1. Validate fresh Claude and ChatGPT logins.
+2. Add Xauthority hardening for shared hosts.
+3. Purge inactive legacy host packages with administrator access.
+
+## Related Projects
+
+- `conduit-vscode`: optional VS Code client
+- `openclaw-cli-bridge-elvatis`: archived reference only

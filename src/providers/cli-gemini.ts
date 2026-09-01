@@ -124,11 +124,14 @@ export class GeminiCliProvider implements ProviderAdapter {
       cwd: homedir(),
       label: 'cli-gemini',
       log: msg => logger.info(msg),
+      signal: req.signal,
     });
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =
-        result.timedOut || result.exitCode === 143
+        result.aborted
+          ? 'client disconnected: process terminated'
+          : result.timedOut || result.exitCode === 143
           ? `timeout: agy/gemini CLI killed by supervisor (exit ${result.exitCode})`
           : result.stderr || '(no output)';
       throw new Error(`cli-gemini exited ${result.exitCode}: ${detail}`);

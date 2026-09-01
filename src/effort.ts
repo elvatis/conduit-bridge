@@ -38,9 +38,25 @@ export function toOpenAiEffort(level: string | undefined): OpenAiEffort | undefi
 /** Map to Anthropic `output_config.effort`. none/minimal collapse to low. */
 export function toClaudeEffort(level: string | undefined): ClaudeEffort | undefined {
   if (!level) return undefined;
+  // Conduit alias: Claude Code currently accepts max as its top CLI level.
+  if (level === 'ultracode') return 'max';
   if (level === 'none' || level === 'minimal' || level === 'min') return 'low';
   if (CLAUDE_LEVELS.has(level)) return level as ClaudeEffort;
   return 'high';
+}
+
+/** Effort choices exposed by the bridge UI and capability endpoint. */
+export function effortCapabilities(provider: string): { values: string[]; aliases?: Record<string, string>; note: string } {
+  if (provider === 'cli-claude' || provider === 'claude-api') {
+    return { values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode'], aliases: { ultracode: 'max' }, note: 'ultracode is a Conduit alias for the provider maximum.' };
+  }
+  if (provider === 'cli-gemini') {
+    return { values: ['low', 'medium', 'high'], note: 'agy supports low, medium, and high.' };
+  }
+  if (provider === 'grok-cli' || provider === 'codex-api' || provider === 'openrouter-api' || provider === 'perplexity-api') {
+    return { values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], note: 'The upstream model may support only a subset.' };
+  }
+  return { values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], note: 'The selected web or API provider may ignore unsupported levels.' };
 }
 
 /** Map to agy `--effort` (only low|medium|high). */

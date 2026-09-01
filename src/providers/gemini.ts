@@ -10,10 +10,11 @@ export class GeminiProvider extends BaseProvider {
   readonly loginUrl = 'https://gemini.google.com/app';
   readonly verifySelector = '.ql-editor, [contenteditable="true"], rich-textarea, .input-area textarea, .text-input-field';
 
-  // gemini.google.com lineup (2026-08): Gemini 3.6 Flash is the latest Flash
-  // tier; 3.5 Flash remains available. Web selection is a no-op in this
-  // provider, so these labels are advisory.
+  // gemini.google.com lineup (2026-09): Gemini 3.7 Flash is the latest Flash
+  // tier. Web selection is a no-op in this provider, so these labels are
+  // advisory and follow the currently documented lineup.
   readonly models: ModelDefinition[] = [
+    { id: 'web-gemini/gemini-3.7-flash', provider: 'gemini', displayName: 'Gemini 3.7 Flash', owned_by: 'google' },
     { id: 'web-gemini/gemini-3.6-flash', provider: 'gemini', displayName: 'Gemini 3.6 Flash', owned_by: 'google' },
     { id: 'web-gemini/gemini-3.5-flash', provider: 'gemini', displayName: 'Gemini 3.5 Flash', owned_by: 'google' },
     { id: 'web-gemini/gemini-3.1-pro',   provider: 'gemini', displayName: 'Gemini 3.1 Pro',   owned_by: 'google' },

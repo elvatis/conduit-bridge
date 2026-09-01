@@ -24,16 +24,17 @@ const PREFIX = 'cli-grok/';
 const DEFAULT_TIMEOUT_MS = 300_000; // 5 min
 const GRACE_MS = 5_000;
 
-// Curated API/CLI model ids (docs.x.ai/developers/models, 2026-08). Grok 3 and
-// the May-2026-retired 4.x fast slugs were removed; retired slugs still redirect
-// server-side but should not be advertised. ownsModel still accepts any cli-grok/*.
-const CATALOG = ['grok-4.5', 'grok-4.3', 'grok-4'];
+// Curated API/CLI model ids (docs.x.ai/developers/models, 2026-09). The
+// unversioned grok-4.6 alias follows xAI's current flagship release.
+// ownsModel still accepts any cli-grok/* for forward compatibility.
+const CATALOG = ['grok-4.6', 'grok-4.5', 'grok-4.3'];
 
 interface CliRunResult {
   stdout: string;
   stderr: string;
   exitCode: number;
   timedOut: boolean;
+  aborted: boolean;
 }
 
 /** Locate an executable on PATH, honoring PATHEXT (.cmd/.exe/…) on Windows. */
@@ -80,6 +81,7 @@ function runCli(
   timeoutMs: number,
   cwd: string,
   log: (msg: string) => void,
+  signal?: AbortSignal,
 ): Promise<CliRunResult> {
   return new Promise((resolve, reject) => {
     const isWin = process.platform === 'win32';
@@ -102,6 +104,7 @@ function runCli(
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let aborted = false;
     let closed = false;
     let killTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -127,9 +130,20 @@ function runCli(
       }
     }, timeoutMs);
 
+    const onAbort = () => {
+      if (closed) return;
+      aborted = true;
+      log('[grok-cli] client disconnected — terminating grok');
+      proc.kill('SIGTERM');
+      killTimer = setTimeout(() => { if (!closed) proc.kill('SIGKILL'); }, GRACE_MS);
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+
     const clearTimers = () => {
       clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
+      signal?.removeEventListener('abort', onAbort);
     };
 
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
@@ -137,7 +151,7 @@ function runCli(
     proc.on('close', code => {
       closed = true;
       clearTimers();
-      resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? 0, timedOut });
+      resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? 0, timedOut, aborted });
     });
     proc.on('error', err => {
       closed = true;
@@ -243,10 +257,12 @@ export class GrokCliProvider implements ProviderAdapter {
     ];
 
     try {
-      const result = await runCli(binPath, args, DEFAULT_TIMEOUT_MS, homedir(), msg => logger.info(msg));
+      const result = await runCli(binPath, args, DEFAULT_TIMEOUT_MS, homedir(), msg => logger.info(msg), req.signal);
       if (result.exitCode !== 0 && result.stdout.length === 0) {
         const detail =
-          result.timedOut || result.exitCode === 143
+          result.aborted
+            ? 'client disconnected: process terminated'
+            : result.timedOut || result.exitCode === 143
             ? `timeout: grok killed by supervisor (exit ${result.exitCode})`
             : result.stderr || '(no output)';
         throw new Error(`grok exited ${result.exitCode}: ${detail}`);

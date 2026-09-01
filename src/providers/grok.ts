@@ -10,14 +10,14 @@ export class GrokProvider extends BaseProvider {
   readonly verifySelector = '.ProseMirror, [contenteditable="true"]';
 
   // grok.com / the Grok app expose a compute-tier selector (Fast / Expert /
-  // Heavy / Auto), not version strings. The underlying flagship is Grok 4.5
-  // (docs.x.ai/developers/models). Web selection is a no-op in this provider,
-  // so these labels are advisory.
+  // Heavy / Auto), not version strings. xAI currently documents Grok 4.6 as
+  // its flagship API model. Web selection is a no-op in this provider, so
+  // these labels describe tiers rather than pinning a version.
   readonly models: ModelDefinition[] = [
-    { id: 'web-grok/grok-fast',   provider: 'grok', displayName: 'Grok Fast',   owned_by: 'xai' },
-    { id: 'web-grok/grok-expert', provider: 'grok', displayName: 'Grok Expert', owned_by: 'xai' },
-    { id: 'web-grok/grok-heavy',  provider: 'grok', displayName: 'Grok Heavy',  owned_by: 'xai' },
-    { id: 'web-grok/grok-auto',   provider: 'grok', displayName: 'Grok Auto',   owned_by: 'xai' },
+    { id: 'web-grok/grok-fast',   provider: 'grok', displayName: 'Grok 4.6 Fast',   owned_by: 'xai' },
+    { id: 'web-grok/grok-expert', provider: 'grok', displayName: 'Grok 4.6 Expert', owned_by: 'xai' },
+    { id: 'web-grok/grok-heavy',  provider: 'grok', displayName: 'Grok 4.6 Heavy',  owned_by: 'xai' },
+    { id: 'web-grok/grok-auto',   provider: 'grok', displayName: 'Grok 4.6 Auto',   owned_by: 'xai' },
   ];
 
   private _patchedCtx: BrowserContext | null = null;

@@ -1,12 +1,55 @@
 # Changelog
 
-All notable changes to this project are documented in this file and mirrored
-in the README Changelog section.
+All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+### Added
+- Structured browser login with ten observable states, provider-scoped status, cancel and recheck routes, duplicate-attempt protection, and live WebSocket updates.
+- Built-in browser viewer on port 31338. It serves JPEG page frames and accepts only validated pointer, wheel, keyboard, and text input.
+- Browser login and restore launch ordinary headed Chromium first, attach afterwards, and reject a browser that reports `navigator.webdriver === true`.
+- Graphical-session diagnostics for desktop sessions, Xvfb, Chromium availability, window-manager state, and stale or foreign profile locks.
+- Dashboard pages for provider login, usage, orchestration, integration tests, recommendations, activity, settings, and Help.
+- Persistent local metrics, bounded run history, request limiting, fallbacks, model catalog refresh, and provider effort capabilities.
+- Perplexity browser provider and neutral isolated Claude CLI account routes.
+- `docs/BROWSER-LOGIN.md` with local desktop, remote SSH, Xvfb, systemd, security, and troubleshooting guidance.
+
+### Changed
+- Browser authentication now combines provider-specific positive signals, origin-scoped cookie names, expected host and path, and logged-out vetoes. Selector presence alone no longer marks a session authenticated.
+- Session restore uses the browser's native user agent and platform. Historical Windows identity overrides and stealth flags are gone.
+- Browser login on a remote server now uses the same SSH-forwarded port as the API and dashboard.
+- The dashboard navigation no longer shows the `Local-first model infrastructure` footer.
+- Dashboard Help, standalone Help, README, and browser-login documentation now describe the current standalone and remote-server architecture.
+- Session restore recognizes provider security checks and stops retrying into a confirmed refusal.
+- Chromium sandbox fallback is visible and reported once when the host cannot start the browser with its OS sandbox.
+- Shutdown cancels active browser logins and releases profile locks.
+
+### Removed
+- All project integration with x11vnc, noVNC, websockify, VNC sockets, and the stable ports 5900 and 6080.
+- The `login.vncSocketPath` configuration field and VNC-specific login diagnostics.
+- The dynamically patched Help page and its stale viewer instructions.
+
+### Fixed
+- Stale Chromium profile locks are detected with `lstat` and removed only when safe.
+- Browser spawn failures no longer crash the bridge process.
+- A failed login no longer leaves a provider frozen for the lifetime of the bridge.
+- Login routes match query strings correctly and return useful status when no attempt has run.
+- Recheck and cancel messages are no longer overwritten by an immediate dashboard refresh.
+- Client disconnects cancel in-flight provider requests.
+- Streaming and non-streaming fallback behavior now records consistent metrics and activity.
+
+### Security
+- State-changing requests from foreign web origins are rejected.
+- WebSocket upgrades validate Origin.
+- URL queries and fragments are stripped from login diagnostics.
+- Viewer access uses the bridge's existing authentication and origin policy and exposes no raw DevTools protocol.
+- Cookie checks are scoped to the active provider origin and compare names only.
+- Metrics and activity do not store prompts, responses, cookies, tokens, or credentials.
+- Secret scans include untracked files.
+- Browser security checks are detection-only. Conduit never solves, clicks, replays, suppresses, or bypasses them.
 
 ## [0.5.1] - 2026-08-21
 

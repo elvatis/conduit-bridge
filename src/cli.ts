@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { BridgeServer } from './server.js';
+import { ProviderRegistry } from './registry.js';
 import { loadConfig, saveConfig, loadDotEnv } from './config.js';
 import { logger, configureLogger } from './logger.js';
 
@@ -30,7 +31,50 @@ for (let i = 1; i < args.length; i++) {
   else if (args[i].startsWith('--') && args[i + 1] && !args[i + 1].startsWith('--')) {
     flags[args[i].slice(2)] = args[i + 1];
     i++;
+  } else if (/^--[a-z-]+$/.test(args[i])) {
+    // A bare flag such as `--local` means "on".
+    flags[args[i].slice(2)] = 'true';
   }
+}
+
+/** Provider names that authenticate through a visible browser. */
+const WEB_PROVIDERS = ['grok', 'claude', 'gemini', 'chatgpt', 'perplexity'] as const;
+type WebProvider = (typeof WEB_PROVIDERS)[number];
+
+/** Coerce a CLI config value: JSON object/array, boolean, number, else string. */
+function parseConfigValue(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (trimmed === 'true') return true;
+  if (trimmed === 'false') return false;
+  if (trimmed && !Number.isNaN(Number(trimmed))) return Number(trimmed);
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try { return JSON.parse(trimmed); } catch { /* keep the raw string */ }
+  }
+  return raw;
+}
+
+/** One JSON request against the running bridge, with auth when configured. */
+async function bridgeRequest(path: string, method: 'GET' | 'POST'): Promise<{ statusCode: number; body: any; raw: string }> {
+  const http = await import('node:http');
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      hostname: cfg.host,
+      port: cfg.port,
+      path,
+      method,
+      headers: cfg.authToken ? { Authorization: `Bearer ${cfg.authToken}` } : {},
+    }, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => {
+        let body: any = null;
+        try { body = JSON.parse(data); } catch { body = null; }
+        resolve({ statusCode: res.statusCode ?? 0, body, raw: data });
+      });
+    });
+    request.on('error', reject);
+    request.end();
+  });
 }
 
 const cfg = loadConfig({
@@ -95,30 +139,85 @@ switch (cmd) {
   }
 
   case 'login': {
-    const provider = args[1] as 'grok' | 'claude' | 'gemini' | 'chatgpt' | undefined;
-    if (!provider) {
-      console.error('Usage: conduit-bridge login <grok|claude|gemini|chatgpt>');
+    const provider = args[1];
+    if (!provider || !(WEB_PROVIDERS as readonly string[]).includes(provider)) {
+      console.error(`Usage: conduit-bridge login <${WEB_PROVIDERS.join('|')}> [--local] [--status] [--cancel] [--recheck]`);
       console.error('  (API providers use keys, not login: conduit-bridge config apiKeys.claude-api <key>)');
       process.exit(1);
     }
-    // Send login request to running instance
-    const http = await import('node:http');
-    const req = http.request({
-      hostname: cfg.host, port: cfg.port,
-      path: `/v1/login/${provider}`, method: 'POST',
-    }, res => {
-      let data = '';
-      res.on('data', c => { data += c; });
-      res.on('end', () => {
-        const j = JSON.parse(data);
-        console.log(j.message ?? JSON.stringify(j));
-      });
-    });
-    req.on('error', () => {
+    const name = provider as WebProvider;
+
+    // ── Query or control an attempt on the running bridge ────────────────────
+    const control = flags.status ? 'status' : flags.cancel ? 'cancel' : flags.recheck ? 'recheck' : null;
+    if (control) {
+      try {
+        const method = control === 'status' ? 'GET' : 'POST';
+        const { statusCode, body, raw } = await bridgeRequest(`/v1/login/${name}/${control}`, method);
+        if (!body) { console.error(raw || `Unexpected empty response (HTTP ${statusCode}).`); process.exit(1); }
+        const login = body.login ?? null;
+        if (login) {
+          console.log(`${name}: ${login.state} — ${login.message}`);
+          if (login.nextAction) console.log(`  ${login.nextAction}`);
+        } else if (body.message) {
+          console.log(`${name}: ${body.message}`);
+        } else {
+          // No attempt has run in this bridge process yet. Say so, rather than
+          // printing nothing at all.
+          console.log(`${name}: no browser login has been started. Run: conduit-bridge login ${name}`);
+        }
+        const env = body.environment ?? {};
+        if (env.ready === false) console.log(`  ${env.reason ?? 'The graphical session is not usable.'}`);
+        if (body.viewer?.url) console.log(`  Login browser: ${body.viewer.url}`);
+        else if (env.ready !== false) console.log('  Login browser viewer: not running');
+        if (env.warnings?.length) for (const w of env.warnings) console.log(`  Note: ${w}`);
+        const failed = login && ['blocked', 'timeout', 'failed'].includes(login.state);
+        process.exit(statusCode >= 400 || failed ? 1 : 0);
+      } catch {
+        console.error(`conduit-bridge is not running. Start it first with: conduit-bridge start`);
+        process.exit(1);
+      }
+    }
+
+    // ── Run the login in this process (no bridge required) ───────────────────
+    if (flags.local !== undefined) {
+      const { probeDisplay } = await import('./login/display.js');
+      const { profileDir } = await import('./config.js');
+      const probe = await probeDisplay(profileDir(cfg, name));
+      if (!probe.ok) {
+        console.error(probe.reason ?? 'A graphical session is required for an interactive login.');
+        console.error('On a remote server, start the bridge and use its built-in viewer through port 31338.');
+        process.exit(1);
+      }
+      for (const warning of probe.warnings) console.log(`Note: ${warning}`);
+
+      const registry = new ProviderRegistry(loadConfig({ headless: false }));
+      try {
+        await registry.get(name).login(url => {
+          console.log(`Login browser opened: ${url}`);
+          console.log('Complete the sign-in in the local browser window. Conduit will verify it afterwards.');
+        });
+        console.log(`Login completed for ${name}. The saved profile will be reused by the running bridge.`);
+      } catch (err) {
+        // BaseProvider.login already prefixes "Login failed for <provider>:",
+        // so print its message as-is rather than prefixing it twice.
+        console.error((err as Error).message);
+        process.exit(1);
+      }
+      break;
+    }
+
+    // ── Ask the running bridge to start one ──────────────────────────────────
+    try {
+      const { statusCode, body, raw } = await bridgeRequest(`/v1/login/${name}`, 'POST');
+      if (!body) { console.error(raw || `Unexpected empty response (HTTP ${statusCode}).`); process.exit(1); }
+      console.log(body.message ?? JSON.stringify(body));
+      if (body.viewer?.url) console.log(`Open the login browser at: ${body.viewer.url}`);
+      console.log(`Track it with: conduit-bridge login ${name} --status`);
+      if (statusCode >= 400) process.exit(1);
+    } catch {
       console.error(`conduit-bridge is not running. Start it first with: conduit-bridge start`);
       process.exit(1);
-    });
-    req.end();
+    }
     break;
   }
 
@@ -140,8 +239,16 @@ switch (cmd) {
       const existing = loadConfig();
       saveConfig({ apiKeys: { ...existing.apiKeys, [provider]: val } } as any);
       console.log(`API key set for ${provider}`);
+    } else if (key.includes('.')) {
+      // One level of nesting, e.g. `config login.mode assisted`. saveConfig
+      // merges shallowly, so the rest of the sub-object has to be carried over.
+      const [group, field] = key.split('.', 2);
+      const existing = loadConfig() as any;
+      const current = (existing[group] && typeof existing[group] === 'object') ? existing[group] : {};
+      saveConfig({ [group]: { ...current, [field]: parseConfigValue(val) } } as any);
+      console.log(`Config updated: ${key} = ${val}`);
     } else {
-      saveConfig({ [key]: isNaN(Number(val)) ? val : Number(val) } as any);
+      saveConfig({ [key]: parseConfigValue(val) } as any);
       console.log(`Config updated: ${key} = ${val}`);
     }
     break;
@@ -154,25 +261,28 @@ Usage:
   conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]
                        [--auth-token=<token>] [--no-sandbox=true]
   conduit-bridge status
-  conduit-bridge login <grok|claude|gemini|chatgpt>
-  conduit-bridge config [key] [value]
+  conduit-bridge login <grok|claude|gemini|chatgpt|perplexity> [--local]
+  conduit-bridge login <provider> --status | --cancel | --recheck
+  conduit-bridge config [key] [value]        (dotted keys work: login.mode handoff)
 
 API providers (no browser needed):
-  conduit-bridge config apiKeys.claude-api      <ANTHROPIC_API_KEY>
-  conduit-bridge config apiKeys.gemini-api      <GOOGLE_AI_API_KEY>
-  conduit-bridge config apiKeys.codex-api       <OPENAI_API_KEY>
-  conduit-bridge config apiKeys.openrouter-api  <OPENROUTER_API_KEY>
-  conduit-bridge config apiKeys.perplexity-api  <PERPLEXITY_API_KEY>
+  Add credentials through the dashboard's write-only Settings form or through
+  protected environment variables. Do not put credentials in command arguments.
 
 Local providers (no key needed):
   lmstudio   start LM Studio's local server (set LM_STUDIO_URL to override http://127.0.0.1:1234)
   grok-cli   install the Grok CLI and run \`grok login\`
 
 Security (secure by default):
-  conduit-bridge config authToken <token>   Require 'Authorization: Bearer <token>' on /v1/*
-  --auth-token=<token>                       Same, per-invocation
-  Chromium runs sandboxed by default. To opt in to --no-sandbox (e.g. root in a
-  container), set CONDUIT_NO_SANDBOX=1, pass --no-sandbox=true, or set
-  chromiumNoSandbox true in the config file.
+  External binds require an auth token configured through a protected setup path.
+  Chromium is asked to run sandboxed. Hosts that restrict unprivileged user
+  namespaces cannot honour that; the bridge then reports the downgrade once
+  instead of hiding it. To opt out explicitly, set CONDUIT_NO_SANDBOX=1, pass
+  --no-sandbox=true, or set chromiumNoSandbox true in the config file.
+
+Browser login:
+  A login starts ordinary Chromium, attaches after launch, and provides a
+  built-in viewer through port 31338. Conduit never completes a provider
+  security check for you. It detects one and lets you finish it yourself.
 `);
 }

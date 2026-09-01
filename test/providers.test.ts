@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { ProviderRegistry } from '../src/registry.js';
-import { BaseProvider } from '../src/providers/base.js';
+import {
+  BaseProvider,
+  identitiesDiffer,
+  manualLoginContextOptions,
+  manualLoginPlaywrightArgs,
+  resolveLaunchArgs,
+  resolveSandboxOption,
+  restoreContextOptions,
+  sandboxOptedOut,
+  stripQuery,
+} from '../src/providers/base.js';
 import { OpenRouterApiProvider } from '../src/providers/openrouter-api.js';
 import { PerplexityApiProvider } from '../src/providers/perplexity-api.js';
 import { LmStudioProvider } from '../src/providers/lmstudio.js';
@@ -171,5 +181,104 @@ describe('BaseProvider._looksLoggedOut URL sanitization', () => {
     expect(p.testLooksLoggedOut('https://gemini.google.com/app')).toBe(false);
     expect(p.testLooksLoggedOut('https://chatgpt.com/')).toBe(false);
     expect(p.testLooksLoggedOut('')).toBe(false);
+  });
+});
+
+describe('login vs restore browser profiles', () => {
+  // The manual login browser must not misrepresent itself. The historical
+  // override claimed Windows and Chrome 131 while the process was Linux and
+  // Chrome 151, contradicting the client hints Chromium sends alongside it.
+  it('never overrides the identity of the manual login browser', () => {
+    const options = manualLoginContextOptions(cfg);
+    expect(options.userAgent).toBeUndefined();
+    expect(options.locale).toBeUndefined();
+    expect(options.timezoneId).toBeUndefined();
+    // A null viewport means "use the real window size" rather than a fixed one
+    // that never changes.
+    expect(options.viewport).toBeNull();
+    expect(JSON.stringify(options)).not.toContain('Windows');
+  });
+
+  it('adds no stealth arguments to the manual login browser', () => {
+    const args = manualLoginPlaywrightArgs(cfg);
+    for (const arg of args) {
+      expect(arg).not.toContain('--disable-blink-features');
+      expect(arg).not.toContain('user-agent');
+    }
+  });
+
+  it('always keeps the browser native identity during restore', () => {
+    const options = restoreContextOptions(cfg);
+    expect(options.userAgent).toBeUndefined();
+    expect(options.viewport).toBeNull();
+    expect(identitiesDiffer(cfg)).toBe(false);
+  });
+
+  it('does not ask the restore browser to hide automation markers', () => {
+    expect(resolveLaunchArgs(cfg)).not.toContain('--disable-blink-features=AutomationControlled');
+    expect(resolveLaunchArgs(cfg)).not.toContain('--enable-automation');
+  });
+
+  it('requests the Chromium sandbox unless it is explicitly opted out', () => {
+    expect(sandboxOptedOut(cfg)).toBe(false);
+    expect(resolveSandboxOption(cfg)).toBe(true);
+    expect(resolveLaunchArgs(cfg)).not.toContain('--no-sandbox');
+
+    const optedOut = { ...cfg, chromiumNoSandbox: true };
+    expect(sandboxOptedOut(optedOut)).toBe(true);
+    expect(resolveSandboxOption(optedOut)).toBe(false);
+    expect(resolveLaunchArgs(optedOut)).toContain('--no-sandbox');
+    expect(manualLoginPlaywrightArgs(optedOut)).toContain('--no-sandbox');
+  });
+
+  it('strips query strings from anything that reaches diagnostics', () => {
+    expect(stripQuery('https://claude.ai/login?token=abc&next=/x')).toBe('https://claude.ai/login');
+    expect(stripQuery('https://claude.ai/new')).toBe('https://claude.ai/new');
+    expect(stripQuery('')).toBe('');
+    expect(stripQuery('https://x.example/' + 'a'.repeat(400)).length).toBeLessThanOrEqual(200);
+  });
+});
+
+describe('BaseProvider login surface', () => {
+  class TestWebProvider extends BaseProvider {
+    readonly name = 'perplexity' as const;
+    readonly loginUrl = 'https://www.perplexity.ai/';
+    readonly verifySelector = 'textarea';
+    readonly models = [];
+    async chat(): Promise<string> { return ''; }
+    async *chatStream(): AsyncGenerator<string> { yield ''; }
+    testLooksChallenged(url: string): boolean { return this._looksChallenged(url); }
+    setChallenge(verdict: 'ok' | 'verifying' | 'challenge_detected' | 'blocked'): void {
+      (this as unknown as { _lastChallenge: { verdict: string } })._lastChallenge = { verdict };
+    }
+  }
+
+  it('exposes a login driver with the observable surface, without a browser', () => {
+    const provider = new TestWebProvider(cfg);
+    const driver = provider.loginDriver();
+    expect(driver.name).toBe('perplexity');
+    expect(driver.loginUrl).toBe('https://www.perplexity.ai/');
+    for (const method of ['openLoginBrowser', 'observeLoginBrowser', 'closeLoginBrowser', 'verifySession'] as const) {
+      expect(typeof driver[method]).toBe('function');
+    }
+    expect(provider.loginActive).toBe(false);
+    expect(provider.loginMode).toBe('handoff');
+    expect(new TestWebProvider({ ...cfg, login: { mode: 'assisted' } }).loginMode).toBe('assisted');
+  });
+
+  it('treats a security check as unknown rather than an expired session', () => {
+    const provider = new TestWebProvider(cfg);
+    expect(provider.testLooksChallenged('https://www.perplexity.ai/')).toBe(false);
+    for (const verdict of ['verifying', 'challenge_detected', 'blocked'] as const) {
+      provider.setChallenge(verdict);
+      expect(provider.testLooksChallenged('https://www.perplexity.ai/'), verdict).toBe(true);
+    }
+  });
+
+  it('reuses one profile directory for the login browser and attached restore', () => {
+    // The shared directory IS the mechanism by which a sign-in becomes a
+    // restorable session; splitting it would make login succeed and restore fail.
+    const provider = new TestWebProvider(cfg);
+    expect(provider.profileDir).toBe('/tmp/conduit-test-profiles/perplexity-profile');
   });
 });

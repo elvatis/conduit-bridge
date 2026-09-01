@@ -109,11 +109,14 @@ export class CodexCliProvider implements ProviderAdapter {
       cwd: homedir(),
       label: 'cli-codex',
       log: msg => logger.info(msg),
+      signal: req.signal,
     });
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =
-        result.timedOut || result.exitCode === 143
+        result.aborted
+          ? 'client disconnected: process terminated'
+          : result.timedOut || result.exitCode === 143
           ? `timeout: codex killed by supervisor (exit ${result.exitCode})`
           : result.stderr || '(no output)';
       throw new Error(`codex exited ${result.exitCode}: ${detail}`);

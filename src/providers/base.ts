@@ -4,43 +4,79 @@ import type { BridgeConfig, ProviderName, ChatRequest, ModelDefinition, Provider
 import { profileDir } from '../config.js';
 import { logger } from '../logger.js';
 import { NetworkCapture, type InterceptSpec } from './interception.js';
+import {
+  ChallengeWatcher, classifyDom, classifyResponse, evaluateChallengeMarkers,
+  mergeVerdicts, type ChallengeVerdict, type ObservablePage,
+} from '../login/challenge.js';
+import { authSignalsFor, decideAuthenticated } from '../login/auth-signals.js';
+import { probeDisplay, type DisplayProbe } from '../login/display.js';
+import { removeStaleProfileLocks } from '../login/handoff.js';
+import { launchAttachedRestoreBrowser, type AttachedRestoreBrowser } from '../login/restore-browser.js';
+import { loginViewerUrl, type LoginViewerInput } from '../login/viewer.js';
+import { sanitize, type LoginBrowserObservation, type LoginDriver, type LoginVerification } from '../login/session-manager.js';
+import { restoreFailureCopy } from '../login/copy.js';
+import type { LoginDiagnostics, LoginMode, LoginSnapshot } from '../login/state.js';
 
-// Stealth args to reduce bot detection.
-//
-// Security note: two flags were removed from the defaults because they weaken
-// the browser's own protections and are not required for stealth:
-//   - '--no-sandbox' disabled the Chromium OS sandbox. It now stays ON by
-//     default and is re-enabled only via explicit opt-in (see resolveLaunchArgs).
-//   - '--disable-features=IsolateOrigins,site-per-process' disabled site
-//     isolation. Site isolation now stays ON.
-// '--disable-blink-features=AutomationControlled' is kept: it only hides the
-// navigator.webdriver automation flag (the load-bearing stealth signal) and
-// does not relax the sandbox or site isolation.
-const STEALTH_ARGS = [
-  '--disable-blink-features=AutomationControlled',
-  '--disable-infobars',
+// Compatibility export for embedders that still inspect the old launch helper.
+// The built-in restore path now uses restore-browser.ts and does not ask
+// Playwright to launch the browser.
+const RESTORE_PROCESS_ARGS = [
   '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding',
   ...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []),
 ];
 
-/**
- * Resolve the Chromium launch args for a config. The sandbox stays ON by
- * default; '--no-sandbox' is appended only when explicitly opted in via
- * BridgeConfig.chromiumNoSandbox or the CONDUIT_NO_SANDBOX=1 environment
- * variable (needed for some root-in-container setups).
- */
-export function resolveLaunchArgs(cfg: BridgeConfig): string[] {
-  const noSandbox = cfg.chromiumNoSandbox === true || process.env.CONDUIT_NO_SANDBOX === '1';
-  return noSandbox ? [...STEALTH_ARGS, '--no-sandbox'] : [...STEALTH_ARGS];
+/** True when the caller opted out of the Chromium OS sandbox. */
+export function sandboxOptedOut(cfg: BridgeConfig): boolean {
+  return cfg.chromiumNoSandbox === true || process.env.CONDUIT_NO_SANDBOX === '1';
 }
 
-const STEALTH_OPTIONS = {
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-  viewport: { width: 1280, height: 900 },
-  locale: 'en-US',
-  timezoneId: 'Europe/Berlin',
-};
+/**
+ * Resolve compatibility Chromium arguments for external embedders.
+ *
+ * Note on the sandbox: Playwright appends '--no-sandbox' itself unless the
+ * launch is given `chromiumSandbox: true`, so passing the flag here is only
+ * about making the opt-in explicit. `resolveSandboxOption` carries the real
+ * decision to the launch call.
+ */
+export function resolveLaunchArgs(cfg: BridgeConfig): string[] {
+  return sandboxOptedOut(cfg) ? [...RESTORE_PROCESS_ARGS, '--no-sandbox'] : [...RESTORE_PROCESS_ARGS];
+}
+
+/** Whether Playwright should keep the Chromium OS sandbox enabled. */
+export function resolveSandboxOption(cfg: BridgeConfig): boolean {
+  return !sandboxOptedOut(cfg);
+}
+
+/**
+ * Compatibility context options. The active restore context is obtained from
+ * an already-running browser and therefore uses its native identity.
+ */
+export function restoreContextOptions(cfg: BridgeConfig): Record<string, unknown> {
+  void cfg;
+  return { viewport: null };
+}
+
+/**
+ * Context options for a Playwright-driven manual login ('assisted' mode).
+ *
+ * No User-Agent override and no fixed viewport: the browser reports itself
+ * accurately and uses the real window size. Nothing here disguises the browser.
+ */
+export function manualLoginContextOptions(_cfg: BridgeConfig): Record<string, unknown> {
+  return { viewport: null };
+}
+
+/** Launch args for a Playwright-driven manual login. Deliberately empty. */
+export function manualLoginPlaywrightArgs(cfg: BridgeConfig): string[] {
+  return sandboxOptedOut(cfg) ? ['--no-sandbox'] : [];
+}
+
+/** True when restore and manual login present different browser identities. */
+export function identitiesDiffer(cfg: BridgeConfig): boolean {
+  void cfg;
+  return false;
+}
 
 export abstract class BaseProvider implements ProviderAdapter {
   abstract readonly name: ProviderName;
@@ -50,9 +86,22 @@ export abstract class BaseProvider implements ProviderAdapter {
 
   protected _ctx: BrowserContext | null = null;
   protected _browser: Browser | null = null;
+  private _restoreBrowser: AttachedRestoreBrowser | null = null;
   protected readonly _cfg: BridgeConfig;
   private _restoring = false;
   private _loginInProgress = false;
+
+  // ── Interactive login ────────────────────────────────────────────────────
+  /** Ordinary headed Chromium attached after launch for the built-in viewer. */
+  private _loginBrowser: AttachedRestoreBrowser | null = null;
+  /** A Playwright-driven login context, used only in 'assisted' mode. */
+  private _assistedCtx: BrowserContext | null = null;
+  /** Most recent security-check observation, for diagnostics. */
+  private _lastChallenge: ChallengeVerdict = { verdict: 'ok' };
+  /** Technical detail about the last unsuccessful restore or login. */
+  private _challengeDiagnostics: LoginDiagnostics = {};
+  /** Warn once per process rather than on every launch. */
+  private static _sandboxWarned = false;
 
   // ── Session expiry tracking (T-004) ──────────────────────────────────────
   /** True when the last verification found a logged-in session. */
@@ -77,19 +126,21 @@ export abstract class BaseProvider implements ProviderAdapter {
   // ── Session management ────────────────────────────────────────────────────
 
   async checkSession(): Promise<boolean> {
+    // A visible login browser owns the profile; the headless context is closed
+    // and reporting on it would only produce a misleading 'expired'.
+    if (this._loginInProgress) return this._loggedIn;
     if (!this._ctx) return this._recordSession(false, null);
     try {
       this._ctx.pages(); // throws if context is closed
       const page = this._ctx.pages()[0];
       if (!page) return this._recordSession(false, null);
-      // Try quick check first, then fallback to longer timeout
-      const quick = await page.locator(this.verifySelector).isVisible({ timeout: 3000 }).catch(() => false);
-      if (quick) return this._recordSession(true, page.url());
-      // Some providers (Gemini) need more time for the element to become visible
-      const present = await page.locator(this.verifySelector).count().then(c => c > 0).catch(() => false);
-      return this._recordSession(present, page.url());
+      let visible = await page.locator(this.verifySelector).isVisible({ timeout: 3000 }).catch(() => false);
+      if (!visible) visible = await page.locator(this.verifySelector).first()
+        .waitFor({ state: 'visible', timeout: 4000 }).then(() => true).catch(() => false);
+      const decision = await this._decideAuthenticated(page, this._ctx, visible);
+      return this._recordSession(decision.authenticated, page.url());
     } catch {
-      this._ctx = null;
+      await this._closeRestoreContext();
       return this._recordSession(false, null);
     }
   }
@@ -148,89 +199,442 @@ export abstract class BaseProvider implements ProviderAdapter {
       }
 
       logger.info(`[${this.name}] restoring session from profile (attempt ${attempt + 1})…`);
+      const result = await this._attemptRestore();
+      if (result.authenticated) return true;
 
-      // Close any stale context
-      if (this._ctx) {
-        await this._ctx.close().catch(() => {});
-        this._ctx = null;
+      // A provider security check makes every selector meaningless, and
+      // retrying into one can extend a block. Stop and report instead.
+      if (result.verdict.verdict === 'blocked' || result.verdict.verdict === 'challenge_detected') {
+        const state = result.verdict.verdict === 'blocked' ? 'blocked' : 'challenge_detected';
+        logger.info(`[${this.name}] ${restoreFailureCopy(this.name, state, result.diagnostics)}`);
+        return false;
       }
-
-      try {
-        mkdirSync(this.profileDir, { recursive: true });
-        this._ctx = await chromium.launchPersistentContext(this.profileDir, {
-          headless: true,
-          args: resolveLaunchArgs(this._cfg),
-          ...STEALTH_OPTIONS,
-        });
-
-        const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
-
-        // Navigate with generous timeout
-        await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-        // Wait for the page to settle - try networkidle first, fall back to a delay
-        await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-
-        // Handle Google consent dialogs (common for Gemini and other Google services)
-        let _onConsentPage = false;
-        try { const _p = new URL(page.url()); _onConsentPage = _p.hostname === 'consent.google.com'; } catch { _onConsentPage = false; }
-        if (_onConsentPage) {
-          logger.debug(`[${this.name}] consent dialog detected, auto-accepting...`);
-          const acceptBtn = page.locator('button:has-text("Accept all"), button:has-text("Alle akzeptieren"), button:has-text("I agree"), button:has-text("Akzeptieren")').first();
-          if (await acceptBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-            await acceptBtn.click();
-            await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-          }
-        }
-
-        // Give SPAs extra time to render (React/Vue hydration)
-        await new Promise(r => setTimeout(r, 5000));
-
-        // Check for the verify selector with a generous timeout
-        const valid = await page.locator(this.verifySelector).isVisible({ timeout: 30000 }).catch(() => false);
-        if (valid) {
-          logger.info(`[${this.name}] session restored ✅`);
-          return true;
-        }
-
-        // Debug: check if the element exists but isn't visible
-        const count = await page.locator(this.verifySelector).count().catch(() => 0);
-        if (count > 0) {
-          logger.debug(`[${this.name}] selector exists (${count} elements) but not visible — retrying with waitFor`);
-          const waitResult = await page.locator(this.verifySelector).first().waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
-          if (waitResult) {
-            logger.info(`[${this.name}] session restored (waitFor) ✅`);
-            return true;
-          }
-        }
-
-        // If not visible, try scrolling/clicking to trigger lazy load
-        await page.mouse.move(640, 450);
-        await new Promise(r => setTimeout(r, 2000));
-        const validRetry = await page.locator(this.verifySelector).isVisible({ timeout: 10000 }).catch(() => false);
-        if (validRetry) {
-          logger.info(`[${this.name}] session restored (after interaction) ✅`);
-          return true;
-        }
-
-        logger.info(`[${this.name}] selector not found on attempt ${attempt + 1} (url: ${page.url().slice(0, 80)})`);
-        await this._ctx.close().catch(() => {});
-        this._ctx = null;
-      } catch (err) {
-        logger.warn(`[${this.name}] restore attempt ${attempt + 1} failed: ${(err as Error).message}`);
-        if (this._ctx) {
-          await this._ctx.close().catch(() => {});
-          this._ctx = null;
-        }
-      }
+      logger.info(`[${this.name}] not signed in on attempt ${attempt + 1}: ${result.diagnostics.reason ?? 'unknown reason'}`);
     }
 
     logger.info(`[${this.name}] profile exists but not logged in — all attempts exhausted`);
     return false;
   }
 
+  /**
+   * One headless pass over the saved profile: navigate, observe whether a
+   * provider security check is in the way, and decide whether the session is
+   * genuinely signed in.
+   *
+   * On success the context is kept as the provider's live context. On any
+   * other outcome the context is closed, so a failed attempt never leaves a
+   * Chromium holding the profile directory open.
+   */
+  private async _attemptRestore(opts: { autoAcceptConsent?: boolean } = {}): Promise<LoginVerification> {
+    const autoAcceptConsent = opts.autoAcceptConsent !== false;
+    // Close any stale context first because Chromium cannot open one profile twice.
+    await this._closeRestoreContext();
+
+    let watcher: ChallengeWatcher | null = null;
+    const fail = async (verdict: ChallengeVerdict, diagnostics: LoginDiagnostics): Promise<LoginVerification> => {
+      this._lastChallenge = verdict;
+      this._challengeDiagnostics = diagnostics;
+      await this._closeRestoreContext();
+      return { authenticated: false, verdict, diagnostics };
+    };
+
+    try {
+      mkdirSync(this.profileDir, { recursive: true });
+      this._ctx = await this._launchRestoreContext();
+
+      const page = this._ctx.pages()[0] ?? await this._ctx.newPage();
+      watcher = new ChallengeWatcher(page as unknown as ObservablePage);
+
+      // Navigate with generous timeout
+      let navVerdict: ChallengeVerdict = { verdict: 'ok' };
+      const response = await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // The top-level document: a refusal here really does mean the page could
+      // not be reached.
+      if (response) navVerdict = classifyResponse(response.status(), response.headers(), { isDocument: true });
+
+      // Wait for the page to settle - try networkidle first, fall back to a delay
+      await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+
+      // Handle Google consent dialogs (common for Gemini and other Google services)
+      let _onConsentPage = false;
+      try { const _p = new URL(page.url()); _onConsentPage = _p.hostname === 'consent.google.com'; } catch { _onConsentPage = false; }
+      if (_onConsentPage && autoAcceptConsent) {
+        logger.debug(`[${this.name}] consent dialog detected, auto-accepting...`);
+        const acceptBtn = page.locator('button:has-text("Accept all"), button:has-text("Alle akzeptieren"), button:has-text("I agree"), button:has-text("Akzeptieren")').first();
+        if (await acceptBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await acceptBtn.click();
+          await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+        }
+      }
+
+      // Give SPAs extra time to render (React/Vue hydration)
+      await new Promise(r => setTimeout(r, 5000));
+
+      const base: LoginDiagnostics = {
+        finalUrl: stripQuery(page.url()),
+        pageTitle: await page.title().catch(() => undefined),
+        httpStatus: response?.status(),
+        identityMismatch: identitiesDiffer(this._cfg),
+      };
+
+      const challenge = mergeVerdicts(navVerdict, watcher.verdict, await this._domVerdict(page));
+      if (challenge.verdict === 'blocked' || challenge.verdict === 'challenge_detected') {
+        return await fail(challenge, {
+          ...base,
+          challengeKind: challenge.kind,
+          rayId: challenge.rayId,
+          reason: challenge.signal,
+        });
+      }
+
+      // Check for the verify selector with a generous timeout
+      let visible = await page.locator(this.verifySelector).isVisible({ timeout: 30000 }).catch(() => false);
+      if (!visible) {
+        // The element can exist while still being laid out. Wait for it to
+        // become visible rather than accepting a hidden match, which an
+        // interstitial page also satisfies.
+        const count = await page.locator(this.verifySelector).count().catch(() => 0);
+        if (count > 0) {
+          logger.debug(`[${this.name}] selector exists (${count} elements) but not visible — waiting`);
+          visible = await page.locator(this.verifySelector).first().waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
+        }
+      }
+      if (!visible) {
+        // Nudge lazy-loading interfaces once.
+        await page.mouse.move(640, 450);
+        await new Promise(r => setTimeout(r, 2000));
+        visible = await page.locator(this.verifySelector).isVisible({ timeout: 10000 }).catch(() => false);
+      }
+
+      const decision = await this._decideAuthenticated(page, this._ctx, visible);
+      if (decision.authenticated) {
+        this._lastChallenge = { verdict: 'ok' };
+        this._challengeDiagnostics = {};
+        logger.info(`[${this.name}] session restored ✅ (${decision.reason})`);
+        return { authenticated: true, verdict: { verdict: 'ok' }, diagnostics: base };
+      }
+      return await fail(challenge, { ...base, reason: decision.reason });
+    } catch (err) {
+      logger.warn(`[${this.name}] restore attempt failed: ${sanitize(err)}`);
+      return await fail({ verdict: 'ok' }, { reason: sanitize(err) });
+    } finally {
+      watcher?.detach();
+    }
+  }
+
+  /** Launch a headed ordinary browser, then attach Playwright over local CDP. */
+  private async _launchRestoreContext(): Promise<BrowserContext> {
+    const probe = await probeDisplay(this.profileDir);
+    if (!probe.ok || !probe.headfulBinary) {
+      throw new Error(probe.reason ?? 'A graphical session and Chromium are required for browser restore.');
+    }
+    if (probe.profileLock?.present && !probe.profileLock.stale) {
+      throw new Error('The browser profile is already in use by another live process.');
+    }
+    if (probe.profileLock?.stale) removeStaleProfileLocks(this.profileDir);
+
+    const launch = (noSandbox: boolean) => launchAttachedRestoreBrowser({
+      executablePath: probe.headfulBinary!,
+      profileDirPath: this.profileDir,
+      env: probe.display ? { ...process.env, DISPLAY: probe.display } : { ...process.env },
+      windowSize: this._cfg.login?.windowSize,
+      noSandbox,
+    });
+
+    let attached: AttachedRestoreBrowser;
+    if (sandboxOptedOut(this._cfg)) {
+      attached = await launch(true);
+    } else {
+      try {
+        attached = await launch(false);
+      } catch (err) {
+        if (!BaseProvider._sandboxWarned) {
+          BaseProvider._sandboxWarned = true;
+          logger.warn(`Chromium could not start with its OS sandbox on this host (${sanitize(err)}). Continuing without it. See docs/BROWSER-LOGIN.md for how to enable it.`);
+        }
+        attached = await launch(true);
+      }
+    }
+
+    if (attached.identity.webdriver) {
+      await attached.close();
+      throw new Error('The restore browser reported navigator.webdriver=true; refusing an automation-marked session.');
+    }
+    logger.info(`[${this.name}] restore browser attached with a consistent ${attached.identity.platform} identity`);
+    this._restoreBrowser = attached;
+    this._browser = attached.browser;
+    return attached.context;
+  }
+
+  private async _closeRestoreContext(): Promise<void> {
+    const attached = this._restoreBrowser;
+    const context = this._ctx;
+    this._restoreBrowser = null;
+    this._browser = null;
+    this._ctx = null;
+    if (attached) await attached.close().catch(() => {});
+    else if (context) await context.close().catch(() => {});
+  }
+
+  /** Observe the page for provider security checks. Never modifies it. */
+  private async _domVerdict(page: Page): Promise<ChallengeVerdict> {
+    try {
+      const markers = await evaluateChallengeMarkers(page as unknown as ObservablePage);
+      return classifyDom(markers);
+    } catch {
+      return { verdict: 'ok' };
+    }
+  }
+
+  /**
+   * Decide whether the restored profile is genuinely signed in.
+   *
+   * The provider `verifySelector` alone is not enough: for several providers
+   * the same element renders while signed out, which used to mark the provider
+   * connected even though every request would fail.
+   *
+   * Only cookie NAMES are inspected. No cookie value is read, stored, logged
+   * or returned.
+   */
+  private async _decideAuthenticated(page: Page, ctx: BrowserContext, verifySelectorVisible: boolean) {
+    const signals = authSignalsFor(this.name);
+    let host = '';
+    let path = '';
+    try {
+      const parsed = new URL(page.url());
+      host = parsed.hostname;
+      path = parsed.pathname;
+    } catch { /* leave empty */ }
+
+    let hasSessionCookie = false;
+    if (signals.sessionCookieNames.length) {
+      try {
+        // Scoped to the page's own origin. An unscoped read returns every
+        // cookie in the profile, so a same-named cookie from another site (a
+        // Google account cookie in the Gemini profile, for instance) would mark
+        // the provider connected even when its interface never loaded.
+        const names = new Set((await ctx.cookies(page.url())).map(c => c.name));
+        hasSessionCookie = signals.sessionCookieNames.some(n => names.has(n));
+      } catch { hasSessionCookie = false; }
+    }
+
+    const anyVisible = async (selectors: readonly string[]): Promise<boolean> => {
+      for (const selector of selectors) {
+        const visible = await page.locator(selector).first().isVisible({ timeout: 1000 }).catch(() => false);
+        if (visible) return true;
+      }
+      return false;
+    };
+
+    // A sign-in affordance vetoes the session, so confirm it is really there
+    // rather than a control that appears for a moment while the interface
+    // hydrates — a transient match would report a good session as signed out.
+    let loggedOutSelectorVisible = await anyVisible(signals.loggedOutSelectors);
+    if (loggedOutSelectorVisible && (hasSessionCookie || verifySelectorVisible)) {
+      await new Promise(r => setTimeout(r, 2000));
+      loggedOutSelectorVisible = await anyVisible(signals.loggedOutSelectors);
+    }
+
+    return decideAuthenticated(signals, {
+      host,
+      path,
+      hasSessionCookie,
+      verifySelectorVisible,
+      authedSelectorVisible: signals.authedSelectors.length ? await anyVisible(signals.authedSelectors) : false,
+      loggedOutSelectorVisible,
+    });
+  }
+
+  // ── Interactive login ─────────────────────────────────────────────────────
+
+  /** True while a visible login browser is open for this provider. */
+  get loginActive(): boolean {
+    return this._loginInProgress;
+  }
+
+  /** Diagnostics from the last unsuccessful restore or login attempt. */
+  get lastLoginDiagnostics(): LoginDiagnostics {
+    return { ...this._challengeDiagnostics };
+  }
+
+  /** The configured manual-login browser mode. */
+  get loginMode(): LoginMode {
+    return this._cfg.login?.mode === 'assisted' ? 'assisted' : 'handoff';
+  }
+
+  /**
+   * The observable-login surface driven by LoginSessionManager.
+   *
+   * Conduit opens a browser for the person, exposes its active page through the
+   * built-in viewer, and observes authentication signals. It never completes a
+   * provider security check on the person's behalf.
+   */
+  loginDriver(): LoginDriver {
+    return {
+      name: this.name,
+      loginUrl: this.loginUrl,
+      openLoginBrowser: () => this._openLoginBrowser(),
+      observeLoginBrowser: () => this._observeLoginBrowser(),
+      closeLoginBrowser: () => this._closeLoginBrowser(),
+      verifySession: () => this._verifySession(),
+    };
+  }
+
+  private async _openLoginBrowser(): Promise<{ viewerUrl: string | null; diagnostics: LoginDiagnostics }> {
+    const probe: DisplayProbe = await probeDisplay(this.profileDir);
+    if (!probe.ok) throw new Error(probe.reason ?? 'No graphical session is available.');
+
+    mkdirSync(this.profileDir, { recursive: true });
+
+    // Chromium cannot open one profile directory twice, so the headless
+    // session must let go before the visible browser can take it. A restore
+    // that is mid-launch has not assigned this._ctx yet, so waiting for the
+    // flag to clear is the only way to see it.
+    for (let i = 0; this._restoring && i < 60; i++) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+    await this._closeLoginBrowser();
+    await this._closeRestoreContext();
+    this._loginInProgress = true;
+
+    const diagnostics: LoginDiagnostics = {
+      browserMode: this.loginMode,
+      displayOk: probe.ok,
+      windowManager: probe.windowManager,
+      identityMismatch: identitiesDiffer(this._cfg),
+    };
+
+    try {
+      if (this.loginMode === 'assisted') {
+        this._assistedCtx = await chromium.launchPersistentContext(this.profileDir, {
+          headless: false,
+          args: manualLoginPlaywrightArgs(this._cfg),
+          chromiumSandbox: resolveSandboxOption(this._cfg),
+          ...manualLoginContextOptions(this._cfg),
+        });
+        const page = this._assistedCtx.pages()[0] ?? await this._assistedCtx.newPage();
+        await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+      } else {
+        if (!probe.headfulBinary) throw new Error('The login browser is not installed.');
+        const executablePath = probe.headfulBinary;
+        const launch = (noSandbox: boolean) => launchAttachedRestoreBrowser({
+          executablePath,
+          profileDirPath: this.profileDir,
+          env: probe.display ? { ...process.env, DISPLAY: probe.display } : { ...process.env },
+          windowSize: this._cfg.login?.windowSize,
+          noSandbox,
+          initialUrl: this.loginUrl,
+        });
+        try {
+          this._loginBrowser = await launch(sandboxOptedOut(this._cfg));
+        } catch (err) {
+          if (sandboxOptedOut(this._cfg)) throw err;
+          if (!BaseProvider._sandboxWarned) {
+            BaseProvider._sandboxWarned = true;
+            logger.warn(`Chromium could not start with its OS sandbox on this host (${sanitize(err)}). Continuing without it. See docs/BROWSER-LOGIN.md.`);
+          }
+          this._loginBrowser = await launch(true);
+        }
+        if (this._loginBrowser.identity.webdriver) {
+          await this._loginBrowser.close();
+          this._loginBrowser = null;
+          throw new Error('The login browser reported navigator.webdriver=true; refusing an automation-marked sign-in.');
+        }
+      }
+    } catch (err) {
+      this._loginInProgress = false;
+      throw err;
+    }
+
+    logger.info(`[${this.name}] login browser open (${this.loginMode})`);
+    return { viewerUrl: loginViewerUrl(this.name), diagnostics };
+  }
+
+  private async _observeLoginBrowser(): Promise<LoginBrowserObservation> {
+    if (this.loginMode === 'assisted') {
+      const ctx = this._assistedCtx;
+      if (!ctx) return { alive: false, verdict: { verdict: 'ok' }, titleAvailable: false };
+      let page: Page | undefined;
+      try { page = ctx.pages()[0]; } catch { page = undefined; }
+      if (!page) return { alive: false, verdict: { verdict: 'ok' }, titleAvailable: false };
+      const verdict = await this._domVerdict(page);
+      return { alive: true, verdict, titleAvailable: true };
+    }
+
+    const page = this._activeLoginPage();
+    if (!page) return { alive: false, verdict: { verdict: 'ok' }, titleAvailable: false };
+    return { alive: true, verdict: await this._domVerdict(page), titleAvailable: true };
+  }
+
+  private async _closeLoginBrowser(): Promise<void> {
+    if (this._loginBrowser) {
+      const browser = this._loginBrowser;
+      this._loginBrowser = null;
+      await browser.close().catch(() => {});
+    }
+    if (this._assistedCtx) {
+      const ctx = this._assistedCtx;
+      this._assistedCtx = null;
+      await ctx.close().catch(() => {});
+    }
+    this._loginInProgress = false;
+  }
+
+  private _activeLoginPage(): Page | null {
+    const context = this._loginBrowser?.context ?? this._assistedCtx;
+    if (!context) return null;
+    try {
+      const pages = context.pages().filter(page => !page.isClosed());
+      return pages.at(-1) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Capture the active login page for the built-in viewer on port 31338. */
+  async captureLoginFrame(): Promise<Buffer | null> {
+    const page = this._activeLoginPage();
+    if (!page) return null;
+    return await page.screenshot({ type: 'jpeg', quality: 78 }).catch(() => null);
+  }
+
+  /** Apply one validated input event to the active login page. */
+  async dispatchLoginInput(input: LoginViewerInput): Promise<boolean> {
+    const page = this._activeLoginPage();
+    if (!page) return false;
+    if (input.type === 'pointer') {
+      await page.mouse.move(input.x, input.y);
+      if (input.action === 'down') await page.mouse.down({ button: input.button ?? 'left' });
+      if (input.action === 'up') await page.mouse.up({ button: input.button ?? 'left' });
+      return true;
+    }
+    if (input.type === 'wheel') {
+      await page.mouse.wheel(input.deltaX, input.deltaY);
+      return true;
+    }
+    if (input.type === 'key') {
+      if (input.action === 'down') await page.keyboard.down(input.key);
+      else await page.keyboard.up(input.key);
+      return true;
+    }
+    await page.keyboard.insertText(input.text);
+    return true;
+  }
+
+  /** Authoritative check of the saved profile after a manual sign-in. */
+  private async _verifySession(): Promise<LoginVerification> {
+    // Nothing is clicked on the person's behalf during a manual login, not even
+    // a cookie banner. The unattended restore path keeps that convenience.
+    const result = await this._attemptRestore({ autoAcceptConsent: false });
+    if (result.authenticated) this._markVerified();
+    return result;
+  }
+
+  /**
+   * Legacy entry point kept for the CLI and any existing embedder. It runs the
+   * same machine as the dashboard and resolves once the session is verified.
+   */
   async login(onReady: (loginUrl: string) => void): Promise<void> {
-    // Skip if already connected or login already running
     if (this._loginInProgress) {
       logger.debug(`[${this.name}] login already in progress — skipping`);
       return;
@@ -247,55 +651,46 @@ export abstract class BaseProvider implements ProviderAdapter {
         await new Promise(r => setTimeout(r, 1000));
         if (!this._restoring) break;
       }
-      // Check again after restore
       if (await this.checkSession()) {
         logger.info(`[${this.name}] connected after restore — skipping login`);
         return;
       }
     }
 
-    this._loginInProgress = true;
-    logger.info(`[${this.name}] launching login browser…`);
-    mkdirSync(this.profileDir, { recursive: true });
-
-    // Close any existing context first
-    await this.logout();
-
-    // Launch headful (visible) browser so user can log in
-    const loginCtx = await chromium.launchPersistentContext(this.profileDir, {
-      headless: false,
-      args: resolveLaunchArgs(this._cfg),
-      ...STEALTH_OPTIONS,
+    const { LoginSessionManager } = await import('../login/session-manager.js');
+    let announced = false;
+    let final: LoginSnapshot | null = null;
+    const manager = new LoginSessionManager({
+      timings: this._cfg.login?.timings,
+      mode: this.loginMode,
+      onTransition: snapshot => {
+        final = snapshot;
+        if (!announced && snapshot.state === 'browser_ready') {
+          announced = true;
+          onReady(snapshot.loginUrl ?? this.loginUrl);
+        }
+        logger.info(`[${this.name}] login ${snapshot.state}: ${snapshot.message}`);
+      },
     });
-    this._ctx = loginCtx;
 
-    const page = loginCtx.pages()[0] ?? await loginCtx.newPage();
-    await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded' });
+    manager.start(this.loginDriver());
+    // Wait for a terminal state; the manager enforces the time budget itself.
+    while (manager.active(this.name)) await new Promise(r => setTimeout(r, 250));
+    const snapshot: LoginSnapshot | null = manager.snapshot(this.name) ?? final;
 
-    onReady(this.loginUrl);
-    logger.info(`[${this.name}] browser open — waiting for login…`);
-
-    // Wait until user is logged in (verifySelector appears)
-    try {
-      await page.locator(this.verifySelector).waitFor({ timeout: 300000 }); // 5min
-      this._markVerified();
+    if (snapshot?.state === 'authenticated') {
       logger.info(`[${this.name}] login successful ✅`);
-    } catch {
-      logger.warn(`[${this.name}] login timed out`);
-      await loginCtx.close().catch(() => {});
-      // Only null the context if nothing else replaced it (e.g. a restore)
-      if (this._ctx === loginCtx) this._ctx = null;
-      throw new Error(`Login timed out for ${this.name}`);
-    } finally {
-      this._loginInProgress = false;
+      return;
     }
+    const detail = snapshot?.nextAction ?? snapshot?.message ?? 'the login did not complete';
+    throw new Error(`Login failed for ${this.name}: ${detail}`);
   }
 
   async logout(): Promise<void> {
-    if (this._ctx) {
-      await this._ctx.close().catch(() => {});
-      this._ctx = null;
-    }
+    // Close the visible login browser too, so nothing is left holding the
+    // profile directory open.
+    await this._closeLoginBrowser().catch(() => {});
+    await this._closeRestoreContext();
     // Explicit logout: not an expiry, so reset to a clean unknown state.
     this._loggedIn = false;
     this._sessionStatus = 'unknown';
@@ -353,6 +748,10 @@ export abstract class BaseProvider implements ProviderAdapter {
     if (loggedIn) {
       this._lastVerified = Date.now();
       this._sessionStatus = 'active';
+    } else if (url !== null && this._looksChallenged(url)) {
+      // A provider security check is in the way. The saved session may still
+      // be perfectly good, so this is not an expiry.
+      this._sessionStatus = 'unknown';
     } else if (url !== null && this._looksLoggedOut(url)) {
       // Browser was redirected to a login/auth page -> session expired.
       this._sessionStatus = 'expired';
@@ -374,7 +773,8 @@ export abstract class BaseProvider implements ProviderAdapter {
       const parsed = new URL(url);
       const host = parsed.hostname.toLowerCase();
       if (host === 'accounts.google.com' || host.endsWith('.accounts.google.com') ||
-          host === 'auth.openai.com' || host.endsWith('.auth.openai.com')) {
+          host === 'auth.openai.com' || host.endsWith('.auth.openai.com') ||
+          host === 'accounts.x.ai' || host.endsWith('.accounts.x.ai')) {
         return true;
       }
     } catch {
@@ -383,8 +783,33 @@ export abstract class BaseProvider implements ProviderAdapter {
     return false;
   }
 
+  /**
+   * True when the last observation of this provider was a security check
+   * rather than a normal page. Written as a pure predicate beside
+   * `_looksLoggedOut` so it can be unit-tested through a subclass.
+   */
+  protected _looksChallenged(_url: string): boolean {
+    const verdict = this._lastChallenge.verdict;
+    return verdict === 'challenge_detected' || verdict === 'blocked' || verdict === 'verifying';
+  }
+
   // ── Chat — subclasses implement these ────────────────────────────────────
 
   abstract chat(req: ChatRequest): Promise<string>;
   abstract chatStream(req: ChatRequest): AsyncGenerator<string>;
+}
+
+/** Drops the query string from a URL so diagnostics never carry parameters. */
+/**
+ * Reduce a URL to origin + path for diagnostics.
+ *
+ * Both the query string and the fragment are dropped: an implicit-flow OAuth
+ * callback returns its access token in the FRAGMENT, so keeping it would put a
+ * credential into a status response, a WebSocket frame and the dashboard.
+ */
+export function stripQuery(url: string): string {
+  if (!url) return '';
+  const cut = url.search(/[?#]/);
+  const base = cut === -1 ? url : url.slice(0, cut);
+  return base.slice(0, 200);
 }

@@ -1,68 +1,48 @@
-# NEXT_ACTIONS.md — conduit-bridge
+# NEXT_ACTIONS.md - conduit-bridge
 
-_Last updated: 2026-03-12_
+_Last updated: 2026-09-01_
 
 ## Status Summary
 
-| Status  | Count |
-|---------|-------|
-| Done    | 2     |
-| Ready   | 4     |
-| Blocked | 0     |
+| Status | Count |
+|---|---|
+| Done | 8 |
+| Ready | 2 |
+| Blocked | 1 |
 
----
+## Ready
 
-## ⚡ Ready — Work These Next
+### T-007: Validate fresh Claude and ChatGPT browser sign-in
 
-### T-003: [high] — Add test suite (vitest)
+- Use the built-in viewer through an SSH tunnel.
+- Complete provider security checks manually.
+- Verify restore after a full bridge restart.
+- Confirm a real `web-claude/*` and `web-chatgpt/*` request.
 
-- **Goal:** Basic test coverage for server routes, registry, and config.
-- **What to do:**
-  1. Add `tests/server.test.ts` — health, models, status endpoints (mock registry)
-  2. Add `tests/config.test.ts` — loadConfig defaults, saveConfig roundtrip
-  3. Add `tests/registry.test.ts` — providerForModel, allModels
-  4. `npm test` must pass
-- **Definition of done:** `npm test` green, at least 20 tests.
+### T-008: Harden Xvfb for shared hosts
 
-### T-004: [medium] — Session expiry tracking
+- Add owner-only Xauthority to the deployment unit.
+- Verify Chromium and Conduit can still reach the display.
+- Prove another local account cannot capture or inject input.
+- Keep Xvfb TCP disabled.
 
-- **Goal:** Track when browser sessions will expire (cookie expiry) per provider.
-- **Context:** cli-bridge has this via `*-expiry.json` files in `~/.conduit/`.
-- **What to do:**
-  1. Add `saveExpiry(provider, expiresAt: Date)` / `loadExpiry(provider)` to `config.ts`
-  2. After successful login, detect cookie expiry from browser and save
-  3. Expose `cookieExpiresAt` in `ProviderStatus`
-  4. Add `/v1/status` field for each provider
-- **Definition of done:** Status endpoint shows expiry date per provider.
+## Blocked
 
-### T-005: [high] — Replace selector polling with proper response interception
+### T-009: Purge unused remote-desktop packages from the current host
 
-- **Goal:** More reliable response capture using network intercept or streaming DOM observer.
-- **Context:** Current `pollForResponse()` is fragile — UI selector changes break it.
-- **What to do:**
-  1. For Grok: intercept XHR/fetch response from `api.x.com/2/grok/add_response*`
-  2. For Claude: intercept SSE stream from `claude.ai/api/organizations/*/messages`
-  3. For Gemini: intercept response from `gemini.google.com/api/*`
-  4. For ChatGPT: intercept SSE from `chatgpt.com/backend-api/conversation`
-  5. Fall back to DOM polling only if intercept fails
-- **Definition of done:** Responses are captured via network layer, not DOM polling.
+- Project code, dependencies, services, sockets, and listeners are removed.
+- Host packages remain installed but inactive.
+- Package purge requires administrator authentication outside this session.
 
-### T-006: [dropped 2026-07-17] npm publish (will not do)
+## Recently Completed
 
-- **Decision:** conduit-bridge is run from source and is NOT published to npm. The Auto-Publish workflow was removed. The public GitHub repo and source usage are unchanged; only the npm publish path is gone.
-- **Status:** closed, will not do.
-
----
-
-## 🚫 Blocked
-
-_No blocked tasks._
-
----
-
-## ✅ Recently Completed
-
-| Task  | Title                                        | Date       |
-|-------|----------------------------------------------|------------|
-| T-001 | Scaffold project + AAHP handoff              | 2026-03-12 |
-| T-002 | Initial implementation (server, 4 providers) | 2026-03-12 |
+| Task | Title | Date |
+|---|---|---|
+| T-001 | Scaffold project and AAHP handoff | 2026-03-12 |
+| T-002 | Initial bridge implementation | 2026-03-12 |
+| T-003 | Vitest coverage | 2026-07-17 |
+| T-004 | Session expiry tracking | 2026-07-17 |
+| T-005 | Network interception with DOM fallback | 2026-07-17 |
+| T-006 | npm publishing dropped by decision | 2026-07-17 |
+| T-010 | Native-identity browser restore | 2026-09-01 |
+| T-011 | Single-port built-in login viewer and documentation refresh | 2026-09-01 |

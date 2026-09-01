@@ -172,6 +172,44 @@ export abstract class ApiBaseProvider implements ProviderAdapter {
     return this.checkSession();
   }
 
+  /** Fetch and replace a provider's public model catalog when supported. */
+  protected async refreshModelCatalog(endpoint: string, prefix: string): Promise<number> {
+    if (!this.apiKey) return 0;
+    try {
+      const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${this.apiKey}` }, signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
+      const remote = (body.data ?? []).filter(item => typeof item.id === 'string' && item.id.trim()).map(item => ({
+        id: prefix + item.id!.trim(),
+        provider: this.name,
+        displayName: item.id!.trim(),
+        owned_by: item.owned_by || item.id!.split('/')[0] || this.name,
+        availability: 'verified' as const,
+        source: 'provider-api',
+      }));
+      if (!remote.length) return 0;
+      this.models.splice(0, this.models.length, ...remote);
+      logger.info(`[${this.name}] refreshed ${remote.length} models from provider catalog`);
+      return remote.length;
+    } catch (err) {
+      logger.warn(`[${this.name}] model catalog refresh failed: ${(err as Error).message}`);
+      return 0;
+    }
+  }
+
+  async embeddings(input: string | string[], model: string, signal?: AbortSignal): Promise<{ data: Array<{ object: string; embedding: number[]; index: number }>; model: string }> {
+    const endpoint = this.name === 'openrouter-api' ? 'https://openrouter.ai/api/v1/embeddings' : 'https://api.openai.com/v1/embeddings';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + this.apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, input }),
+      signal,
+    });
+    const data = await response.json() as any;
+    if (!response.ok) throw new Error(data?.error?.message || 'Embedding provider request failed');
+    return data;
+  }
+
   abstract chat(req: ChatRequest): Promise<string>;
   abstract chatStream(req: ChatRequest): AsyncGenerator<string>;
 }

@@ -2,6 +2,18 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { createServer, request } from 'node:http';
 import type { BridgeConfig } from '../src/types.js';
 
+// Redirect the home directory so MetricsStore never writes the real
+// ~/.conduit/usage.json while the suite runs. Self-contained, like the factory
+// in test/config.test.ts, because vi.mock is hoisted above every const here.
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  const path = await import('node:path');
+  return {
+    ...actual,
+    homedir: () => path.join(actual.tmpdir(), 'conduit-bridge-server-test-home'),
+  };
+});
+
 // Shared, test-controllable registry behaviour. Defined via vi.hoisted so the
 // mock factory (which is hoisted above imports) can reference it safely.
 const h = vi.hoisted(() => {
@@ -51,6 +63,7 @@ vi.mock('../src/registry.js', () => {
     }
     async restoreSessions() { /* no-op */ }
     async keepaliveSessions() { /* no-op */ }
+    async refreshApiModels() { return {}; }
     get isRestoring() { return false; }
   }
   return { ProviderRegistry: FakeRegistry };
@@ -255,7 +268,8 @@ describe('BridgeServer HTTP handler', () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.status).toBe('error');
-      expect(body.message).toContain('API keys');
+      expect(body.message).toContain('API credential');
+      expect(body.message).toContain('write-only Settings');
     });
 
     it('starts browser login for a web provider with 202', async () => {

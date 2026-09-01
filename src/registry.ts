@@ -4,6 +4,7 @@ import { GrokProvider } from './providers/grok.js';
 import { ClaudeProvider } from './providers/claude.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ChatGPTProvider } from './providers/chatgpt.js';
+import { PerplexityProvider } from './providers/perplexity.js';
 import { ClaudeApiProvider } from './providers/claude-api.js';
 import { GeminiApiProvider } from './providers/gemini-api.js';
 import { CodexApiProvider } from './providers/codex-api.js';
@@ -40,6 +41,7 @@ export class ProviderRegistry {
     this._providers.set('claude',     new ClaudeProvider(_cfg));
     this._providers.set('gemini',     new GeminiProvider(_cfg));
     this._providers.set('chatgpt',    new ChatGPTProvider(_cfg));
+    this._providers.set('perplexity', new PerplexityProvider(_cfg));
 
     // API/SDK-based providers (no browser needed)
     this._providers.set('claude-api', new ClaudeApiProvider(_cfg));
@@ -64,6 +66,15 @@ export class ProviderRegistry {
 
   allModels(): ModelDefinition[] {
     return [...this._providers.values()].flatMap(p => p.models);
+  }
+
+  async refreshApiModels(): Promise<Record<string, number>> {
+    const result: Record<string, number> = {};
+    for (const provider of this._providers.values()) {
+      const refresh = (provider as ProviderAdapter & { refreshModels?: () => Promise<number> }).refreshModels;
+      if (refresh) result[provider.name] = await refresh.call(provider);
+    }
+    return result;
   }
 
   providerForModel(modelId: string): ProviderAdapter | undefined {
@@ -96,6 +107,10 @@ export class ProviderRegistry {
           logger.debug(`[${p.name}] no profile — skipping`);
           continue;
         }
+        if (p.loginActive) {
+          logger.debug(`[${p.name}] interactive login in progress — skipping restore`);
+          continue;
+        }
         try {
           await p.restoreSession();
         } catch (err) {
@@ -118,6 +133,12 @@ export class ProviderRegistry {
       const isWebProvider = 'hasProfile' in p;
       if (!isWebProvider) continue;
       if (!(p as BaseProvider).hasProfile) continue;
+      // A person is signing in right now; the visible browser owns the profile
+      // directory and a reconnect would fight it for the lock.
+      if (p.loginActive) {
+        logger.debug(`[${p.name}] interactive login in progress — skipping keepalive`);
+        continue;
+      }
 
       const alive = await p.checkSession();
       if (!alive) {
@@ -143,6 +164,7 @@ export class ProviderRegistry {
       const session: SessionInfo = isWebProvider
         ? (p as BaseProvider).sessionInfo
         : { loggedIn: sessionValid, lastVerified: null, status: 'not_applicable' };
+      const lastLoginDiagnostics = isWebProvider ? (p as BaseProvider).lastLoginDiagnostics : undefined;
       providers.push({
         name,
         connected: sessionValid,
@@ -151,6 +173,7 @@ export class ProviderRegistry {
         models: p.models.map(m => m.id),
         loginType: isWebProvider ? 'browser' : 'api-key',
         session,
+        ...(lastLoginDiagnostics && Object.keys(lastLoginDiagnostics).length ? { lastLoginDiagnostics } : {}),
       });
     }
 
@@ -159,6 +182,7 @@ export class ProviderRegistry {
       port: this._cfg.port,
       version: VERSION,
       providers,
+      restoringSessions: this._restoring,
       uptime: Math.floor((Date.now() - this._startTime) / 1000),
     };
   }

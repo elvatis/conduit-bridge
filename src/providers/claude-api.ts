@@ -52,7 +52,7 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       ...(systemMsg ? { system: systemMsg.content } : {}),
       ...(effort ? { output_config: { effort } } : {}),
       messages: conversationMsgs,
-    });
+    }, { signal: req.signal });
 
     return response.content
       .filter(block => block.type === 'text')
@@ -76,7 +76,7 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       ...(systemMsg ? { system: systemMsg.content } : {}),
       ...(effort ? { output_config: { effort } } : {}),
       messages: conversationMsgs,
-    });
+    }, { signal: req.signal });
 
     for await (const event of stream) {
       if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {

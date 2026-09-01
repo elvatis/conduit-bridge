@@ -23,7 +23,7 @@ const OPENROUTER_HEADERS: Record<string, string> = {
   'X-Title': 'conduit-bridge',
 };
 
-// Curated subset of openrouter.ai/api/v1/models (2026-08-09). Any
+// Curated subset of openrouter.ai/api/v1/models (2026-09-01). Any
 // api-openrouter/<provider>/<model> still routes via ownsModel.
 const CATALOG = [
   'anthropic/claude-fable-5',
@@ -34,9 +34,11 @@ const CATALOG = [
   'openai/gpt-5.6-terra',
   'openai/gpt-5.6-luna',
   'openai/gpt-5.5',
+  'google/gemini-3.7-flash',
   'google/gemini-3.6-flash',
   'google/gemini-3.5-flash',
   'google/gemini-3.5-flash-lite',
+  'x-ai/grok-4.6',
   'x-ai/grok-4.5',
   'x-ai/grok-4.3',
   'deepseek/deepseek-r1',
@@ -57,6 +59,10 @@ export class OpenRouterApiProvider extends ApiBaseProvider {
   /** Route any "api-openrouter/…" model here, even if not in the curated catalog. */
   ownsModel(modelId: string): boolean {
     return modelId.startsWith(PREFIX);
+  }
+
+  async refreshModels(): Promise<number> {
+    return this.refreshModelCatalog(`${OPENROUTER_BASE_URL}/models`, PREFIX);
   }
 
   private _client(): OpenAI {
@@ -80,7 +86,7 @@ export class OpenRouterApiProvider extends ApiBaseProvider {
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(reasoning_effort ? { reasoning_effort } : {}),
-    });
+    }, { signal: req.signal });
     return response.choices[0]?.message?.content ?? '';
   }
 
@@ -94,7 +100,7 @@ export class OpenRouterApiProvider extends ApiBaseProvider {
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(reasoning_effort ? { reasoning_effort } : {}),
-    });
+    }, { signal: req.signal });
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;

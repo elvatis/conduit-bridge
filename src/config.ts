@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import type { BridgeConfig } from './types.js';
 
 const CONFIG_DIR = join(homedir(), '.conduit');
@@ -18,6 +18,10 @@ const DEFAULTS: BridgeConfig = {
   allowedOrigins: ['http://localhost', 'http://127.0.0.1'],
   authToken: '',
   chromiumNoSandbox: false,
+  rateLimit: { perMinute: 60, maxConcurrent: 16 },
+  // Interactive login opens an ordinary browser the person drives. Restore
+  // starts the same native browser identity and attaches to it afterwards.
+  login: { mode: 'handoff', honestRestoreIdentity: true },
 };
 
 export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
@@ -37,7 +41,8 @@ export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
 export function saveConfig(cfg: Partial<BridgeConfig>): void {
   mkdirSync(CONFIG_DIR, { recursive: true });
   const existing = loadConfig();
-  writeFileSync(CONFIG_FILE, JSON.stringify({ ...existing, ...cfg }, null, 2));
+  writeFileSync(CONFIG_FILE, JSON.stringify({ ...existing, ...cfg }, null, 2), { mode: 0o600 });
+  chmodSync(CONFIG_FILE, 0o600);
 }
 
 /**

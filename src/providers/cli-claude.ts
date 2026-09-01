@@ -11,10 +11,10 @@ import {
   resolveExecutable,
   runCli,
   flattenMessages,
-  stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { toClaudeEffort } from '../effort.js';
+import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.js';
 
 // Anthropic Claude Code CLI (@anthropic-ai/claude-code) — headless via -p/--print.
 // Install: npm i -g @anthropic-ai/claude-code  then authenticate (claude /login or API key)
@@ -33,12 +33,20 @@ const CATALOG = [
 export class ClaudeCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-claude';
 
-  readonly models: ModelDefinition[] = CATALOG.map(id => ({
-    id: `${PREFIX}${id}`,
-    provider: 'cli-claude',
-    displayName: `${id} (Claude Code CLI)`,
-    owned_by: 'anthropic',
-  }));
+  readonly models: ModelDefinition[] = [
+    ...CATALOG.map(id => ({
+      id: `${PREFIX}${id}`,
+      provider: 'cli-claude' as ProviderName,
+      displayName: `${id} (Claude Code CLI, first-account)`,
+      owned_by: 'anthropic',
+    })),
+    ...CLI_ACCOUNTS.flatMap(account => CATALOG.map(id => ({
+      id: `${PREFIX}${account}/${id}`,
+      provider: 'cli-claude' as ProviderName,
+      displayName: `${id} (Claude Code CLI, ${account})`,
+      owned_by: 'anthropic',
+    }))),
+  ];
 
   constructor(_cfg: BridgeConfig) {}
 
@@ -83,7 +91,8 @@ export class ClaudeCliProvider implements ProviderAdapter {
       );
     }
 
-    const model = stripPrefix(req.model, PREFIX);
+    const accountModel = parseClaudeModel(req.model, PREFIX);
+    const model = accountModel.model;
     const prompt = flattenMessages(req.messages);
     const effort = toClaudeEffort(req.effort);
 
@@ -104,13 +113,17 @@ export class ClaudeCliProvider implements ProviderAdapter {
       args,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: homedir(),
+      env: claudeAccountEnv(accountModel.account),
       label: 'cli-claude',
       log: msg => logger.info(msg),
+      signal: req.signal,
     });
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =
-        result.timedOut || result.exitCode === 143
+        result.aborted
+          ? 'client disconnected: process terminated'
+          : result.timedOut || result.exitCode === 143
           ? `timeout: claude killed by supervisor (exit ${result.exitCode})`
           : result.stderr || '(no output)';
       throw new Error(`claude exited ${result.exitCode}: ${detail}`);

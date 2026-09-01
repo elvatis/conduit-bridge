@@ -11,6 +11,7 @@ export interface CliRunResult {
   stderr: string;
   exitCode: number;
   timedOut: boolean;
+  aborted: boolean;
 }
 
 /** Locate an executable on PATH, honoring PATHEXT (.cmd/.exe/…) on Windows. */
@@ -65,6 +66,9 @@ export interface RunCliOptions {
   stdin?: string;
   log?: (msg: string) => void;
   label?: string;
+  /** Explicit non-secret environment overrides, for isolated CLI accounts. */
+  env?: NodeJS.ProcessEnv;
+  signal?: AbortSignal;
 }
 
 /** Spawn a CLI with graceful SIGTERM → SIGKILL timeout (Windows taskkill /T). */
@@ -89,14 +93,14 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
           process.env.ComSpec ?? 'cmd.exe',
           ['/d', '/s', '/c', '"' + [binPath, ...args].map(quoteWin).join(' ') + '"'],
           {
-            env: buildMinimalEnv(),
+            env: { ...buildMinimalEnv(), ...(opts.env ?? {}) },
             cwd,
             windowsVerbatimArguments: true,
             stdio: ['pipe', 'pipe', 'pipe'],
           },
         )
       : spawn(binPath, args, {
-          env: buildMinimalEnv(),
+        env: { ...buildMinimalEnv(), ...(opts.env ?? {}) },
           cwd,
           stdio: ['pipe', 'pipe', 'pipe'],
         });
@@ -104,29 +108,32 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let aborted = false;
     let closed = false;
     let killTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const timeoutTimer = setTimeout(() => {
-      timedOut = true;
-      log(`[${label}] timeout after ${Math.round(timeoutMs / 1000)}s — terminating`);
+    const terminate = (reason: 'timeout' | 'abort') => {
+      if (closed) return;
+      aborted = reason === 'abort';
+      timedOut = reason === 'timeout';
+      log(reason === 'abort' ? `[${label}] client disconnected — terminating` : `[${label}] timeout after ${Math.round(timeoutMs / 1000)}s — terminating`);
       if (isWin && proc.pid !== undefined) {
-        try {
-          spawn('taskkill', ['/pid', String(proc.pid), '/t', '/f'], { stdio: 'ignore' });
-        } catch {
-          proc.kill();
-        }
+        try { spawn('taskkill', ['/pid', String(proc.pid), '/t', '/f'], { stdio: 'ignore' }); }
+        catch { proc.kill(); }
       } else {
         proc.kill('SIGTERM');
-        killTimer = setTimeout(() => {
-          if (!closed) proc.kill('SIGKILL');
-        }, CLI_GRACE_MS);
+        killTimer = setTimeout(() => { if (!closed) proc.kill('SIGKILL'); }, CLI_GRACE_MS);
       }
-    }, timeoutMs);
+    };
+    const timeoutTimer = setTimeout(() => terminate('timeout'), timeoutMs);
+    const onAbort = () => terminate('abort');
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    if (opts.signal?.aborted) onAbort();
 
     const clearTimers = () => {
       clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
+      opts.signal?.removeEventListener('abort', onAbort);
     };
 
     proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
@@ -134,7 +141,7 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
     proc.on('close', code => {
       closed = true;
       clearTimers();
-      resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? 0, timedOut });
+      resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? 0, timedOut, aborted });
     });
     proc.on('error', err => {
       closed = true;

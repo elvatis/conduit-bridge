@@ -2,79 +2,79 @@
   "aahp_version": "3.0",
   "project": "conduit-bridge",
   "last_session": {
-    "agent": "antigravity",
-    "session_id": "cli-1787342281",
-    "timestamp": "2026-08-21T19:58:01Z",
-    "commit": "15c3807",
-    "phase": "fix",
+    "agent": "gpt-5.6-sol",
+    "session_id": "cli-1788277960",
+    "timestamp": "2026-09-01T15:52:40Z",
+    "commit": "d2bfd5a",
+    "phase": "documentation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:7bbba154f26d1e574b43cf1870d8ee652bbfe018cc9b99006d82e68731b5e354",
-      "updated": "2026-08-21T19:57:38Z",
-      "lines": 115,
-      "summary": "(no summary available)"
+      "checksum": "sha256:a5e4807f314e9b98430723c7c7e4bbf54a71fbc25b3f4912d9e342f04904ada7",
+      "updated": "2026-09-01T15:52:35Z",
+      "lines": 92,
+      "summary": "0.5.1 with an unreleased feature set on branch `fix/browser-login-single-port`."
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:51f398c978d907fc1ddece0ea9b1f6853713b6bc3626a0f6c5d5c5809b42499e",
-      "updated": "2026-07-17T19:29:34Z",
-      "lines": 68,
-      "summary": "_Last updated: 2026-03-12_"
+      "checksum": "sha256:152d9246351b5c65b5ae3ef73505bf1f28700463ae0fb587c1ceb4f6140d5102",
+      "updated": "2026-09-01T15:52:35Z",
+      "lines": 48,
+      "summary": "_Last updated: 2026-09-01_"
     },
     "LOG.md": {
-      "checksum": "sha256:e4cc634168109c771d0d8a39f724ab860fa97e24a7bdf23edb494e9a559816c7",
-      "updated": "2026-05-05T16:11:01Z",
-      "lines": 42,
+      "checksum": "sha256:00205174e257571a638416868a71c2db4b63ad1dfe79d330e8341ce946e2ec57",
+      "updated": "2026-09-01T15:52:07Z",
+      "lines": 79,
       "summary": "_Reverse chronological. Latest session first._"
     },
     "LOG-ARCHIVE.md": {
       "checksum": "sha256:36837627f7ee88cc9389b8bee9d52952dc75b3dc511a8ccf776db38f4e1e3b8e",
-      "updated": "2026-07-25T13:06:17Z",
+      "updated": "2026-07-19T10:00:22Z",
       "lines": 10,
       "summary": "(no summary available)"
     },
     "DASHBOARD.md": {
-      "checksum": "sha256:300aeca6cb7ee4743e016662992b71a16407b8463449cd0e422a17966d7f8703",
-      "updated": "2026-07-17T19:29:34Z",
-      "lines": 33,
-      "summary": "_Quick-glance state for autonomous agents. Last updated: 2026-03-12_"
+      "checksum": "sha256:355ebd41acf801c58d5d142010e54533391b6a7746a8bf167f668cffed94f62a",
+      "updated": "2026-09-01T15:52:35Z",
+      "lines": 49,
+      "summary": "_Quick-glance state. Last updated: 2026-09-01_"
     },
     "TRUST.md": {
       "checksum": "sha256:bc90facd94915ad4463c06dcd194d140eaba4c81b9dcedb13d078eb0bb9b4a45",
-      "updated": "2026-07-25T13:06:17Z",
+      "updated": "2026-07-19T10:00:22Z",
       "lines": 70,
       "summary": "_What has been manually verified vs. assumed._"
     },
     "CONVENTIONS.md": {
       "checksum": "sha256:2607fc15a06996c007dc00e8cebb0b761a75960131127419124bf54cb1894145",
-      "updated": "2026-08-09T14:26:23Z",
+      "updated": "2026-08-09T22:00:18Z",
       "lines": 86,
       "summary": "- TypeScript strict mode, ESM (`\"type\": \"module\"`)"
     },
     "WORKFLOW.md": {
       "checksum": "sha256:648d9d8f35285b0a06eacafc8365d49f47899616139fb0df88e349d1a7a5bd6d",
-      "updated": "2026-05-05T16:11:01Z",
+      "updated": "2026-03-12T11:58:46Z",
       "lines": 53,
       "summary": "| Agent | Model | Role |"
     },
     "GROUNDING.md": {
       "checksum": "sha256:7ef8cece585dc5defb4285175b9ba560d5469675df553d4ce28ec9e7aec24343",
-      "updated": "2026-07-25T13:06:17Z",
+      "updated": "2026-07-19T10:00:22Z",
       "lines": 209,
       "summary": "This register EXTENDS existing AAHP machinery; it does not fork or replace it. It"
     },
     "pii-allowlist.json": {
       "checksum": "sha256:7c1051f6e2bc3943b7c1dbe4da229694455681b8875a346c99279e555edb733f",
-      "updated": "2026-06-30T08:35:52Z",
+      "updated": "2026-07-09T16:09:42Z",
       "lines": 4,
       "summary": "{"
     }
   },
-  "quick_context": "Fix CodeQL URL sanitization alerts #10 and #11",
+  "quick_context": "Native browser identity, built-in viewer on 31338, remote SSH support, and complete documentation refresh",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 5140,
-    "full_read": 9378
+    "manifest_plus_core": 1051,
+    "full_read": 5711
   }
 }

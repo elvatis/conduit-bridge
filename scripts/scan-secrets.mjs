@@ -117,7 +117,12 @@ function splitMatch(line, withRev) {
 
 function scan(revs) {
   const patternArgs = PATTERNS.flatMap((p) => ['-e', p.re]);
-  const out = gitGrep(['grep', '-I', '-n', '-E', ...patternArgs, ...revs, '--', ...EXCLUDED_PATHS]);
+  // Without --untracked, a key pasted into a brand-new file passes every scan
+  // until the file is committed, which is exactly when it is most likely to be
+  // there. Revisions cannot be combined with --untracked, so it applies only to
+  // the working-tree scan.
+  const scope = revs.length > 0 ? revs : ['--untracked'];
+  const out = gitGrep(['grep', '-I', '-n', '-E', ...patternArgs, ...scope, '--', ...EXCLUDED_PATHS]);
   return out
     .split('\n')
     .filter(Boolean)
@@ -157,7 +162,7 @@ function main() {
     }
   }
 
-  const scope = HISTORY ? 'tracked files + full git history' : 'tracked files';
+  const scope = HISTORY ? 'tracked files + full git history' : 'tracked and untracked files';
   if (findings.length === 0) {
     console.log(`secret scan: clean (${scope}, ${PATTERNS.length} credential patterns).`);
     return 0;
