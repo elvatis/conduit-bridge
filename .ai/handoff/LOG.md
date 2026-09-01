@@ -20,3 +20,5 @@ _Reverse chronological._
   while API providers reflected only their own Bridge or environment keys.
 - Windows autostart install, health, tracked PID, logs, stop, and uninstall
   completed successfully.
+- Resolved the new CodeQL HTML-filtering alert in the dashboard syntax test by
+  matching script tags case-insensitively.

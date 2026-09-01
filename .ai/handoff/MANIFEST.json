@@ -3,17 +3,17 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "gpt-5.6-sol",
-    "session_id": "cli-1788303664",
-    "timestamp": "2026-09-01T23:01:05Z",
-    "commit": "eebd564",
-    "phase": "implementation",
+    "session_id": "cli-1788303954",
+    "timestamp": "2026-09-01T23:05:55Z",
+    "commit": "a5966a0",
+    "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:e8f6f60af467411c9b2b5e83ce39cf42c5d868f8036b3c5e7777b1ac2e814613",
-      "updated": "2026-09-01T22:56:04Z",
-      "lines": 36,
+      "checksum": "sha256:1e33300da59c6d9e5ec0314862928d1f793fcd595261f8839abb7c137f93fa37",
+      "updated": "2026-09-01T23:05:28Z",
+      "lines": 37,
       "summary": "_Updated: 2026-09-02_"
     },
     "NEXT_ACTIONS.md": {
@@ -23,9 +23,9 @@
       "summary": "_Updated: 2026-09-02_"
     },
     "LOG.md": {
-      "checksum": "sha256:ee8fdff3f637178509db7f988461e90df630131169db488f958a50aa45a457a1",
-      "updated": "2026-09-01T22:56:04Z",
-      "lines": 22,
+      "checksum": "sha256:83ce1399476c58a9c40d5a632c48885deaf7984a68e65cbac719dc9413059659",
+      "updated": "2026-09-01T23:05:28Z",
+      "lines": 24,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "api-cli-local-separation",
+  "quick_context": "codeql-script-tag-fix",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 322,
-    "full_read": 3413
+    "manifest_plus_core": 334,
+    "full_read": 3447
   }
 }

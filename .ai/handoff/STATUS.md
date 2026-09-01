@@ -34,3 +34,4 @@ providers and their automation runtime have been removed.
 - AAHP 3.12.0 doctor and precommit verification: passing
 - Windows live status: API/CLI/local separation verified
 - Windows autostart: task, health, PID, logs, stop, and uninstall verified
+- CodeQL workflow analysis: passed; follow-up filtering annotation fixed

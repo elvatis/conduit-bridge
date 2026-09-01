@@ -542,7 +542,7 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(DASHBOARD_HTML).toContain('id="cli-provider-list"');
     expect(DASHBOARD_HTML).toContain('id="local-provider-list"');
     expect(DASHBOARD_HTML).not.toContain('Open login browser');
-    const dashboardScript = DASHBOARD_HTML.match(/<script>([\s\S]*)<\/script>/)?.[1] ?? '';
+    const dashboardScript = DASHBOARD_HTML.match(/<script>([\s\S]*)<\/script>/i)?.[1] ?? '';
     expect(dashboardScript.length).toBeGreaterThan(0);
     expect(() => new Function(dashboardScript)).not.toThrow();
     expect(DASHBOARD_HTML).toContain('Supported desktop platforms');
