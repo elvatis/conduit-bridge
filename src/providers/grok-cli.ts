@@ -18,6 +18,7 @@ import {
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
+import { cliPermissionArgs } from '../cli-mode.js';
 
 const PREFIX = 'cli-grok/';
 const CATALOG = ['grok-4.6', 'grok-4.5', 'grok-4.3'];
@@ -97,12 +98,12 @@ export class GrokCliProvider implements ProviderAdapter {
         ? effortRaw
         : 'medium';
 
+    const mode = req.mode ?? 'chat';
     const args = [
       '--prompt-file', promptFile,
       '--model', model,
       '--output-format', 'plain',
-      '--no-plan',
-      '--always-approve',
+      ...cliPermissionArgs('cli-grok', mode),
       ...(effort ? ['--reasoning-effort', effort] : []),
     ];
 

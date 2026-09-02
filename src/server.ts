@@ -8,6 +8,7 @@ import type { BridgeConfig, ProviderName } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
+import { parseCliRunMode, agentModeCwdError } from './cli-mode.js';
 import { DASHBOARD_HTML, HELP_HTML } from './dashboard.js';
 import { MetricsStore } from './metrics.js';
 import { saveConfig } from './config.js';
@@ -552,6 +553,17 @@ export class BridgeServer {
         json(res, 400, { error: { message: 'model and messages required', type: 'invalid_request' } });
         return;
       }
+      const parsedMode = parseCliRunMode(req_data);
+      if (!parsedMode.ok) {
+        json(res, 400, { error: { message: parsedMode.error, type: 'invalid_request' } });
+        return;
+      }
+      const cwd = typeof req_data.cwd === 'string' ? req_data.cwd : undefined;
+      const cwdError = agentModeCwdError(parsedMode.mode, cwd);
+      if (cwdError) {
+        json(res, 400, { error: { message: cwdError, type: 'invalid_request' } });
+        return;
+      }
 
       if (!this._limit(req, res)) return;
 
@@ -583,8 +595,7 @@ export class BridgeServer {
         return;
       }
 
-      const cwd = typeof req_data.cwd === 'string' ? req_data.cwd : undefined;
-      const chatReq = { model: selectedModel, messages, temperature, max_tokens, effort, cwd, signal: requestAbort.signal };
+      const chatReq = { model: selectedModel, messages, temperature, max_tokens, effort, cwd, mode: parsedMode.mode, signal: requestAbort.signal };
       const finishMetric = this._metrics.begin(selectedModel);
 
       if (stream) {

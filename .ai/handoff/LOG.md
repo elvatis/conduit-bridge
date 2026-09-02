@@ -2,6 +2,13 @@
 
 _Reverse chronological._
 
+## 2026-09-02 - CLI chat/plan/agent mode
+
+- `POST /v1/chat/completions` accepts `mode` (`chat` | `plan` | `agent`).
+- Aliases: `agentic: true`, `plan: true`. Agent requires absolute existing `cwd`.
+- All four CLI providers map through `cliPermissionArgs`. Grok is plan-by-default.
+- Pair with conduit-vscode `feat/cli-run-mode` (Plan sends `mode: plan`, spawn sends `mode: agent`).
+
 ## 2026-09-02 — v0.5.2 release
 
 - Squash-merged PR #99 onto main (`a4a7a46`).

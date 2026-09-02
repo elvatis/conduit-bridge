@@ -2,7 +2,15 @@
 
 _Updated: 2026-09-02_
 
-Branch: `feat/chat-cwd`
+Branch: `feat/cli-run-mode`
+
+CLI chat completions now take `mode`: `chat` (read-only proxy, default),
+`plan` (native CLI plan function), `agent` (workspace write, requires `cwd`).
+Aliases: `agentic: true`, `plan: true`. Grok is no longer always-write; it
+matches the others unless `mode=agent`. API/LM Studio ignore `mode`.
+
+conduit-vscode should send `mode: plan` from Plan chat and `mode: agent` from
+spawn/fix-issue. VS Code chat Agent mode stays host-side (do not send agent).
 
 **v0.6.0** adds optional `cwd` on `POST /v1/chat/completions` so CLI providers
 run in the editor workspace (conduit-vscode #86). API/LM Studio ignore it.
