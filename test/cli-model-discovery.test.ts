@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAgyModels } from '../src/providers/cli-gemini.js';
+import { EFFORT_REJECTED, parseAgyModels } from '../src/providers/cli-gemini.js';
 
 // Captured verbatim from `agy models` (tab-separated, with the status preamble).
 const AGY_MODELS_STDOUT = [
@@ -58,5 +58,27 @@ describe('parseAgyModels', () => {
   it('ignores duplicate ids', () => {
     const dup = 'gemini-3.1-pro-low\tA\ngemini-3.1-pro-low\tB';
     expect(parseAgyModels(dup)).toHaveLength(1);
+  });
+});
+
+// Discovery makes ids selectable that no shape heuristic anticipated: agy also
+// serves Anthropic and GPT-OSS models, and it refuses --effort for them with a
+// different message than the tier conflict. Both exit 1 with empty stdout.
+describe('EFFORT_REJECTED', () => {
+  it('matches both of agy’s refusals, verbatim from the binary', () => {
+    expect(EFFORT_REJECTED.test(
+      'Error: invalid model selection (--model "claude-sonnet-4-6" --effort "medium"): ' +
+      '--effort is not supported for model "claude-sonnet-4-6"',
+    )).toBe(true);
+    expect(EFFORT_REJECTED.test(
+      'Error: invalid model selection (--model "gemini-3.6-flash-low" --effort "high"): ' +
+      '--model gemini-3.6-flash-low conflicts with --effort=high',
+    )).toBe(true);
+  });
+
+  it('does not swallow unrelated failures', () => {
+    expect(EFFORT_REJECTED.test('Error: not authenticated. Run agy login.')).toBe(false);
+    expect(EFFORT_REJECTED.test('model gemini-3.5-flash-high is not recognized')).toBe(false);
+    expect(EFFORT_REJECTED.test('')).toBe(false);
   });
 });

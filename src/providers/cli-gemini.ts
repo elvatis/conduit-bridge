@@ -39,6 +39,16 @@ const DISCOVERY_TIMEOUT_MS = 20_000;
 /** agy encodes the reasoning tier in the model id, e.g. gemini-3.6-flash-low. */
 const TIER_SUFFIX = /-(high|medium|low)$/;
 
+/**
+ * agy's two ways of refusing `--effort`, verified against the real binary:
+ *   --model gemini-3.6-flash-low --effort high
+ *     -> 'conflicts with --effort=high'
+ *   --model claude-sonnet-4-6 --effort medium
+ *     -> '--effort is not supported for model "claude-sonnet-4-6"'
+ * Both exit 1 with empty stdout, so neither is survivable without a retry.
+ */
+export const EFFORT_REJECTED = /--effort is not supported|conflicts with --effort/i;
+
 export interface AgyModel {
   id: string;
   displayName: string;
@@ -213,9 +223,11 @@ export class GeminiCliProvider implements ProviderAdapter {
       );
     }
 
-    // agy already encodes the reasoning tier in the model id, and rejects
-    // `--model gemini-3.6-flash-low --effort high` as a hard conflict. Only send
-    // --effort for an id that carries no tier of its own.
+    // agy rejects --effort for two different reasons, both fatal (exit 1, empty
+    // stdout): a tier-suffixed id "conflicts with --effort", and some models do
+    // not support the flag at all. The suffix check avoids the common wasted
+    // call; EFFORT_REJECTED below catches everything the shape cannot predict,
+    // which matters now that the catalog is discovered rather than hardcoded.
     const effort = TIER_SUFFIX.test(model) ? undefined : toAgyEffort(req.effort);
 
     // agy ignores the process cwd entirely — it runs in its own fixed scratch
@@ -226,14 +238,14 @@ export class GeminiCliProvider implements ProviderAdapter {
 
     // agy: -p/--print, --model, --output-format, --mode plan|accept-edits, --effort
     // legacy gemini: -p, -m, -o text, --approval-mode plan
-    const args = isAgy
+    const buildArgs = (withEffort: string | undefined): string[] => isAgy
       ? [
           '-p', prompt,
           '--model', model,
           '--output-format', 'text',
           '--add-dir', workspace,
           ...permission,
-          ...(effort ? ['--effort', effort] : []),
+          ...(withEffort ? ['--effort', withEffort] : []),
         ]
       : [
           '-p', prompt,
@@ -242,7 +254,7 @@ export class GeminiCliProvider implements ProviderAdapter {
           ...permission,
         ];
 
-    const result = await runCli({
+    const invoke = (args: string[]) => runCli({
       binPath,
       args,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
@@ -251,6 +263,17 @@ export class GeminiCliProvider implements ProviderAdapter {
       log: msg => logger.info(msg),
       signal: req.signal,
     });
+
+    let result = await invoke(buildArgs(effort));
+
+    // Self-heal rather than fail the turn: any model agy adds later may or may
+    // not take --effort, and its own stderr is the only reliable oracle.
+    if (effort && result.exitCode !== 0 && EFFORT_REJECTED.test(result.stderr)) {
+      logger.warn(
+        `[cli-gemini] ${model} rejected --effort ${effort}; retrying without it`,
+      );
+      result = await invoke(buildArgs(undefined));
+    }
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =

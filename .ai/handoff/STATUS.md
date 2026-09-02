@@ -28,6 +28,13 @@ agy model id (agy refuses the combination); the argv bound scales to the
 transport instead of applying a Windows constant on Linux; stdin has an error
 handler so an early child exit fails the run, not the process.
 
+`--effort` is doubly guarded, because a discovered catalog can contain ids no
+shape heuristic anticipates. agy refuses the flag two different ways — a
+tier-suffixed id "conflicts with --effort", and some models (the Anthropic ones
+agy serves) do not support it at all — both exit 1 with empty stdout. The tier
+check avoids the common wasted call; a stderr-matched retry without the flag
+covers the rest, so a model agy adds later cannot break the provider.
+
 ### Known gap — agy chat mode is write-capable
 
 `agy` exposes no read-only mode (`--mode` takes only `plan` or `accept-edits`),
