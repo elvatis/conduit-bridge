@@ -47,6 +47,28 @@ A pin outranks an already-discovered catalog, not just the next discovery —
 getting that wrong made the pin look accepted and then silently ignored, which
 is how it was found.
 
+`gpt-5.5-pro` was dropped from the cli-codex defaults: run against the real
+binary it returns "not supported when using Codex with a ChatGPT account". The
+other four were each verified usable. Availability is plan-dependent, so a plan
+that does include it can add it in models.json. The `api-codex/gpt-5.5-pro`
+entry is deliberately untouched — that provider authenticates with an API key,
+not a ChatGPT account, and is a different availability set.
+
+### Checking a CLI's models by hand
+
+    agy models        # tab-separated table
+    grok models       # bullet list
+    codex             # then /model or /models in the TUI — no non-interactive form
+    claude            # no listing at all; see model-catalog.ts / models.json
+
+### CI now runs the test suite
+
+`.github/workflows/test.yml` runs typecheck, vitest and a real `npm run build` on
+Linux and Windows. Before it, nothing in CI executed the tests — aahp-verify,
+CodeQL and the scanners were the entire gate, so a red suite could merge green.
+The Windows leg matters because the subprocess layer is Windows-specific (the
+cmd.exe truncation that caused this outage would not fail on Linux at all).
+
 Also: `agy` ignores the process cwd entirely (it runs in
 `~/.gemini/antigravity-cli/scratch`), so `--add-dir` is now passed — the editor's
 open folder was invisible to every `cli-gemini` turn before this. `quoteWin` no

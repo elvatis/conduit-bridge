@@ -44,8 +44,11 @@ const PROVIDERS: CatalogProvider[] = ['cli-claude', 'cli-codex', 'cli-gemini', '
 const DEFAULTS: Record<CatalogProvider, string[]> = {
   // Claude Code models (2026-08): Opus 5, Sonnet 5, Haiku 4.5, Fable 5.
   'cli-claude': ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5'],
-  // Codex CLI, same GPT-5.6 family as the API (2026-08).
-  'cli-codex': ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.5-pro'],
+  // Codex CLI. Each of these was run against the real binary; `gpt-5.5-pro` was
+  // dropped because it comes back "not supported when using Codex with a ChatGPT
+  // account". Availability is plan-dependent, so anyone whose plan does include a
+  // model can add it in models.json rather than waiting for a release.
+  'cli-codex': ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5'],
   'cli-gemini': ['gemini-3.1-pro-high', 'gemini-3.1-pro-low'],
   'cli-grok': ['grok-4.6'],
 };
