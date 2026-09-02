@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type {
   BridgeConfig,
@@ -14,6 +14,7 @@ import {
   resolveExecutable,
   runCli,
   flattenMessages,
+  agentCwd,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
@@ -110,7 +111,7 @@ export class GrokCliProvider implements ProviderAdapter {
         binPath,
         args,
         timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
-        cwd: homedir(),
+        cwd: agentCwd(req),
         label: 'cli-grok',
         log: msg => logger.info(msg),
         signal: req.signal,

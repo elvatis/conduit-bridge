@@ -8,6 +8,13 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Chat completions accept optional `cwd` (absolute existing path). CLI providers
+  (`cli-claude`, `cli-codex`, `cli-gemini`, `cli-grok`) run in that directory
+  so conduit-vscode background agents see the workspace. API and LM Studio
+  transports ignore it.
+
 ## [0.5.2] - 2026-09-02
 
 ### Changed

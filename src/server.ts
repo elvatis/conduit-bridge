@@ -583,7 +583,8 @@ export class BridgeServer {
         return;
       }
 
-      const chatReq = { model: selectedModel, messages, temperature, max_tokens, effort, signal: requestAbort.signal };
+      const cwd = typeof req_data.cwd === 'string' ? req_data.cwd : undefined;
+      const chatReq = { model: selectedModel, messages, temperature, max_tokens, effort, cwd, signal: requestAbort.signal };
       const finishMetric = this._metrics.begin(selectedModel);
 
       if (stream) {
