@@ -8,6 +8,18 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-09-02
+
+### Added
+
+- `/v1/models` reports `max_prompt_chars` for models whose transport bounds the
+  prompt. `agy` takes the prompt on argv, so the OS command line caps it far
+  below the model's token window — a client sizing its context off that window
+  builds a request the bridge can only reject, which in agent mode kills the
+  loop. Only the bridge knows this limit: it follows from the binary and the
+  platform, not from the model. Providers on stdin or a prompt file omit the
+  field, because for them there is no ceiling.
+
 ## [0.8.0] - 2026-09-02
 
 ### Fixed

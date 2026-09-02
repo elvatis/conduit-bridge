@@ -227,6 +227,11 @@ written to operational logs. Runtime state belongs below `.conduit`.
 
 ## Changelog
 
+### 0.8.1
+
+`/v1/models` reports `max_prompt_chars` where the transport bounds the prompt.
+See [CHANGELOG.md](CHANGELOG.md).
+
 ### 0.8.0
 
 Unbreaks the CLI providers on Windows (the prompt reached them as its first line
