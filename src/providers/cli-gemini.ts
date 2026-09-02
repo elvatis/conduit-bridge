@@ -13,6 +13,7 @@ import {
   stripPrefix,
   agentCwd,
   DEFAULT_CLI_TIMEOUT_MS,
+  WIN_ARGV_LIMIT,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
@@ -24,17 +25,48 @@ import { cliPermissionArgs } from '../cli-mode.js';
 // Docs: https://antigravity.google/docs/cli/getting-started
 const PREFIX = 'cli-gemini/';
 
-// Model ids from `agy models` (2026-08). Effort tiers are separate ids.
-const CATALOG = [
-  'gemini-3.6-flash-high',
-  'gemini-3.6-flash-medium',
-  'gemini-3.6-flash-low',
-  'gemini-3.5-flash-high',
-  'gemini-3.5-flash-medium',
-  'gemini-3.5-flash-low',
-  'gemini-3.1-pro-high',
-  'gemini-3.1-pro-low',
-];
+// Seed list only. The live catalog comes from `agy models` (see refreshModels);
+// this is what we advertise before the first discovery answers, and when agy is
+// missing or unauthenticated. Kept to the ids most likely to survive, because a
+// hardcoded list is exactly what goes stale between agy releases.
+const FALLBACK_CATALOG = ['gemini-3.1-pro-high', 'gemini-3.1-pro-low'];
+
+/** Re-run `agy models` at most this often. */
+const DISCOVERY_TTL_MS = 5 * 60_000;
+const DISCOVERY_TIMEOUT_MS = 20_000;
+
+/** agy encodes the reasoning tier in the model id, e.g. gemini-3.6-flash-low. */
+const TIER_SUFFIX = /-(high|medium|low)$/;
+
+export interface AgyModel {
+  id: string;
+  displayName: string;
+}
+
+/**
+ * Parse `agy models` stdout.
+ *
+ * The format is one "id<TAB>Display Name" per line, preceded by a
+ * "Fetching available models..." status line. Requiring a tab (or a run of
+ * spaces) as the separator is what keeps that prose line out of the catalog.
+ */
+export function parseAgyModels(stdout: string): AgyModel[] {
+  const out: AgyModel[] = [];
+  const seen = new Set<string>();
+  for (const raw of stdout.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const match = /^(\S+)(?:\t+| {2,})(\S.*)$/.exec(line);
+    if (!match) continue;
+    const [, id, displayName] = match;
+    // Model ids are lowercase, dotted/dashed slugs. Anything else is prose.
+    if (!/^[a-z][a-z0-9.]*(?:[-.][a-z0-9.]+)*$/.test(id)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, displayName: displayName.trim() });
+  }
+  return out;
+}
 
 function resolveGeminiBin(): string | null {
   // Prefer the current Antigravity CLI binary name.
@@ -43,17 +75,70 @@ function resolveGeminiBin(): string | null {
     ?? resolveExecutable('antigravity');
 }
 
+function toDefinition(m: AgyModel): ModelDefinition {
+  return {
+    id: `${PREFIX}${m.id}`,
+    provider: 'cli-gemini',
+    displayName: `${m.displayName || m.id} (agy CLI)`,
+    owned_by: 'google',
+  };
+}
+
 export class GeminiCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-gemini';
 
-  readonly models: ModelDefinition[] = CATALOG.map(id => ({
-    id: `${PREFIX}${id}`,
-    provider: 'cli-gemini',
-    displayName: `${id} (agy CLI)`,
-    owned_by: 'google',
-  }));
+  private _discovered: ModelDefinition[] | null = null;
+  private _discoveredAt = 0;
+
+  /** Discovered catalog when we have one, otherwise the seed list. */
+  get models(): ModelDefinition[] {
+    if (this._discovered?.length) return this._discovered;
+    return FALLBACK_CATALOG.map(id => toDefinition({ id, displayName: id }));
+  }
 
   constructor(_cfg: BridgeConfig) {}
+
+  /**
+   * Ask agy which models it actually serves. Returns the number discovered.
+   * Called by ProviderRegistry.refreshApiModels (POST /v1/models/refresh) and
+   * opportunistically whenever we confirm the session.
+   *
+   * Never throws and never empties a good catalog: if agy is gone, offline or
+   * logged out, the previously discovered list stays in place.
+   */
+  async refreshModels(force = false): Promise<number> {
+    if (!force && this._discovered && Date.now() - this._discoveredAt < DISCOVERY_TTL_MS) {
+      return this._discovered.length;
+    }
+    const binPath = resolveGeminiBin();
+    if (!binPath || !/agy(\.exe)?$/i.test(binPath)) return this._discovered?.length ?? 0;
+
+    try {
+      const result = await runCli({
+        binPath,
+        args: ['models'],
+        timeoutMs: DISCOVERY_TIMEOUT_MS,
+        label: 'cli-gemini/models',
+        log: msg => logger.info(msg),
+      });
+      if (result.exitCode !== 0) {
+        logger.warn(`[cli-gemini] \`agy models\` exited ${result.exitCode}; keeping previous catalog`);
+        return this._discovered?.length ?? 0;
+      }
+      const parsed = parseAgyModels(result.stdout);
+      if (!parsed.length) {
+        logger.warn('[cli-gemini] `agy models` returned no parsable rows; keeping previous catalog');
+        return this._discovered?.length ?? 0;
+      }
+      this._discovered = parsed.map(toDefinition);
+      this._discoveredAt = Date.now();
+      logger.info(`[cli-gemini] discovered ${parsed.length} models from \`agy models\``);
+      return parsed.length;
+    } catch (err) {
+      logger.warn(`[cli-gemini] model discovery failed: ${(err as Error).message}`);
+      return this._discovered?.length ?? 0;
+    }
+  }
 
   get credentialSource(): string {
     return cliSession('gemini', ['agy', 'gemini', 'antigravity']).source;
@@ -80,6 +165,10 @@ export class GeminiCliProvider implements ProviderAdapter {
       logger.warn('[cli-gemini] Gemini CLI is installed but not authenticated.');
       return false;
     }
+    // Opportunistically refresh the catalog while we know agy is usable, the way
+    // the LM Studio provider does on a reachable server. TTL-guarded, so this is
+    // a no-op on all but the first call in a five-minute window.
+    void this.refreshModels().catch(() => {});
     return true;
   }
 
@@ -109,9 +198,23 @@ export class GeminiCliProvider implements ProviderAdapter {
     const model = stripPrefix(req.model, PREFIX);
     const prompt = flattenMessages(req.messages);
     const isAgy = /agy(\.exe)?$/i.test(binPath);
-    const effort = toAgyEffort(req.effort);
     const mode = req.mode ?? 'chat';
     const permission = cliPermissionArgs('cli-gemini', mode, { isAgy });
+
+    // agy's `-p` takes the prompt as an argv value and there is no stdin prompt
+    // transport for text mode, so the command line is the hard bound here.
+    // Fail with something the caller can act on rather than a bare ENAMETOOLONG.
+    if (prompt.length > WIN_ARGV_LIMIT) {
+      throw new Error(
+        `cli-gemini: prompt is ${prompt.length} chars, over the ${WIN_ARGV_LIMIT} command-line ` +
+          'limit for `agy -p`. Shorten the conversation or attach less context.',
+      );
+    }
+
+    // agy already encodes the reasoning tier in the model id, and rejects
+    // `--model gemini-3.6-flash-low --effort high` as a hard conflict. Only send
+    // --effort for an id that carries no tier of its own.
+    const effort = TIER_SUFFIX.test(model) ? undefined : toAgyEffort(req.effort);
 
     // agy: -p/--print, --model, --output-format, --mode plan|accept-edits, --effort
     // legacy gemini: -p, -m, -o text, --approval-mode plan

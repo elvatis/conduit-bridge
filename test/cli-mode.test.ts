@@ -53,22 +53,25 @@ describe('agentModeCwdError', () => {
 });
 
 describe('cliPermissionArgs', () => {
-  it('maps Claude plan and chat to permission-mode plan, agent to bypassPermissions', () => {
-    expect(cliPermissionArgs('cli-claude', 'chat')).toEqual(['--permission-mode', 'plan']);
+  it('maps Claude chat to read-only tools, plan to the planner, agent to bypassPermissions', () => {
+    expect(cliPermissionArgs('cli-claude', 'chat')).toEqual([
+      '--disallowedTools', 'Write,Edit,MultiEdit,NotebookEdit,Bash',
+    ]);
     expect(cliPermissionArgs('cli-claude', 'plan')).toEqual(['--permission-mode', 'plan']);
     expect(cliPermissionArgs('cli-claude', 'agent')).toEqual(['--permission-mode', 'bypassPermissions']);
   });
 
-  it('maps agy plan/chat to --mode plan and agent to accept-edits with skip-permissions', () => {
+  it('leaves agy in its default mode for chat, and only plans in plan mode', () => {
+    expect(cliPermissionArgs('cli-gemini', 'chat', { isAgy: true })).toEqual([]);
     expect(cliPermissionArgs('cli-gemini', 'plan', { isAgy: true })).toEqual(['--mode', 'plan']);
-    expect(cliPermissionArgs('cli-gemini', 'chat', { isAgy: true })).toEqual(['--mode', 'plan']);
     expect(cliPermissionArgs('cli-gemini', 'agent', { isAgy: true })).toEqual([
       '--mode', 'accept-edits',
       '--dangerously-skip-permissions',
     ]);
   });
 
-  it('maps legacy gemini approval-mode plan, and drops it for agent', () => {
+  it('maps legacy gemini approval-mode plan, and drops it for chat and agent', () => {
+    expect(cliPermissionArgs('cli-gemini', 'chat', { isAgy: false })).toEqual([]);
     expect(cliPermissionArgs('cli-gemini', 'plan', { isAgy: false })).toEqual(['--approval-mode', 'plan']);
     expect(cliPermissionArgs('cli-gemini', 'agent', { isAgy: false })).toEqual([]);
   });
@@ -83,10 +86,22 @@ describe('cliPermissionArgs', () => {
     ]);
   });
 
-  it('maps Grok plan/chat to permission-mode plan and agent to no-plan always-approve', () => {
+  it('maps Grok chat to read-only tools, plan to plan, agent to no-plan always-approve', () => {
+    expect(cliPermissionArgs('cli-grok', 'chat')).toEqual([
+      '--disallowedTools', 'Write,Edit,MultiEdit,NotebookEdit,Bash',
+    ]);
     expect(cliPermissionArgs('cli-grok', 'plan')).toEqual(['--permission-mode', 'plan']);
-    expect(cliPermissionArgs('cli-grok', 'chat')).toEqual(['--permission-mode', 'plan']);
     expect(cliPermissionArgs('cli-grok', 'agent')).toEqual(['--no-plan', '--always-approve']);
+  });
+
+  // The regression this suite previously pinned the wrong way round: chat and
+  // plan produced identical flags, so an Ask turn was answered by a planner.
+  it('never sends plan flags for a chat turn', () => {
+    for (const provider of ['cli-claude', 'cli-gemini', 'cli-grok'] as const) {
+      const chat = cliPermissionArgs(provider, 'chat', { isAgy: true });
+      expect(chat, provider).not.toContain('plan');
+      expect(chat, provider).not.toEqual(cliPermissionArgs(provider, 'plan', { isAgy: true }));
+    }
   });
 });
 

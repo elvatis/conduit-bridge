@@ -48,7 +48,23 @@ export function agentModeCwdError(mode: CliRunMode, cwd: string | undefined): st
   return undefined;
 }
 
-/** Native CLI flags for plan vs agent vs chat-proxy safety. */
+/**
+ * Tools a read-only chat turn must not reach for. Comma-separated because both
+ * `claude` and `grok` accept "comma or space separated"; a space-separated list
+ * would make the variadic flag swallow the arguments that follow it.
+ */
+const MUTATING_TOOLS = 'Write,Edit,MultiEdit,NotebookEdit,Bash';
+
+/**
+ * Native CLI flags per run mode.
+ *
+ * The three modes are genuinely different and must not collapse into each other:
+ *   chat  — answer the question. May read the workspace, must not write it.
+ *           Emitting plan flags here makes the CLI reply with a plan (and, for
+ *           agy, announce a plan file it was never permitted to write).
+ *   plan  — run the CLI's native planner.
+ *   agent — write the workspace.
+ */
 export function cliPermissionArgs(
   provider: CliModeProvider,
   mode: CliRunMode,
@@ -56,21 +72,27 @@ export function cliPermissionArgs(
 ): string[] {
   switch (provider) {
     case 'cli-claude':
-      return ['--permission-mode', mode === 'agent' ? 'bypassPermissions' : 'plan'];
-    case 'cli-gemini':
-      if (opts.isAgy === false) {
-        return mode === 'agent' ? [] : ['--approval-mode', 'plan'];
+      if (mode === 'agent') return ['--permission-mode', 'bypassPermissions'];
+      if (mode === 'plan') return ['--permission-mode', 'plan'];
+      return ['--disallowedTools', MUTATING_TOOLS];
+    case 'cli-gemini': {
+      const legacy = opts.isAgy === false;
+      if (mode === 'agent') {
+        return legacy ? [] : ['--mode', 'accept-edits', '--dangerously-skip-permissions'];
       }
-      return mode === 'agent'
-        ? ['--mode', 'accept-edits', '--dangerously-skip-permissions']
-        : ['--mode', 'plan'];
+      if (mode === 'plan') {
+        return legacy ? ['--approval-mode', 'plan'] : ['--mode', 'plan'];
+      }
+      // agy's default print mode answers directly and writes nothing.
+      return [];
+    }
     case 'cli-codex':
       return mode === 'agent'
         ? ['--sandbox', 'workspace-write', '--approve-for-me', '--ephemeral']
         : ['--sandbox', 'read-only', '--ephemeral'];
     case 'cli-grok':
-      return mode === 'agent'
-        ? ['--no-plan', '--always-approve']
-        : ['--permission-mode', 'plan'];
+      if (mode === 'agent') return ['--no-plan', '--always-approve'];
+      if (mode === 'plan') return ['--permission-mode', 'plan'];
+      return ['--disallowedTools', MUTATING_TOOLS];
   }
 }

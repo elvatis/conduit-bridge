@@ -108,21 +108,26 @@ export class ClaudeCliProvider implements ProviderAdapter {
     const effort = toClaudeEffort(req.effort);
     const mode = req.mode ?? 'chat';
 
-    // -p/--print: non-interactive. --output-format text: plain assistant text.
-    // Permission flags come from cliPermissionArgs (plan vs bypassPermissions).
+    // -p/--print: non-interactive, reading the prompt from stdin.
+    // Permission flags come from cliPermissionArgs (chat vs plan vs agent).
     // --effort: Claude Code reasoning effort (low|medium|high|xhigh|max).
+    //
+    // The prompt MUST stay off argv. `claude` resolves to claude.cmd on Windows,
+    // so runCli routes it through `cmd.exe /c`, which ends the command line at
+    // the first newline — a flattened transcript would arrive as its system
+    // prompt alone, exit 0, no stderr, and the user's question silently gone.
     const args = [
       '-p',
       '--output-format', 'text',
       '--model', model,
       ...cliPermissionArgs('cli-claude', mode),
       ...(effort ? ['--effort', effort] : []),
-      prompt,
     ];
 
     const result = await runCli({
       binPath,
       args,
+      stdin: prompt,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: agentCwd(req),
       env: claudeAccountEnv(accountModel.account),

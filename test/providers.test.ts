@@ -119,12 +119,26 @@ describe('new provider catalogs + ownsModel', () => {
     expect(p.ownsModel('cli-claude/claude-opus-5')).toBe(true);
   });
 
-  it('Gemini CLI (agy): prefixed catalog, owns its namespace', () => {
+  it('Gemini CLI (agy): prefixed seed catalog, owns its namespace', () => {
     const p = new GeminiCliProvider(cfg);
     expect(p.name).toBe('cli-gemini');
-    expect(p.models.some(m => m.id === 'cli-gemini/gemini-3.6-flash-high')).toBe(true);
-    expect(p.ownsModel('cli-gemini/gemini-3.5-flash-medium')).toBe(true);
+    // Before discovery runs we advertise a seed list, not a pinned generation.
+    expect(p.models.length).toBeGreaterThan(0);
+    expect(p.models.every(m => m.id.startsWith('cli-gemini/'))).toBe(true);
     expect(p.ownsModel('cli-codex/gpt-5.6-sol')).toBe(false);
+  });
+
+  // The catalog is discovered from `agy models`, so a model released after this
+  // build must still route rather than 404 on an id we never enumerated.
+  it('Gemini CLI: routes any cli-gemini id, including ones not yet discovered', () => {
+    const p = new GeminiCliProvider(cfg);
+    expect(p.ownsModel('cli-gemini/gemini-3.7-flash-high')).toBe(true);
+    expect(p.ownsModel('cli-gemini/some-unreleased-model-2027')).toBe(true);
+  });
+
+  it('Gemini CLI: exposes refreshModels so /v1/models/refresh reaches it', () => {
+    const p = new GeminiCliProvider(cfg) as unknown as { refreshModels?: unknown };
+    expect(typeof p.refreshModels).toBe('function');
   });
 });
 
