@@ -19,7 +19,7 @@ import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, noteForeignVendors, isPinned, SERVED_BY } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isPinned, SERVED_BY, limitsFor } from '../model-catalog.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Non-interactive: agy -p/--print with --model and --output-format text.
@@ -100,6 +100,7 @@ function toDefinition(m: AgyModel): ModelDefinition {
     // client sizes context off a million-token window and the bridge rejects the
     // request at a fraction of that, which in agent mode kills the loop.
     ...(binPath ? { maxPromptChars: argvLimitFor(binPath) } : {}),
+    ...limitsFor('cli-gemini', m.id),
   };
 }
 

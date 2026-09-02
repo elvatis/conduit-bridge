@@ -160,6 +160,24 @@ rejected the request at a fraction of it, which in agent mode killed the loop.
 has a ceiling. stdin and prompt-file transports (cli-claude, cli-codex,
 cli-grok) omit it, because for them there is none.
 
+### /v1/models reports the limits too
+
+`context_window` and `max_output_tokens` now ship alongside `max_prompt_chars`.
+Discovered where a provider reports them — the Codex endpoint returns the
+account's real `context_window` (272000 here), OpenRouter returns
+`context_length` — and otherwise from a single prefix table in
+model-catalog.ts, which `~/.conduit/models.json` can override per model:
+
+    { "cli-claude": [{ "id": "claude-opus-6", "contextWindow": 2000000 }] }
+
+Prefixes match longest-first, so `claude-haiku` gets 200000 while the rest of
+`claude-` gets a million, and a resold model keeps its own family's numbers —
+`cli-gemini/gpt-oss-120b-medium` reports 128000, not Gemini's million.
+
+This is what lets a client stop shipping its own copy. conduit-vscode carried
+MODEL_LIMITS, PROVIDER_FALLBACK_LIMITS and MODEL_DISPLAY_NAMES, all of which went
+stale the moment catalogs became discovered rather than pinned.
+
 ### Checking a CLI's models by hand
 
     agy models        # tab-separated table
