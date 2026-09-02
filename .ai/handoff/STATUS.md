@@ -2,6 +2,56 @@
 
 _Updated: 2026-09-02_
 
+## Unreleased — `fix/cli-transport-modes-discovery`
+
+Four stacked defects made conduit-vscode appear dead in Ask, Edit, Plan and
+Agent. All four are bridge-side; the extension needs no change.
+
+1. **Prompt transport.** `claude` resolves to `claude.cmd`, so `runCli` routed
+   it through `cmd.exe /c`, which ends its command line at the first newline —
+   exit 0, no stderr. Since `flattenMessages` puts the system prompt first and
+   the user turn last, the CLI received the system prompt alone. Prompt now
+   rides stdin; `runCli` refuses a multi-line argv arg on the cmd.exe path.
+2. **chat was mapped to plan.** `cliPermissionArgs` branched only on `agent`.
+   chat / plan / agent are now distinct.
+3. **`agentCwd` fell back to `homedir()`**, giving a CLI agent the whole user
+   profile. Unusable or absent `cwd` now lands in an empty sandbox dir.
+4. **The Gemini catalog was hardcoded and stale** — it advertised a `gemini-3.5`
+   family agy rejects and omitted the `3.7` family agy serves. Now discovered
+   from `agy models`, TTL-cached, refreshed via `POST /v1/models/refresh`.
+
+Also: `agy` ignores the process cwd entirely (it runs in
+`~/.gemini/antigravity-cli/scratch`), so `--add-dir` is now passed — the editor's
+open folder was invisible to every `cli-gemini` turn before this. `quoteWin` no
+longer drops empty arguments; `--effort` is not sent alongside a tier-suffixed
+agy model id (agy refuses the combination); the argv bound scales to the
+transport instead of applying a Windows constant on Linux; stdin has an error
+handler so an early child exit fails the run, not the process.
+
+### Known gap — agy chat mode is write-capable
+
+`agy` exposes no read-only mode (`--mode` takes only `plan` or `accept-edits`),
+so `cli-gemini` chat cannot be made read-only by a flag. With no permission flag
+it will create a file when a prompt asks for one, including at an absolute path
+outside the workspace. Two candidate mitigations were tested and neither works:
+`--sandbox` restricts the terminal, not file writes (per agy's own help), and
+`allowNonWorkspaceAccess: false` in `~/.gemini/antigravity-cli/settings.json`
+did not block an absolute-path write in print mode.
+
+Accepted deliberately: the alternative is `--mode plan` for chat, which is the
+defect this branch set out to fix. Claude, Codex and grok all have real
+read-only chat modes; the gap is agy-only. Revisit if agy gains a read-only mode
+or a tool-deny flag.
+
+### Operational note
+
+The global `conduit-bridge` install is a **symlink into this workspace**, so the
+running server is whatever `dist/` holds, and `/health` reports the version from
+`package.json` rather than the built bundle — a stale `dist/` reports the new
+version while running old code. Run `npm run build` and restart after pulling.
+
+---
+
 **v0.7.0** adds `mode` (`chat` | `plan` | `agent`) on `POST /v1/chat/completions`.
 Agent requires `cwd`. Grok is plan-by-default. Pair with conduit-vscode 0.9.0.
 
