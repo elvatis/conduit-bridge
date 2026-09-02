@@ -175,15 +175,21 @@ describe('registry routing', () => {
     expect(reg.providerForModel('totally-unknown-model')).toBeUndefined();
   });
 
-  it('allModels includes every new provider namespace', () => {
+  it('allModels includes every provider namespace that has a credential', () => {
     const ids = reg.allModels().map(m => m.id);
     expect(ids).toContain('lmstudio/auto');
-    expect(ids.some(i => i.startsWith('api-openrouter/'))).toBe(true);
-    expect(ids.some(i => i.startsWith('api-perplexity/'))).toBe(true);
+    // The CLI providers detect their own auth and are always listed.
     expect(ids.some(i => i.startsWith('cli-grok/'))).toBe(true);
     expect(ids.some(i => i.startsWith('cli-codex/'))).toBe(true);
     expect(ids.some(i => i.startsWith('cli-claude/'))).toBe(true);
     expect(ids.some(i => i.startsWith('cli-gemini/'))).toBe(true);
+  });
+
+  it('the full list keeps keyless providers, so nothing silently disappears', () => {
+    const everything = reg.allModelsIncludingUnavailable().map(m => m.id);
+    for (const prefix of ['api-claude/', 'api-gemini/', 'api-codex/', 'api-openrouter/', 'api-perplexity/']) {
+      expect(everything.some(i => i.startsWith(prefix)), prefix).toBe(true);
+    }
   });
 });
 

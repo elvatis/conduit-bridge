@@ -97,6 +97,19 @@ export abstract class ApiBaseProvider implements ProviderAdapter {
     this._resolvedCredential = null;
   }
 
+  /**
+   * Whether this provider has a usable credential right now.
+   *
+   * Synchronous on purpose: `allModels()` cannot await, and the question is not
+   * "is the service reachable" but "can this request possibly be authorised".
+   * A provider with no key advertising its catalog is the same defect as a
+   * hardcoded model the CLI no longer serves — the picker offers it and the
+   * request can only fail.
+   */
+  hasCredentials(): boolean {
+    return !!this.apiKey;
+  }
+
   /** API providers are "connected" if an API key is available */
   async checkSession(): Promise<boolean> {
     return !!this.apiKey;

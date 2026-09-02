@@ -55,7 +55,23 @@ export class ProviderRegistry {
     return this._providers.get(name as ProviderName);
   }
 
+  /**
+   * Every model a caller could actually reach.
+   *
+   * A provider with no credential is skipped: advertising its catalog puts
+   * models in the picker whose request can only fail on auth, which is the same
+   * defect as a hardcoded id the CLI no longer serves. Providers that do not
+   * implement hasCredentials (the CLI ones, which have their own detection) are
+   * always included.
+   */
   allModels(): ModelDefinition[] {
+    return [...this._providers.values()]
+      .filter(p => p.hasCredentials?.() !== false)
+      .flatMap(p => p.models);
+  }
+
+  /** Every model including unreachable ones — for status and diagnostics. */
+  allModelsIncludingUnavailable(): ModelDefinition[] {
     return [...this._providers.values()].flatMap(p => p.models);
   }
 

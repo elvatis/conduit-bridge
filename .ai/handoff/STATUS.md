@@ -114,6 +114,39 @@ that does include it can add it in models.json. The `api-codex/gpt-5.5-pro`
 entry is deliberately untouched — that provider authenticates with an API key,
 not a ChatGPT account, and is a different availability set.
 
+### API providers: discovery, and no advertising without a credential
+
+`claude-api`, `gemini-api` and `codex-api` were the last hardcoded catalogs and
+the last providers advertising models nobody could reach.
+
+- **Discovery.** Each now refreshes from its vendor's documented list:
+  `api.anthropic.com/v1/models` (`x-api-key` + `anthropic-version`, returns
+  `{data:[{id, display_name}]}`), `generativelanguage.googleapis.com/v1beta/models`
+  (`x-goog-api-key` header — deliberately not the `?key=` query form, which would
+  put the credential in a URL; returns `{models:[{name:"models/…", displayName}]}`
+  and is filtered to entries supporting `generateContent`), and
+  `api.openai.com/v1/models`, which is OpenAI-shaped and reuses the existing
+  `refreshModelCatalog` helper. All three fall back to the shipped list on any
+  failure.
+- **UNVERIFIED LIVE.** No API key is configured for any of the three on this
+  machine, so only the parsers are tested, against the vendors' documented
+  response shapes. The first person with a key should confirm
+  `POST /v1/models/refresh` actually repopulates them.
+- **No credential, no advertisement.** `ProviderAdapter.hasCredentials()` is a
+  synchronous "could this request possibly be authorised" check;
+  `registry.allModels()` skips providers that answer false. Before this, 16
+  models sat in the picker whose request could only fail on auth — the same
+  defect as a hardcoded id the CLI no longer serves. `/v1/models` went 516 → 500.
+- Hiding is not silencing: `providerForModel` still resolves those ids, so a
+  request answers `provider_unavailable` with "Configure its API credential"
+  rather than "unknown model", and `/v1/status` plus the new
+  `allModelsIncludingUnavailable()` still list them.
+
+Note the mapping fix that came with it: `chat()` in all three fell back to
+`MODEL_MAP[req.model] ?? req.model`, which would have sent the prefixed id
+(`api-claude/…`) upstream as a model name for any *discovered* model. It now
+strips the prefix.
+
 ### Checking a CLI's models by hand
 
     agy models        # tab-separated table
