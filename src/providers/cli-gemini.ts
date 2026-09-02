@@ -70,8 +70,11 @@ export function parseAgyModels(stdout: string): AgyModel[] {
     const match = /^(\S+)(?:\t+| {2,})(\S.*)$/.exec(line);
     if (!match) continue;
     const [, id, displayName] = match;
-    // Model ids are lowercase, dotted/dashed slugs. Anything else is prose.
-    if (!/^[a-z][a-z0-9.]*(?:[-.][a-z0-9.]+)*$/.test(id)) continue;
+    // Model ids are lowercase slugs with `-` and `.` as separators; anything
+    // else is prose. The separator chars are deliberately kept OUT of the
+    // segment class: overlapping them makes the two quantifiers ambiguous and
+    // the pattern backtracks exponentially on input like "a-" + "..".
+    if (!/^[a-z][a-z0-9]*(?:[-.][a-z0-9]+)*$/.test(id)) continue;
     if (seen.has(id)) continue;
     seen.add(id);
     out.push({ id, displayName: displayName.trim() });

@@ -59,6 +59,19 @@ describe('parseAgyModels', () => {
     const dup = 'gemini-3.1-pro-low\tA\ngemini-3.1-pro-low\tB';
     expect(parseAgyModels(dup)).toHaveLength(1);
   });
+
+  // The id validator once put `.` in BOTH its segment class and its separator
+  // class, making the two quantifiers ambiguous. On a non-matching id — "a-",
+  // many dots, then a character no branch accepts — that backtracks
+  // exponentially: measured 11ms at 30 dots and >1.5s at 40 on the old pattern,
+  // roughly x7 per additional 4 dots. Parsing runs on whatever the CLI prints,
+  // so it has to stay linear.
+  it('rejects a pathological id without catastrophic backtracking', () => {
+    const evil = 'a-' + '.'.repeat(44) + '!\tDisplay Name';
+    const started = Date.now();
+    expect(parseAgyModels(evil)).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
 });
 
 // Discovery makes ids selectable that no shape heuristic anticipated: agy also
