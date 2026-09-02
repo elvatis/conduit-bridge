@@ -8,6 +8,20 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-02
+
+### Added
+
+- `/v1/models` reports `context_window` and `max_output_tokens`. Discovered
+  where a provider says so — the Codex endpoint returns the account's real
+  window — and otherwise from one prefix table in `model-catalog.ts` that
+  `~/.conduit/models.json` can override per model without a rebuild. This is
+  the last thing that forced a client to ship its own model table, and such a
+  table goes stale the moment catalogs are discovered rather than pinned.
+  Prefixes match longest-first, so `claude-haiku` keeps 200000 while the rest
+  of the family gets a million, and a resold model keeps its own family's
+  numbers: `cli-gemini/gpt-oss-120b-medium` reports 128000, not Gemini's.
+
 ## [0.8.1] - 2026-09-02
 
 ### Added
@@ -235,7 +249,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/elvatis/conduit-bridge/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/elvatis/conduit-bridge/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/elvatis/conduit-bridge/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/elvatis/conduit-bridge/compare/v0.6.0...v0.7.0

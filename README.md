@@ -227,6 +227,11 @@ written to operational logs. Runtime state belongs below `.conduit`.
 
 ## Changelog
 
+### 0.9.0
+
+`/v1/models` reports `context_window` and `max_output_tokens`, so a client no
+longer needs its own model table. See [CHANGELOG.md](CHANGELOG.md).
+
 ### 0.8.1
 
 `/v1/models` reports `max_prompt_chars` where the transport bounds the prompt.
