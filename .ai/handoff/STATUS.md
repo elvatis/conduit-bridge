@@ -147,6 +147,19 @@ Note the mapping fix that came with it: `chat()` in all three fell back to
 (`api-claude/…`) upstream as a model name for any *discovered* model. It now
 strips the prefix.
 
+### /v1/models reports a transport prompt ceiling
+
+`agy` takes the prompt on argv, so the OS command line bounds it — 30000 chars
+for agy.exe on Windows, 7000 through a .cmd shim, 120000 on Linux — while the
+models themselves advertise token windows in the millions. A client cannot
+derive that: it depends on the binary and the platform, not the model. Left to
+guess, conduit-vscode sized its context off the token window and the bridge
+rejected the request at a fraction of it, which in agent mode killed the loop.
+
+`/v1/models` now carries `max_prompt_chars` for models whose transport really
+has a ceiling. stdin and prompt-file transports (cli-claude, cli-codex,
+cli-grok) omit it, because for them there is none.
+
 ### Checking a CLI's models by hand
 
     agy models        # tab-separated table

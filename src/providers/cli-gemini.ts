@@ -88,11 +88,18 @@ function resolveGeminiBin(): string | null {
 }
 
 function toDefinition(m: AgyModel): ModelDefinition {
+  const binPath = resolveGeminiBin();
   return {
     id: `${PREFIX}${m.id}`,
     provider: 'cli-gemini',
     displayName: `${m.displayName || m.id} (agy CLI)`,
     owned_by: SERVED_BY['cli-gemini'],
+    // agy takes the prompt on argv, so the OS command line is the real ceiling —
+    // far below any of these models' token windows. A client cannot derive this:
+    // it depends on the binary and the platform, not on the model. Without it a
+    // client sizes context off a million-token window and the bridge rejects the
+    // request at a fraction of that, which in agent mode kills the loop.
+    ...(binPath ? { maxPromptChars: argvLimitFor(binPath) } : {}),
   };
 }
 

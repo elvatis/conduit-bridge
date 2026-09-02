@@ -103,6 +103,17 @@ export interface ModelDefinition {
   /** How confidently this model is available through the selected transport. */
   availability?: 'verified' | 'documented' | 'dynamic';
   source?: string;
+  /**
+   * Largest prompt this model's transport accepts, in characters. Set only where
+   * a real ceiling exists — `agy` takes the prompt on argv, so it is bounded by
+   * the OS command line, while stdin and prompt-file transports are not.
+   *
+   * The bridge is the only side that knows this: it depends on the binary and
+   * the platform, not on the model. Without it a client sizes its context off a
+   * model's token window (a million for Gemini) and the bridge rejects the
+   * request at a fraction of that, which in agent mode kills the loop.
+   */
+  maxPromptChars?: number;
 }
 
 // ── Provider interface — each provider implements this ───────────────────────
