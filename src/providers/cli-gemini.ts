@@ -19,7 +19,7 @@ import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, filterToVendor, isPinned } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isPinned, vendorOf } from '../model-catalog.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Non-interactive: agy -p/--print with --model and --output-format text.
@@ -92,7 +92,7 @@ function toDefinition(m: AgyModel): ModelDefinition {
     id: `${PREFIX}${m.id}`,
     provider: 'cli-gemini',
     displayName: `${m.displayName || m.id} (agy CLI)`,
-    owned_by: 'google',
+    owned_by: vendorOf(m.id, 'google'),
   };
 }
 
@@ -159,9 +159,9 @@ export class GeminiCliProvider implements ProviderAdapter {
         logger.warn(`[cli-gemini] \`agy models\` exited ${result.exitCode}; keeping previous catalog`);
         return this._discovered?.length ?? 0;
       }
-      // agy resells Anthropic and GPT-OSS models too; cli-gemini advertises
-      // only Google's family so the namespaces cannot overlap.
-      const parsed = filterToVendor('cli-gemini', parseAgyModels(result.stdout));
+      // agy resells Anthropic and GPT-OSS models alongside Google's; all of them
+      // are reachable through the Antigravity subscription, so all are advertised.
+      const parsed = noteForeignVendors('cli-gemini', parseAgyModels(result.stdout));
       if (!parsed.length) {
         logger.warn('[cli-gemini] `agy models` returned no parsable rows; keeping previous catalog');
         return this._discovered?.length ?? 0;
@@ -248,11 +248,12 @@ export class GeminiCliProvider implements ProviderAdapter {
     }
 
     // agy rejects --effort for two different reasons, both fatal (exit 1, empty
-    // stdout): a tier-suffixed id "conflicts with --effort", and some models do
-    // not support the flag at all. The suffix check avoids the common wasted
-    // call; EFFORT_REJECTED below catches everything the shape cannot predict,
-    // which matters now that the catalog is discovered rather than hardcoded.
-    const effort = TIER_SUFFIX.test(model) ? undefined : toAgyEffort(req.effort);
+    // stdout): a tier-suffixed id "conflicts with --effort", and the models it
+    // resells from other vendors do not support the flag at all. Predicting both
+    // cheaply avoids a spawn that is certain to fail and be retried; stderr
+    // (EFFORT_REJECTED, below) stays the oracle for anything agy adds later.
+    const takesEffort = model.startsWith('gemini-') && !TIER_SUFFIX.test(model);
+    const effort = takesEffort ? toAgyEffort(req.effort) : undefined;
 
     // agy ignores the process cwd entirely — it runs in its own fixed scratch
     // directory (~/.gemini/antigravity-cli/scratch) and cannot see the caller's

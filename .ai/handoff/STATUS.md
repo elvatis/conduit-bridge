@@ -31,18 +31,42 @@ Agent. All four are bridge-side; the extension needs no change.
 | `cli-codex` | yes | `GET chatgpt.com/backend-api/codex/models?client_version=<codex --version>` |
 | `cli-claude` | no | no listing of any kind; catalog file only |
 
-### One prefix, one vendor
+### One prefix, one TRANSPORT — resold models are kept
 
-The provider namespaces must not overlap, and left alone they do: `agy models`
-also reports `claude-sonnet-4-6`, `claude-opus-4-6-thinking` and
-`gpt-oss-120b-medium`. Advertising those as `cli-gemini/claude-sonnet-4-6` names
-a Claude model as if it were Gemini, collides conceptually with the real
-`cli-claude` namespace, and gives the picker two routes to one model with
-different limits and permissions. `filterToVendor` in model-catalog.ts drops
-foreign families on both routes — discovery and models.json — and logs what went.
+`agy models` also reports `claude-sonnet-4-6`, `claude-opus-4-6-thinking` and
+`gpt-oss-120b-medium`. An earlier commit filtered those out on the grounds that
+`cli-gemini/claude-sonnet-4-6` "collides" with the `cli-claude` namespace. That
+was wrong and has been reverted.
 
-Result: cli-claude serves only `claude-*`, cli-codex only `gpt-*`/`codex-*`,
-cli-gemini only `gemini-*`, cli-grok only `grok-*`.
+There is no collision. Every advertised id is `<prefix>/<model>`, the prefixes
+are distinct string constants, and `providerForModel` (registry.ts) resolves by
+exact id first and by `ownsModel` prefix second — so the two ids are different
+strings reaching different provider classes. Measured: with the filter ON,
+`cli-gemini/claude-sonnet-4-6` was absent from `/v1/models` yet a POST to
+`/v1/chat/completions` with that id still routed and answered, because
+`ownsModel` matches the whole prefix regardless of the catalog. The filter only
+removed the models from the picker; it never removed the route.
+
+Reaching Claude Sonnet through an Antigravity subscription — different quota,
+auth and rate limits than an Anthropic one — is a capability, not an accident.
+`noteForeignVendors` now logs the cross-vendor rows and returns them unchanged,
+on both routes (discovery and models.json).
+
+What made the labelling honest instead:
+- `/v1/models` now emits `display_name`, which it never did. Without it the
+  picker could only show the bare slug, so a resold model appeared under a
+  Gemini heading with nothing to identify it. It now reads
+  `Claude Sonnet 4.6 (Thinking) (agy CLI)`.
+- `owned_by` reports the model's real maker via `vendorOf()`, not the CLI that
+  serves it — `anthropic` for the Claude rows, `openai` for GPT-OSS. It was
+  hardcoded `google` for everything under `cli-gemini`.
+- `--effort` is suppressed for any non-`gemini-` id as well as tier-suffixed
+  ones. agy rejects the flag for the resold models, so sending it guaranteed a
+  failed spawn plus a retry. Verified: an effort-bearing turn on
+  `cli-gemini/claude-sonnet-4-6` now succeeds with zero retries.
+
+Anyone who does want a single-vendor namespace pins the provider in
+`models.json`, which is honoured verbatim.
 
 ### Why not api.openai.com/v1/models for cli-codex
 

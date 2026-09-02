@@ -68,15 +68,18 @@ export function isModelId(value: unknown): value is string {
 }
 
 /**
- * Which vendor family each CLI provider is allowed to advertise.
+ * The vendor family each CLI provider's own models come from.
  *
- * The namespaces must not overlap. Several of these CLIs resell other vendors'
- * models — `agy models` reports claude-sonnet-4-6, claude-opus-4-6-thinking and
- * gpt-oss-120b-medium alongside the Gemini family — and surfacing those under
- * their host's prefix produces ids like `cli-gemini/claude-sonnet-4-6`, which
- * reads as a Gemini model, collides conceptually with the real `cli-claude`
- * namespace, and gives the model picker two routes to the same model with
- * different limits and permissions. One prefix, one vendor.
+ * A prefix names a TRANSPORT, not a vendor. `agy` resells Anthropic and GPT-OSS
+ * models alongside Google's, and reaching Claude Sonnet through an Antigravity
+ * subscription — different quota, auth and rate limits than an Anthropic one —
+ * is a real capability, not an accident. Those ids stay available.
+ *
+ * Nothing collides: every advertised id is `<prefix>/<model>`, the four prefixes
+ * are distinct, and `providerForModel` resolves by exact id first and by prefix
+ * second, so `cli-gemini/claude-sonnet-4-6` and `cli-claude/claude-sonnet-4-6`
+ * are different strings reaching different provider classes. This map is used
+ * only to LABEL a foreign model, never to drop it.
  */
 const VENDOR_PATTERN: Record<CatalogProvider, RegExp> = {
   'cli-claude': /^claude-/,
@@ -91,23 +94,40 @@ export function belongsToProvider(provider: CatalogProvider, id: string): boolea
 }
 
 /**
- * Drop foreign-vendor ids, logging what went and why. Applied to discovery
- * results and to models.json alike, so neither route can cross the namespaces.
+ * Who actually made the model, from its id — not from which CLI serves it.
+ *
+ * `owned_by` is a statement about the model, so a Claude reached through agy is
+ * still Anthropic's. Reporting the transport's vendor there would be plainly
+ * wrong, and it is the field an OpenAI-compatible client groups by.
  */
-export function filterToVendor<T extends { id: string }>(
+export function vendorOf(id: string, fallback: string): string {
+  if (/^claude-/.test(id)) return 'anthropic';
+  if (/^gemini-/.test(id)) return 'google';
+  if (/^grok-/.test(id)) return 'xai';
+  if (/^(?:gpt|codex|o[0-9])/.test(id)) return 'openai';
+  return fallback;
+}
+
+/**
+ * Note foreign-vendor ids without removing them.
+ *
+ * Returns `entries` unchanged — a CLI reselling another vendor's model is a
+ * feature, and dropping those ids only removed them from the picker while
+ * `ownsModel` kept routing them anyway. The log line is what makes the
+ * cross-vendor route visible instead of surprising.
+ */
+export function noteForeignVendors<T extends { id: string }>(
   provider: CatalogProvider,
   entries: T[],
 ): T[] {
-  const kept = entries.filter(e => belongsToProvider(provider, e.id));
-  const dropped = entries.length - kept.length;
-  if (dropped > 0) {
-    const names = entries.filter(e => !belongsToProvider(provider, e.id)).map(e => e.id);
+  const foreign = entries.filter(e => !belongsToProvider(provider, e.id)).map(e => e.id);
+  if (foreign.length) {
     logger.info(
-      `[catalog] ${provider}: ignoring ${dropped} model(s) from another vendor ` +
-        `(${names.join(', ')}) — each provider advertises only its own family`,
+      `[catalog] ${provider}: also serving ${foreign.length} model(s) from another vendor ` +
+        `(${foreign.join(', ')}) — reachable through this CLI's own subscription`,
     );
   }
-  return kept;
+  return entries;
 }
 
 export function catalogFilePath(): string {
@@ -146,9 +166,9 @@ export function parseCatalogFile(json: unknown): Partial<Record<CatalogProvider,
   for (const provider of PROVIDERS) {
     const raw = (json as Record<string, unknown>)[provider];
     if (raw === undefined) continue;
-    // Vendor-filter the file too: a pin must not be able to smuggle a foreign
-    // model into a provider's namespace either.
-    const entries = filterToVendor(provider, parseCatalogEntries(raw));
+    // A pin may legitimately name a resold model (cli-gemini/claude-sonnet-4-6);
+    // note it, do not drop it.
+    const entries = noteForeignVendors(provider, parseCatalogEntries(raw));
     // An empty or all-invalid list is a mistake, not "advertise nothing".
     if (entries.length) out[provider] = entries;
     else logger.warn(`[catalog] ${provider} in models.json has no usable model ids; ignoring it`);

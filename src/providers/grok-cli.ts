@@ -19,7 +19,7 @@ import {
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, belongsToProvider, isPinned } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isPinned, vendorOf } from '../model-catalog.js';
 
 const PREFIX = 'cli-grok/';
 
@@ -75,7 +75,7 @@ function toDefinition(id: string): ModelDefinition {
     id: `${PREFIX}${id}`,
     provider: 'cli-grok',
     displayName: `${id} (Grok CLI)`,
-    owned_by: 'xai',
+    owned_by: vendorOf(id, 'xai'),
   };
 }
 
@@ -129,8 +129,8 @@ export class GrokCliProvider implements ProviderAdapter {
         logger.warn(`[cli-grok] \`grok models\` exited ${result.exitCode}; keeping previous catalog`);
         return this._discovered?.length ?? 0;
       }
-      // Only xAI's own family, so the provider namespaces cannot overlap.
-      const ids = parseGrokModels(result.stdout).filter(id => belongsToProvider('cli-grok', id));
+      // Whatever grok serves, including anything it may resell later.
+      const ids = noteForeignVendors('cli-grok', parseGrokModels(result.stdout).map(id => ({ id }))).map(e => e.id);
       if (!ids.length) {
         logger.warn('[cli-grok] `grok models` returned no parsable rows; keeping previous catalog');
         return this._discovered?.length ?? 0;

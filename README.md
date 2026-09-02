@@ -110,10 +110,21 @@ offers today:
 | `claude` | no listing of any kind; use this file |
 
 `cli-codex` discovers its catalog over HTTP from ChatGPT's own Codex model
-endpoint, which reports the account's real entitlements. Each provider
-advertises **only its own vendor's models**: `agy` also resells Anthropic and
-GPT-OSS models, but those stay out of the `cli-gemini/` namespace, so one
-prefix always means one vendor.
+endpoint, which reports the account's real entitlements.
+
+A prefix names the **transport**, not the vendor. `agy` resells Anthropic and
+GPT-OSS models alongside Google's, and those are advertised too — reaching
+Claude Sonnet through an Antigravity subscription is a different quota, auth
+and rate limit than reaching it through an Anthropic one, which is the point:
+
+```
+cli-gemini/claude-sonnet-4-6   Claude Sonnet 4.6 (Thinking) (agy CLI)   owned_by: anthropic
+cli-claude/claude-sonnet-5     claude-sonnet-5 (Claude Code CLI)        owned_by: anthropic
+```
+
+Ids stay unique because the prefixes differ, and `owned_by` always reports the
+model's real maker rather than the CLI that serves it. To restrict a provider
+to one vendor, pin it in `models.json`.
 
 Naming a provider **pins** it: that list is served verbatim and runtime
 discovery is skipped for it — the escape hatch for a CLI that is offline or

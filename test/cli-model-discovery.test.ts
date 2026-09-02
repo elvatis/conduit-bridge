@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EFFORT_REJECTED, parseAgyModels } from '../src/providers/cli-gemini.js';
 import { parseGrokModels } from '../src/providers/grok-cli.js';
 import { parseCodexModels } from '../src/providers/cli-codex.js';
-import { belongsToProvider, filterToVendor } from '../src/model-catalog.js';
+import { belongsToProvider, noteForeignVendors } from '../src/model-catalog.js';
 
 // Captured verbatim from `agy models` (tab-separated, with the status preamble).
 const AGY_MODELS_STDOUT = [
@@ -159,17 +159,34 @@ describe('parseCodexModels', () => {
   });
 });
 
-// One prefix, one vendor: several of these CLIs resell other vendors' models,
-// and surfacing them under the host's prefix gives the picker two routes to the
-// same model under a name that misidentifies it.
-describe('provider namespaces do not overlap', () => {
-  it('cli-gemini advertises only Google models, though agy serves more', () => {
-    const ids = filterToVendor('cli-gemini', parseAgyModels(AGY_MODELS_STDOUT)).map(m => m.id);
-    expect(ids.every(id => id.startsWith('gemini-'))).toBe(true);
-    expect(ids).not.toContain('claude-sonnet-4-6');
-    expect(ids).not.toContain('claude-opus-4-6-thinking');
-    expect(ids).not.toContain('gpt-oss-120b-medium');
+// A prefix names a transport, not a vendor. agy resells Anthropic and GPT-OSS
+// models, and those are reachable through the Antigravity subscription — a real
+// capability. Ids stay unique because the prefixes differ, so nothing collides.
+describe('provider namespaces', () => {
+  it('cli-gemini advertises everything agy serves, including resold models', () => {
+    const ids = noteForeignVendors('cli-gemini', parseAgyModels(AGY_MODELS_STDOUT)).map(m => m.id);
+    expect(ids).toHaveLength(11);
     expect(ids).toContain('gemini-3.7-flash-high');
+    expect(ids).toContain('claude-sonnet-4-6');
+    expect(ids).toContain('claude-opus-4-6-thinking');
+    expect(ids).toContain('gpt-oss-120b-medium');
+  });
+
+  // The regression this replaces: dropping the resold ids removed them from the
+  // picker while ownsModel kept routing them, so the capability was invisible
+  // rather than absent.
+  it('never drops an id — noting a foreign vendor is not filtering it', () => {
+    const entries = [{ id: 'gemini-3.1-pro-low' }, { id: 'claude-sonnet-4-6' }];
+    expect(noteForeignVendors('cli-gemini', entries)).toEqual(entries);
+    expect(noteForeignVendors('cli-claude', entries)).toEqual(entries);
+  });
+
+  it('prefixed ids stay distinct across providers', () => {
+    // The two routes to Claude Sonnet 4.6 are different strings, and each
+    // resolves to its own provider class.
+    expect(`cli-gemini/claude-sonnet-4-6`).not.toBe(`cli-claude/claude-sonnet-4-6`);
+    expect(belongsToProvider('cli-claude', 'claude-sonnet-4-6')).toBe(true);
+    expect(belongsToProvider('cli-gemini', 'claude-sonnet-4-6')).toBe(false);
   });
 
   it('assigns each vendor family to exactly one provider', () => {

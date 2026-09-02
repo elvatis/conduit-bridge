@@ -266,6 +266,11 @@ export class BridgeServer {
         object: 'model',
         created: 0,
         owned_by: m.owned_by,
+        // Additive, ignored by strict OpenAI clients. Without it the picker can
+        // only show the raw slug, so a resold model such as
+        // cli-gemini/claude-sonnet-4-6 would appear under a Gemini heading with
+        // nothing to say which CLI actually serves it.
+        display_name: m.displayName,
         conduit: { availability: m.availability ?? 'dynamic', source: m.source ?? 'provider' },
       }));
       json(res, 200, { object: 'list', data: models });

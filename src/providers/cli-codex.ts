@@ -20,7 +20,7 @@ import { cliPermissionArgs } from '../cli-mode.js';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { catalogFor, filterToVendor, isModelId, isPinned, type CatalogEntry } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isModelId, isPinned, vendorOf, type CatalogEntry } from '../model-catalog.js';
 
 // OpenAI Codex CLI (@openai/codex) — non-interactive via `codex exec`.
 // Install: npm i -g @openai/codex  then  codex login
@@ -83,7 +83,7 @@ export function parseCodexModels(body: unknown): CatalogEntry[] {
       : undefined;
     out.push(displayName ? { id, displayName } : { id });
   }
-  return filterToVendor('cli-codex', out);
+  return noteForeignVendors('cli-codex', out);
 }
 
 export class CodexCliProvider implements ProviderAdapter {
@@ -102,7 +102,7 @@ export class CodexCliProvider implements ProviderAdapter {
       id: `${PREFIX}${m.id}`,
       provider: 'cli-codex' as ProviderName,
       displayName: `${m.displayName ?? m.id} (Codex CLI)`,
-      owned_by: 'openai',
+      owned_by: vendorOf(m.id, 'openai'),
     }));
   }
 
@@ -162,7 +162,7 @@ export class CodexCliProvider implements ProviderAdapter {
         id: `${PREFIX}${m.id}`,
         provider: 'cli-codex' as ProviderName,
         displayName: `${m.displayName ?? m.id} (Codex CLI)`,
-        owned_by: 'openai',
+        owned_by: vendorOf(m.id, 'openai'),
       }));
       logger.info(`[cli-codex] discovered ${entries.length} models from the ChatGPT model endpoint`);
       return entries.length;

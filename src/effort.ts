@@ -51,7 +51,7 @@ export function effortCapabilities(provider: string): { values: string[]; aliase
     return { values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode'], aliases: { ultracode: 'max' }, note: 'ultracode is a Conduit alias for the provider maximum.' };
   }
   if (provider === 'cli-gemini') {
-    return { values: ['low', 'medium', 'high'], note: 'agy supports low, medium, and high.' };
+    return { values: ['low', 'medium', 'high'], note: 'agy supports low, medium and high, but an id ending in -low/-medium/-high is fixed at that tier, and the models agy resells from other vendors reject the flag outright — both are dropped rather than sent.' };
   }
   if (provider === 'cli-grok' || provider === 'codex-api' || provider === 'openrouter-api' || provider === 'perplexity-api') {
     return { values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], note: 'The upstream model may support only a subset.' };
