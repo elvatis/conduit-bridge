@@ -14,6 +14,7 @@ import {
   stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { cliSession } from './cli-auth.js';
 import { toOpenAiEffort } from '../effort.js';
 
 // OpenAI Codex CLI (@openai/codex) — non-interactive via `codex exec`.
@@ -43,22 +44,31 @@ export class CodexCliProvider implements ProviderAdapter {
 
   constructor(_cfg: BridgeConfig) {}
 
+  get credentialSource(): string {
+    return cliSession('codex', [BIN]).source;
+  }
+
   ownsModel(modelId: string): boolean {
     return modelId.startsWith(PREFIX);
   }
 
   async checkSession(): Promise<boolean> {
-    return resolveExecutable(BIN) !== null;
+    return cliSession('codex', [BIN]).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const ok = await this.checkSession();
-    if (!ok) {
+    const session = cliSession('codex', [BIN]);
+    if (!session.installed) {
       logger.warn(
         '[cli-codex] `codex` not found on PATH. Install with: npm i -g @openai/codex && codex login',
       );
+      return false;
     }
-    return ok;
+    if (!session.authenticated) {
+      logger.warn('[cli-codex] `codex` is installed but not authenticated. Run `codex login`.');
+      return false;
+    }
+    return true;
   }
 
   async restoreSession(): Promise<boolean> {
@@ -67,7 +77,7 @@ export class CodexCliProvider implements ProviderAdapter {
 
   async login(_onReady: (loginUrl: string) => void): Promise<void> {
     throw new Error(
-      'cli-codex uses the local Codex CLI — install @openai/codex and run `codex login` (not a browser login).',
+      'cli-codex uses the local Codex CLI — install @openai/codex and run `codex login`.',
     );
   }
 
@@ -109,11 +119,14 @@ export class CodexCliProvider implements ProviderAdapter {
       cwd: homedir(),
       label: 'cli-codex',
       log: msg => logger.info(msg),
+      signal: req.signal,
     });
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =
-        result.timedOut || result.exitCode === 143
+        result.aborted
+          ? 'client disconnected: process terminated'
+          : result.timedOut || result.exitCode === 143
           ? `timeout: codex killed by supervisor (exit ${result.exitCode})`
           : result.stderr || '(no output)';
       throw new Error(`codex exited ${result.exitCode}: ${detail}`);

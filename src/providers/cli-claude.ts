@@ -11,12 +11,13 @@ import {
   resolveExecutable,
   runCli,
   flattenMessages,
-  stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { cliSession } from './cli-auth.js';
 import { toClaudeEffort } from '../effort.js';
+import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.js';
 
-// Anthropic Claude Code CLI (@anthropic-ai/claude-code) — headless via -p/--print.
+// Anthropic Claude Code CLI (@anthropic-ai/claude-code) — non-interactive via -p/--print.
 // Install: npm i -g @anthropic-ai/claude-code  then authenticate (claude /login or API key)
 // Docs: https://www.npmjs.com/package/@anthropic-ai/claude-code
 const PREFIX = 'cli-claude/';
@@ -33,31 +34,48 @@ const CATALOG = [
 export class ClaudeCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-claude';
 
-  readonly models: ModelDefinition[] = CATALOG.map(id => ({
-    id: `${PREFIX}${id}`,
-    provider: 'cli-claude',
-    displayName: `${id} (Claude Code CLI)`,
-    owned_by: 'anthropic',
-  }));
+  readonly models: ModelDefinition[] = [
+    ...CATALOG.map(id => ({
+      id: `${PREFIX}${id}`,
+      provider: 'cli-claude' as ProviderName,
+      displayName: `${id} (Claude Code CLI, first-account)`,
+      owned_by: 'anthropic',
+    })),
+    ...CLI_ACCOUNTS.flatMap(account => CATALOG.map(id => ({
+      id: `${PREFIX}${account}/${id}`,
+      provider: 'cli-claude' as ProviderName,
+      displayName: `${id} (Claude Code CLI, ${account})`,
+      owned_by: 'anthropic',
+    }))),
+  ];
 
   constructor(_cfg: BridgeConfig) {}
+
+  get credentialSource(): string {
+    return cliSession('claude', [BIN]).source;
+  }
 
   ownsModel(modelId: string): boolean {
     return modelId.startsWith(PREFIX);
   }
 
   async checkSession(): Promise<boolean> {
-    return resolveExecutable(BIN) !== null;
+    return cliSession('claude', [BIN]).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const ok = await this.checkSession();
-    if (!ok) {
+    const session = cliSession('claude', [BIN]);
+    if (!session.installed) {
       logger.warn(
         '[cli-claude] `claude` not found on PATH. Install with: npm i -g @anthropic-ai/claude-code',
       );
+      return false;
     }
-    return ok;
+    if (!session.authenticated) {
+      logger.warn('[cli-claude] `claude` is installed but not authenticated. Run `claude login`.');
+      return false;
+    }
+    return true;
   }
 
   async restoreSession(): Promise<boolean> {
@@ -67,7 +85,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
   async login(_onReady: (loginUrl: string) => void): Promise<void> {
     throw new Error(
       'cli-claude uses the local Claude Code CLI — install @anthropic-ai/claude-code and authenticate ' +
-        '(claude login / ANTHROPIC_API_KEY), not a browser login via conduit-bridge.',
+        '(for example, claude login or the CLI-supported credential flow).',
     );
   }
 
@@ -83,7 +101,8 @@ export class ClaudeCliProvider implements ProviderAdapter {
       );
     }
 
-    const model = stripPrefix(req.model, PREFIX);
+    const accountModel = parseClaudeModel(req.model, PREFIX);
+    const model = accountModel.model;
     const prompt = flattenMessages(req.messages);
     const effort = toClaudeEffort(req.effort);
 
@@ -104,13 +123,17 @@ export class ClaudeCliProvider implements ProviderAdapter {
       args,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: homedir(),
+      env: claudeAccountEnv(accountModel.account),
       label: 'cli-claude',
       log: msg => logger.info(msg),
+      signal: req.signal,
     });
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =
-        result.timedOut || result.exitCode === 143
+        result.aborted
+          ? 'client disconnected: process terminated'
+          : result.timedOut || result.exitCode === 143
           ? `timeout: claude killed by supervisor (exit ${result.exitCode})`
           : result.stderr || '(no output)';
       throw new Error(`claude exited ${result.exitCode}: ${detail}`);

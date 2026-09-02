@@ -80,4 +80,3 @@ jobs:
       - name: Print aahp doctor conformance record
         if: ${{ github.actor != 'dependabot[bot]' && github.event.head_commit.author.username != 'dependabot[bot]' }}
         run: npx --no-install aahp doctor . --json
-

@@ -8,6 +8,45 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the browser-session architecture with explicit API, CLI, and local
+  provider transports.
+- Standardized Grok CLI as `cli-grok`.
+- Separated API credential discovery from CLI authentication. A CLI login no
+  longer marks its API counterpart configured.
+- Added independent API, CLI, and local provider pages to the dashboard.
+- Updated AAHP to 3.12.0 and supply-chain-guard to the rolling `@v6` tag.
+- Rewrote desktop setup, autostart, Help, and migration documentation.
+- CLI `connected` now means installed and authenticated, not merely on PATH.
+- Orchestrator history stores a short redacted preview instead of full transcripts.
+- `BridgeServer.start()` no longer throws on unsupported platforms; the CLI still exits.
+
+### Removed
+
+- All `web-*` model routes and browser-session providers.
+- Interactive sign-in, session restore, profile management, and viewer routes.
+- Playwright and all browser automation configuration.
+- Legacy `grok-cli` provider ID in favor of `cli-grok`.
+
+### Fixed
+
+- API credential state refreshes immediately after a key is saved.
+- Provider status now reports the actual API credential source without exposing
+  secret values.
+- CSRF checks honor `allowedOrigins` for same-site POSTs from another local port.
+- Dashboard HTML stays reachable when `authToken` is set; the page collects the
+  token and sends it on `/v1/*` and the event socket. `status` reuses the token.
+- Activity messages redact credential-shaped tokens.
+- `conduit-bridge config authToken` no longer coerces numeric-looking strings.
+- Unknown `POST /v1/tests/cli` providers return 404 instead of 500.
+- `CONDUIT_HOME` is shared by config, metrics, run-history, CLI accounts, and
+  autostart launchers.
+- Windows autostart hides the console window and matches Node paths with `/` or `\`.
+- HTTP routes match on path, ignoring query strings.
+- Debate strategy critiques prior answers; compare/orchestrator/cli-test share
+  the request limiter.
+
 ## [0.5.1] - 2026-08-21
 
 ### Changed

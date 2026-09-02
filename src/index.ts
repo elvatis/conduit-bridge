@@ -1,7 +1,7 @@
 // Public API for conduit-bridge (used by conduit-vscode extension)
 export { BridgeServer } from './server.js';
 export { ProviderRegistry } from './registry.js';
-export { loadConfig, saveConfig, loadDotEnv } from './config.js';
+export { loadConfig, saveConfig, loadDotEnv, runtimeDir, parseConfigValue, bearerAuthorization } from './config.js';
 export { logger, configureLogger } from './logger.js';
 export {
   pickEffort,
@@ -15,11 +15,15 @@ export type {
   BridgeConfig,
   BridgeStatus,
   ProviderStatus,
-  SessionInfo,
-  SessionStatus,
   ProviderName,
   ChatMessage,
   ChatRequest,
   ModelDefinition,
   ProviderAdapter,
 } from './types.js';
+export {
+  SUPPORTED_DESKTOP_PLATFORMS,
+  platformSupport,
+  assertSupportedPlatform,
+} from './platform.js';
+export type { PlatformSupport, SupportedDesktopPlatform } from './platform.js';

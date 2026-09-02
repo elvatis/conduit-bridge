@@ -1,42 +1,45 @@
-# LOG.md — conduit-bridge
+# Work log
 
-_Reverse chronological. Latest session first._
+_Reverse chronological._
 
----
+## 2026-09-02 — control-plane review follow-up
 
-## Session 1 — 2026-03-12 — Initial Build (Akido / claude-sonnet-4-6)
+- CSRF now consults `allowedOrigins` before treating `same-site` as forbidden.
+- Dashboard HTML is served without bearer auth; JS collects a token and sends
+  it on fetch and as `conduit-token.*`. `status` reuses `cfg.authToken`.
+- ActivityLog and orchestrator history run through `redactSecrets`.
+- CLI session probes cred files / env, not PATH-only.
+- grok-cli uses shared `runCli` so Windows abort taskkills the tree.
+- `parseConfigValue` no longer coerces `authToken` to Number.
+- Unknown `POST /v1/tests/cli` providers return 404.
+- `runtimeDir()` honors `CONDUIT_HOME` for config, metrics, history, accounts,
+  and autostart launchers.
+- Windows autostart uses `-WindowStyle Hidden` and a slash-normalized
+  uninstall matcher.
+- Independence test plants CLI OAuth files; settings omit key values.
+- SCG unpinned to `@v6`; Dependabot ignore and AAHP Dependabot no-op restored.
+- README AAHP badge points at this repo; 0.5.1 changelog restored.
+- Debate critiques prior answers; compare/orchestrator/cli-test are limited.
+- Routes match on path. Library start no longer throws on unsupported OS.
+- Focused tests 79 passing; CSRF mutation red then green; tsc clean.
 
-**Goal:** Scaffold conduit-bridge as standalone proxy extracted from openclaw-cli-bridge-elvatis.
+## 2026-09-02 — provider architecture cleanup
 
-**Decisions:**
-- Standalone package with zero OpenClaw dependency (users shouldn't need the full gateway)
-- Port 31338 by default (avoids conflict with OpenClaw's cli-bridge on 31337)
-- Profiles stored in `~/.conduit/profiles/` (separate from `~/.openclaw/`)
-- `BaseProvider` abstract class handles all Playwright lifecycle — providers only implement `chat()` / `chatStream()`
-- `pollForResponse()` helper shared via `grok.ts` imports (DRY, avoids duplication)
-- Sequential restore on startup, 2s delay between providers (anti-OOM, same lesson learned from cli-bridge)
-- Logger has `onLine()` subscription API so conduit-vscode can pipe logs to Output Channel
-
-**What was built:**
-- `src/types.ts` — all shared interfaces
-- `src/config.ts` — `~/.conduit/config.json` load/save
-- `src/logger.ts` — subscribable logger
-- `src/providers/base.ts` — BaseProvider (Playwright, login, restore, verify)
-- `src/providers/grok.ts` — Grok adapter + `buildUserMessage`, `pollForResponse` helpers
-- `src/providers/claude.ts` — Claude adapter
-- `src/providers/gemini.ts` — Gemini adapter
-- `src/providers/chatgpt.ts` — ChatGPT adapter
-- `src/registry.ts` — ProviderRegistry (manages all 4, sequential restore)
-- `src/server.ts` — BridgeServer (HTTP, all routes)
-- `src/index.ts` — public API exports
-- `src/cli.ts` — CLI (start/status/login/config)
-- `README.md` — full documentation
-- `.ai/handoff/` — AAHP protocol files
-
-**Commit:** `40eae33` — feat: initial conduit-bridge standalone proxy (v0.1.0)
-
-**Known gaps at end of session:**
-- No tests (T-003)
-- Response polling fragile (T-005)
-- No npm publish (T-006)
-- No session expiry tracking (T-004)
+- Removed all `web-*` providers and interactive sign-in routes.
+- Removed the Playwright dependency and the browser runtime.
+- Split provider status into API, CLI, and local categories.
+- Standardized the Grok CLI provider ID as `cli-grok`.
+- Stopped API providers from reading CLI OAuth credential files.
+- Added separate dashboard navigation pages for API, CLI, and local providers.
+- Kept direct API keys write-only and exposed only their sanitized source.
+- Rewrote README, Help, migration, autostart, changelog, and handoff material.
+- Updated AAHP to 3.12.0 and supply-chain-guard to 6.0.9.
+- Windows test suite passed with 85 tests.
+- Typecheck, build, diff check, both secret scans, production audit, AAHP
+  doctor, and AAHP precommit verification passed.
+- Live Windows status showed all four CLI providers independently connected,
+  while API providers reflected only their own Bridge or environment keys.
+- Windows autostart install, health, tracked PID, logs, stop, and uninstall
+  completed successfully.
+- Resolved the new CodeQL HTML-filtering alert in the dashboard syntax test by
+  matching script tags case-insensitively.

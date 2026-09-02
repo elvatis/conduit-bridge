@@ -1,7 +1,7 @@
 {
   "name": "@elvatis/conduit-bridge",
   "version": "0.5.1",
-  "description": "Standalone OpenAI-compatible AI proxy: Grok, Claude, Gemini, ChatGPT via headless browser",
+  "description": "Standalone OpenAI-compatible gateway for API, CLI, and local model providers",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -26,11 +26,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
     "@google/generative-ai": "^0.24.1",
-    "openai": "^7.4.0",
-    "playwright": "^1.62.1"
+    "openai": "^7.4.0"
   },
   "devDependencies": {
-    "@elvatis_com/aahp": "3.10.0",
+    "@elvatis_com/aahp": "3.12.0",
     "@types/node": "^26.2.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",

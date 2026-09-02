@@ -14,10 +14,11 @@ import {
   stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
-// Headless: agy -p/--print with --model and --output-format text.
+// Non-interactive: agy -p/--print with --model and --output-format text.
 // Fallback: legacy `gemini` binary if still on PATH.
 // Docs: https://antigravity.google/docs/cli/getting-started
 const PREFIX = 'cli-gemini/';
@@ -53,23 +54,32 @@ export class GeminiCliProvider implements ProviderAdapter {
 
   constructor(_cfg: BridgeConfig) {}
 
+  get credentialSource(): string {
+    return cliSession('gemini', ['agy', 'gemini', 'antigravity']).source;
+  }
+
   ownsModel(modelId: string): boolean {
     return modelId.startsWith(PREFIX);
   }
 
   async checkSession(): Promise<boolean> {
-    return resolveGeminiBin() !== null;
+    return cliSession('gemini', ['agy', 'gemini', 'antigravity']).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const ok = await this.checkSession();
-    if (!ok) {
+    const session = cliSession('gemini', ['agy', 'gemini', 'antigravity']);
+    if (!session.installed) {
       logger.warn(
         '[cli-gemini] `agy` not found on PATH. Install Antigravity CLI ' +
           '(https://antigravity.google/docs/cli/getting-started) — binary name is `agy`.',
       );
+      return false;
     }
-    return ok;
+    if (!session.authenticated) {
+      logger.warn('[cli-gemini] Gemini CLI is installed but not authenticated.');
+      return false;
+    }
+    return true;
   }
 
   async restoreSession(): Promise<boolean> {
@@ -79,7 +89,7 @@ export class GeminiCliProvider implements ProviderAdapter {
   async login(_onReady: (loginUrl: string) => void): Promise<void> {
     throw new Error(
       'cli-gemini uses the local Antigravity CLI (`agy`) — install and authenticate there ' +
-        '(not a browser login via conduit-bridge).',
+        'using the CLI-supported authentication flow.',
     );
   }
 
@@ -124,11 +134,14 @@ export class GeminiCliProvider implements ProviderAdapter {
       cwd: homedir(),
       label: 'cli-gemini',
       log: msg => logger.info(msg),
+      signal: req.signal,
     });
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =
-        result.timedOut || result.exitCode === 143
+        result.aborted
+          ? 'client disconnected: process terminated'
+          : result.timedOut || result.exitCode === 143
           ? `timeout: agy/gemini CLI killed by supervisor (exit ${result.exitCode})`
           : result.stderr || '(no output)';
       throw new Error(`cli-gemini exited ${result.exitCode}: ${detail}`);

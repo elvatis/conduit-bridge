@@ -1,9 +1,4 @@
-import type { BridgeConfig, ProviderName, ProviderStatus, BridgeStatus, ModelDefinition, ProviderAdapter, SessionInfo } from './types.js';
-import type { BaseProvider } from './providers/base.js';
-import { GrokProvider } from './providers/grok.js';
-import { ClaudeProvider } from './providers/claude.js';
-import { GeminiProvider } from './providers/gemini.js';
-import { ChatGPTProvider } from './providers/chatgpt.js';
+import type { BridgeConfig, ProviderName, ProviderStatus, BridgeStatus, ModelDefinition, ProviderAdapter } from './types.js';
 import { ClaudeApiProvider } from './providers/claude-api.js';
 import { GeminiApiProvider } from './providers/gemini-api.js';
 import { CodexApiProvider } from './providers/codex-api.js';
@@ -14,7 +9,6 @@ import { GrokCliProvider } from './providers/grok-cli.js';
 import { CodexCliProvider } from './providers/cli-codex.js';
 import { ClaudeCliProvider } from './providers/cli-claude.js';
 import { GeminiCliProvider } from './providers/cli-gemini.js';
-import { logger } from './logger.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -31,39 +25,46 @@ const VERSION = (() => {
 export class ProviderRegistry {
   private _providers: Map<ProviderName, ProviderAdapter> = new Map();
   private _startTime = Date.now();
-  private _restoreDone = false;
-  private _restoring = false;
 
   constructor(private _cfg: BridgeConfig) {
-    // Web-based providers (Playwright)
-    this._providers.set('grok',       new GrokProvider(_cfg));
-    this._providers.set('claude',     new ClaudeProvider(_cfg));
-    this._providers.set('gemini',     new GeminiProvider(_cfg));
-    this._providers.set('chatgpt',    new ChatGPTProvider(_cfg));
-
-    // API/SDK-based providers (no browser needed)
+    // Direct API/SDK providers
     this._providers.set('claude-api', new ClaudeApiProvider(_cfg));
     this._providers.set('gemini-api', new GeminiApiProvider(_cfg));
     this._providers.set('codex-api',  new CodexApiProvider(_cfg));
 
-    // OpenAI-compatible API aggregators (no browser needed)
+    // OpenAI-compatible API aggregators
     this._providers.set('openrouter-api', new OpenRouterApiProvider(_cfg));
     this._providers.set('perplexity-api', new PerplexityApiProvider(_cfg));
 
     // Local providers (no key needed / local subprocess / coding CLIs)
     this._providers.set('lmstudio', new LmStudioProvider(_cfg));
-    this._providers.set('grok-cli', new GrokCliProvider(_cfg));
+    this._providers.set('cli-grok', new GrokCliProvider(_cfg));
     this._providers.set('cli-codex', new CodexCliProvider(_cfg));
     this._providers.set('cli-claude', new ClaudeCliProvider(_cfg));
     this._providers.set('cli-gemini', new GeminiCliProvider(_cfg));
   }
 
   get(name: ProviderName): ProviderAdapter {
-    return this._providers.get(name)!;
+    const provider = this._providers.get(name);
+    if (!provider) throw new Error(`Unknown provider: ${name}`);
+    return provider;
+  }
+
+  lookup(name: string): ProviderAdapter | undefined {
+    return this._providers.get(name as ProviderName);
   }
 
   allModels(): ModelDefinition[] {
     return [...this._providers.values()].flatMap(p => p.models);
+  }
+
+  async refreshApiModels(): Promise<Record<string, number>> {
+    const result: Record<string, number> = {};
+    for (const provider of this._providers.values()) {
+      const refresh = (provider as ProviderAdapter & { refreshModels?: () => Promise<number> }).refreshModels;
+      if (refresh) result[provider.name] = await refresh.call(provider);
+    }
+    return result;
   }
 
   providerForModel(modelId: string): ProviderAdapter | undefined {
@@ -75,82 +76,18 @@ export class ProviderRegistry {
     return providers.find(p => p.ownsModel?.(modelId));
   }
 
-  /** True while initial session restore is in progress */
-  get isRestoring(): boolean { return this._restoring; }
-
-  /** Restore sessions from saved profiles — sequential, profile-gated */
-  async restoreSessions(): Promise<void> {
-    if (this._restoreDone) return;
-    this._restoreDone = true;
-    this._restoring = true;
-
-    logger.info('Restoring sessions…');
-    const providers = [...this._providers.values()];
-
-    try {
-      for (const p of providers) {
-        // API providers restore instantly (just check API key)
-        // Web providers need profile directory
-        const isWebProvider = 'hasProfile' in p;
-        if (isWebProvider && !(p as BaseProvider).hasProfile) {
-          logger.debug(`[${p.name}] no profile — skipping`);
-          continue;
-        }
-        try {
-          await p.restoreSession();
-        } catch (err) {
-          logger.warn(`[${p.name}] restore error: ${(err as Error).message}`);
-        }
-        // Sequential delay for web providers to avoid OOM
-        if (isWebProvider) await new Promise(r => setTimeout(r, 2000));
-      }
-    } finally {
-      this._restoring = false;
-      logger.info('Session restore complete');
-    }
-  }
-
-  /** Periodically check sessions and reconnect any that have gone stale */
-  async keepaliveSessions(): Promise<void> {
-    const providers = [...this._providers.values()];
-    for (const p of providers) {
-      // Skip API providers (they don't need keepalive) and web providers without profiles
-      const isWebProvider = 'hasProfile' in p;
-      if (!isWebProvider) continue;
-      if (!(p as BaseProvider).hasProfile) continue;
-
-      const alive = await p.checkSession();
-      if (!alive) {
-        logger.info(`[${p.name}] session stale — attempting reconnect…`);
-        try {
-          await p.restoreSession();
-        } catch (err) {
-          logger.debug(`[${p.name}] keepalive reconnect failed: ${(err as Error).message}`);
-        }
-        await new Promise(r => setTimeout(r, 2000));
-      }
-    }
-  }
-
   async getStatus(): Promise<BridgeStatus> {
     const providers: ProviderStatus[] = [];
 
     for (const [name, p] of this._providers) {
-      const sessionValid = await p.checkSession();
-      const isWebProvider = 'hasProfile' in p;
-      // Session expiry tracking (T-004): browser-login providers report a live
-      // session snapshot; API-key providers have no browser session to expire.
-      const session: SessionInfo = isWebProvider
-        ? (p as BaseProvider).sessionInfo
-        : { loggedIn: sessionValid, lastVerified: null, status: 'not_applicable' };
+      const connected = await p.checkSession();
+      const loginType = name.startsWith('cli-') ? 'cli' : name === 'lmstudio' ? 'local' : 'api-key';
       providers.push({
         name,
-        connected: sessionValid,
-        hasProfile: isWebProvider ? (p as BaseProvider).hasProfile : sessionValid,
-        sessionValid,
+        connected,
         models: p.models.map(m => m.id),
-        loginType: isWebProvider ? 'browser' : 'api-key',
-        session,
+        loginType,
+        credentialSource: p.credentialSource,
       });
     }
 

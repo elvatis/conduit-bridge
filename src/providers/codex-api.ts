@@ -20,6 +20,7 @@ export class CodexApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'codex-api';
 
   readonly models: ModelDefinition[] = [
+    { id: 'api-codex/text-embedding-3-small', provider: 'codex-api', displayName: 'Text Embedding 3 Small (API)', owned_by: 'openai' },
     { id: 'api-codex/gpt-5.6-sol',   provider: 'codex-api', displayName: 'GPT-5.6 Sol (API)',   owned_by: 'openai' },
     { id: 'api-codex/gpt-5.6-terra', provider: 'codex-api', displayName: 'GPT-5.6 Terra (API)', owned_by: 'openai' },
     { id: 'api-codex/gpt-5.6-luna',  provider: 'codex-api', displayName: 'GPT-5.6 Luna (API)',  owned_by: 'openai' },
@@ -42,7 +43,7 @@ export class CodexApiProvider extends ApiBaseProvider {
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(reasoning_effort ? { reasoning_effort } : {}),
-    });
+    }, { signal: req.signal });
 
     return response.choices[0]?.message?.content ?? '';
   }
@@ -59,7 +60,7 @@ export class CodexApiProvider extends ApiBaseProvider {
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(reasoning_effort ? { reasoning_effort } : {}),
-    });
+    }, { signal: req.signal });
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;

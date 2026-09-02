@@ -2,11 +2,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
 
-// Model IDs verified against ai.google.dev/gemini-api/docs/models (2026-08-09).
-// Gemini 3.6 Flash + 3.5 Flash-Lite went GA 2026-07-21. gemini-3.1-pro remains
+// Model IDs verified against ai.google.dev/gemini-api/docs/models (2026-09-01).
+// Gemini 3.7 Flash is the current Flash tier. gemini-3.1-pro remains
 // a preview endpoint (gemini-3.1-pro-preview). Thinking is request config, not
 // a separate model ID.
 const MODEL_MAP: Record<string, string> = {
+  'api-gemini/gemini-3.7-flash':      'gemini-3.7-flash',
   'api-gemini/gemini-3.6-flash':      'gemini-3.6-flash',
   'api-gemini/gemini-3.5-flash':      'gemini-3.5-flash',
   'api-gemini/gemini-3.5-flash-lite': 'gemini-3.5-flash-lite',
@@ -18,6 +19,7 @@ export class GeminiApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'gemini-api';
 
   readonly models: ModelDefinition[] = [
+    { id: 'api-gemini/gemini-3.7-flash',      provider: 'gemini-api', displayName: 'Gemini 3.7 Flash (API)',      owned_by: 'google' },
     { id: 'api-gemini/gemini-3.6-flash',      provider: 'gemini-api', displayName: 'Gemini 3.6 Flash (API)',      owned_by: 'google' },
     { id: 'api-gemini/gemini-3.5-flash',      provider: 'gemini-api', displayName: 'Gemini 3.5 Flash (API)',      owned_by: 'google' },
     { id: 'api-gemini/gemini-3.5-flash-lite', provider: 'gemini-api', displayName: 'Gemini 3.5 Flash-Lite (API)', owned_by: 'google' },

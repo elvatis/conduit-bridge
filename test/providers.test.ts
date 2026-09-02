@@ -1,8 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  const path = await import('node:path');
+  return {
+    ...actual,
+    homedir: () => path.join(actual.tmpdir(), 'conduit-bridge-providers-test-home'),
+  };
+});
+
 import { ProviderRegistry } from '../src/registry.js';
-import { BaseProvider } from '../src/providers/base.js';
 import { OpenRouterApiProvider } from '../src/providers/openrouter-api.js';
 import { PerplexityApiProvider } from '../src/providers/perplexity-api.js';
+import { ClaudeApiProvider } from '../src/providers/claude-api.js';
+import { GeminiApiProvider } from '../src/providers/gemini-api.js';
+import { CodexApiProvider } from '../src/providers/codex-api.js';
 import { LmStudioProvider } from '../src/providers/lmstudio.js';
 import { GrokCliProvider } from '../src/providers/grok-cli.js';
 import { CodexCliProvider } from '../src/providers/cli-codex.js';
@@ -14,13 +29,39 @@ import type { BridgeConfig } from '../src/types.js';
 const cfg: BridgeConfig = {
   port: 31338,
   host: '127.0.0.1',
-  profileBaseDir: '/tmp/conduit-test-profiles',
-  headless: false,
   logLevel: 'silent',
   apiKeys: {},
 };
 
 describe('new provider catalogs + ownsModel', () => {
+  it('keeps API credentials independent from CLI authentication', () => {
+    const names = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY'] as const;
+    const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+    const home = join(tmpdir(), 'conduit-bridge-providers-test-home');
+    mkdirSync(join(home, '.claude'), { recursive: true });
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    mkdirSync(join(home, '.gemini'), { recursive: true });
+    writeFileSync(join(home, '.claude', '.credentials.json'), '{"placeholder":"cli-oauth"}');
+    writeFileSync(join(home, '.codex', 'auth.json'), '{"placeholder":"cli-oauth"}');
+    writeFileSync(join(home, '.gemini', 'oauth_creds.json'), '{"placeholder":"cli-oauth"}');
+    try {
+      for (const name of names) delete process.env[name];
+      expect(new ClaudeApiProvider(cfg).credentialSource).toBe('Not detected');
+      expect(new GeminiApiProvider(cfg).credentialSource).toBe('Not detected');
+      expect(new CodexApiProvider(cfg).credentialSource).toBe('Not detected');
+
+      const configured = { ...cfg, apiKeys: { 'claude-api': 'test-value' } };
+      expect(new ClaudeApiProvider(configured).credentialSource).toBe('Bridge config');
+      expect(new GeminiApiProvider(configured).credentialSource).toBe('Not detected');
+      expect(new CodexApiProvider(configured).credentialSource).toBe('Not detected');
+    } finally {
+      for (const name of names) {
+        if (saved[name] === undefined) delete process.env[name];
+        else process.env[name] = saved[name];
+      }
+    }
+  });
+
   it('OpenRouter: prefixed catalog, owns its namespace', () => {
     const p = new OpenRouterApiProvider(cfg);
     expect(p.name).toBe('openrouter-api');
@@ -51,7 +92,7 @@ describe('new provider catalogs + ownsModel', () => {
 
   it('Grok CLI: prefixed catalog, owns its namespace', () => {
     const p = new GrokCliProvider(cfg);
-    expect(p.name).toBe('grok-cli');
+    expect(p.name).toBe('cli-grok');
     expect(p.models.some(m => m.id === 'cli-grok/grok-4.5')).toBe(true);
     expect(p.models.every(m => m.id.startsWith('cli-grok/'))).toBe(true);
     expect(p.ownsModel('cli-grok/grok-3-mini')).toBe(true);
@@ -93,7 +134,7 @@ describe('registry routing', () => {
   it('routes exact catalog ids to the right provider', () => {
     expect(reg.providerForModel('api-openrouter/openai/gpt-5.6-sol')?.name).toBe('openrouter-api');
     expect(reg.providerForModel('api-perplexity/sonar')?.name).toBe('perplexity-api');
-    expect(reg.providerForModel('cli-grok/grok-4.5')?.name).toBe('grok-cli');
+    expect(reg.providerForModel('cli-grok/grok-4.5')?.name).toBe('cli-grok');
     expect(reg.providerForModel('cli-codex/gpt-5.6-sol')?.name).toBe('cli-codex');
     expect(reg.providerForModel('cli-claude/claude-fable-5')?.name).toBe('cli-claude');
     expect(reg.providerForModel('cli-gemini/gemini-3.6-flash-high')?.name).toBe('cli-gemini');
@@ -104,7 +145,7 @@ describe('registry routing', () => {
     expect(reg.providerForModel('api-openrouter/some/unlisted-model')?.name).toBe('openrouter-api');
     expect(reg.providerForModel('api-perplexity/anything-goes')?.name).toBe('perplexity-api');
     expect(reg.providerForModel('lmstudio/llama-3.1-8b-instruct')?.name).toBe('lmstudio');
-    expect(reg.providerForModel('cli-grok/grok-9-future')?.name).toBe('grok-cli');
+    expect(reg.providerForModel('cli-grok/grok-9-future')?.name).toBe('cli-grok');
     expect(reg.providerForModel('cli-codex/some-future')?.name).toBe('cli-codex');
     expect(reg.providerForModel('cli-claude/some-future')?.name).toBe('cli-claude');
     expect(reg.providerForModel('cli-gemini/some-future')?.name).toBe('cli-gemini');
@@ -143,33 +184,5 @@ describe('cli message flattening', () => {
   it('works with no system message', () => {
     const out = flattenMessages([{ role: 'user', content: 'Just this' }]);
     expect(out).toBe('User: Just this');
-  });
-});
-
-describe('BaseProvider._looksLoggedOut URL sanitization', () => {
-  class TestWebProvider extends BaseProvider {
-    readonly name = 'grok' as const;
-    readonly loginUrl = 'https://grok.com';
-    readonly verifySelector = '.ProseMirror';
-    readonly models = [];
-    async chat(): Promise<string> { return ''; }
-    async *chatStream(): AsyncGenerator<string> { yield ''; }
-    testLooksLoggedOut(url: string): boolean { return this._looksLoggedOut(url); }
-  }
-
-  const p = new TestWebProvider(cfg);
-
-  it('detects standard login, signin, and auth URLs', () => {
-    expect(p.testLooksLoggedOut('https://accounts.google.com/signin/v2')).toBe(true);
-    expect(p.testLooksLoggedOut('https://auth.openai.com/authorize')).toBe(true);
-    expect(p.testLooksLoggedOut('https://sub.accounts.google.com/oauth')).toBe(true);
-    expect(p.testLooksLoggedOut('https://x.com/i/flow/login')).toBe(true);
-  });
-
-  it('rejects legitimate non-auth URLs and attack subpaths', () => {
-    expect(p.testLooksLoggedOut('https://example.com/search?q=accounts.google.com')).toBe(false);
-    expect(p.testLooksLoggedOut('https://gemini.google.com/app')).toBe(false);
-    expect(p.testLooksLoggedOut('https://chatgpt.com/')).toBe(false);
-    expect(p.testLooksLoggedOut('')).toBe(false);
   });
 });

@@ -11,12 +11,11 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     ignore:
-      # supply-chain-guard is consumed from the rolling major tag @v5.
-      # Its daily threat-intel routine ships new IOCs as new releases, so
-      # @v5 is how new indicators reach this repo. An exact-version pin
-      # freezes the indicator set and silently stops new threat intelligence
-      # (estate lesson: elvatis-sso Dependabot PR that pinned to v5.23.5).
+      # supply-chain-guard is consumed from the rolling major tag @v6.
+      # Its threat-intel routine ships new IOCs as new releases, so @v6 is how
+      # new indicators reach this repo. An exact-version or SHA pin freezes the
+      # indicator set and silently stops new threat intelligence.
       # Do not remove this ignore without reading .ai/handoff/STATUS.md.
       - dependency-name: "homeofe/supply-chain-guard"

@@ -1,115 +1,48 @@
-> Note (2026-08-21, antigravity): Release v0.5.1. Verified and pinned backend endpoint patterns and transports for live network capture (closes #71). Added BardChatUi match and hardened Gemini editor input using insertText. Resolved CodeQL code-scanning alerts #10 & #11 (js/incomplete-url-substring-sanitization) via robust URL hostname parsing in BaseProvider._looksLoggedOut and Claude provider. Upgraded AAHP to 3.10.0 exact pin with Layer 2 verify workflow contract. Cleared Dependabot updates (PRs #91, #92, #93) and deleted stale remote branches. Version bump 0.5.0 -> 0.5.1.
-> Note (2026-08-21, antigravity): Upgrade AAHP to v3.10.0 and sync Dependabot updates. devDependencies @elvatis_com/aahp exact-pinned at 3.10.0 (lockfile updated; aahp doctor 5 pass / 1 skip). Updated .github/workflows/aahp-verify.yml with AAHP 3.10.0 contract (permissions: contents: read, workflow_dispatch input base, persist-credentials: false, and AAHP_BASE_SHA passed to verify). Verified supply-chain-guard (scanned clean with latest v5.28.1 threat feeds). Cleared Dependabot updates: @anthropic-ai/sdk ^0.117.1, @types/node ^26.2.0, esbuild ^0.28.2 (79/79 tests green, build clean, scan:secrets clean). Deleted stale remote branches on origin (feat/cli-providers-codex-claude-gemini, feat/effort-and-release-0.5.0).
-> Note (2026-08-09, grok): v0.5.0 release prep. Cross-provider reasoning effort (`effort` / `reasoning_effort`) wired for Claude API, Codex/OpenRouter/Perplexity APIs, and coding CLIs (claude --effort, codex model_reasoning_effort, agy --effort, grok --reasoning-effort). Web/LM Studio/Gemini SDK: N/A or no-op. Docs: CHANGELOG.md, docs/RELEASING.md, README effort section + 0.5.0 changelog. Version bump package.json 0.4.0 -> 0.5.0.
-> Note (2026-08-09, grok): Local coding-CLI providers + Fable 5 restore. New providers: cli-codex (`codex` from @openai/codex, `codex exec`), cli-claude (`claude` from @anthropic-ai/claude-code, `-p/--print`), cli-gemini (`agy` Antigravity CLI first, fallback gemini/antigravity; models from `agy models`). Shared src/providers/cli-util.ts for PATH resolve + spawn timeout. Grok already had grok-cli. Restored Claude Fable 5 on api-claude + web-claude + cli-claude + openrouter curated. 74 tests green.
-> Note (2026-08-09, grok): Refresh provider model catalogs from official docs (2026-08). ChatGPT/Codex: GPT-5.6 Sol/Terra/Luna (keep gpt-5.5). Claude curated: Opus 5, Sonnet 5, Haiku 4.5 only. Gemini: add 3.6 Flash + 3.5 Flash-Lite; keep 3.5 Flash and 3.1. OpenRouter/Perplexity curated lists updated; Grok CLI drops retired grok-3 family. LM Studio live-discovers and filters embedding ids. Sources: developers.openai.com/api/docs/models, platform.claude.com models overview, ai.google.dev/gemini-api/docs/models, docs.x.ai, openrouter /api/v1/models, local LM Studio /v1/models.
-> Note (2026-08-09, grok): Raise Node engines floor from 20 to 24 and take openai@7 with it. package.json engines `>=24.0.0`, CI `setup-node` in aahp-verify + secret-scan now `node-version: '24'`, README + CONVENTIONS say Node.js 24+, added root `.nvmrc` with `24`. Bumped `openai` `^6.48.0` -> `^7.4.0` (openai@7 requires Node >=22; the earlier Dependabot #77 close is superseded). Verified on Node v24.14.1: tsc clean, esbuild clean, 71/71 vitest green.
-> Note (2026-08-09, grok): Pin hygiene after the Dependabot merge wave. AAHP: `@elvatis_com/aahp` is exact-pinned at `3.9.2` in devDependencies (no caret/range; aahp.config.json `pinnedDep.allowRange: false`; `aahp doctor` pinned-dep gate pass; `npm ci` installs 3.9.2). SCG: left on floating `homeofe/supply-chain-guard@v5` (major branch currently at v5.25.9) and added a Dependabot `ignore` for that action plus an inline workflow comment. Estate rule: do not exact-pin or SHA-pin SCG - its threat-intel feed ships as new releases, and an exact pin freezes the indicator set while the scan stays green (lesson from elvatis-sso). Verified locally: doctor 4 pass / 2 skip, aahp verify not re-run against uncommitted STATUS yet.
-> Note (2026-08-09, grok): Dependabot backlog cleared + stale AAHP issues closed. Merged to main sequentially (waited for main CI between each merge so deploy gates would not see cancelled runs): #78 @types/node 26.1.1->26.1.2, #79 playwright 1.61.1->1.62.1, #74 @anthropic-ai/sdk 0.111.0->0.115.0, #76 @elvatis_com/aahp 3.8.1->3.9.2 (exact pin kept), #84 postcss 8.5.19->8.5.26 (transitive security), #72 secret-scan gate (rebased onto current main first; now live as Secret Scan workflow). Closed without merge: #77 openai 6->7 major, because openai@7 requires Node.js 22 while engines + AAHP CI stay on Node 20; left openai on ^6.48.0 and asked Dependabot to ignore that major. Closed completed/dropped issues: #80 T-003 vitest (shipped), #81 T-004 session expiry (shipped), #82 T-005 network intercept (shipped in #62; residual is #71), #83 T-006 npm publish (intentionally dropped). Open remaining: #71 verify assumed Claude/Grok/Gemini backend endpoint URL patterns for native capture. Main tip after this session: ece6793; zero open PRs. Maintainer follow-ups still open from earlier notes: enable GitHub secret scanning + push protection; mark AAHP Verify required in branch protection.
-> Note (2026-07-24, claude-opus-5): Tier 0 secret-exposure audit + a CI tripwire. An external audit flagged an "untracked, un-ignored .env" in this public repo. AUDIT RESULT: false alarm at the repo level, and the finding came from a stale local clone (5 commits behind origin/main, so it predated PR #67 which added the .env rules). Evidence: `git log --all --full-history -- ':(literal).env'` returns nothing (no `.env` was ever committed on any ref), the only `.env*` path that ever existed in history is `.env.example`, and a pattern scan of all 717 objects in the full object graph (Anthropic/OpenAI/OpenRouter/Perplexity/Google/xAI/Groq/GitHub/GitLab/AWS/Slack key shapes plus PEM blocks and assigned `*_API_KEY=` values) found zero hits. No credential is or was published, so NOTHING needs rotating. HARDENING added here, because the repo had no secret-scanning control at all (supply-chain-guard audits dependencies, CodeQL audits code, and GitHub-native secret scanning + push protection are DISABLED on this repository): new dependency-free `scripts/scan-secrets.mjs` (15 credential patterns, tracked-tree mode plus a `--history` mode over every blob; placeholder-tolerant so `.env.example` stays clean, and placeholder filtering is applied to the matched line only so a real key pasted INTO `.env.example` is still caught), wired as `npm run scan:secrets` / `scan:secrets:history` and as a new `.github/workflows/secret-scan.yml` job (fetch-depth 0, history mode) on push and PR. Findings are redacted to the first 8 characters of any long token before printing, so the tool itself never reprints a credential into a public CI log while still naming the vendor prefix you have to rotate. Extended .gitignore beyond `.env*` to `*.pem`, `*.p12`, `*.pfx`, `*.key`, `.npmrc`, `.netrc`, `secrets.json`, `credentials.json`, `service-account*.json`, and removed the em dash from its existing comment (it violated the repo's own aahp.config.json forbidden-pattern). Added a SECURITY.md "Handling API Keys" section stating that rotation, not commit deletion, is the fix for a leaked key. Verified: scanner clean in both modes, 4 positive-control probes caught (planted key, tracked `probe_dir/.env`, real-shaped key inside `.env.example`, placeholder lines correctly ignored) and reverted, `git check-ignore -v .env` reports `.gitignore:7:.env`, 71/71 tests and `tsc --noEmit` green, workflow YAML parses. MAINTAINER FOLLOW-UP (needs repo-admin rights, not done here): enable GitHub secret scanning + push protection on elvatis/conduit-bridge, which is free for public repos and would block a leak at push time rather than at CI time.
+# Status
 
-> Note (2026-07-18, claude-opus-4-8): AAHP v3.8.0 CLI conformance. Adopted the pinned AAHP CLI as the single source of the handoff gate and stopped vendoring its bash scripts. Ran `aahp init` + `aahp migrate-grounding` to add GROUNDING.md, LOG-ARCHIVE.md and .aiignore, and converted TRUST.md into a register table carrying the new Provenance column (all rows `-` / unknown; nothing was re-verified this session). Pinned `@elvatis_com/aahp` to an exact `3.8.0` in devDependencies (lockfile updated) and added aahp.config.json (pinnedDep assertion + an em-dash forbidden-pattern). Rewrote .github/workflows/aahp-verify.yml to run the CLI (`npm ci --ignore-scripts` -> `npx --no-install aahp verify . --level ci` -> `... doctor . --json`), preserving the dependabot[bot] exemption. Removed the package-provided scripts (_aahp-lib.sh, aahp-manifest.sh, lint-handoff.sh, verify-handoff.sh, install-hooks.sh, verify-hooks.sh, hooks/pre-commit, hooks/pre-push); kept the repo-specific scripts/validate-pii-allowlist.py. Regenerated MANIFEST.json and restored its `project` field to `conduit-bridge`. `aahp doctor` is 6/6 pass-or-skip; `aahp verify --level full` passes. Manual maintainer follow-up: mark the AAHP Verify check REQUIRED in branch protection once org Actions are re-enabled.
+_Updated: 2026-09-02_
 
-> Note (2026-07-17, claude-opus-4-8): Native `.env` support (the follow-up to the gitignore note below). New `loadDotEnv()` in config.ts reads a `.env` from the working directory then `~/.conduit/.env` into process.env, never overriding a variable already set in the real environment (shell > cwd/.env > ~/.conduit/.env). Dependency-free parser (KEY=VALUE, `#` comments, blank lines, `export ` prefix, single/double quotes). Wired into cli.ts before loadConfig (logs the loaded var NAMES, not values); exported from index.ts for library users. Added test/dotenv.test.ts (4 cases: parsing, no-override, dir precedence, missing-file no-op) and a root `.env.example`. tsc + esbuild clean, 71 tests green, and verified end-to-end: starting the server from a dir with a .env logs "Loaded 2 var(s) from .env: OPENROUTER_API_KEY, PERPLEXITY_API_KEY" and /v1/status shows those providers connected. Left version at 0.4.0 with an "Unreleased" changelog entry - a release can bundle this later.
+Branch: `fix/browser-login-single-port`
 
-> Note (2026-07-17, claude-opus-4-8): Gitignore secrets. Added `.env`, `.env.*` (with a `!.env.example` exception) to .gitignore so a locally-created .env holding provider API keys (OPENROUTER_API_KEY etc.) can never be committed/pushed. Prompted by a user who put their OpenRouter key in a project-root .env - note conduit-bridge does NOT read .env yet (keys come from ~/.conduit/config.json or real env vars); native .env loading is a planned follow-up.
+Conduit Bridge is a Windows Desktop and Linux Desktop OpenAI-compatible
+gateway. Its supported transports are direct APIs, authenticated local CLIs,
+and LM Studio. The sole listener is `127.0.0.1:31338`.
 
-> Note (2026-07-17, claude-opus-4-8): Bump 0.3.0 -> 0.4.0 (minor) and cut a v0.4.0 GitHub release. Everything since the v0.3.0 tag was untagged: the #62 network-interception refactor (closes #35), the TypeScript 6->7 major + other dependency bumps, the README docs refresh and the supply-chain-guard badge. Interface is backward compatible (hence minor, not major). Updated package.json, README (version header, /health + /v1/models examples, 0.4.0 changelog entry) and DASHBOARD. Build + 67 tests green.
+## Provider inventory
 
-> Note (2026-07-17, claude-opus-4-8): Adversarial multi-agent review of the #62 interception refactor -> fixed 3 confirmed defects in src/providers/interception.ts + the 4 web providers: (1) [medium] NetworkCapture bound page.on('response') in its constructor but detach() only ran in a try/finally the providers entered AFTER arm()+submit, so a throw in keyboard.press/page.url leaked the listener on the long-lived reused page (accumulating handlers). Fixed by moving arm()+submit inside the try/finally in grok/claude/gemini/chatgpt so detach() always runs. (2) [low] parseGeminiStream strategy-2 unescaped with an ordered replace chain that collapsed `\\` last, corrupting `\\n` -> backslash+newline; replaced with a single JSON.parse pass. (3) [low] that path also dropped any candidate containing `\uXXXX` (lost non-ASCII text); the JSON.parse pass now decodes it. 67/67 tests still green; tsc + esbuild clean.
+- API: `claude-api`, `codex-api`, `gemini-api`, `openrouter-api`,
+  `perplexity-api`
+- CLI: `cli-claude`, `cli-codex`, `cli-gemini`, `cli-grok`
+- Local: `lmstudio`
 
-> Note (2026-07-17, claude-opus-4-8): Took over PR #62 (T-005 / issue #35, network-layer response interception) now that the desktop agent is stopped. Merged current main into refactor/response-interception-35; the only code conflict was src/providers/base.ts, where #62's startNetworkCapture and main's session-expiry methods (#34) both added a block at the same spot - kept both. Also broadened vitest.config.ts include to `src/**/*.test.ts` so #62's co-located interception.test.ts actually runs (it was being skipped by the `test/**`-only glob). Full suite 67/67 (52 + 15 interception), tsc + esbuild clean. Caveat carried forward from the PR: the Claude/Grok/Gemini backend endpoint patterns are ASSUMED and still need live-site verification; the DOM-polling fallback keeps behaviour from regressing until then.
+API credentials and CLI authentication are independent. All `web-*`
+providers and their automation runtime have been removed.
 
-> Note (2026-07-17, claude-opus-4-8): Added the supply-chain-guard marketplace badge to the README (next to AAHP Verify), per the action's marketplace listing - links to homeofe/supply-chain-guard.
+## Control-plane review follow-up (this session)
 
-> Note (2026-07-17, claude-opus-4-8): Docs refresh (post-0.3.0). README "How It Works" intro + architecture diagram now cover all four backend families (web / api / lmstudio / cli-grok), not just the browser flow. Fixed a factual error in the Available-Models intro (API keys live under `apiKeys.<provider>`, not `anthropicApiKey`/`googleApiKey`) and documented the real key-resolution order (config -> CLI-tool creds -> env var). Added a Usage section for API + local providers, added `--auth-token`/`--no-sandbox` to the start-options list, noted that `/v1/login/:provider` returns setup guidance for non-web providers, refreshed the `/v1/status` example with the `session`/`loginType` fields, and removed the stale `~/.conduit/<provider>-expiry.json` File-Locations row (cookieFile() has no callers; expiry is in-memory via /v1/status).
+Implemented the review of this branch vs `origin/main`: CSRF honors
+`allowedOrigins`; dashboard HTML stays reachable with `authToken` and sends
+the token on `/v1/*` plus the event socket; activity and orchestrator history
+redact secrets; CLI `connected` requires a cred file or CLI-usable env var,
+not merely PATH; grok-cli abort uses shared `runCli` (Windows taskkill);
+numeric-looking `authToken` stays a string; unknown CLI test providers 404;
+`CONDUIT_HOME` is shared by config, metrics, run-history, accounts, and
+autostart; Windows autostart hides the console; SCG is on rolling `@v6`;
+README badge points at this repo; 0.5.1 notes restored; debate critiques
+prior answers; fan-out routes share the limiter; HTTP matches on path;
+`BridgeServer.start()` no longer throws on darwin.
 
-> Note (2026-07-17, claude-opus-4-8): Bump 0.2.6 -> 0.3.0 (minor: new providers + the security/expiry/vitest work that landed since the last release). Updated package.json, README (version header, changelog 0.3.0 entry, /health + /v1/models JSON examples) and DASHBOARD. Folded into PR #63; a v0.3.0 GitHub release is cut on merge to reconcile the drift (files said 0.2.6 but the latest GitHub release was v0.2.5 - no 0.2.6 release ever existed). Build + 52 tests green.
+## Dependency baseline
 
-> Note (2026-07-17, claude-opus-4-8): Merged origin/main into feat/new-providers (PR #63, the 4-provider port described below). Integrated security #23, session-expiry #34, and the vitest suite #33: resolved src/types.ts (kept lmStudioUrl alongside the new security fields + SessionInfo), src/cli.ts help (merged provider + security sections), and extended test/registry.test.ts ALL_PROVIDERS 7 -> 11 for the new providers. Full suite green 52/52 (10 new provider tests + 42 existing); tsc + esbuild clean.
+- AAHP: 3.12.0
+- supply-chain-guard workflow/action baseline: rolling `@v6` (not SHA-pinned)
+- Playwright: removed
 
-> Note (2026-07-17, claude-opus-4-8): Reconciled test/server.test.ts CORS tests with the new allowlist behavior from #23 (they asserted the old wildcard *; now they verify allowlisted-origin reflection via a raw request plus foreign-origin rejection). Full suite green: 42/42.
+## Verification
 
-> Note (2026-07-17, claude-opus-4-8): Added a vitest unit test suite (T-003, issue #33). New devDependency already present in the lockfile; added vitest.config.ts and npm scripts "test": "vitest run" and "test:watch": "vitest". 42 tests across test/config.test.ts (loadConfig defaults/overrides, saveConfig round-trip and merge precedence, path helpers, homedir mocked to a temp dir), test/logger.test.ts (level gating, ISO timestamp, onLine subscribe/unsubscribe, configureLogger singleton), test/registry.test.ts (provider registration, model lookup, unknown-model handling, status snapshot) and test/server.test.ts (HTTP handler with a mocked registry so no browser launches: CORS/OPTIONS, health, models, status, chat 200/400/404/503, SSE stream, api-key login rejection, logout, 404). tsconfig scoped to include ["src"] so tsc build ignores the config/test files. npm run build and npm test both green.
-> Note (2026-07-17, claude-opus-4-8): Add per-provider session expiry tracking (T-004, #34). BaseProvider records a last-known-good login timestamp on verified success and detects expiry via a login-page redirect or loss of the verify selector, exposing loggedIn + lastVerified + status (active/expired/unknown) through a sessionInfo getter. Surfaced additively in ProviderStatus (session + loginType) and the /v1/status response via registry.getStatus; API-key providers report not_applicable. Existing /status fields unchanged (backward compatible). Files: src/types.ts, src/providers/base.ts, src/registry.ts, src/index.ts. Build passes (tsc + esbuild); repo has no test files.
-> Note (2026-07-17, claude-opus-4-8): Security hardening (#23, reported by @Jaaaky). Four secure-by-default, backward-compatible fixes: (1) removed --no-sandbox from the Chromium STEALTH_ARGS defaults; sandbox stays ON, opt back in via BridgeConfig.chromiumNoSandbox or CONDUIT_NO_SANDBOX=1. (2) removed --disable-features=IsolateOrigins,site-per-process so site isolation stays ON (kept only --disable-blink-features=AutomationControlled for stealth). (3) replaced wildcard CORS with an allowlist: request Origin reflected only if in BridgeConfig.allowedOrigins (default localhost origins) plus the server host:port; no-Origin requests (curl, server-side clients) unchanged. (4) optional bearer-token auth via BridgeConfig.authToken (empty = off): when set, /v1/* require Authorization: Bearer <token> (401 otherwise), /health stays open. New config fields added to types.ts + config.ts defaults; CLI gains --auth-token and --no-sandbox; README Security section added. Build clean (tsc + esbuild). No version bump (separate PR owns versioning).
-
-> Note (2026-07-17, claude-opus-4-8): Removed the Auto-Publish (npm) workflow so conduit-bridge stops attempting npm publishes (every one failed E404 on the missing @elvatis scope; it was never on npm and is not meant to be). conduit-bridge stays a normal PUBLIC tool run from source, NOT marked private. Also fixed the version drift: README header + DASHBOARD were at 0.2.3 / 0.1.0 while package.json + changelog were 0.2.6; all current-version refs now 0.2.6 (historical changelog kept). Dropped task T-006.
-
-> Note (2026-07-17, claude-opus-4-8): T-005 (#35) replace selector polling with proper response interception. Added a Playwright-native network-interception capability in the base (src/providers/interception.ts + BaseProvider.startNetworkCapture): NetworkCapture observes page.on('response') for each provider's backend completion endpoint and parses the assistant text from the finished SSE/chunked body, and streamMerged makes network capture the PRIMARY path while the existing in-page reader keeps smooth token streaming and DOM selector polling stays as the automatic fallback. Wired grok/claude/gemini/chatgpt (public chat/chatStream unchanged; added a DOM fallback to claude which had none). Added interception.test.ts (15 vitest cases, parsers + merge + fallback). Endpoint patterns: chatgpt /backend-api/conversation VERIFIED (ref #23), claude /completion, grok /rest/app-chat/conversations, gemini batchexecute/StreamGenerate are ASSUMED and need live-site verification before production trust.
-
-> Note (2026-07-14, claude-opus-4-8): Synced the canonical AAHP gate scripts from homeofe/improvements (v3.5.0 fixes: aahp-manifest.sh --phase documentation + cross_repo_ref preservation, lint-handoff.sh SC2034), AAHP_HANDOFF_FILES preserved, and refreshed the local hook tooling (scripts/hooks/, install-hooks.sh, verify-hooks.sh). Fleet re-sync.
-
-> Note (2026-07-14, claude-opus-4-8): Synced the canonical Layer 3 tolerance fix from homeofe/improvements. verify-handoff.sh now downgrades a non-ancestor MANIFEST.last_session.commit from FAIL to WARN so a squash-merge or rebase-merge no longer trips AAHP Verify Layer 3 on main; Layers 1-2 still gate real staleness.
-
-# STATUS - conduit-bridge
-
-## Current Version: 0.5.1 (run from source; GitHub Release only, not npm)
-
-> 2026-06-29 (claude-opus-4-8): ignore .ai/logs handoff scratch (.gitignore).
-> 2026-07-01 (claude-opus-4-8): add Claude Opus 4.8 + Sonnet 5 to the web and API Claude providers; fix stale claude-api model strings (4.6/4.5 were mapped to non-existent -20250514 snapshots that would 404, now bare aliases); README + changelog; v0.2.4.
-> 2026-07-01 (claude-opus-4-8): add Claude Fable 5 + Opus 4.7 to the claude-api provider (API-only; web selection is a no-op so per-version web labels are not added); v0.2.5. Note: SDK 0.98.0 has no server-side `fallbacks` support, so Fable 5 is added plain (no refusal fallback). vite/esbuild Dependabot alerts were already patched in the lockfile (npm audit 0).
-> 2026-07-01 (claude-opus-4-8): refresh non-Claude providers to mid-2026 lineups (web-researched, sources in PR); v0.2.6. Gemini API: drop fabricated gemini-3.0-flash/-thinking, add gemini-3.5-flash (GA) + 3.1-flash-lite, 3.1-pro -> 3.1-pro-preview. OpenAI/Codex API: add gpt-5.5 + gpt-5.5-pro (GA), drop codex-mini (removed 2026-02-12) + o3 + effort-label ids. Web labels refreshed (Grok Auto, Gemini 3.5, GPT-5.5). API IDs NOT runtime-validated (no provider keys) -> PR left OPEN for Emre's review.
-> 2026-07-17 (claude-opus-4-8): NEW PR (branch feat/new-providers) — port 4 providers from openclaw-cli-bridge-elvatis. openrouter-api (`api-openrouter/*`, OPENROUTER_API_KEY, openai SDK + custom baseURL/headers); perplexity-api (`api-perplexity/*`, sonar* + proxied upstreams, PERPLEXITY_API_KEY); lmstudio (`lmstudio/*`, keyless, live /v1/models discovery, LM_STUDIO_URL override); grok-cli (`cli-grok/*`, local `grok` CLI --prompt-file headless, cross-platform subprocess). Added optional `ProviderAdapter.ownsModel()` so any `<prefix>/<model>` routes by prefix (passthrough) even when not in the curated /v1/models list. No new deps (openai SDK + fetch + node:child_process). Added the repo's first vitest suite (test/providers.test.ts, 10 tests: catalogs, ownsModel, registry routing, grok-cli prompt flattening). tsc + esbuild + tests green; smoke-tested end-to-end (live LM Studio discovery of 14 models, passthrough routing -> 503 not 404, graceful 503/404, local-provider login guidance). Ran an adversarial multi-agent review -> fixed 4 grok-cli defects: deterministic temp-file name collision (now randomBytes + 0o600/wx), cmd.exe missing outer-quote pair (broke spaced install paths), Windows timeout killing only the cmd wrapper (now taskkill /T /F), and dead SIGKILL escalation (`!proc.killed` always false -> gate on a `closed` flag). Provider model IDs are curated (passthrough accepts any id) and NOT all runtime-validated (no API keys) -> PR left OPEN for Emre's review.
-
-## Architecture Overview
-Standalone OpenAI-compatible HTTP proxy for headless browser AI sessions.
-No OpenClaw dependency. Designed to run locally on the developer's machine.
-
-## Provider Status
-| Provider | Adapter | Login Flow | Verify Selector | Models |
-|---|---|---|---|---|
-| Grok | GrokProvider | x.com/i/grok | `textarea[placeholder]` | grok-3, grok-3-fast, grok-3-mini, grok-2 |
-| Claude | ClaudeProvider | claude.ai/new | `.ProseMirror` | claude-sonnet, claude-opus, claude-haiku |
-| Gemini | GeminiProvider | gemini.google.com/app | `.ql-editor` | gemini-2-5-pro, gemini-2-5-flash, gemini-3-pro, gemini-3-flash |
-| ChatGPT | ChatGPTProvider | chatgpt.com | `#prompt-textarea` | gpt-4o, gpt-o3, gpt-o4-mini, gpt-5 |
-
-## API Endpoints
-| Method | Path | Description |
-|---|---|---|
-| GET | /health | Health check → `{status:"ok"}` |
-| GET | /v1/models | List all 15 models |
-| GET | /v1/status | Rich provider status (connected, hasProfile, uptime) |
-| POST | /v1/chat/completions | OpenAI-compatible chat (stream + non-stream) |
-| POST | /v1/login/:provider | Trigger login (opens headful browser) |
-| POST | /v1/logout/:provider | Close provider context |
-
-## Build Status
-- TypeScript strict + ESM ✅
-- Build: `npm run build` → `dist/index.js` + `dist/cli.js` ✅
-- Tests: provider-wiring vitest suite added on feat/new-providers (test/providers.test.ts, 10 tests — first tests in repo); broader provider/browser coverage still open (T-003)
-- Default port: 31338 (avoids conflict with OpenClaw cli-bridge on 31337)
-- Profile storage: `~/.conduit/profiles/<provider>-profile/`
-- Config: `~/.conduit/config.json`
-
-## Known Issues / Gaps
-- No tests yet (T-003; interception module now has vitest coverage, rest still open)
-- Response capture: network interception is now the primary path with DOM polling as fallback (T-005, PR #62). Provider backend endpoints beyond ChatGPT still need live-site verification.
-- No session expiry tracking yet (T-004)
-- Not published to npm (auto-publisher removed 2026-07-17; T-006 dropped)
-- README missing on GitHub (fixed this session)
-
-## Release History
-| Version | Date | Notes |
-|---|---|---|
-| 0.1.0 | 2026-03-12 | Initial build — server, registry, 4 providers, CLI |
-
-<!-- aahp-gate -->
-_AAHP verify gate: v3.0.2 synced 2026-06-20._
-
-> 2026-06-21 install-hooks.sh: Windows drive-letter path fix propagated from AAHP.
-
-> 2026-06-21 ci: add supply-chain-guard v5.2.35 Action workflow (fail-on critical).
-
-> 2026-06-21 ci(aahp): fix unquoted next_task_id + lint-handoff noreply@ PII exclusion.
-
-> 2026-06-27 ci: re-pin supply-chain-guard action to v5.2.37 (be1d718b17cc38e4bce7fa48579b7112e557943b) and enable Dependabot github-actions weekly updates.
-
-> 2026-06-27 chore(aahp): full AAHP gate onboarding. Added the AAHP Verify badge to README and refreshed the handoff manifest so the commit-pointer tracks HEAD; the prior #37 supply-chain-guard commit had left the manifest dormant at d425433. Toolchain scripts (aahp-manifest.sh, verify-handoff.sh, _aahp-lib.sh, lint-handoff.sh) and the aahp-verify.yml workflow were already present and self-consistent, so they were left untouched.
-
-> 2026-06-30 feat(verify): added reviewed expiring PII allowlist, rolled out from AAHP v3.2.0.
-
-> 2026-06-30 ci: exempt Dependabot from the aahp-verify handoff gate (keep supply-chain-guard/codeql/build).
-- 2026-07-03: ci: supply-chain-guard now tracks the moving @v5 release branch instead of a stale SHA pin (owner rule: consumers pin @v5, the release workflow moves it - currently v5.6.1). Ends the recurring stale/broken-pin churn (v5.2.35 crash wave). Config change only.
-
-> Note (2026-07-19): Moved the AAHP conformance pin from 3.8.0 to 3.8.1 (picks up the v3.8.1 Windows/MSYS manifest-regen fix so tasks, next_task_id and cross_repo_ref survive regeneration). No runtime behavior change on Linux or CI. Handoff refreshed and MANIFEST regenerated.
+- Focused vitest files covering the review fixes: 79 passing, plus registry
+  and effort (14). CSRF mutation: old `same-site` gate failed 403, restored
+  fix passed 200.
+- TypeScript typecheck: passing
+- Full local suite not run on this Windows host (estate rule). Push and let
+  Linux CI produce the full-suite verdict.
