@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EFFORT_REJECTED, parseAgyModels } from '../src/providers/cli-gemini.js';
+import { parseGrokModels } from '../src/providers/grok-cli.js';
 
 // Captured verbatim from `agy models` (tab-separated, with the status preamble).
 const AGY_MODELS_STDOUT = [
@@ -77,6 +78,47 @@ describe('parseAgyModels', () => {
 // Discovery makes ids selectable that no shape heuristic anticipated: agy also
 // serves Anthropic and GPT-OSS models, and it refuses --effort for them with a
 // different message than the tier conflict. Both exit 1 with empty stdout.
+// Captured verbatim from `grok models` — prose, then a bullet list, not a table.
+const GROK_MODELS_STDOUT = [
+  'You are logged in with grok.com.',
+  '',
+  'Default model: grok-4.6',
+  '',
+  'Available models:',
+  '  * grok-4.6 (default)',
+  '  - grok-4.5',
+].join('\n');
+
+describe('parseGrokModels', () => {
+  it('reads the bullet list under the Available models header', () => {
+    expect(parseGrokModels(GROK_MODELS_STDOUT)).toEqual(['grok-4.6', 'grok-4.5']);
+  });
+
+  it('does not mistake the "Default model:" line for a catalog entry', () => {
+    expect(parseGrokModels(GROK_MODELS_STDOUT)).not.toContain('Default');
+    expect(parseGrokModels('Default model: grok-4.6')).toEqual([]);
+  });
+
+  // The staleness this replaces: the hardcoded list advertised grok-4.3, which
+  // `grok models` no longer reports, so the bridge offered a dead id to VS Code.
+  it('omits ids grok no longer serves', () => {
+    expect(parseGrokModels(GROK_MODELS_STDOUT)).not.toContain('grok-4.3');
+  });
+
+  it('returns nothing for prose, an error, or empty output', () => {
+    expect(parseGrokModels('')).toEqual([]);
+    expect(parseGrokModels('Error: not logged in. Run `grok login`.')).toEqual([]);
+    expect(parseGrokModels('You are logged in with grok.com.')).toEqual([]);
+  });
+
+  it('rejects a pathological id without catastrophic backtracking', () => {
+    const evil = 'Available models:\n  * a-' + '.'.repeat(44) + '!';
+    const started = Date.now();
+    expect(parseGrokModels(evil)).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
 describe('EFFORT_REJECTED', () => {
   it('matches both of agy’s refusals, verbatim from the binary', () => {
     expect(EFFORT_REJECTED.test(

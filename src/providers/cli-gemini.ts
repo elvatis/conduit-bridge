@@ -34,6 +34,8 @@ const FALLBACK_CATALOG = ['gemini-3.1-pro-high', 'gemini-3.1-pro-low'];
 
 /** Re-run `agy models` at most this often. */
 const DISCOVERY_TTL_MS = 5 * 60_000;
+/** Shorter window before retrying a discovery that failed. */
+const DISCOVERY_RETRY_MS = 60_000;
 const DISCOVERY_TIMEOUT_MS = 20_000;
 
 /** agy encodes the reasoning tier in the model id, e.g. gemini-3.6-flash-low. */
@@ -102,7 +104,9 @@ export class GeminiCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-gemini';
 
   private _discovered: ModelDefinition[] | null = null;
-  private _discoveredAt = 0;
+  /** Last ATTEMPT, not last success — a failing agy must not be re-spawned per request. */
+  private _attemptedAt = 0;
+  private _inFlight: Promise<number> | null = null;
 
   /** Discovered catalog when we have one, otherwise the seed list. */
   get models(): ModelDefinition[] {
@@ -121,9 +125,23 @@ export class GeminiCliProvider implements ProviderAdapter {
    * logged out, the previously discovered list stays in place.
    */
   async refreshModels(force = false): Promise<number> {
-    if (!force && this._discovered && Date.now() - this._discoveredAt < DISCOVERY_TTL_MS) {
-      return this._discovered.length;
+    // Back off on ATTEMPTS, not successes. Keying the TTL off the last success
+    // means a broken agy is re-spawned on every single chat completion, because
+    // the short-circuit can never engage while _discovered is still null.
+    const ttl = this._discovered ? DISCOVERY_TTL_MS : DISCOVERY_RETRY_MS;
+    if (!force && Date.now() - this._attemptedAt < ttl) {
+      return this._discovered?.length ?? 0;
     }
+    // Collapse concurrent callers onto one process; ensureConnected() fires this
+    // per request and four parallel ones spawned four `agy models`.
+    if (this._inFlight) return this._inFlight;
+
+    this._attemptedAt = Date.now(); // set before the first await
+    this._inFlight = this._discover().finally(() => { this._inFlight = null; });
+    return this._inFlight;
+  }
+
+  private async _discover(): Promise<number> {
     const binPath = resolveGeminiBin();
     if (!binPath || !/agy(\.exe)?$/i.test(binPath)) return this._discovered?.length ?? 0;
 
@@ -145,7 +163,6 @@ export class GeminiCliProvider implements ProviderAdapter {
         return this._discovered?.length ?? 0;
       }
       this._discovered = parsed.map(toDefinition);
-      this._discoveredAt = Date.now();
       logger.info(`[cli-gemini] discovered ${parsed.length} models from \`agy models\``);
       return parsed.length;
     } catch (err) {

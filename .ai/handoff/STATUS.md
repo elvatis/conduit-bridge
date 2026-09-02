@@ -16,9 +16,25 @@ Agent. All four are bridge-side; the extension needs no change.
    chat / plan / agent are now distinct.
 3. **`agentCwd` fell back to `homedir()`**, giving a CLI agent the whole user
    profile. Unusable or absent `cwd` now lands in an empty sandbox dir.
-4. **The Gemini catalog was hardcoded and stale** — it advertised a `gemini-3.5`
-   family agy rejects and omitted the `3.7` family agy serves. Now discovered
-   from `agy models`, TTL-cached, refreshed via `POST /v1/models/refresh`.
+4. **The CLI catalogs were hardcoded and stale** — cli-gemini advertised a
+   `gemini-3.5` family agy rejects and omitted the `3.7` family agy serves;
+   cli-grok advertised `grok-4.3`, which `grok models` no longer reports. Both
+   are now discovered at runtime, TTL-cached, refreshed via
+   `POST /v1/models/refresh` (which forces past the TTL).
+
+### Which providers discover, and which cannot
+
+| provider | discovery | why |
+| --- | --- | --- |
+| `cli-gemini` | `agy models` | tab-separated `id<TAB>Display Name` |
+| `cli-grok` | `grok models` | bullet list under an "Available models:" header |
+| `cli-claude` | none | `claude` has no model-listing subcommand |
+| `cli-codex` | none | `codex` has no model-listing subcommand |
+
+`claude` and `codex` were checked against the real binaries: their subcommand
+lists contain no `models` and no `--list-models`, so those two catalogs stay
+hardcoded until the CLIs expose one. Moving them to a data file would at least
+drop the rebuild requirement; not done here.
 
 Also: `agy` ignores the process cwd entirely (it runs in
 `~/.gemini/antigravity-cli/scratch`), so `--add-dir` is now passed — the editor's

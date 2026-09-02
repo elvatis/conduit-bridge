@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter, isAbsolute } from 'node:path';
 import type { ChatMessage, ChatRequest } from '../types.js';
@@ -32,6 +32,8 @@ export interface CliRunResult {
   aborted: boolean;
 }
 
+let _sandbox: string | undefined;
+
 /**
  * Empty scratch directory used when a request carries no usable workspace.
  *
@@ -39,10 +41,14 @@ export interface CliRunResult {
  * read and write the user's entire profile, which no caller ever asked for.
  */
 export function sandboxCwd(): string {
-  const dir = join(tmpdir(), 'conduit-bridge', 'no-workspace');
+  if (_sandbox && existsSync(_sandbox)) return _sandbox;
   try {
-    mkdirSync(dir, { recursive: true });
-    return dir;
+    // mkdtemp, not a fixed path: `mkdirSync(fixed, {recursive:true})` succeeds
+    // on an already-existing directory and follows a symlink planted there, so
+    // on a shared machine another account could choose the CLI's working
+    // directory. mkdtemp creates a fresh 0700 directory or fails.
+    _sandbox = mkdtempSync(join(tmpdir(), 'conduit-bridge-'));
+    return _sandbox;
   } catch {
     return tmpdir();
   }

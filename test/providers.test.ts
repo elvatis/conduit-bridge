@@ -90,13 +90,19 @@ describe('new provider catalogs + ownsModel', () => {
     expect(p.ownsModel('api-openrouter/x')).toBe(false);
   });
 
-  it('Grok CLI: prefixed catalog, owns its namespace', () => {
+  it('Grok CLI: prefixed seed catalog, owns its namespace', () => {
     const p = new GrokCliProvider(cfg);
     expect(p.name).toBe('cli-grok');
-    expect(p.models.some(m => m.id === 'cli-grok/grok-4.5')).toBe(true);
+    // Seed list before discovery — deliberately not a pinned generation.
+    expect(p.models.length).toBeGreaterThan(0);
     expect(p.models.every(m => m.id.startsWith('cli-grok/'))).toBe(true);
     expect(p.ownsModel('cli-grok/grok-3-mini')).toBe(true);
     expect(p.ownsModel('lmstudio/auto')).toBe(false);
+  });
+
+  it('Grok CLI: exposes refreshModels so /v1/models/refresh reaches it', () => {
+    const p = new GrokCliProvider(cfg) as unknown as { refreshModels?: unknown };
+    expect(typeof p.refreshModels).toBe('function');
   });
 
   it('Codex CLI: prefixed catalog, owns its namespace', () => {
