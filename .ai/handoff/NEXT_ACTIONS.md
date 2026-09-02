@@ -2,9 +2,8 @@
 
 _Updated: 2026-09-02_
 
-1. Review the control-plane follow-up diff.
-2. Commit and push `fix/browser-login-single-port`.
-3. Update PR #99; let Linux CI produce the full-suite verdict.
+1. v0.5.2 is released. No follow-up required on this repo unless a regression
+   is reported.
 
 Do not reintroduce `web-*`, Playwright, cookie extraction, VNC components, or
 additional user ports.

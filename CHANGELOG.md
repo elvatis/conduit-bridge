@@ -8,6 +8,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-02
+
 ### Changed
 
 - Replaced the browser-session architecture with explicit API, CLI, and local
@@ -17,6 +19,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
   longer marks its API counterpart configured.
 - Added independent API, CLI, and local provider pages to the dashboard.
 - Updated AAHP to 3.12.0 and supply-chain-guard to the rolling `@v6` tag.
+- Bumped `@anthropic-ai/sdk` to `^0.122.0`, `@types/node` to `^26.4.1`, and
+  `vitest` to `^4.1.11`.
 - Rewrote desktop setup, autostart, Help, and migration documentation.
 - CLI `connected` now means installed and authenticated, not merely on PATH.
 - Orchestrator history stores a short redacted preview instead of full transcripts.
@@ -149,7 +153,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/elvatis/conduit-bridge/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/elvatis/conduit-bridge/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/elvatis/conduit-bridge/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/elvatis/conduit-bridge/compare/v0.3.0...v0.4.0

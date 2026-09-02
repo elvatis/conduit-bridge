@@ -2,6 +2,13 @@
 
 _Reverse chronological._
 
+## 2026-09-02 — v0.5.2 release
+
+- Squash-merged PR #99 onto main (`a4a7a46`).
+- Applied Dependabot bumps: `@anthropic-ai/sdk` 0.122.0, `@types/node` 26.4.1,
+  `vitest` 4.1.11. Closed #97 as superseded (AAHP already 3.12.0).
+- Version bump, changelog, GitHub Release v0.5.2.
+
 ## 2026-09-02 — control-plane review follow-up
 
 - CSRF now consults `allowedOrigins` before treating `same-site` as forbidden.

@@ -159,6 +159,20 @@ npm audit --omit=dev
 Prompts, responses, tokens, cookies, and credentials must never be committed or
 written to operational logs. Runtime state belongs below `.conduit`.
 
+## Changelog
+
+### 0.5.2
+
+Desktop gateway for independent API, CLI, and local transports. Browser-session
+`web-*` providers and Playwright are removed. Control-plane fixes: CSRF honors
+`allowedOrigins`, dashboard works with `authToken`, CLI connected means
+authenticated, activity redacts secrets, and `CONDUIT_HOME` is shared. See
+[CHANGELOG.md](CHANGELOG.md) for the full list.
+
+### 0.5.1
+
+See [CHANGELOG.md](CHANGELOG.md#051---2026-08-21).
+
 ## License
 
 Apache-2.0
