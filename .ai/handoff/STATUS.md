@@ -2,11 +2,13 @@
 
 _Updated: 2026-09-02_
 
-Branch: `main`
+Branch: `feat/chat-cwd`
 
-Released **v0.5.2**. Conduit Bridge is a Windows Desktop and Linux Desktop
-OpenAI-compatible gateway. Transports: direct APIs, authenticated local CLIs,
-and LM Studio. Sole listener: `127.0.0.1:31338`.
+**v0.6.0** adds optional `cwd` on `POST /v1/chat/completions` so CLI providers
+run in the editor workspace (conduit-vscode #86). API/LM Studio ignore it.
+
+Released **v0.5.2** remains the previous desktop gateway. Transports: direct
+APIs, authenticated local CLIs, and LM Studio. Sole listener: `127.0.0.1:31338`.
 
 ## Provider inventory
 

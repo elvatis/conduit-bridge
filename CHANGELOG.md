@@ -8,12 +8,14 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-02
+
 ### Added
 
 - Chat completions accept optional `cwd` (absolute existing path). CLI providers
   (`cli-claude`, `cli-codex`, `cli-gemini`, `cli-grok`) run in that directory
   so conduit-vscode background agents see the workspace. API and LM Studio
-  transports ignore it.
+  transports ignore it. (#100)
 
 ## [0.5.2] - 2026-09-02
 
@@ -160,7 +162,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/elvatis/conduit-bridge/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/elvatis/conduit-bridge/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/elvatis/conduit-bridge/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/elvatis/conduit-bridge/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/elvatis/conduit-bridge/compare/v0.4.0...v0.5.0
