@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import type {
   BridgeConfig,
   ProviderName,
@@ -11,6 +10,7 @@ import {
   resolveExecutable,
   runCli,
   flattenMessages,
+  agentCwd,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
@@ -122,7 +122,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
       binPath,
       args,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
-      cwd: homedir(),
+      cwd: agentCwd(req),
       env: claudeAccountEnv(accountModel.account),
       label: 'cli-claude',
       log: msg => logger.info(msg),

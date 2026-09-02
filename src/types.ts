@@ -78,6 +78,11 @@ export interface ChatRequest {
    * high | xhigh | max (providers that only support a subset map down).
    */
   effort?: string;
+  /**
+   * Working directory for CLI providers. Ignored by API/LM Studio transports.
+   * Must be an absolute path that exists; otherwise the CLI uses the home directory.
+   */
+  cwd?: string;
   /** Aborted when the downstream HTTP client disconnects. */
   signal?: AbortSignal;
 }

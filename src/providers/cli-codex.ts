@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import type {
   BridgeConfig,
   ProviderName,
@@ -12,6 +11,7 @@ import {
   runCli,
   flattenMessages,
   stripPrefix,
+  agentCwd,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
@@ -116,7 +116,7 @@ export class CodexCliProvider implements ProviderAdapter {
       args,
       stdin: prompt,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
-      cwd: homedir(),
+      cwd: agentCwd(req),
       label: 'cli-codex',
       log: msg => logger.info(msg),
       signal: req.signal,

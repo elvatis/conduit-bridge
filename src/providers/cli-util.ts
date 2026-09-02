@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { join, delimiter } from 'node:path';
-import type { ChatMessage } from '../types.js';
+import { homedir } from 'node:os';
+import { join, delimiter, isAbsolute } from 'node:path';
+import type { ChatMessage, ChatRequest } from '../types.js';
 
 export const DEFAULT_CLI_TIMEOUT_MS = 300_000; // 5 min
 export const CLI_GRACE_MS = 5_000;
@@ -12,6 +13,16 @@ export interface CliRunResult {
   exitCode: number;
   timedOut: boolean;
   aborted: boolean;
+}
+
+/**
+ * CLI working directory from a chat request.
+ * Accepts only an absolute existing path; otherwise home.
+ */
+export function agentCwd(req: Pick<ChatRequest, 'cwd'>): string {
+  const cwd = req.cwd?.trim();
+  if (cwd && isAbsolute(cwd) && existsSync(cwd)) return cwd;
+  return homedir();
 }
 
 /** Locate an executable on PATH, honoring PATHEXT (.cmd/.exe/…) on Windows. */

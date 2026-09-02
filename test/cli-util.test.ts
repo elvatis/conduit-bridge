@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { runCli } from '../src/providers/cli-util.js';
+import { agentCwd, runCli } from '../src/providers/cli-util.js';
 
 describe('runCli cancellation', () => {
   it('terminates a child process when the request signal is aborted', async () => {
@@ -16,6 +17,13 @@ describe('runCli cancellation', () => {
     const result = await promise;
     expect(result.aborted).toBe(true);
     expect(result.timedOut).toBe(false);
+  });
+
+  it('agentCwd accepts an absolute existing path and otherwise uses home', () => {
+    expect(agentCwd({ cwd: process.cwd() })).toBe(process.cwd());
+    expect(agentCwd({ cwd: 'relative/path' })).toBe(homedir());
+    expect(agentCwd({ cwd: join(process.cwd(), 'does-not-exist-cwd-xyz') })).toBe(homedir());
+    expect(agentCwd({})).toBe(homedir());
   });
 
   it('grok-cli uses shared runCli so Windows abort taskkills the process tree', () => {

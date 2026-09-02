@@ -1,6 +1,6 @@
 {
   "name": "@elvatis/conduit-bridge",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Standalone OpenAI-compatible gateway for API, CLI, and local model providers",
   "type": "module",
   "main": "./dist/index.js",
