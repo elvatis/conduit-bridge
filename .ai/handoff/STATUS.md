@@ -147,6 +147,34 @@ Note the mapping fix that came with it: `chat()` in all three fell back to
 (`api-claude/…`) upstream as a model name for any *discovered* model. It now
 strips the prefix.
 
+### agy takes the prompt as JSON on stdin, not on argv
+
+`agy -p <prompt>` put the whole prompt on the command line, which Windows caps
+at 32767 characters — nowhere near enough for coding, where the prompt carries
+files. It now rides stdin as one NDJSON frame:
+
+    {"event":"user","message":{"role":"user","content":"..."}}
+
+with `--input-format stream-json --output-format stream-json` and an attached
+empty `-p=` to select print mode without consuming the next argument. The answer
+comes back in a `{"event":"result","result":{status,response,error}}` frame, and
+that frame is the oracle: a failed run can still exit 0, and an `--effort`
+refusal now appears there rather than on stderr.
+
+Measured end to end through the bridge, with a marker on the last line so a
+dropped tail is visible instead of silent:
+
+    160148 chars  tail arrived
+    181722 chars  tail arrived
+    192576 chars  tail arrived
+    203363 chars  "The input was truncated before reaching a final line"
+    257365 chars  truncated
+
+So agy cuts just past 200000 — its own limit, not the OS's. `max_prompt_chars`
+reports 180000 for agy, six times the old argv ceiling, with room below the last
+measured success. The legacy `gemini` binary keeps the argv bound, because there
+the command line really is the limit.
+
 ### /v1/models reports a transport prompt ceiling
 
 `agy` takes the prompt on argv, so the OS command line bounds it — 30000 chars
