@@ -2,8 +2,7 @@
 
 _Updated: 2026-09-02_
 
-1. v0.5.2 is released. No follow-up required on this repo unless a regression
-   is reported.
+1. Cut a bridge minor for the new `mode` request field on chat completions.
 
 Do not reintroduce `web-*`, Playwright, cookie extraction, VNC components, or
 additional user ports.

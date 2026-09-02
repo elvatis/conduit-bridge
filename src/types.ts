@@ -81,8 +81,16 @@ export interface ChatRequest {
   /**
    * Working directory for CLI providers. Ignored by API/LM Studio transports.
    * Must be an absolute path that exists; otherwise the CLI uses the home directory.
+   * Required when `mode` is `agent`.
    */
   cwd?: string;
+  /**
+   * CLI run mode. `chat` (default) is a read-only proxy. `plan` calls each
+   * CLI's native plan function. `agent` writes the workspace (requires `cwd`).
+   * API/LM Studio transports ignore this. Aliases on the HTTP body: `agentic: true`
+   * → agent, `plan: true` → plan.
+   */
+  mode?: 'chat' | 'plan' | 'agent';
   /** Aborted when the downstream HTTP client disconnects. */
   signal?: AbortSignal;
 }

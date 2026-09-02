@@ -16,6 +16,7 @@ import {
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
+import { cliPermissionArgs } from '../cli-mode.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Non-interactive: agy -p/--print with --model and --output-format text.
@@ -109,22 +110,24 @@ export class GeminiCliProvider implements ProviderAdapter {
     const prompt = flattenMessages(req.messages);
     const isAgy = /agy(\.exe)?$/i.test(binPath);
     const effort = toAgyEffort(req.effort);
+    const mode = req.mode ?? 'chat';
+    const permission = cliPermissionArgs('cli-gemini', mode, { isAgy });
 
-    // agy: -p/--print, --model, --output-format, --mode plan, --effort low|medium|high
+    // agy: -p/--print, --model, --output-format, --mode plan|accept-edits, --effort
     // legacy gemini: -p, -m, -o text, --approval-mode plan
     const args = isAgy
       ? [
           '-p', prompt,
           '--model', model,
           '--output-format', 'text',
-          '--mode', 'plan',
+          ...permission,
           ...(effort ? ['--effort', effort] : []),
         ]
       : [
           '-p', prompt,
           '-m', model,
           '-o', 'text',
-          '--approval-mode', 'plan',
+          ...permission,
         ];
 
     const result = await runCli({

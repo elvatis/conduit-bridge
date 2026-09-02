@@ -107,9 +107,17 @@ WS   /v1/events
 Use the exact model IDs returned by `GET /v1/models`, such as
 `cli-grok/grok-4.6`, `api-perplexity/sonar`, or `lmstudio/auto`.
 
-`POST /v1/chat/completions` accepts optional `cwd` (absolute existing path).
-CLI providers run in that directory so editors like conduit-vscode can pass
-the workspace folder. API and LM Studio transports ignore `cwd`.
+`POST /v1/chat/completions` accepts optional `cwd` (absolute existing path)
+and `mode` (`chat` | `plan` | `agent`). CLI providers run in `cwd` so editors
+like conduit-vscode can pass the workspace folder.
+
+- `chat` (default): read-only chat proxy. Native plan/read-only flags.
+- `plan`: each CLI's native plan function (Claude `--permission-mode plan`,
+  agy `--mode plan`, Grok `--permission-mode plan`, Codex read-only sandbox).
+- `agent`: workspace write. Requires `cwd`. Aliases: `agentic: true` → agent,
+  `plan: true` → plan.
+
+API and LM Studio transports ignore `cwd` and `mode`.
 
 ## Configuration
 
@@ -164,6 +172,10 @@ Prompts, responses, tokens, cookies, and credentials must never be committed or
 written to operational logs. Runtime state belongs below `.conduit`.
 
 ## Changelog
+
+### Unreleased
+
+CLI `mode` on chat completions: `chat`, `plan`, or `agent`. Agent requires `cwd`.
 
 ### 0.6.0
 

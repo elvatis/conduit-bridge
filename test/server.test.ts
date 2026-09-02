@@ -22,6 +22,7 @@ const h = vi.hoisted(() => {
     connected: true,      // provider.ensureConnected() result
     chatThrows: false,    // provider.chat() throws when true
     chatError: 'provider exploded',
+    lastReq: undefined as { mode?: string; cwd?: string } | undefined,
   };
   return { grokModel, state };
 });
@@ -32,7 +33,8 @@ vi.mock('../src/registry.js', () => {
     name: 'cli-grok',
     models: [h.grokModel],
     async ensureConnected() { return h.state.connected; },
-    async chat() {
+    async chat(req: { mode?: string; cwd?: string }) {
+      h.state.lastReq = req;
       if (h.state.chatThrows) throw new Error(h.state.chatError);
       return 'mocked completion';
     },
@@ -101,6 +103,7 @@ beforeEach(() => {
   h.state.connected = true;
   h.state.chatThrows = false;
   h.state.chatError = 'provider exploded';
+  h.state.lastReq = undefined;
 });
 
 describe('BridgeServer HTTP handler', () => {
@@ -236,6 +239,54 @@ describe('BridgeServer HTTP handler', () => {
       const body = await res.json();
       expect(body.error.type).toBe('provider_error');
       expect(body.error.message).toContain('provider exploded');
+    });
+
+    it('rejects an unknown mode with 400', async () => {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }], mode: 'yolo' }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toMatch(/chat, plan, or agent/i);
+    });
+
+    it('rejects agent mode without an absolute existing cwd', async () => {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }], mode: 'agent' }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toMatch(/cwd/i);
+    });
+
+    it('forwards plan mode to the provider', async () => {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }], mode: 'plan' }),
+      });
+      expect(res.status).toBe(200);
+      expect(h.state.lastReq?.mode).toBe('plan');
+    });
+
+    it('accepts agentic: true as agent when cwd is valid', async () => {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hi' }],
+          agentic: true,
+          cwd: process.cwd(),
+        }),
+      });
+      expect(res.status).toBe(200);
+      expect(h.state.lastReq?.mode).toBe('agent');
+      expect(h.state.lastReq?.cwd).toBe(process.cwd());
     });
 
     it('streams SSE chunks terminated by [DONE] when stream=true', async () => {

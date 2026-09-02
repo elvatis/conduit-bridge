@@ -15,6 +15,7 @@ import {
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { toClaudeEffort } from '../effort.js';
+import { cliPermissionArgs } from '../cli-mode.js';
 import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.js';
 
 // Anthropic Claude Code CLI (@anthropic-ai/claude-code) — non-interactive via -p/--print.
@@ -105,15 +106,16 @@ export class ClaudeCliProvider implements ProviderAdapter {
     const model = accountModel.model;
     const prompt = flattenMessages(req.messages);
     const effort = toClaudeEffort(req.effort);
+    const mode = req.mode ?? 'chat';
 
     // -p/--print: non-interactive. --output-format text: plain assistant text.
-    // --permission-mode plan: read-only agent tools for chat-proxy safety.
+    // Permission flags come from cliPermissionArgs (plan vs bypassPermissions).
     // --effort: Claude Code reasoning effort (low|medium|high|xhigh|max).
     const args = [
       '-p',
       '--output-format', 'text',
       '--model', model,
-      '--permission-mode', 'plan',
+      ...cliPermissionArgs('cli-claude', mode),
       ...(effort ? ['--effort', effort] : []),
       prompt,
     ];

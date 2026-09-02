@@ -567,6 +567,8 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(appbar).toContain('padding: 12px 12px;');
     expect(appbar.match(/padding:[^;]*;/g)).toEqual(['padding: 12px 12px;']);
 
+    expect(DASHBOARD_HTML).toContain('id="play-mode"');
+    expect(DASHBOARD_HTML).toContain('id="play-cwd"');
     expect(DASHBOARD_HTML).toContain('id="model-search"');
     expect(DASHBOARD_HTML).toContain(`$('model-search').addEventListener('input'`);
     expect(DASHBOARD_HTML).toContain('id="model-transport-filter"');
