@@ -552,8 +552,16 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     const { ProviderRegistry } = await vi.importActual<typeof import('../src/registry.js')>('../src/registry.js');
     const real = new ProviderRegistry(config(0));
     expect(real.providerForModel('api-openrouter/acme/never-enumerated')?.name).toBe('openrouter-api');
-    expect(real.allModels().some(m => m.availability === 'verified')).toBe(true);
-    expect(real.allModels().some(m => m.availability === 'documented')).toBe(true);
+
+    // The availability metadata is unchanged, but it is now read off the FULL
+    // list. `allModels()` deliberately omits providers with no credential —
+    // advertising a model whose request can only fail on auth was the defect —
+    // and this fixture configures no API keys, so every provider carrying
+    // 'verified'/'documented' is (correctly) absent from the advertised list.
+    // Routing still resolves those ids, as the assertion above shows.
+    const everything = real.allModelsIncludingUnavailable();
+    expect(everything.some(m => m.availability === 'verified')).toBe(true);
+    expect(everything.some(m => m.availability === 'documented')).toBe(true);
   });
 
   it('keeps the dashboard invariants intact', async () => {

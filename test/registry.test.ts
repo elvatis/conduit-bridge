@@ -32,14 +32,41 @@ describe('ProviderRegistry', () => {
       }
     });
 
-    it('exposes models from every provider via allModels', () => {
+    it('exposes models from every reachable provider via allModels', () => {
       const models = registry.allModels();
       expect(models.length).toBeGreaterThan(0);
-      // Every registered provider contributes its models to the aggregate list.
+      // A provider contributes its full catalog, or nothing at all when it has
+      // no credential — never a partial list.
       for (const name of ALL_PROVIDERS) {
-        const providerModelCount = registry.get(name).models.length;
+        const provider = registry.get(name);
+        const usable = provider.hasCredentials?.() !== false;
         const inAggregate = models.filter(m => m.provider === name).length;
-        expect(inAggregate).toBe(providerModelCount);
+        expect(inAggregate, name).toBe(usable ? provider.models.length : 0);
+      }
+    });
+
+    // Advertising a model whose provider has no key puts an entry in the picker
+    // whose request can only fail on auth — the same defect as a hardcoded id
+    // the CLI no longer serves.
+    it('hides a provider with no credential, and says so in the full list', () => {
+      const keyless = ALL_PROVIDERS.filter(n => registry.get(n).hasCredentials?.() === false);
+      const advertised = new Set(registry.allModels().map(m => m.provider));
+      const everything = registry.allModelsIncludingUnavailable();
+      for (const name of keyless) {
+        expect(advertised.has(name), `${name} advertised without a credential`).toBe(false);
+        expect(everything.some(m => m.provider === name), name).toBe(true);
+      }
+    });
+
+    it('still routes a model whose provider lacks a credential, for a clear error', () => {
+      // Hiding it from the catalog must not turn an auth failure into
+      // "unknown model" — providerForModel reads each provider directly.
+      for (const name of ALL_PROVIDERS) {
+        const provider = registry.get(name);
+        if (provider.hasCredentials?.() !== false) continue;
+        const id = provider.models[0]?.id;
+        if (!id) continue;
+        expect(registry.providerForModel(id)?.name, id).toBe(name);
       }
     });
 

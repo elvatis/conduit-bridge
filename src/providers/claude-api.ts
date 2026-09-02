@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
 import { toClaudeEffort } from '../effort.js';
+import { logger } from '../logger.js';
+import { stripPrefix } from './cli-util.js';
 
 // Map friendly model IDs to Anthropic API model strings.
 // Bare aliases (never date-suffixed). Curated: Fable 5, Opus 5, Sonnet 5, Haiku 4.5
@@ -21,6 +23,35 @@ const DEFAULT_MAX_TOKENS: Record<string, number> = {
   'api-claude/claude-haiku-4-5':  64_000,
 };
 
+const PREFIX = 'api-claude/';
+
+/**
+ * Anthropic's documented model list. Unlike the OpenAI-shaped catalogs the base
+ * class handles, this one authenticates with `x-api-key` (not Bearer), requires
+ * `anthropic-version`, and returns `{ data: [{ id, display_name }] }`.
+ * Docs: platform.claude.com/docs/en/api/models-list
+ */
+const ANTHROPIC_MODELS_URL = 'https://api.anthropic.com/v1/models?limit=1000';
+
+/** Pull id/display_name out of an Anthropic models-list body. */
+export function parseAnthropicModels(body: unknown): Array<{ id: string; displayName?: string }> {
+  const list = (body as { data?: unknown })?.data;
+  if (!Array.isArray(list)) return [];
+  const out: Array<{ id: string; displayName?: string }> = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    const id = (item as { id?: unknown })?.id;
+    if (typeof id !== 'string' || !id.trim() || seen.has(id)) continue;
+    seen.add(id);
+    const dn = (item as { display_name?: unknown })?.display_name;
+    out.push({
+      id: id.trim(),
+      displayName: typeof dn === 'string' && dn.trim() ? dn.trim() : undefined,
+    });
+  }
+  return out;
+}
+
 export class ClaudeApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'claude-api';
 
@@ -31,13 +62,42 @@ export class ClaudeApiProvider extends ApiBaseProvider {
     { id: 'api-claude/claude-haiku-4-5', provider: 'claude-api', displayName: 'Claude Haiku 4.5 (API)', owned_by: 'anthropic' },
   ];
 
+  /** Replace the shipped list with what the account can actually call. */
+  async refreshModels(): Promise<number> {
+    if (!this.apiKey) return 0;
+    try {
+      const response = await fetch(ANTHROPIC_MODELS_URL, {
+        headers: { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const remote = parseAnthropicModels(await response.json());
+      if (!remote.length) return this.models.length;
+      this.models.splice(0, this.models.length, ...remote.map(m => ({
+        id: PREFIX + m.id,
+        provider: this.name,
+        displayName: `${m.displayName ?? m.id} (API)`,
+        owned_by: 'anthropic',
+        availability: 'verified' as const,
+        source: 'provider-api',
+      })));
+      logger.info(`[claude-api] refreshed ${remote.length} models from provider catalog`);
+      return remote.length;
+    } catch (err) {
+      logger.warn(`[claude-api] model catalog refresh failed: ${(err as Error).message}`);
+      return 0;
+    }
+  }
+
   private _client(): Anthropic {
     return new Anthropic({ apiKey: this.apiKey });
   }
 
   async chat(req: ChatRequest): Promise<string> {
     const client = this._client();
-    const apiModel = MODEL_MAP[req.model] ?? req.model;
+    // A discovered id is not in MODEL_MAP, so fall back to stripping the prefix
+    // rather than sending "api-claude/…" upstream as if it were a model name.
+    const apiModel = MODEL_MAP[req.model] ?? stripPrefix(req.model, PREFIX);
 
     // Separate system message from conversation messages
     const systemMsg = req.messages.find(m => m.role === 'system');
@@ -62,7 +122,9 @@ export class ClaudeApiProvider extends ApiBaseProvider {
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
     const client = this._client();
-    const apiModel = MODEL_MAP[req.model] ?? req.model;
+    // A discovered id is not in MODEL_MAP, so fall back to stripping the prefix
+    // rather than sending "api-claude/…" upstream as if it were a model name.
+    const apiModel = MODEL_MAP[req.model] ?? stripPrefix(req.model, PREFIX);
 
     const systemMsg = req.messages.find(m => m.role === 'system');
     const conversationMsgs = req.messages

@@ -9,6 +9,7 @@ import { GrokCliProvider } from './providers/grok-cli.js';
 import { CodexCliProvider } from './providers/cli-codex.js';
 import { ClaudeCliProvider } from './providers/cli-claude.js';
 import { GeminiCliProvider } from './providers/cli-gemini.js';
+import { reloadCatalogs } from './model-catalog.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -54,15 +55,40 @@ export class ProviderRegistry {
     return this._providers.get(name as ProviderName);
   }
 
+  /**
+   * Every model a caller could actually reach.
+   *
+   * A provider with no credential is skipped: advertising its catalog puts
+   * models in the picker whose request can only fail on auth, which is the same
+   * defect as a hardcoded id the CLI no longer serves. Providers that do not
+   * implement hasCredentials (the CLI ones, which have their own detection) are
+   * always included.
+   */
   allModels(): ModelDefinition[] {
+    return [...this._providers.values()]
+      .filter(p => p.hasCredentials?.() !== false)
+      .flatMap(p => p.models);
+  }
+
+  /** Every model including unreachable ones — for status and diagnostics. */
+  allModelsIncludingUnavailable(): ModelDefinition[] {
     return [...this._providers.values()].flatMap(p => p.models);
   }
 
+  /**
+   * Re-read every provider's model catalog. Reached only from the explicit
+   * POST /v1/models/refresh, so it passes `force` — a user pressing Refresh
+   * means "ask again now", not "answer from the cache you filled a minute ago".
+   * Providers with no TTL simply ignore the argument.
+   */
   async refreshApiModels(): Promise<Record<string, number>> {
+    // Pick up an edited ~/.conduit/models.json in the same action, so adding a
+    // model there needs neither a rebuild nor a restart.
+    reloadCatalogs();
     const result: Record<string, number> = {};
     for (const provider of this._providers.values()) {
-      const refresh = (provider as ProviderAdapter & { refreshModels?: () => Promise<number> }).refreshModels;
-      if (refresh) result[provider.name] = await refresh.call(provider);
+      const refresh = (provider as ProviderAdapter & { refreshModels?: (force?: boolean) => Promise<number> }).refreshModels;
+      if (refresh) result[provider.name] = await refresh.call(provider, true);
     }
     return result;
   }

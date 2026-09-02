@@ -131,4 +131,12 @@ export interface ProviderAdapter {
    * route "<prefix>/<anything>" without enumerating every model up front.
    */
   ownsModel?(modelId: string): boolean;
+
+  /**
+   * Optional: whether a credential is present, checked synchronously.
+   * Returning false keeps this provider's models out of `/v1/models`, so the
+   * picker never offers a model whose request could only fail on auth.
+   * Providers that omit it are always advertised.
+   */
+  hasCredentials?(): boolean;
 }

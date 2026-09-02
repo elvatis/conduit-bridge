@@ -1,12 +1,15 @@
 import OpenAI from 'openai';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
+import { stripPrefix } from './cli-util.js';
 import { toOpenAiEffort } from '../effort.js';
 
 // Model IDs verified against developers.openai.com/api/docs/models (2026-08-09).
 // GPT-5.6 family: Sol (flagship, alias gpt-5.6), Terra (balanced), Luna (cost).
 // Prior generation gpt-5.5 / gpt-5.5-pro remain available. Dropped from the
 // curated catalog: gpt-5.4* (superseded), effort-label IDs, o3, codex-mini.
+const PREFIX = 'api-codex/';
+
 const MODEL_MAP: Record<string, string> = {
   'api-codex/gpt-5.6-sol':   'gpt-5.6-sol',
   'api-codex/gpt-5.6-terra': 'gpt-5.6-terra',
@@ -18,6 +21,15 @@ const MODEL_MAP: Record<string, string> = {
 
 export class CodexApiProvider extends ApiBaseProvider {
   readonly name: ProviderName = 'codex-api';
+
+  /**
+   * OpenAI's list is Bearer-authenticated and OpenAI-shaped, so the base class
+   * helper handles it. This is the API-platform catalog for an API key — a
+   * different entitlement set from the ChatGPT subscription behind cli-codex.
+   */
+  async refreshModels(): Promise<number> {
+    return this.refreshModelCatalog('https://api.openai.com/v1/models', PREFIX);
+  }
 
   readonly models: ModelDefinition[] = [
     { id: 'api-codex/text-embedding-3-small', provider: 'codex-api', displayName: 'Text Embedding 3 Small (API)', owned_by: 'openai' },
@@ -34,7 +46,9 @@ export class CodexApiProvider extends ApiBaseProvider {
 
   async chat(req: ChatRequest): Promise<string> {
     const client = this._client();
-    const apiModel = MODEL_MAP[req.model] ?? req.model;
+    // A discovered id is not in MODEL_MAP; strip the prefix rather than sending
+    // "api-codex/…" upstream as if it were a model name.
+    const apiModel = MODEL_MAP[req.model] ?? stripPrefix(req.model, PREFIX);
 
     const reasoning_effort = toOpenAiEffort(req.effort);
     const response = await client.chat.completions.create({
@@ -50,7 +64,9 @@ export class CodexApiProvider extends ApiBaseProvider {
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
     const client = this._client();
-    const apiModel = MODEL_MAP[req.model] ?? req.model;
+    // A discovered id is not in MODEL_MAP; strip the prefix rather than sending
+    // "api-codex/…" upstream as if it were a model name.
+    const apiModel = MODEL_MAP[req.model] ?? stripPrefix(req.model, PREFIX);
 
     const reasoning_effort = toOpenAiEffort(req.effort);
     const stream = await client.chat.completions.create({

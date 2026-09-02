@@ -81,6 +81,60 @@ Authenticate each installed tool using its official login flow:
 Conduit invokes these tools non-interactively for requests. Provider accounts,
 subscriptions, usage limits, and terms remain controlled by each provider.
 
+### CLI model catalogs
+
+`cli-gemini` and `cli-grok` learn their catalogs at runtime from `agy models`
+and `grok models`, so a new model release appears on its own. `cli-claude` and
+`cli-codex` cannot — neither binary has a model-listing subcommand — so their
+lists ship as defaults.
+
+Any of the four can be overridden from `~/.conduit/models.json` (or the path in
+`CONDUIT_MODELS_FILE`) with no rebuild:
+
+```json
+{
+  "cli-claude": ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
+  "cli-codex": [{ "id": "gpt-5.6-sol", "displayName": "GPT-5.6 Sol" }]
+}
+```
+
+Add whichever id the vendor ships next; the bridge does not need to know it in
+advance, and the ids above are only the current defaults. To see what a CLI
+offers today:
+
+| CLI | how to list its models |
+| --- | --- |
+| `agy` | `agy models` |
+| `grok` | `grok models` |
+| `codex` | run `codex`, then `/model` — it has no non-interactive listing |
+| `claude` | no listing of any kind; use this file |
+
+`cli-codex` discovers its catalog over HTTP from ChatGPT's own Codex model
+endpoint, which reports the account's real entitlements.
+
+A prefix names the **transport**, not the vendor. `agy` resells Anthropic and
+GPT-OSS models alongside Google's, and those are advertised too — reaching
+Claude Sonnet through an Antigravity subscription is a different quota, auth
+and rate limit than reaching it through an Anthropic one, which is the point:
+
+```
+cli-gemini/claude-sonnet-4-6   Claude Sonnet 4.6 (Thinking) (agy CLI)   owned_by: agy
+cli-claude/claude-sonnet-5     claude-sonnet-5 (Claude Code CLI)        owned_by: claude-code
+```
+
+Ids stay unique because the prefixes differ, and `owned_by` names the CLI that
+answers rather than guessing the model's author from its id — `gpt-oss-120b` is
+OpenAI's open-weight model but is not obtainable from OpenAI, so calling it
+`openai` would advertise a route that does not exist. To restrict a provider
+to one vendor, pin it in `models.json`.
+
+Naming a provider **pins** it: that list is served verbatim and runtime
+discovery is skipped for it — the escape hatch for a CLI that is offline or
+whose `models` output cannot be parsed. Providers the file does not mention are
+unaffected. Edits are picked up on the next `POST /v1/models/refresh`, without
+restarting the bridge. An entry that is malformed, empty, or has no valid model
+ids is ignored in favour of the built-in defaults.
+
 ## OpenAI-compatible API
 
 Client base URL:
@@ -172,6 +226,14 @@ Prompts, responses, tokens, cookies, and credentials must never be committed or
 written to operational logs. Runtime state belongs below `.conduit`.
 
 ## Changelog
+
+### 0.8.0
+
+Unbreaks the CLI providers on Windows (the prompt reached them as its first line
+only), separates `chat` from `plan`, stops `cwd` falling back to the home
+directory, and replaces the hardcoded model catalogs with runtime discovery plus
+an overridable `models.json`. Providers with no credential no longer advertise
+models. See [CHANGELOG.md](CHANGELOG.md).
 
 ### 0.7.0
 

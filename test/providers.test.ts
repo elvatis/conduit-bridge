@@ -90,13 +90,19 @@ describe('new provider catalogs + ownsModel', () => {
     expect(p.ownsModel('api-openrouter/x')).toBe(false);
   });
 
-  it('Grok CLI: prefixed catalog, owns its namespace', () => {
+  it('Grok CLI: prefixed seed catalog, owns its namespace', () => {
     const p = new GrokCliProvider(cfg);
     expect(p.name).toBe('cli-grok');
-    expect(p.models.some(m => m.id === 'cli-grok/grok-4.5')).toBe(true);
+    // Seed list before discovery — deliberately not a pinned generation.
+    expect(p.models.length).toBeGreaterThan(0);
     expect(p.models.every(m => m.id.startsWith('cli-grok/'))).toBe(true);
     expect(p.ownsModel('cli-grok/grok-3-mini')).toBe(true);
     expect(p.ownsModel('lmstudio/auto')).toBe(false);
+  });
+
+  it('Grok CLI: exposes refreshModels so /v1/models/refresh reaches it', () => {
+    const p = new GrokCliProvider(cfg) as unknown as { refreshModels?: unknown };
+    expect(typeof p.refreshModels).toBe('function');
   });
 
   it('Codex CLI: prefixed catalog, owns its namespace', () => {
@@ -119,12 +125,26 @@ describe('new provider catalogs + ownsModel', () => {
     expect(p.ownsModel('cli-claude/claude-opus-5')).toBe(true);
   });
 
-  it('Gemini CLI (agy): prefixed catalog, owns its namespace', () => {
+  it('Gemini CLI (agy): prefixed seed catalog, owns its namespace', () => {
     const p = new GeminiCliProvider(cfg);
     expect(p.name).toBe('cli-gemini');
-    expect(p.models.some(m => m.id === 'cli-gemini/gemini-3.6-flash-high')).toBe(true);
-    expect(p.ownsModel('cli-gemini/gemini-3.5-flash-medium')).toBe(true);
+    // Before discovery runs we advertise a seed list, not a pinned generation.
+    expect(p.models.length).toBeGreaterThan(0);
+    expect(p.models.every(m => m.id.startsWith('cli-gemini/'))).toBe(true);
     expect(p.ownsModel('cli-codex/gpt-5.6-sol')).toBe(false);
+  });
+
+  // The catalog is discovered from `agy models`, so a model released after this
+  // build must still route rather than 404 on an id we never enumerated.
+  it('Gemini CLI: routes any cli-gemini id, including ones not yet discovered', () => {
+    const p = new GeminiCliProvider(cfg);
+    expect(p.ownsModel('cli-gemini/gemini-3.7-flash-high')).toBe(true);
+    expect(p.ownsModel('cli-gemini/some-unreleased-model-2027')).toBe(true);
+  });
+
+  it('Gemini CLI: exposes refreshModels so /v1/models/refresh reaches it', () => {
+    const p = new GeminiCliProvider(cfg) as unknown as { refreshModels?: unknown };
+    expect(typeof p.refreshModels).toBe('function');
   });
 });
 
@@ -155,15 +175,21 @@ describe('registry routing', () => {
     expect(reg.providerForModel('totally-unknown-model')).toBeUndefined();
   });
 
-  it('allModels includes every new provider namespace', () => {
+  it('allModels includes every provider namespace that has a credential', () => {
     const ids = reg.allModels().map(m => m.id);
     expect(ids).toContain('lmstudio/auto');
-    expect(ids.some(i => i.startsWith('api-openrouter/'))).toBe(true);
-    expect(ids.some(i => i.startsWith('api-perplexity/'))).toBe(true);
+    // The CLI providers detect their own auth and are always listed.
     expect(ids.some(i => i.startsWith('cli-grok/'))).toBe(true);
     expect(ids.some(i => i.startsWith('cli-codex/'))).toBe(true);
     expect(ids.some(i => i.startsWith('cli-claude/'))).toBe(true);
     expect(ids.some(i => i.startsWith('cli-gemini/'))).toBe(true);
+  });
+
+  it('the full list keeps keyless providers, so nothing silently disappears', () => {
+    const everything = reg.allModelsIncludingUnavailable().map(m => m.id);
+    for (const prefix of ['api-claude/', 'api-gemini/', 'api-codex/', 'api-openrouter/', 'api-perplexity/']) {
+      expect(everything.some(i => i.startsWith(prefix)), prefix).toBe(true);
+    }
   });
 });
 

@@ -17,6 +17,7 @@ import { cliSession } from './cli-auth.js';
 import { toClaudeEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
 import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.js';
+import { catalogFor, SERVED_BY } from '../model-catalog.js';
 
 // Anthropic Claude Code CLI (@anthropic-ai/claude-code) — non-interactive via -p/--print.
 // Install: npm i -g @anthropic-ai/claude-code  then authenticate (claude /login or API key)
@@ -24,31 +25,32 @@ import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.
 const PREFIX = 'cli-claude/';
 const BIN = 'claude';
 
-// Curated Claude Code models (2026-08): Opus 5, Sonnet 5, Haiku 4.5, Fable 5.
-const CATALOG = [
-  'claude-opus-5',
-  'claude-sonnet-5',
-  'claude-haiku-4-5',
-  'claude-fable-5',
-];
-
 export class ClaudeCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-claude';
 
-  readonly models: ModelDefinition[] = [
-    ...CATALOG.map(id => ({
-      id: `${PREFIX}${id}`,
-      provider: 'cli-claude' as ProviderName,
-      displayName: `${id} (Claude Code CLI, first-account)`,
-      owned_by: 'anthropic',
-    })),
-    ...CLI_ACCOUNTS.flatMap(account => CATALOG.map(id => ({
-      id: `${PREFIX}${account}/${id}`,
-      provider: 'cli-claude' as ProviderName,
-      displayName: `${id} (Claude Code CLI, ${account})`,
-      owned_by: 'anthropic',
-    }))),
-  ];
+  /**
+   * `claude` has no model-listing subcommand, so there is nothing to discover.
+   * The catalog comes from src/model-catalog.ts, which reads `~/.conduit/models.json`
+   * when present — a new model release needs an edited file, not a new build.
+   * A getter, not a field, so an edit is picked up without a restart.
+   */
+  get models(): ModelDefinition[] {
+    const catalog = catalogFor('cli-claude');
+    return [
+      ...catalog.map(m => ({
+        id: `${PREFIX}${m.id}`,
+        provider: 'cli-claude' as ProviderName,
+        displayName: `${m.displayName ?? m.id} (Claude Code CLI, first-account)`,
+        owned_by: SERVED_BY['cli-claude'],
+      })),
+      ...CLI_ACCOUNTS.flatMap(account => catalog.map(m => ({
+        id: `${PREFIX}${account}/${m.id}`,
+        provider: 'cli-claude' as ProviderName,
+        displayName: `${m.displayName ?? m.id} (Claude Code CLI, ${account})`,
+        owned_by: SERVED_BY['cli-claude'],
+      }))),
+    ];
+  }
 
   constructor(_cfg: BridgeConfig) {}
 
@@ -108,21 +110,26 @@ export class ClaudeCliProvider implements ProviderAdapter {
     const effort = toClaudeEffort(req.effort);
     const mode = req.mode ?? 'chat';
 
-    // -p/--print: non-interactive. --output-format text: plain assistant text.
-    // Permission flags come from cliPermissionArgs (plan vs bypassPermissions).
+    // -p/--print: non-interactive, reading the prompt from stdin.
+    // Permission flags come from cliPermissionArgs (chat vs plan vs agent).
     // --effort: Claude Code reasoning effort (low|medium|high|xhigh|max).
+    //
+    // The prompt MUST stay off argv. `claude` resolves to claude.cmd on Windows,
+    // so runCli routes it through `cmd.exe /c`, which ends the command line at
+    // the first newline — a flattened transcript would arrive as its system
+    // prompt alone, exit 0, no stderr, and the user's question silently gone.
     const args = [
       '-p',
       '--output-format', 'text',
       '--model', model,
       ...cliPermissionArgs('cli-claude', mode),
       ...(effort ? ['--effort', effort] : []),
-      prompt,
     ];
 
     const result = await runCli({
       binPath,
       args,
+      stdin: prompt,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: agentCwd(req),
       env: claudeAccountEnv(accountModel.account),

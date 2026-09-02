@@ -1,11 +1,28 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, delimiter, isAbsolute } from 'node:path';
 import type { ChatMessage, ChatRequest } from '../types.js';
 
 export const DEFAULT_CLI_TIMEOUT_MS = 300_000; // 5 min
 export const CLI_GRACE_MS = 5_000;
+
+/**
+ * Largest prompt that may go on argv for a given binary.
+ *
+ * Prompts ride stdin wherever the CLI supports it; this bounds the ones that
+ * can only take argv (agy). The ceiling is a property of the transport, not of
+ * the bridge: Windows caps a CreateProcess command line at 32767 chars and
+ * cmd.exe at 8191, while Linux allows 131072 per argument. Applying the Windows
+ * number everywhere would reject prompts Linux handles fine.
+ */
+export function argvLimitFor(binPath: string): number {
+  if (process.platform !== 'win32') return 120_000; // MAX_ARG_STRLEN is 131072
+  const lower = binPath.toLowerCase();
+  return lower.endsWith('.cmd') || lower.endsWith('.bat')
+    ? 7_000    // cmd.exe: 8191 for the whole line, leaving room for the flags
+    : 30_000;  // CreateProcess: 32767 for the whole line
+}
 
 export interface CliRunResult {
   stdout: string;
@@ -15,14 +32,40 @@ export interface CliRunResult {
   aborted: boolean;
 }
 
+let _sandbox: string | undefined;
+
+/**
+ * Empty scratch directory used when a request carries no usable workspace.
+ *
+ * Deliberately not the home directory: a coding CLI started in `homedir()` can
+ * read and write the user's entire profile, which no caller ever asked for.
+ */
+export function sandboxCwd(): string {
+  if (_sandbox && existsSync(_sandbox)) return _sandbox;
+  try {
+    // mkdtemp, not a fixed path: `mkdirSync(fixed, {recursive:true})` succeeds
+    // on an already-existing directory and follows a symlink planted there, so
+    // on a shared machine another account could choose the CLI's working
+    // directory. mkdtemp creates a fresh 0700 directory or fails.
+    _sandbox = mkdtempSync(join(tmpdir(), 'conduit-bridge-'));
+    return _sandbox;
+  } catch {
+    return tmpdir();
+  }
+}
+
 /**
  * CLI working directory from a chat request.
- * Accepts only an absolute existing path; otherwise home.
+ *
+ * Normally the folder open in the editor, which the client sends as `cwd`
+ * (the VS Code extension takes it from `workspace.workspaceFolders[0]`).
+ * Anything that is not an absolute existing path falls back to an empty
+ * sandbox, so a missing `cwd` can never widen the CLI's reach to the profile.
  */
 export function agentCwd(req: Pick<ChatRequest, 'cwd'>): string {
   const cwd = req.cwd?.trim();
   if (cwd && isAbsolute(cwd) && existsSync(cwd)) return cwd;
-  return homedir();
+  return sandboxCwd();
 }
 
 /** Locate an executable on PATH, honoring PATHEXT (.cmd/.exe/…) on Windows. */
@@ -64,8 +107,23 @@ export function buildMinimalEnv(extraKeys: string[] = []): NodeJS.ProcessEnv {
   return env;
 }
 
-function quoteWin(arg: string): string {
+export function quoteWin(arg: string): string {
+  // An empty argument still has to occupy a slot. Emitted bare it disappears in
+  // the join, and the flag before it silently swallows the next token instead.
+  if (arg === '') return '""';
   return /[\s"&|<>^()]/.test(arg) ? `"${arg.replace(/"/g, '""')}"` : arg;
+}
+
+/**
+ * Index of the first argument containing a newline, or -1.
+ *
+ * cmd.exe ends its `/c` command line at the first newline and discards the rest
+ * — exit 0, no stderr. A multi-line prompt on argv therefore reaches the CLI as
+ * its first line alone. Exported as a pure function so the guard is testable off
+ * Windows.
+ */
+export function findMultilineArg(args: string[]): number {
+  return args.findIndex(a => /[\r\n]/.test(a));
 }
 
 export interface RunCliOptions {
@@ -98,6 +156,18 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
     const isWin = process.platform === 'win32';
     const lower = binPath.toLowerCase();
     const viaCmd = isWin && (lower.endsWith('.cmd') || lower.endsWith('.bat'));
+
+    // Prompts go on stdin now; fail loudly if a multi-line one comes back.
+    if (viaCmd) {
+      const multiline = findMultilineArg(args);
+      if (multiline !== -1) {
+        reject(new Error(
+          `[${label}] refusing to pass a multi-line argument (index ${multiline}) through cmd.exe — ` +
+            'it would be truncated at the first newline. Send it on stdin instead.',
+        ));
+        return;
+      }
+    }
 
     const proc = viaCmd
       ? spawn(
@@ -160,6 +230,11 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
       reject(new Error(`Failed to spawn '${label}': ${err.message}`));
     });
 
+    // A child can exit before draining the pipe (rejected flag, auth failure, or
+    // the timeout taskkill landing mid-write). Unhandled, that EPIPE is an
+    // uncaught exception that takes the whole bridge down instead of failing
+    // this one run.
+    proc.stdin?.on('error', () => {});
     if (stdin !== undefined && proc.stdin) {
       proc.stdin.write(stdin);
       proc.stdin.end();
