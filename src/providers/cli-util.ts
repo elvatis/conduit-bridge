@@ -8,11 +8,21 @@ export const DEFAULT_CLI_TIMEOUT_MS = 300_000; // 5 min
 export const CLI_GRACE_MS = 5_000;
 
 /**
- * Windows caps a CreateProcess command line at 32767 chars, and cmd.exe at 8191.
- * Prompts are sent on stdin wherever the CLI supports it; this bounds the ones
- * that can only take argv (agy).
+ * Largest prompt that may go on argv for a given binary.
+ *
+ * Prompts ride stdin wherever the CLI supports it; this bounds the ones that
+ * can only take argv (agy). The ceiling is a property of the transport, not of
+ * the bridge: Windows caps a CreateProcess command line at 32767 chars and
+ * cmd.exe at 8191, while Linux allows 131072 per argument. Applying the Windows
+ * number everywhere would reject prompts Linux handles fine.
  */
-export const WIN_ARGV_LIMIT = 30_000;
+export function argvLimitFor(binPath: string): number {
+  if (process.platform !== 'win32') return 120_000; // MAX_ARG_STRLEN is 131072
+  const lower = binPath.toLowerCase();
+  return lower.endsWith('.cmd') || lower.endsWith('.bat')
+    ? 7_000    // cmd.exe: 8191 for the whole line, leaving room for the flags
+    : 30_000;  // CreateProcess: 32767 for the whole line
+}
 
 export interface CliRunResult {
   stdout: string;

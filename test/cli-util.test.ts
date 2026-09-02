@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   agentCwd,
+  argvLimitFor,
   findMultilineArg,
   quoteWin,
   runCli,
@@ -65,6 +66,24 @@ describe('runCli cancellation', () => {
     // Dropped, the next token would be read as this flag's value.
     expect(['--tools', '', '--model', 'x'].map(quoteWin).join(' '))
       .toBe('--tools "" --model x');
+  });
+
+  it('argvLimitFor scales the bound to the transport, not to Windows', () => {
+    const win = process.platform === 'win32';
+    // A .cmd shim goes through cmd.exe, whose whole command line caps at 8191.
+    expect(argvLimitFor('C:/npm/claude.cmd')).toBe(win ? 7_000 : 120_000);
+    // A native .exe gets CreateProcess's 32767.
+    expect(argvLimitFor('C:/agy/agy.exe')).toBe(win ? 30_000 : 120_000);
+    // Linux allows 131072 per argument, so a Windows-derived bound must not
+    // reject prompts there.
+    expect(argvLimitFor('/usr/bin/agy')).toBeGreaterThanOrEqual(win ? 7_000 : 120_000);
+  });
+
+  it('cli-gemini points agy at the workspace with --add-dir', () => {
+    // agy ignores the process cwd entirely and runs in its own scratch dir, so
+    // without --add-dir the editor's open folder is invisible to every turn.
+    const src = readFileSync(join(process.cwd(), 'src/providers/cli-gemini.ts'), 'utf8');
+    expect(src).toMatch(/'--add-dir',\s*workspace/);
   });
 
   it('cli-claude and cli-codex send the prompt on stdin, never on argv', () => {

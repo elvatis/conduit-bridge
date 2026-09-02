@@ -49,11 +49,20 @@ export function agentModeCwdError(mode: CliRunMode, cwd: string | undefined): st
 }
 
 /**
- * Tools a read-only chat turn must not reach for. Comma-separated because both
- * `claude` and `grok` accept "comma or space separated"; a space-separated list
- * would make the variadic flag swallow the arguments that follow it.
+ * Tools a read-only chat turn must not reach for. Comma-separated: both CLIs
+ * accept "comma or space separated", and a space-separated list would make the
+ * variadic flag swallow the arguments that follow it.
+ *
+ * Every name here has been run against the real binaries. Two traps:
+ *   - Claude Code no longer knows `MultiEdit`; an unknown name makes it warn on
+ *     stderr for every turn.
+ *   - The flag SPELLING differs. `claude` wants camelCase `--disallowedTools`.
+ *     On grok that same spelling is an alias for `--deny <RULE>`, which rejects
+ *     `NotebookEdit` at parse time ("unsupported tool prefix") and exits 1 —
+ *     grok's per-tool flag is the hyphenated `--disallowed-tools`.
+ * Keep the two branches below spelled the way their own CLI expects.
  */
-const MUTATING_TOOLS = 'Write,Edit,MultiEdit,NotebookEdit,Bash';
+const MUTATING_TOOLS = 'Write,Edit,NotebookEdit,Bash';
 
 /**
  * Native CLI flags per run mode.
@@ -83,7 +92,11 @@ export function cliPermissionArgs(
       if (mode === 'plan') {
         return legacy ? ['--approval-mode', 'plan'] : ['--mode', 'plan'];
       }
-      // agy's default print mode answers directly and writes nothing.
+      // agy has no read-only mode: `--mode` takes only plan or accept-edits.
+      // Default print mode is what makes chat answer instead of planning, but
+      // it leaves agy write-capable — verified, it will create a file when a
+      // prompt asks for one. Confinement comes from --add-dir in cli-gemini.ts,
+      // not from a flag here. Tracked as a known gap in the PR.
       return [];
     }
     case 'cli-codex':
@@ -93,6 +106,7 @@ export function cliPermissionArgs(
     case 'cli-grok':
       if (mode === 'agent') return ['--no-plan', '--always-approve'];
       if (mode === 'plan') return ['--permission-mode', 'plan'];
-      return ['--disallowedTools', MUTATING_TOOLS];
+      // Hyphenated: grok's camelCase alias means --deny and refuses NotebookEdit.
+      return ['--disallowed-tools', MUTATING_TOOLS];
   }
 }

@@ -55,7 +55,7 @@ describe('agentModeCwdError', () => {
 describe('cliPermissionArgs', () => {
   it('maps Claude chat to read-only tools, plan to the planner, agent to bypassPermissions', () => {
     expect(cliPermissionArgs('cli-claude', 'chat')).toEqual([
-      '--disallowedTools', 'Write,Edit,MultiEdit,NotebookEdit,Bash',
+      '--disallowedTools', 'Write,Edit,NotebookEdit,Bash',
     ]);
     expect(cliPermissionArgs('cli-claude', 'plan')).toEqual(['--permission-mode', 'plan']);
     expect(cliPermissionArgs('cli-claude', 'agent')).toEqual(['--permission-mode', 'bypassPermissions']);
@@ -88,10 +88,19 @@ describe('cliPermissionArgs', () => {
 
   it('maps Grok chat to read-only tools, plan to plan, agent to no-plan always-approve', () => {
     expect(cliPermissionArgs('cli-grok', 'chat')).toEqual([
-      '--disallowedTools', 'Write,Edit,MultiEdit,NotebookEdit,Bash',
+      '--disallowed-tools', 'Write,Edit,NotebookEdit,Bash',
     ]);
     expect(cliPermissionArgs('cli-grok', 'plan')).toEqual(['--permission-mode', 'plan']);
     expect(cliPermissionArgs('cli-grok', 'agent')).toEqual(['--no-plan', '--always-approve']);
+  });
+
+  // The two CLIs spell the flag differently, and getting it wrong is silent in
+  // unit tests but fatal at runtime: on grok, camelCase --disallowedTools is an
+  // alias for --deny, which rejects NotebookEdit at parse time and exits 1, so
+  // every default-mode grok request 503s.
+  it('uses each CLI its own spelling of the deny-tools flag', () => {
+    expect(cliPermissionArgs('cli-claude', 'chat')[0]).toBe('--disallowedTools');
+    expect(cliPermissionArgs('cli-grok', 'chat')[0]).toBe('--disallowed-tools');
   });
 
   // The regression this suite previously pinned the wrong way round: chat and

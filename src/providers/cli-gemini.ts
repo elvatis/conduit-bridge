@@ -13,8 +13,9 @@ import {
   stripPrefix,
   agentCwd,
   DEFAULT_CLI_TIMEOUT_MS,
-  WIN_ARGV_LIMIT,
+  argvLimitFor,
 } from './cli-util.js';
+import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
@@ -204,10 +205,11 @@ export class GeminiCliProvider implements ProviderAdapter {
     // agy's `-p` takes the prompt as an argv value and there is no stdin prompt
     // transport for text mode, so the command line is the hard bound here.
     // Fail with something the caller can act on rather than a bare ENAMETOOLONG.
-    if (prompt.length > WIN_ARGV_LIMIT) {
+    const argvLimit = argvLimitFor(binPath);
+    if (prompt.length > argvLimit) {
       throw new Error(
-        `cli-gemini: prompt is ${prompt.length} chars, over the ${WIN_ARGV_LIMIT} command-line ` +
-          'limit for `agy -p`. Shorten the conversation or attach less context.',
+        `cli-gemini: prompt is ${prompt.length} chars, over the ${argvLimit} command-line limit ` +
+          `for \`${basename(binPath)} -p\` on this platform. Shorten the conversation or attach less context.`,
       );
     }
 
@@ -216,6 +218,12 @@ export class GeminiCliProvider implements ProviderAdapter {
     // --effort for an id that carries no tier of its own.
     const effort = TIER_SUFFIX.test(model) ? undefined : toAgyEffort(req.effort);
 
+    // agy ignores the process cwd entirely — it runs in its own fixed scratch
+    // directory (~/.gemini/antigravity-cli/scratch) and cannot see the caller's
+    // files. --add-dir is what actually points it at the workspace, so without
+    // this the editor's open folder is invisible to every cli-gemini turn.
+    const workspace = agentCwd(req);
+
     // agy: -p/--print, --model, --output-format, --mode plan|accept-edits, --effort
     // legacy gemini: -p, -m, -o text, --approval-mode plan
     const args = isAgy
@@ -223,6 +231,7 @@ export class GeminiCliProvider implements ProviderAdapter {
           '-p', prompt,
           '--model', model,
           '--output-format', 'text',
+          '--add-dir', workspace,
           ...permission,
           ...(effort ? ['--effort', effort] : []),
         ]
@@ -237,7 +246,7 @@ export class GeminiCliProvider implements ProviderAdapter {
       binPath,
       args,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
-      cwd: agentCwd(req),
+      cwd: workspace,
       label: 'cli-gemini',
       log: msg => logger.info(msg),
       signal: req.signal,
