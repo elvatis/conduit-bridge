@@ -24,7 +24,7 @@
     "scan:secrets:history": "node scripts/scan-secrets.mjs --history"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.117.1",
+    "@anthropic-ai/sdk": "^0.122.0",
     "@google/generative-ai": "^0.24.1",
     "openai": "^7.4.0"
   },
