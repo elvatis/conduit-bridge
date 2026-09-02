@@ -271,6 +271,8 @@ export class BridgeServer {
         // cli-gemini/claude-sonnet-4-6 would appear under a Gemini heading with
         // nothing to say which CLI actually serves it.
         display_name: m.displayName,
+        // Only present where the transport really bounds the prompt.
+        ...(m.maxPromptChars ? { max_prompt_chars: m.maxPromptChars } : {}),
         conduit: { availability: m.availability ?? 'dynamic', source: m.source ?? 'provider' },
       }));
       json(res, 200, { object: 'list', data: models });

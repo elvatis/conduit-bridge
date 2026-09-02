@@ -3,6 +3,8 @@ import { EFFORT_REJECTED, parseAgyModels } from '../src/providers/cli-gemini.js'
 import { parseGrokModels } from '../src/providers/grok-cli.js';
 import { parseCodexModels } from '../src/providers/cli-codex.js';
 import { belongsToProvider, noteForeignVendors } from '../src/model-catalog.js';
+import { GeminiCliProvider } from '../src/providers/cli-gemini.js';
+import { argvLimitFor, resolveExecutable } from '../src/providers/cli-util.js';
 
 // Captured verbatim from `agy models` (tab-separated, with the status preamble).
 const AGY_MODELS_STDOUT = [
@@ -223,5 +225,29 @@ describe('EFFORT_REJECTED', () => {
     expect(EFFORT_REJECTED.test('Error: not authenticated. Run agy login.')).toBe(false);
     expect(EFFORT_REJECTED.test('model gemini-3.5-flash-high is not recognized')).toBe(false);
     expect(EFFORT_REJECTED.test('')).toBe(false);
+  });
+});
+
+// A client sizes its context off the model's token window — a million for
+// Gemini — but agy takes the prompt on argv, so the real ceiling is the OS
+// command line, roughly 30k chars. Only the bridge knows that, so it has to say.
+describe('cli-gemini reports its prompt ceiling', () => {
+  it('sets maxPromptChars to the transport limit when agy is installed', () => {
+    const models = new GeminiCliProvider({} as never).models;
+    const agy = resolveExecutable('agy');
+    if (!agy) {
+      expect(models.every(m => m.maxPromptChars === undefined)).toBe(true);
+      return;
+    }
+    expect(models.length).toBeGreaterThan(0);
+    for (const m of models) {
+      expect(m.maxPromptChars, m.id).toBe(argvLimitFor(agy));
+    }
+  });
+
+  it('the ceiling is far below a Gemini token window, which is the whole point', () => {
+    const agy = resolveExecutable('agy');
+    if (!agy) return;
+    expect(argvLimitFor(agy)).toBeLessThan(200_000);
   });
 });

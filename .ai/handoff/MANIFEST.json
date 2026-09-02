@@ -1,72 +1,72 @@
 {
   "aahp_version": "3.0",
-  "project": "wt-cli-fix",
+  "project": "wt-bridge2",
   "last_session": {
     "agent": "cli-tool",
-    "session_id": "cli-1788379658",
-    "timestamp": "2026-09-02T20:07:38Z",
-    "commit": "a4b1c28",
+    "session_id": "cli-1788382596",
+    "timestamp": "2026-09-02T20:56:36Z",
+    "commit": "00e5645",
     "phase": "idle",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:9083d224bb14b0e36c332a9e639bccd52e023784658e5d92046b5fdea7ce1dbc",
-      "updated": "2026-09-02T20:03:41Z",
-      "lines": 249,
+      "checksum": "sha256:23eb422ae50dbd2b0c7857f36c8d9870e55b4377867f3ad3e1fe101307beffa5",
+      "updated": "2026-09-02T20:56:35Z",
+      "lines": 262,
       "summary": "_Updated: 2026-09-02_"
     },
     "NEXT_ACTIONS.md": {
       "checksum": "sha256:cf5b1b610cffb9c84080c89d2fe94e301aa71c754dc92ed34a51ceb3f32be916",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 8,
       "summary": "_Updated: 2026-09-02_"
     },
     "LOG.md": {
       "checksum": "sha256:a2a5a44f3d7fc820d1f1865b1053056c26e8bbaf9c9f173eb14051684c9aaf3a",
-      "updated": "2026-09-02T20:03:33Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 82,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
       "checksum": "sha256:36837627f7ee88cc9389b8bee9d52952dc75b3dc511a8ccf776db38f4e1e3b8e",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 10,
       "summary": "(no summary available)"
     },
     "DASHBOARD.md": {
       "checksum": "sha256:f2b6fc40adc1f2a7416bfc6b5f360cac4a19a81e27acb546a1b42a4d7e6be09f",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 19,
       "summary": "_Updated: 2026-09-02_"
     },
     "TRUST.md": {
       "checksum": "sha256:8f00b7264c8cd0992576abec19f5f15134910ce78362ce1b0840fa8655198de4",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 26,
       "summary": "_Updated: 2026-09-02_"
     },
     "CONVENTIONS.md": {
       "checksum": "sha256:870cfd08325583db30fa753ef5310668b1830c8322c5011c850c153af3558a8a",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 13,
       "summary": "- TypeScript strict mode and ESM"
     },
     "WORKFLOW.md": {
       "checksum": "sha256:5513abfeb463051ccc53196a6d8e1c55ac694df9295072b5357a735341bb455d",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 20,
       "summary": "Based on the [AAHP Protocol](https://github.com/homeofe/AAHP)."
     },
     "GROUNDING.md": {
       "checksum": "sha256:7ef8cece585dc5defb4285175b9ba560d5469675df553d4ce28ec9e7aec24343",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 209,
       "summary": "(no summary available)"
     },
     "pii-allowlist.json": {
       "checksum": "sha256:7c1051f6e2bc3943b7c1dbe4da229694455681b8875a346c99279e555edb733f",
-      "updated": "2026-09-02T13:40:29Z",
+      "updated": "2026-09-02T20:54:41Z",
       "lines": 4,
       "summary": "{"
     }
@@ -74,7 +74,7 @@
   "quick_context": "_Updated: 2026-09-02_ _Updated: 2026-09-02_ ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 2646,
-    "full_read": 6342
+    "manifest_plus_core": 2800,
+    "full_read": 6496
   }
 }
