@@ -2,6 +2,9 @@
 
 _Updated: 2026-09-02_
 
+**v0.7.0** adds `mode` (`chat` | `plan` | `agent`) on `POST /v1/chat/completions`.
+Agent requires `cwd`. Grok is plan-by-default. Pair with conduit-vscode 0.9.0.
+
 CLI chat completions take `mode`: `chat` (read-only proxy, default),
 `plan` (native CLI plan function), `agent` (workspace write, requires `cwd`).
 Aliases: `agentic: true`, `plan: true`. Grok is no longer always-write; it
