@@ -57,9 +57,14 @@ What made the labelling honest instead:
   picker could only show the bare slug, so a resold model appeared under a
   Gemini heading with nothing to identify it. It now reads
   `Claude Sonnet 4.6 (Thinking) (agy CLI)`.
-- `owned_by` reports the model's real maker via `vendorOf()`, not the CLI that
-  serves it — `anthropic` for the Claude rows, `openai` for GPT-OSS. It was
-  hardcoded `google` for everything under `cli-gemini`.
+- `owned_by` reports the CLI that answers (`agy`, `claude-code`, `codex`,
+  `grok`), not a guess at the model's author. Inferring the author from the id
+  prefix conflates who built a model with where it can be obtained, and those
+  differ: `gpt-oss-120b-medium` is OpenAI's open-weight model, is served here
+  by agy, and is not available from OpenAI at all — labelling it `openai` would
+  advertise a route that does not exist. The author stays legible in the id and
+  the display name; what a caller cannot otherwise tell is which subscription
+  answers.
 - `--effort` is suppressed for any non-`gemini-` id as well as tier-suffixed
   ones. agy rejects the flag for the resold models, so sending it guaranteed a
   failed spawn plus a retry. Verified: an effort-bearing turn on

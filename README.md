@@ -118,12 +118,14 @@ Claude Sonnet through an Antigravity subscription is a different quota, auth
 and rate limit than reaching it through an Anthropic one, which is the point:
 
 ```
-cli-gemini/claude-sonnet-4-6   Claude Sonnet 4.6 (Thinking) (agy CLI)   owned_by: anthropic
-cli-claude/claude-sonnet-5     claude-sonnet-5 (Claude Code CLI)        owned_by: anthropic
+cli-gemini/claude-sonnet-4-6   Claude Sonnet 4.6 (Thinking) (agy CLI)   owned_by: agy
+cli-claude/claude-sonnet-5     claude-sonnet-5 (Claude Code CLI)        owned_by: claude-code
 ```
 
-Ids stay unique because the prefixes differ, and `owned_by` always reports the
-model's real maker rather than the CLI that serves it. To restrict a provider
+Ids stay unique because the prefixes differ, and `owned_by` names the CLI that
+answers rather than guessing the model's author from its id — `gpt-oss-120b` is
+OpenAI's open-weight model but is not obtainable from OpenAI, so calling it
+`openai` would advertise a route that does not exist. To restrict a provider
 to one vendor, pin it in `models.json`.
 
 Naming a provider **pins** it: that list is served verbatim and runtime

@@ -10,6 +10,7 @@ import {
   parseCatalogEntries,
   parseCatalogFile,
   reloadCatalogs,
+  SERVED_BY,
 } from '../src/model-catalog.js';
 import { GeminiCliProvider } from '../src/providers/cli-gemini.js';
 
@@ -54,6 +55,29 @@ describe('isModelId', () => {
     const started = Date.now();
     expect(isModelId('a-' + '.'.repeat(44) + '!')).toBe(false);
     expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
+// owned_by names the CLI that answers, not a guess at the model's author.
+// Deriving the author from the id prefix conflates "who built it" with "where
+// you can get it": gpt-oss-120b is OpenAI's open-weight model, is served here by
+// agy, and is not obtainable from OpenAI — labelling it `openai` would advertise
+// a route that does not exist.
+describe('SERVED_BY', () => {
+  it('names the transport for every CLI provider', () => {
+    expect(SERVED_BY).toEqual({
+      'cli-claude': 'claude-code',
+      'cli-codex': 'codex',
+      'cli-gemini': 'agy',
+      'cli-grok': 'grok',
+    });
+  });
+
+  it('does not vary with the model, so a resold id cannot imply a wrong route', () => {
+    // Both of these are served by agy, whatever their id suggests.
+    expect(SERVED_BY['cli-gemini']).toBe('agy');
+    expect(SERVED_BY['cli-gemini']).not.toBe('openai');
+    expect(SERVED_BY['cli-gemini']).not.toBe('anthropic');
   });
 });
 

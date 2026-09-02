@@ -19,7 +19,7 @@ import {
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, noteForeignVendors, isPinned, vendorOf } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isPinned, SERVED_BY } from '../model-catalog.js';
 
 const PREFIX = 'cli-grok/';
 
@@ -75,7 +75,7 @@ function toDefinition(id: string): ModelDefinition {
     id: `${PREFIX}${id}`,
     provider: 'cli-grok',
     displayName: `${id} (Grok CLI)`,
-    owned_by: vendorOf(id, 'xai'),
+    owned_by: SERVED_BY['cli-grok'],
   };
 }
 

@@ -94,19 +94,22 @@ export function belongsToProvider(provider: CatalogProvider, id: string): boolea
 }
 
 /**
- * Who actually made the model, from its id — not from which CLI serves it.
+ * Which CLI actually serves this provider's models.
  *
- * `owned_by` is a statement about the model, so a Claude reached through agy is
- * still Anthropic's. Reporting the transport's vendor there would be plainly
- * wrong, and it is the field an OpenAI-compatible client groups by.
+ * `owned_by` reports the TRANSPORT, not a guess at the model's author. Deriving
+ * the author from the id prefix conflates who built a model with where you can
+ * obtain it, and those differ: `gpt-oss-120b-medium` is OpenAI's open-weight
+ * model, is served here by agy, and is not available from OpenAI at all — so
+ * labelling it `openai` would advertise a route that does not exist. The author
+ * is already legible in the id and the display name; what a caller cannot
+ * otherwise tell is which subscription answers.
  */
-export function vendorOf(id: string, fallback: string): string {
-  if (/^claude-/.test(id)) return 'anthropic';
-  if (/^gemini-/.test(id)) return 'google';
-  if (/^grok-/.test(id)) return 'xai';
-  if (/^(?:gpt|codex|o[0-9])/.test(id)) return 'openai';
-  return fallback;
-}
+export const SERVED_BY: Record<CatalogProvider, string> = {
+  'cli-claude': 'claude-code',
+  'cli-codex': 'codex',
+  'cli-gemini': 'agy',
+  'cli-grok': 'grok',
+};
 
 /**
  * Note foreign-vendor ids without removing them.

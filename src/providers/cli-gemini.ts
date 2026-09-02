@@ -19,7 +19,7 @@ import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, noteForeignVendors, isPinned, vendorOf } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isPinned, SERVED_BY } from '../model-catalog.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Non-interactive: agy -p/--print with --model and --output-format text.
@@ -92,7 +92,7 @@ function toDefinition(m: AgyModel): ModelDefinition {
     id: `${PREFIX}${m.id}`,
     provider: 'cli-gemini',
     displayName: `${m.displayName || m.id} (agy CLI)`,
-    owned_by: vendorOf(m.id, 'google'),
+    owned_by: SERVED_BY['cli-gemini'],
   };
 }
 
