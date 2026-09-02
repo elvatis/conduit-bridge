@@ -8,12 +8,15 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-02
+
 ### Added
 
 - Chat completions accept `mode` (`chat` | `plan` | `agent`) so CLI providers
   can run as a read-only proxy, native planner, or workspace agent.
   `agentic: true` and `plan: true` are aliases. Agent mode requires `cwd`.
   Chat Agent mode in conduit-vscode stays host-side; spawn sends `mode: agent`.
+  (#101)
 
 ## [0.6.0] - 2026-09-02
 

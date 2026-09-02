@@ -173,9 +173,10 @@ written to operational logs. Runtime state belongs below `.conduit`.
 
 ## Changelog
 
-### Unreleased
+### 0.7.0
 
 CLI `mode` on chat completions: `chat`, `plan`, or `agent`. Agent requires `cwd`.
+See [CHANGELOG.md](CHANGELOG.md).
 
 ### 0.6.0
 

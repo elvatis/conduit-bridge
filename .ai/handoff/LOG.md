@@ -2,6 +2,10 @@
 
 _Reverse chronological._
 
+## 2026-09-02 - v0.7.0
+
+- Version bump for the `mode` request field (#101). GitHub Release only.
+
 ## 2026-09-02 - CLI chat/plan/agent mode
 
 - `POST /v1/chat/completions` accepts `mode` (`chat` | `plan` | `agent`).
