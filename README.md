@@ -93,10 +93,21 @@ Any of the four can be overridden from `~/.conduit/models.json` (or the path in
 
 ```json
 {
-  "cli-claude": ["claude-opus-5", "claude-opus-6"],
-  "cli-codex": [{ "id": "gpt-6-preview", "displayName": "GPT-6 Preview" }]
+  "cli-claude": ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
+  "cli-codex": [{ "id": "gpt-5.6-sol", "displayName": "GPT-5.6 Sol" }]
 }
 ```
+
+Add whichever id the vendor ships next; the bridge does not need to know it in
+advance, and the ids above are only the current defaults. To see what a CLI
+offers today:
+
+| CLI | how to list its models |
+| --- | --- |
+| `agy` | `agy models` |
+| `grok` | `grok models` |
+| `codex` | run `codex`, then `/model` — it has no non-interactive listing |
+| `claude` | no listing of any kind; use this file |
 
 Naming a provider **pins** it: that list is served verbatim and runtime
 discovery is skipped for it — the escape hatch for a CLI that is offline or
