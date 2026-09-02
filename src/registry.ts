@@ -9,6 +9,7 @@ import { GrokCliProvider } from './providers/grok-cli.js';
 import { CodexCliProvider } from './providers/cli-codex.js';
 import { ClaudeCliProvider } from './providers/cli-claude.js';
 import { GeminiCliProvider } from './providers/cli-gemini.js';
+import { reloadCatalogs } from './model-catalog.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -65,6 +66,9 @@ export class ProviderRegistry {
    * Providers with no TTL simply ignore the argument.
    */
   async refreshApiModels(): Promise<Record<string, number>> {
+    // Pick up an edited ~/.conduit/models.json in the same action, so adding a
+    // model there needs neither a rebuild nor a restart.
+    reloadCatalogs();
     const result: Record<string, number> = {};
     for (const provider of this._providers.values()) {
       const refresh = (provider as ProviderAdapter & { refreshModels?: (force?: boolean) => Promise<number> }).refreshModels;

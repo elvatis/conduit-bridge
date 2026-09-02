@@ -81,6 +81,30 @@ Authenticate each installed tool using its official login flow:
 Conduit invokes these tools non-interactively for requests. Provider accounts,
 subscriptions, usage limits, and terms remain controlled by each provider.
 
+### CLI model catalogs
+
+`cli-gemini` and `cli-grok` learn their catalogs at runtime from `agy models`
+and `grok models`, so a new model release appears on its own. `cli-claude` and
+`cli-codex` cannot — neither binary has a model-listing subcommand — so their
+lists ship as defaults.
+
+Any of the four can be overridden from `~/.conduit/models.json` (or the path in
+`CONDUIT_MODELS_FILE`) with no rebuild:
+
+```json
+{
+  "cli-claude": ["claude-opus-5", "claude-opus-6"],
+  "cli-codex": [{ "id": "gpt-6-preview", "displayName": "GPT-6 Preview" }]
+}
+```
+
+Naming a provider **pins** it: that list is served verbatim and runtime
+discovery is skipped for it — the escape hatch for a CLI that is offline or
+whose `models` output cannot be parsed. Providers the file does not mention are
+unaffected. Edits are picked up on the next `POST /v1/models/refresh`, without
+restarting the bridge. An entry that is malformed, empty, or has no valid model
+ids is ignored in favour of the built-in defaults.
+
 ## OpenAI-compatible API
 
 Client base URL:

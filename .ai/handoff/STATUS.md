@@ -32,9 +32,20 @@ Agent. All four are bridge-side; the extension needs no change.
 | `cli-codex` | none | `codex` has no model-listing subcommand |
 
 `claude` and `codex` were checked against the real binaries: their subcommand
-lists contain no `models` and no `--list-models`, so those two catalogs stay
-hardcoded until the CLIs expose one. Moving them to a data file would at least
-drop the rebuild requirement; not done here.
+lists contain no `models` and no `--list-models`, so there is nothing to
+discover from.
+
+All four catalogs now live in `src/model-catalog.ts` as data, and any of them
+can be overridden from `~/.conduit/models.json` (or `$CONDUIT_MODELS_FILE`)
+with **no rebuild** — which is what removes the per-release build for the two
+providers that cannot discover. Naming a provider PINS it: the list is served
+verbatim and discovery is skipped for it, which doubles as the escape hatch for
+an offline CLI or unparsable `models` output. Providers the file omits are
+unaffected. Edits land on the next `POST /v1/models/refresh`, no restart.
+
+A pin outranks an already-discovered catalog, not just the next discovery —
+getting that wrong made the pin look accepted and then silently ignored, which
+is how it was found.
 
 Also: `agy` ignores the process cwd entirely (it runs in
 `~/.gemini/antigravity-cli/scratch`), so `--add-dir` is now passed — the editor's

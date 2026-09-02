@@ -19,6 +19,7 @@ import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
+import { catalogFor, isPinned } from '../model-catalog.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Non-interactive: agy -p/--print with --model and --output-format text.
@@ -26,11 +27,6 @@ import { cliPermissionArgs } from '../cli-mode.js';
 // Docs: https://antigravity.google/docs/cli/getting-started
 const PREFIX = 'cli-gemini/';
 
-// Seed list only. The live catalog comes from `agy models` (see refreshModels);
-// this is what we advertise before the first discovery answers, and when agy is
-// missing or unauthenticated. Kept to the ids most likely to survive, because a
-// hardcoded list is exactly what goes stale between agy releases.
-const FALLBACK_CATALOG = ['gemini-3.1-pro-high', 'gemini-3.1-pro-low'];
 
 /** Re-run `agy models` at most this often. */
 const DISCOVERY_TTL_MS = 5 * 60_000;
@@ -110,8 +106,12 @@ export class GeminiCliProvider implements ProviderAdapter {
 
   /** Discovered catalog when we have one, otherwise the seed list. */
   get models(): ModelDefinition[] {
-    if (this._discovered?.length) return this._discovered;
-    return FALLBACK_CATALOG.map(id => toDefinition({ id, displayName: id }));
+    // A pinned catalog is the user's explicit answer and outranks discovery.
+    if (!isPinned('cli-gemini') && this._discovered?.length) return this._discovered;
+    // Seed list from model-catalog.ts (overridable via ~/.conduit/models.json):
+    // what we advertise before the first `agy models` answers, and when agy is
+    // missing or logged out.
+    return catalogFor('cli-gemini').map(m => toDefinition({ id: m.id, displayName: m.displayName ?? m.id }));
   }
 
   constructor(_cfg: BridgeConfig) {}
@@ -142,6 +142,8 @@ export class GeminiCliProvider implements ProviderAdapter {
   }
 
   private async _discover(): Promise<number> {
+    // A pinned catalog is the user's explicit answer; do not overwrite it.
+    if (isPinned('cli-gemini')) return catalogFor('cli-gemini').length;
     const binPath = resolveGeminiBin();
     if (!binPath || !/agy(\.exe)?$/i.test(binPath)) return this._discovered?.length ?? 0;
 

@@ -17,6 +17,7 @@ import {
 import { cliSession } from './cli-auth.js';
 import { toOpenAiEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
+import { catalogFor } from '../model-catalog.js';
 
 // OpenAI Codex CLI (@openai/codex) — non-interactive via `codex exec`.
 // Install: npm i -g @openai/codex  then  codex login
@@ -24,24 +25,22 @@ import { cliPermissionArgs } from '../cli-mode.js';
 const PREFIX = 'cli-codex/';
 const BIN = 'codex';
 
-// Curated models for Codex CLI (same GPT-5.6 family as the API, 2026-08).
-const CATALOG = [
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
-  'gpt-5.5',
-  'gpt-5.5-pro',
-];
-
 export class CodexCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-codex';
 
-  readonly models: ModelDefinition[] = CATALOG.map(id => ({
-    id: `${PREFIX}${id}`,
-    provider: 'cli-codex',
-    displayName: `${id} (Codex CLI)`,
-    owned_by: 'openai',
-  }));
+  /**
+   * `codex` has no model-listing subcommand, so there is nothing to discover.
+   * The catalog comes from src/model-catalog.ts, overridable from
+   * `~/.conduit/models.json` without rebuilding the bridge.
+   */
+  get models(): ModelDefinition[] {
+    return catalogFor('cli-codex').map(m => ({
+      id: `${PREFIX}${m.id}`,
+      provider: 'cli-codex' as ProviderName,
+      displayName: `${m.displayName ?? m.id} (Codex CLI)`,
+      owned_by: 'openai',
+    }));
+  }
 
   constructor(_cfg: BridgeConfig) {}
 

@@ -19,13 +19,10 @@ import {
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { cliPermissionArgs } from '../cli-mode.js';
+import { catalogFor, isPinned } from '../model-catalog.js';
 
 const PREFIX = 'cli-grok/';
 
-// Seed list only — the live catalog comes from `grok models`. A hardcoded list
-// goes stale silently: this one still advertised grok-4.3, which grok no longer
-// serves, so the bridge offered VS Code a model that could only fail.
-const FALLBACK_CATALOG = ['grok-4.6'];
 
 const DISCOVERY_TTL_MS = 5 * 60_000;
 const DISCOVERY_RETRY_MS = 60_000;
@@ -91,8 +88,10 @@ export class GrokCliProvider implements ProviderAdapter {
 
   /** Discovered catalog when we have one, otherwise the seed list. */
   get models(): ModelDefinition[] {
-    if (this._discovered?.length) return this._discovered;
-    return FALLBACK_CATALOG.map(toDefinition);
+    // A pinned catalog is the user's explicit answer and outranks discovery.
+    if (!isPinned('cli-grok') && this._discovered?.length) return this._discovered;
+    // Seed list from model-catalog.ts, overridable via ~/.conduit/models.json.
+    return catalogFor('cli-grok').map(m => toDefinition(m.id));
   }
 
   constructor(_cfg: BridgeConfig) {}
@@ -114,6 +113,8 @@ export class GrokCliProvider implements ProviderAdapter {
   }
 
   private async _discover(): Promise<number> {
+    // A pinned catalog is the user's explicit answer; do not overwrite it.
+    if (isPinned('cli-grok')) return catalogFor('cli-grok').length;
     const binPath = resolveExecutable('grok');
     if (!binPath) return this._discovered?.length ?? 0;
     try {
