@@ -109,6 +109,12 @@ offers today:
 | `codex` | run `codex`, then `/model` — it has no non-interactive listing |
 | `claude` | no listing of any kind; use this file |
 
+`cli-codex` discovers its catalog over HTTP from ChatGPT's own Codex model
+endpoint, which reports the account's real entitlements. Each provider
+advertises **only its own vendor's models**: `agy` also resells Anthropic and
+GPT-OSS models, but those stay out of the `cli-gemini/` namespace, so one
+prefix always means one vendor.
+
 Naming a provider **pins** it: that list is served verbatim and runtime
 discovery is skipped for it — the escape hatch for a CLI that is offline or
 whose `models` output cannot be parsed. Providers the file does not mention are
