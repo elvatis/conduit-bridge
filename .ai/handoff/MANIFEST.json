@@ -3,28 +3,28 @@
   "project": "conduit-bridge",
   "last_session": {
     "agent": "cli-tool",
-    "session_id": "cli-1788348315",
-    "timestamp": "2026-09-02T11:25:15Z",
-    "commit": "726c7ae",
+    "session_id": "cli-1788350192",
+    "timestamp": "2026-09-02T11:56:32Z",
+    "commit": "305de0e",
     "phase": "idle",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:c4cb2a85e4c769a9092943743ac44e9882001c7f008757eff819da73edee4faf",
-      "updated": "2026-09-02T11:15:14Z",
-      "lines": 49,
+      "checksum": "sha256:63b71f2a938b278628fcc75059d9fb8b317b614d76ec78b796ce80abd41ed0db",
+      "updated": "2026-09-02T11:55:50Z",
+      "lines": 47,
       "summary": "_Updated: 2026-09-02_"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:2e070a9dc6c4a81a0cd48344f03a48c056416296f1f52efa5e6ab5364a1cc815",
-      "updated": "2026-09-02T11:24:17Z",
-      "lines": 11,
+      "checksum": "sha256:c3b44d5dcd0e3bdc70d374c1d948fbb573e9902edd317c3edbdc15b21ff32c59",
+      "updated": "2026-09-02T11:55:50Z",
+      "lines": 8,
       "summary": "_Updated: 2026-09-02_"
     },
     "LOG.md": {
-      "checksum": "sha256:1f608ce36b9f82a651f00d235e2701e28963bbc70452b5c2b27e3f4250e49909",
-      "updated": "2026-09-02T11:24:17Z",
+      "checksum": "sha256:4c425bb816c18eb7404ccfc6f8b6cac8e993595dccc7dea0057f7a79b72132f3",
+      "updated": "2026-09-02T11:56:04Z",
       "lines": 59,
       "summary": "_Reverse chronological._"
     },
@@ -74,7 +74,7 @@
   "quick_context": "_Updated: 2026-09-02_ _Updated: 2026-09-02_ ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 469,
-    "full_read": 3929
+    "manifest_plus_core": 424,
+    "full_read": 3881
   }
 }
