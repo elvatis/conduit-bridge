@@ -24,12 +24,43 @@ Agent. All four are bridge-side; the extension needs no change.
 
 ### Which providers discover, and which cannot
 
-| provider | discovery | why |
+| provider | discovery | source |
 | --- | --- | --- |
-| `cli-gemini` | `agy models` | tab-separated `id<TAB>Display Name` |
-| `cli-grok` | `grok models` | bullet list under an "Available models:" header |
-| `cli-claude` | none | `claude` has no model-listing subcommand |
-| `cli-codex` | none | `codex` has no model-listing subcommand |
+| `cli-gemini` | yes | `agy models` — tab-separated `id<TAB>Display Name` |
+| `cli-grok` | yes | `grok models` — bullet list under "Available models:" |
+| `cli-codex` | yes | `GET chatgpt.com/backend-api/codex/models?client_version=<codex --version>` |
+| `cli-claude` | no | no listing of any kind; catalog file only |
+
+### One prefix, one vendor
+
+The provider namespaces must not overlap, and left alone they do: `agy models`
+also reports `claude-sonnet-4-6`, `claude-opus-4-6-thinking` and
+`gpt-oss-120b-medium`. Advertising those as `cli-gemini/claude-sonnet-4-6` names
+a Claude model as if it were Gemini, collides conceptually with the real
+`cli-claude` namespace, and gives the picker two routes to one model with
+different limits and permissions. `filterToVendor` in model-catalog.ts drops
+foreign families on both routes — discovery and models.json — and logs what went.
+
+Result: cli-claude serves only `claude-*`, cli-codex only `gpt-*`/`codex-*`,
+cli-gemini only `gemini-*`, cli-grok only `grok-*`.
+
+### Why not api.openai.com/v1/models for cli-codex
+
+That endpoint lists API-*platform* models for an API key, which is a different
+entitlement set from a ChatGPT subscription — measured: the platform advertises
+`gpt-5.5-pro`, and a ChatGPT account rejects it with "not supported when using
+Codex with a ChatGPT account". It is the right source for `api-codex` (which
+authenticates with a key) and the wrong one for `cli-codex`. With the codex OAuth
+token it returns 403 `Missing scopes: api.model.read` anyway.
+
+The codex endpoint is undocumented and version-gated, so every failure falls back
+to the catalog file rather than breaking the provider. It honours the endpoint's
+own `visibility: "hide"` marker, which is what excludes `gpt-reserve` and
+`codex-auto-review`.
+
+`api.anthropic.com/v1/models` was tried for cli-claude with the Claude Code OAuth
+token: it answered 401 "OAuth access token has expired", so whether a fresh token
+carries the right scope is unverified. Not implemented; claude stays on the file.
 
 `claude` and `codex` were checked against the real binaries: their subcommand
 lists contain no `models` and no `--list-models`, so there is nothing to

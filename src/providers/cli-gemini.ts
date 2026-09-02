@@ -19,7 +19,7 @@ import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, isPinned } from '../model-catalog.js';
+import { catalogFor, filterToVendor, isPinned } from '../model-catalog.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Non-interactive: agy -p/--print with --model and --output-format text.
@@ -159,7 +159,9 @@ export class GeminiCliProvider implements ProviderAdapter {
         logger.warn(`[cli-gemini] \`agy models\` exited ${result.exitCode}; keeping previous catalog`);
         return this._discovered?.length ?? 0;
       }
-      const parsed = parseAgyModels(result.stdout);
+      // agy resells Anthropic and GPT-OSS models too; cli-gemini advertises
+      // only Google's family so the namespaces cannot overlap.
+      const parsed = filterToVendor('cli-gemini', parseAgyModels(result.stdout));
       if (!parsed.length) {
         logger.warn('[cli-gemini] `agy models` returned no parsable rows; keeping previous catalog');
         return this._discovered?.length ?? 0;

@@ -67,6 +67,49 @@ export function isModelId(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 120 && MODEL_ID.test(value);
 }
 
+/**
+ * Which vendor family each CLI provider is allowed to advertise.
+ *
+ * The namespaces must not overlap. Several of these CLIs resell other vendors'
+ * models — `agy models` reports claude-sonnet-4-6, claude-opus-4-6-thinking and
+ * gpt-oss-120b-medium alongside the Gemini family — and surfacing those under
+ * their host's prefix produces ids like `cli-gemini/claude-sonnet-4-6`, which
+ * reads as a Gemini model, collides conceptually with the real `cli-claude`
+ * namespace, and gives the model picker two routes to the same model with
+ * different limits and permissions. One prefix, one vendor.
+ */
+const VENDOR_PATTERN: Record<CatalogProvider, RegExp> = {
+  'cli-claude': /^claude-/,
+  'cli-codex': /^(?:gpt|codex|o[0-9])/,
+  'cli-gemini': /^gemini-/,
+  'cli-grok': /^grok-/,
+};
+
+/** True when this model id belongs to the provider's own vendor. */
+export function belongsToProvider(provider: CatalogProvider, id: string): boolean {
+  return VENDOR_PATTERN[provider].test(id);
+}
+
+/**
+ * Drop foreign-vendor ids, logging what went and why. Applied to discovery
+ * results and to models.json alike, so neither route can cross the namespaces.
+ */
+export function filterToVendor<T extends { id: string }>(
+  provider: CatalogProvider,
+  entries: T[],
+): T[] {
+  const kept = entries.filter(e => belongsToProvider(provider, e.id));
+  const dropped = entries.length - kept.length;
+  if (dropped > 0) {
+    const names = entries.filter(e => !belongsToProvider(provider, e.id)).map(e => e.id);
+    logger.info(
+      `[catalog] ${provider}: ignoring ${dropped} model(s) from another vendor ` +
+        `(${names.join(', ')}) — each provider advertises only its own family`,
+    );
+  }
+  return kept;
+}
+
 export function catalogFilePath(): string {
   const explicit = process.env.CONDUIT_MODELS_FILE;
   if (explicit) return resolve(explicit);
@@ -103,7 +146,9 @@ export function parseCatalogFile(json: unknown): Partial<Record<CatalogProvider,
   for (const provider of PROVIDERS) {
     const raw = (json as Record<string, unknown>)[provider];
     if (raw === undefined) continue;
-    const entries = parseCatalogEntries(raw);
+    // Vendor-filter the file too: a pin must not be able to smuggle a foreign
+    // model into a provider's namespace either.
+    const entries = filterToVendor(provider, parseCatalogEntries(raw));
     // An empty or all-invalid list is a mistake, not "advertise nothing".
     if (entries.length) out[provider] = entries;
     else logger.warn(`[catalog] ${provider} in models.json has no usable model ids; ignoring it`);

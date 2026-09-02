@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { EFFORT_REJECTED, parseAgyModels } from '../src/providers/cli-gemini.js';
 import { parseGrokModels } from '../src/providers/grok-cli.js';
+import { parseCodexModels } from '../src/providers/cli-codex.js';
+import { belongsToProvider, filterToVendor } from '../src/model-catalog.js';
 
 // Captured verbatim from `agy models` (tab-separated, with the status preamble).
 const AGY_MODELS_STDOUT = [
@@ -116,6 +118,75 @@ describe('parseGrokModels', () => {
     const started = Date.now();
     expect(parseGrokModels(evil)).toEqual([]);
     expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
+// Captured verbatim from https://chatgpt.com/backend-api/codex/models
+// (`client_version` is required; the endpoint 400s without it).
+const CODEX_MODELS_BODY = {
+  models: [
+    { slug: 'gpt-5.6-sol', display_name: 'GPT-5.6-Sol', visibility: 'list' },
+    { slug: 'gpt-5.6-terra', display_name: 'GPT-5.6-Terra', visibility: 'list' },
+    { slug: 'gpt-daybreak-blue-latest', display_name: 'Daybreak Blue', visibility: 'list' },
+    { slug: 'gpt-reserve', display_name: 'GPT-Reserve', visibility: 'hide' },
+    { slug: 'gpt-5.4-mini', display_name: 'GPT-5.4-Mini', visibility: 'list' },
+    { slug: 'codex-auto-review', display_name: 'Codex Auto Review', visibility: 'hide' },
+  ],
+};
+
+describe('parseCodexModels', () => {
+  it('reads the account entitlements the endpoint reports', () => {
+    expect(parseCodexModels(CODEX_MODELS_BODY).map(m => m.id)).toEqual([
+      'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-daybreak-blue-latest', 'gpt-5.4-mini',
+    ]);
+  });
+
+  it('drops the models the endpoint marks visibility:hide', () => {
+    const ids = parseCodexModels(CODEX_MODELS_BODY).map(m => m.id);
+    expect(ids).not.toContain('gpt-reserve');
+    expect(ids).not.toContain('codex-auto-review');
+  });
+
+  it('keeps the display names the endpoint supplies', () => {
+    expect(parseCodexModels(CODEX_MODELS_BODY)[0])
+      .toEqual({ id: 'gpt-5.6-sol', displayName: 'GPT-5.6-Sol' });
+  });
+
+  it('returns nothing for an error body or an unexpected shape', () => {
+    expect(parseCodexModels({ error: { message: 'nope' } })).toEqual([]);
+    expect(parseCodexModels(null)).toEqual([]);
+    expect(parseCodexModels({ models: 'not-an-array' })).toEqual([]);
+  });
+});
+
+// One prefix, one vendor: several of these CLIs resell other vendors' models,
+// and surfacing them under the host's prefix gives the picker two routes to the
+// same model under a name that misidentifies it.
+describe('provider namespaces do not overlap', () => {
+  it('cli-gemini advertises only Google models, though agy serves more', () => {
+    const ids = filterToVendor('cli-gemini', parseAgyModels(AGY_MODELS_STDOUT)).map(m => m.id);
+    expect(ids.every(id => id.startsWith('gemini-'))).toBe(true);
+    expect(ids).not.toContain('claude-sonnet-4-6');
+    expect(ids).not.toContain('claude-opus-4-6-thinking');
+    expect(ids).not.toContain('gpt-oss-120b-medium');
+    expect(ids).toContain('gemini-3.7-flash-high');
+  });
+
+  it('assigns each vendor family to exactly one provider', () => {
+    const cases: Array<[Parameters<typeof belongsToProvider>[0], string, boolean]> = [
+      ['cli-claude', 'claude-opus-5', true],
+      ['cli-claude', 'gpt-5.6-sol', false],
+      ['cli-codex', 'gpt-5.6-sol', true],
+      ['cli-codex', 'codex-auto-review', true],
+      ['cli-codex', 'claude-sonnet-4-6', false],
+      ['cli-gemini', 'gemini-3.8-flash-high', true],
+      ['cli-gemini', 'gpt-oss-120b-medium', false],
+      ['cli-grok', 'grok-4.6', true],
+      ['cli-grok', 'gemini-3.1-pro-low', false],
+    ];
+    for (const [provider, id, expected] of cases) {
+      expect(belongsToProvider(provider, id), `${provider} / ${id}`).toBe(expected);
+    }
   });
 });
 

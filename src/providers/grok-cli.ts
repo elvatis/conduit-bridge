@@ -19,7 +19,7 @@ import {
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, isPinned } from '../model-catalog.js';
+import { catalogFor, belongsToProvider, isPinned } from '../model-catalog.js';
 
 const PREFIX = 'cli-grok/';
 
@@ -129,7 +129,8 @@ export class GrokCliProvider implements ProviderAdapter {
         logger.warn(`[cli-grok] \`grok models\` exited ${result.exitCode}; keeping previous catalog`);
         return this._discovered?.length ?? 0;
       }
-      const ids = parseGrokModels(result.stdout);
+      // Only xAI's own family, so the provider namespaces cannot overlap.
+      const ids = parseGrokModels(result.stdout).filter(id => belongsToProvider('cli-grok', id));
       if (!ids.length) {
         logger.warn('[cli-grok] `grok models` returned no parsable rows; keeping previous catalog');
         return this._discovered?.length ?? 0;

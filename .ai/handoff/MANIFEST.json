@@ -3,17 +3,17 @@
   "project": "wt-cli-fix",
   "last_session": {
     "agent": "cli-tool",
-    "session_id": "cli-1788373487",
-    "timestamp": "2026-09-02T18:24:47Z",
-    "commit": "d4af005",
+    "session_id": "cli-1788375446",
+    "timestamp": "2026-09-02T18:57:27Z",
+    "commit": "d0fbe42",
     "phase": "idle",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:ecf8aa2f1cdc37ff8ea186c436c0b8e520bea947e024c1c85e8a9aa6a57caf45",
-      "updated": "2026-09-02T18:20:04Z",
-      "lines": 156,
+      "checksum": "sha256:a964788763431673522e3dd1413a558d1474258a174fdff86b23a625828e1abd",
+      "updated": "2026-09-02T18:57:07Z",
+      "lines": 187,
       "summary": "_Updated: 2026-09-02_"
     },
     "NEXT_ACTIONS.md": {
@@ -74,7 +74,7 @@
   "quick_context": "_Updated: 2026-09-02_ _Updated: 2026-09-02_ ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 1623,
-    "full_read": 5101
+    "manifest_plus_core": 1939,
+    "full_read": 5417
   }
 }
