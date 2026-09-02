@@ -2,7 +2,7 @@
 
 _Updated: 2026-09-02_
 
-## Unreleased — `fix/cli-transport-modes-discovery`
+## v0.8.0 — CLI transport, modes, cwd and model discovery
 
 Four stacked defects made conduit-vscode appear dead in Ask, Edit, Plan and
 Agent. All four are bridge-side; the extension needs no change.
@@ -201,7 +201,7 @@ version while running old code. Run `npm run build` and restart after pulling.
 
 ---
 
-**v0.7.0** adds `mode` (`chat` | `plan` | `agent`) on `POST /v1/chat/completions`.
+**v0.7.0** added `mode` (`chat` | `plan` | `agent`) on `POST /v1/chat/completions`.
 Agent requires `cwd`. Grok is plan-by-default. Pair with conduit-vscode 0.9.0.
 
 CLI chat completions take `mode`: `chat` (read-only proxy, default),

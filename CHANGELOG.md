@@ -8,6 +8,57 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-02
+
+### Fixed
+
+- CLI providers could not deliver the user's message on Windows. `claude`
+  resolves to `claude.cmd`, so the runner went through `cmd.exe`, which ends its
+  command line at the first newline — the CLI received the system prompt alone,
+  exit 0, no error. Prompts now go on stdin, and a multi-line argv argument on
+  that path is refused rather than truncated. (#103)
+- `chat` emitted the CLI's plan flags, so an Ask turn was answered by a planner.
+  `chat`, `plan` and `agent` are now distinct per provider.
+- `cwd` fell back to the home directory, giving a CLI agent the whole user
+  profile. An unusable or absent `cwd` now lands in an empty sandbox.
+- `agy` ignores the process working directory entirely; `--add-dir` is now passed
+  so the editor's open folder is visible to `cli-gemini` at all.
+- `--effort` is no longer sent to agy models that reject it, with a
+  stderr-matched retry as the backstop.
+- Empty command-line arguments were dropped on Windows, letting the preceding
+  flag swallow the next token.
+
+### Added
+
+- Runtime model discovery for every provider that can answer: `agy models`,
+  `grok models`, ChatGPT's Codex model endpoint, and the documented
+  `models` endpoints for `claude-api`, `gemini-api` and `codex-api`. Results are
+  TTL-cached and forced past the TTL by `POST /v1/models/refresh`.
+- `~/.conduit/models.json` (or `$CONDUIT_MODELS_FILE`) overrides any provider's
+  catalog with no rebuild — the only route for `cli-claude`, whose CLI exposes no
+  model listing. Naming a provider pins it and skips discovery for it.
+- `/v1/models` now reports `display_name`.
+- A test workflow: typecheck, vitest and a real build, on Linux and Windows.
+
+### Changed
+
+- A provider with no credential no longer advertises its models. They stay in
+  `/v1/status` and still route, so the request reports `provider_unavailable`
+  rather than an unknown model.
+- `owned_by` names the CLI that answers (`agy`, `claude-code`, `codex`, `grok`)
+  instead of guessing the model's author from its id.
+- Providers advertise everything their CLI serves, including models it resells
+  from other vendors — `cli-gemini` exposes the Anthropic and GPT-OSS models
+  Antigravity offers. A prefix names the transport, not the vendor.
+- Dropped `gpt-5.5-pro` from the `cli-codex` defaults: a ChatGPT account rejects
+  it outright.
+
+### Security
+
+- Fixed a ReDoS in the model-id validator (CodeQL `js/redos`).
+- The no-workspace sandbox is created with `mkdtemp` rather than a fixed path,
+  which could be pre-created or symlinked by another local account.
+
 ## [0.7.0] - 2026-09-02
 
 ### Added

@@ -227,6 +227,14 @@ written to operational logs. Runtime state belongs below `.conduit`.
 
 ## Changelog
 
+### 0.8.0
+
+Unbreaks the CLI providers on Windows (the prompt reached them as its first line
+only), separates `chat` from `plan`, stops `cwd` falling back to the home
+directory, and replaces the hardcoded model catalogs with runtime discovery plus
+an overridable `models.json`. Providers with no credential no longer advertise
+models. See [CHANGELOG.md](CHANGELOG.md).
+
 ### 0.7.0
 
 CLI `mode` on chat completions: `chat`, `plan`, or `agent`. Agent requires `cwd`.

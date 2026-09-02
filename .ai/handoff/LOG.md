@@ -2,6 +2,25 @@
 
 _Reverse chronological._
 
+## 2026-09-02 - v0.8.0
+
+- CLI transport, modes, cwd and model discovery (#103). GitHub Release only.
+- Requires `npm run build` after pulling: the global install symlinks into the
+  workspace and serves `dist/`, while `/health` reports the package.json version
+  — a stale `dist/` therefore claims the new version while running old code.
+
+## 2026-09-02 - CLI transport, modes and model discovery
+
+- Prompts ride stdin for `cli-claude`; `cmd.exe` truncated them at the first
+  newline, so the CLI saw the system prompt alone (exit 0, no stderr).
+- `chat` no longer emits plan flags. `agentCwd` no longer falls back to home.
+- `agy` needs `--add-dir` to see the workspace at all; it ignores process cwd.
+- Model catalogs are discovered (`agy models`, `grok models`, the Codex and the
+  three vendor `models` endpoints) or read from `~/.conduit/models.json`.
+- Providers without a credential stop advertising models; they still route.
+- OPEN: the API-provider discovery paths are unverified live — no key is
+  configured for `claude-api`, `gemini-api` or `codex-api` on this machine.
+
 ## 2026-09-02 - v0.7.0
 
 - Version bump for the `mode` request field (#101). GitHub Release only.
