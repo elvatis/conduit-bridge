@@ -30,6 +30,51 @@ export type CatalogProvider = 'cli-claude' | 'cli-codex' | 'cli-gemini' | 'cli-g
 export interface CatalogEntry {
   id: string;
   displayName?: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+}
+
+/**
+ * Token window and output cap, for the providers that do not report them.
+ *
+ * The Codex endpoint returns `context_window` and OpenRouter returns
+ * `context_length`, so those are discovered. `agy`, `claude` and `grok` report
+ * nothing, and the numbers have to be written down somewhere — here, once,
+ * rather than in every client, and overridable from `~/.conduit/models.json`:
+ *
+ *   { "cli-claude": [{ "id": "claude-opus-6", "contextWindow": 2000000 }] }
+ *
+ * Keys are matched longest-prefix-first, so a family entry covers a whole
+ * generation and a specific id can still override it.
+ */
+const LIMITS: Array<[prefix: string, contextWindow: number, maxOutputTokens: number]> = [
+  ['claude-haiku', 200_000, 64_000],
+  ['claude-', 1_000_000, 128_000],
+  ['gemini-', 1_000_000, 65_536],
+  ['grok-', 256_000, 131_072],
+  ['gpt-oss', 128_000, 32_768],
+  ['gpt-', 400_000, 128_000],
+];
+
+/** Fallbacks per provider, for an id no prefix above matches. */
+const PROVIDER_LIMITS: Record<CatalogProvider, [number, number]> = {
+  'cli-claude': [200_000, 64_000],
+  'cli-codex': [272_000, 128_000],
+  'cli-gemini': [1_000_000, 65_536],
+  'cli-grok': [256_000, 131_072],
+};
+
+/** Best known token window and output cap for a bare model id. */
+export function limitsFor(
+  provider: CatalogProvider,
+  id: string,
+): { contextWindow: number; maxOutputTokens: number } {
+  const match = LIMITS
+    .filter(([prefix]) => id.startsWith(prefix))
+    .sort((a, b) => b[0].length - a[0].length)[0];
+  if (match) return { contextWindow: match[1], maxOutputTokens: match[2] };
+  const [ctx, max] = PROVIDER_LIMITS[provider];
+  return { contextWindow: ctx, maxOutputTokens: max };
 }
 
 const PROVIDERS: CatalogProvider[] = ['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok'];
@@ -148,16 +193,22 @@ export function parseCatalogEntries(raw: unknown): CatalogEntry[] {
   for (const item of raw.slice(0, MAX_ENTRIES)) {
     let id: unknown;
     let displayName: string | undefined;
+    let contextWindow: number | undefined;
+    let maxOutputTokens: number | undefined;
     if (typeof item === 'string') {
       id = item;
     } else if (item && typeof item === 'object') {
       id = (item as { id?: unknown }).id;
       const dn = (item as { displayName?: unknown }).displayName;
       if (typeof dn === 'string' && dn.trim()) displayName = dn.trim().slice(0, 120);
+      const cw = (item as { contextWindow?: unknown }).contextWindow;
+      if (typeof cw === 'number' && cw > 0) contextWindow = Math.floor(cw);
+      const mo = (item as { maxOutputTokens?: unknown }).maxOutputTokens;
+      if (typeof mo === 'number' && mo > 0) maxOutputTokens = Math.floor(mo);
     }
     if (!isModelId(id) || seen.has(id)) continue;
     seen.add(id);
-    out.push(displayName ? { id, displayName } : { id });
+    out.push({ id, ...(displayName ? { displayName } : {}), ...(contextWindow ? { contextWindow } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}) });
   }
   return out;
 }

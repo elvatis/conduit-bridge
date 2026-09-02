@@ -5,6 +5,7 @@ import { parseCodexModels } from '../src/providers/cli-codex.js';
 import { belongsToProvider, noteForeignVendors } from '../src/model-catalog.js';
 import { GeminiCliProvider } from '../src/providers/cli-gemini.js';
 import { argvLimitFor, resolveExecutable } from '../src/providers/cli-util.js';
+import { agyStreamInput, parseAgyStream, isAgyBin, AGY_STDIN_LIMIT } from '../src/providers/cli-gemini.js';
 
 // Captured verbatim from `agy models` (tab-separated, with the status preamble).
 const AGY_MODELS_STDOUT = [
@@ -231,23 +232,56 @@ describe('EFFORT_REJECTED', () => {
 // A client sizes its context off the model's token window — a million for
 // Gemini — but agy takes the prompt on argv, so the real ceiling is the OS
 // command line, roughly 30k chars. Only the bridge knows that, so it has to say.
-describe('cli-gemini reports its prompt ceiling', () => {
-  it('sets maxPromptChars to the transport limit when agy is installed', () => {
-    const models = new GeminiCliProvider({} as never).models;
+// agy used to take the prompt on argv, which Windows caps at 32767 chars for
+// the whole command line — nowhere near enough for coding, where the prompt
+// carries files. It now rides stdin as stream-json, so there is no ceiling to
+// report and the model's token window governs. Only the legacy `gemini`
+// binary is still argv-bound.
+describe('cli-gemini prompt transport', () => {
+  it('reports the stdin ceiling agy imposes, six times the argv one', () => {
     const agy = resolveExecutable('agy');
-    if (!agy) {
-      expect(models.every(m => m.maxPromptChars === undefined)).toBe(true);
-      return;
-    }
+    if (!agy) return;
+    const models = new GeminiCliProvider({} as never).models;
     expect(models.length).toBeGreaterThan(0);
     for (const m of models) {
-      expect(m.maxPromptChars, m.id).toBe(argvLimitFor(agy));
+      expect(m.maxPromptChars, m.id).toBe(AGY_STDIN_LIMIT);
+      // Well past the 32767-char Windows command line the argv path was stuck on.
+      expect(m.maxPromptChars!, m.id).toBeGreaterThan(100_000);
     }
   });
 
-  it('the ceiling is far below a Gemini token window, which is the whole point', () => {
-    const agy = resolveExecutable('agy');
-    if (!agy) return;
-    expect(argvLimitFor(agy)).toBeLessThan(200_000);
+  it('still bounds the legacy argv-based binary', () => {
+    expect(isAgyBin('C:/x/agy.exe')).toBe(true);
+    expect(isAgyBin('C:/x/gemini')).toBe(false);
+    // The legacy path keeps a real ceiling, because argv really is bounded.
+    expect(argvLimitFor('C:/x/gemini.cmd')).toBeLessThan(200_000);
+  });
+
+  it('wraps the prompt as one NDJSON user frame', () => {
+    const line = agyStreamInput('hello\nworld');
+    expect(line.endsWith('\n')).toBe(true);
+    const parsed = JSON.parse(line);
+    expect(parsed).toEqual({ event: 'user', message: { role: 'user', content: 'hello\nworld' } });
+  });
+
+  it('reads the answer out of the result frame', () => {
+    const out = [
+      JSON.stringify({ event: 'init', init: { model: 'gemini-3.8-flash-low' } }),
+      'not json at all',
+      JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: '  PONG  ' } }),
+    ].join('\n');
+    expect(parseAgyStream(out)).toEqual({ text: 'PONG', error: undefined });
+  });
+
+  it('surfaces a failed run that still exited zero', () => {
+    // stream-json can report a failure in the frame with exit code 0, so the
+    // frame is the oracle, not the exit code.
+    const out = JSON.stringify({
+      event: 'result',
+      result: { status: 'ERROR', response: '', error: '--effort is not supported for model "x"' },
+    });
+    const parsed = parseAgyStream(out);
+    expect(parsed.text).toBe('');
+    expect(EFFORT_REJECTED.test(parsed.error!)).toBe(true);
   });
 });

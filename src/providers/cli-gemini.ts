@@ -19,7 +19,7 @@ import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
-import { catalogFor, noteForeignVendors, isPinned, SERVED_BY } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isPinned, SERVED_BY, limitsFor } from '../model-catalog.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
 // Non-interactive: agy -p/--print with --model and --output-format text.
@@ -53,6 +53,45 @@ export interface AgyModel {
 }
 
 /**
+ * One NDJSON line carrying the prompt, for `--input-format stream-json`.
+ *
+ * agy's `-p` takes the prompt as an argv value, which Windows caps at 32767
+ * characters for the whole command line — nowhere near enough for coding, where
+ * the prompt carries files. stdin has no such ceiling: verified against the real
+ * binary, a 141495-character prompt arrives whole, tail included.
+ */
+export function agyStreamInput(prompt: string): string {
+  return JSON.stringify({ event: 'user', message: { role: 'user', content: prompt } }) + '\n';
+}
+
+/**
+ * Pull the assistant text out of agy's `--output-format stream-json` frames.
+ *
+ * The run ends with `{"event":"result","result":{status,response,error}}`.
+ * A non-SUCCESS status carries the reason in `error`, which is where the
+ * effort-rejection message now appears instead of on stderr.
+ */
+export function parseAgyStream(stdout: string): { text: string; error?: string } {
+  let text = '';
+  let error: string | undefined;
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let frame: { event?: string; result?: { status?: string; response?: string; error?: string } };
+    try {
+      frame = JSON.parse(line);
+    } catch {
+      continue; // not every line is a frame
+    }
+    if (frame.event !== 'result' || !frame.result) continue;
+    if (typeof frame.result.response === 'string') text = frame.result.response;
+    if (frame.result.status && frame.result.status !== 'SUCCESS') {
+      error = frame.result.error || `agy reported ${frame.result.status}`;
+    }
+  }
+  return { text: text.trim(), error };
+}
+
+/**
  * Parse `agy models` stdout.
  *
  * The format is one "id<TAB>Display Name" per line, preceded by a
@@ -80,6 +119,31 @@ export function parseAgyModels(stdout: string): AgyModel[] {
   return out;
 }
 
+/** The Antigravity binary, as opposed to the legacy `gemini` fallback. */
+export function isAgyBin(binPath: string): boolean {
+  return /agy(\.exe)?$/i.test(binPath);
+}
+
+/**
+ * How much prompt agy accepts on stdin.
+ *
+ * Not an OS limit — agy's own. Measured end to end through the bridge against
+ * the real binary, asking for a marker on the last line so truncation is
+ * visible rather than silent:
+ *
+ *   181722 chars  tail arrived
+ *   192576 chars  tail arrived
+ *   203363 chars  "The input was truncated before reaching a final line"
+ *   257365 chars  truncated
+ *
+ * So agy cuts somewhere just past 200000. This sits below the last measured
+ * success with room to spare, because the failure mode is a silently dropped
+ * tail — the same class of bug as the cmd.exe truncation this transport
+ * replaced, and the reason the prompt is worth bounding at all rather than
+ * reporting no ceiling.
+ */
+export const AGY_STDIN_LIMIT = 180_000;
+
 function resolveGeminiBin(): string | null {
   // Prefer the current Antigravity CLI binary name.
   return resolveExecutable('agy')
@@ -94,12 +158,15 @@ function toDefinition(m: AgyModel): ModelDefinition {
     provider: 'cli-gemini',
     displayName: `${m.displayName || m.id} (agy CLI)`,
     owned_by: SERVED_BY['cli-gemini'],
-    // agy takes the prompt on argv, so the OS command line is the real ceiling —
-    // far below any of these models' token windows. A client cannot derive this:
-    // it depends on the binary and the platform, not on the model. Without it a
-    // client sizes context off a million-token window and the bridge rejects the
-    // request at a fraction of that, which in agent mode kills the loop.
-    ...(binPath ? { maxPromptChars: argvLimitFor(binPath) } : {}),
+    // Both transports bound the prompt, just very differently. The legacy
+    // `gemini` binary puts it on argv, so the OS command line caps it at ~30000
+    // on Windows. agy takes it on stdin as stream-json and cuts at its own,
+    // roughly 6x higher limit. Either way the tail is dropped silently, so the
+    // number has to reach the client.
+    ...(binPath
+      ? { maxPromptChars: isAgyBin(binPath) ? AGY_STDIN_LIMIT : argvLimitFor(binPath) }
+      : {}),
+    ...limitsFor('cli-gemini', m.id),
   };
 }
 
@@ -239,18 +306,21 @@ export class GeminiCliProvider implements ProviderAdapter {
 
     const model = stripPrefix(req.model, PREFIX);
     const prompt = flattenMessages(req.messages);
-    const isAgy = /agy(\.exe)?$/i.test(binPath);
+    const isAgy = isAgyBin(binPath);
     const mode = req.mode ?? 'chat';
     const permission = cliPermissionArgs('cli-gemini', mode, { isAgy });
 
     // agy's `-p` takes the prompt as an argv value and there is no stdin prompt
     // transport for text mode, so the command line is the hard bound here.
     // Fail with something the caller can act on rather than a bare ENAMETOOLONG.
-    const argvLimit = argvLimitFor(binPath);
-    if (prompt.length > argvLimit) {
+    // Refuse rather than let a tail vanish. agy cuts its stdin input past about
+    // 200000 chars and answers from what it did read, which reads as the model
+    // ignoring the request — the same silent failure the cmd.exe path had.
+    const promptLimit = isAgy ? AGY_STDIN_LIMIT : argvLimitFor(binPath);
+    if (prompt.length > promptLimit) {
       throw new Error(
-        `cli-gemini: prompt is ${prompt.length} chars, over the ${argvLimit} command-line limit ` +
-          `for \`${basename(binPath)} -p\` on this platform. Shorten the conversation or attach less context.`,
+        `cli-gemini: prompt is ${prompt.length} chars, over the ${promptLimit} limit for ` +
+          `\`${basename(binPath)}\`. Shorten the conversation or attach less context.`,
       );
     }
 
@@ -268,16 +338,20 @@ export class GeminiCliProvider implements ProviderAdapter {
     // this the editor's open folder is invisible to every cli-gemini turn.
     const workspace = agentCwd(req);
 
-    // agy: -p/--print, --model, --output-format, --mode plan|accept-edits, --effort
-    // legacy gemini: -p, -m, -o text, --approval-mode plan
+    // agy: the prompt rides stdin as one NDJSON frame, so a coding prompt is
+    //      bounded by the model's token window rather than by Windows' 32767-char
+    //      command line. `-p=` (attached, empty) is what puts it in print mode
+    //      without consuming the next argument as the prompt.
+    // legacy gemini: no stream-json, so it keeps -p on argv.
     const buildArgs = (withEffort: string | undefined): string[] => isAgy
       ? [
-          '-p', prompt,
+          '--input-format', 'stream-json',
+          '--output-format', 'stream-json',
           '--model', model,
-          '--output-format', 'text',
           '--add-dir', workspace,
           ...permission,
           ...(withEffort ? ['--effort', withEffort] : []),
+          '-p=',
         ]
       : [
           '-p', prompt,
@@ -289,6 +363,7 @@ export class GeminiCliProvider implements ProviderAdapter {
     const invoke = (args: string[]) => runCli({
       binPath,
       args,
+      ...(isAgy ? { stdin: agyStreamInput(prompt) } : {}),
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: workspace,
       label: 'cli-gemini',
@@ -297,14 +372,31 @@ export class GeminiCliProvider implements ProviderAdapter {
     });
 
     let result = await invoke(buildArgs(effort));
+    let parsed = isAgy ? parseAgyStream(result.stdout) : undefined;
 
     // Self-heal rather than fail the turn: any model agy adds later may or may
-    // not take --effort, and its own stderr is the only reliable oracle.
-    if (effort && result.exitCode !== 0 && EFFORT_REJECTED.test(result.stderr)) {
-      logger.warn(
-        `[cli-gemini] ${model} rejected --effort ${effort}; retrying without it`,
-      );
+    // not take --effort. Under stream-json the refusal arrives in the result
+    // frame rather than on stderr, so both are checked.
+    const effortRefused = EFFORT_REJECTED.test(result.stderr)
+      || EFFORT_REJECTED.test(parsed?.error ?? '');
+    if (effort && effortRefused) {
+      logger.warn(`[cli-gemini] ${model} rejected --effort ${effort}; retrying without it`);
       result = await invoke(buildArgs(undefined));
+      parsed = isAgy ? parseAgyStream(result.stdout) : undefined;
+    }
+
+    if (parsed) {
+      // stream-json can exit 0 and still report a failed run in its frame.
+      if (!parsed.text) {
+        const detail =
+          result.aborted
+            ? 'client disconnected: process terminated'
+            : result.timedOut || result.exitCode === 143
+            ? `timeout: agy killed by supervisor (exit ${result.exitCode})`
+            : parsed.error || result.stderr || '(no output)';
+        throw new Error(`cli-gemini exited ${result.exitCode}: ${detail}`);
+      }
+      return parsed.text;
     }
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {

@@ -114,6 +114,20 @@ export interface ModelDefinition {
    * request at a fraction of that, which in agent mode kills the loop.
    */
   maxPromptChars?: number;
+  /**
+   * Token window and output cap.
+   *
+   * Discovered where a provider reports it — the Codex endpoint returns
+   * `context_window`, OpenRouter returns `context_length` — and otherwise taken
+   * from the table in model-catalog.ts, which `~/.conduit/models.json` can
+   * override without a rebuild.
+   *
+   * Clients had to keep their own copy of this and it went stale the moment a
+   * catalog was discovered rather than pinned. One place, and the bridge is the
+   * side that already talks to every provider.
+   */
+  contextWindow?: number;
+  maxOutputTokens?: number;
 }
 
 // ── Provider interface — each provider implements this ───────────────────────

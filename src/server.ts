@@ -273,6 +273,10 @@ export class BridgeServer {
         display_name: m.displayName,
         // Only present where the transport really bounds the prompt.
         ...(m.maxPromptChars ? { max_prompt_chars: m.maxPromptChars } : {}),
+        // Token window and output cap, so a client stops keeping its own copy
+        // — one that goes stale the moment a catalog is discovered, not pinned.
+        ...(m.contextWindow ? { context_window: m.contextWindow } : {}),
+        ...(m.maxOutputTokens ? { max_output_tokens: m.maxOutputTokens } : {}),
         conduit: { availability: m.availability ?? 'dynamic', source: m.source ?? 'provider' },
       }));
       json(res, 200, { object: 'list', data: models });

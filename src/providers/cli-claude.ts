@@ -17,7 +17,7 @@ import { cliSession } from './cli-auth.js';
 import { toClaudeEffort } from '../effort.js';
 import { cliPermissionArgs } from '../cli-mode.js';
 import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.js';
-import { catalogFor, SERVED_BY } from '../model-catalog.js';
+import { catalogFor, SERVED_BY, limitsFor } from '../model-catalog.js';
 
 // Anthropic Claude Code CLI (@anthropic-ai/claude-code) — non-interactive via -p/--print.
 // Install: npm i -g @anthropic-ai/claude-code  then authenticate (claude /login or API key)
@@ -42,12 +42,14 @@ export class ClaudeCliProvider implements ProviderAdapter {
         provider: 'cli-claude' as ProviderName,
         displayName: `${m.displayName ?? m.id} (Claude Code CLI, first-account)`,
         owned_by: SERVED_BY['cli-claude'],
+        ...limitsFor('cli-claude', m.id),
       })),
       ...CLI_ACCOUNTS.flatMap(account => catalog.map(m => ({
         id: `${PREFIX}${account}/${m.id}`,
         provider: 'cli-claude' as ProviderName,
         displayName: `${m.displayName ?? m.id} (Claude Code CLI, ${account})`,
         owned_by: SERVED_BY['cli-claude'],
+        ...limitsFor('cli-claude', m.id),
       }))),
     ];
   }

@@ -20,7 +20,7 @@ import { cliPermissionArgs } from '../cli-mode.js';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { catalogFor, noteForeignVendors, isModelId, isPinned, SERVED_BY, type CatalogEntry } from '../model-catalog.js';
+import { catalogFor, noteForeignVendors, isModelId, isPinned, SERVED_BY, limitsFor, type CatalogEntry } from '../model-catalog.js';
 
 // OpenAI Codex CLI (@openai/codex) — non-interactive via `codex exec`.
 // Install: npm i -g @openai/codex  then  codex login
@@ -50,6 +50,8 @@ interface CodexApiModel {
   display_name?: string;
   /** "hide" marks internal models (gpt-reserve, codex-auto-review). */
   visibility?: string;
+  /** The account's real token window — better than any table we could ship. */
+  context_window?: number;
 }
 
 /** Read the OAuth material `codex login` already stored. */
@@ -81,7 +83,14 @@ export function parseCodexModels(body: unknown): CatalogEntry[] {
     const displayName = typeof item.display_name === 'string' && item.display_name.trim()
       ? item.display_name.trim()
       : undefined;
-    out.push(displayName ? { id, displayName } : { id });
+    const contextWindow = typeof item.context_window === 'number' && item.context_window > 0
+      ? item.context_window
+      : undefined;
+    out.push({
+      id,
+      ...(displayName ? { displayName } : {}),
+      ...(contextWindow ? { contextWindow } : {}),
+    });
   }
   return noteForeignVendors('cli-codex', out);
 }
@@ -103,6 +112,7 @@ export class CodexCliProvider implements ProviderAdapter {
       provider: 'cli-codex' as ProviderName,
       displayName: `${m.displayName ?? m.id} (Codex CLI)`,
       owned_by: SERVED_BY['cli-codex'],
+      ...limitsFor('cli-codex', m.id),
     }));
   }
 
@@ -163,6 +173,9 @@ export class CodexCliProvider implements ProviderAdapter {
         provider: 'cli-codex' as ProviderName,
         displayName: `${m.displayName ?? m.id} (Codex CLI)`,
         owned_by: SERVED_BY['cli-codex'],
+        ...limitsFor('cli-codex', m.id),
+        // The endpoint reports the account's real window; it wins over the table.
+        ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
       }));
       logger.info(`[cli-codex] discovered ${entries.length} models from the ChatGPT model endpoint`);
       return entries.length;
