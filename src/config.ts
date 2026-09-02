@@ -3,9 +3,41 @@ import { join, resolve } from 'node:path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import type { BridgeConfig } from './types.js';
 
+const NUMERIC_FIELDS = new Set(['port', 'perMinute', 'maxConcurrent']);
+
 /** Central runtime directory. Override for a managed desktop installation. */
-const CONFIG_DIR = resolve(process.env.CONDUIT_HOME || join(homedir(), '.conduit'));
-const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+export function runtimeDir(): string {
+  return resolve(process.env.CONDUIT_HOME || join(homedir(), '.conduit'));
+}
+
+function configFile(): string {
+  return join(runtimeDir(), 'config.json');
+}
+
+/**
+ * Coerce a `conduit-bridge config` value. Only known numeric fields become
+ * numbers — authToken, host, and other strings stay strings even when they
+ * look like digits (Buffer.from(number) allocates by size, not by UTF-8).
+ */
+export function parseConfigValue(key: string, raw: string): unknown {
+  const trimmed = raw.trim();
+  if (trimmed === 'true') return true;
+  if (trimmed === 'false') return false;
+  const leaf = key.includes('.') ? key.slice(key.lastIndexOf('.') + 1) : key;
+  if (NUMERIC_FIELDS.has(leaf) && trimmed !== '' && !Number.isNaN(Number(trimmed))) {
+    return Number(trimmed);
+  }
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try { return JSON.parse(trimmed); } catch { /* keep raw string */ }
+  }
+  return raw;
+}
+
+/** Authorization header when a bearer token is configured. */
+export function bearerAuthorization(token?: string): Record<string, string> {
+  const value = typeof token === 'string' ? token.trim() : '';
+  return value ? { Authorization: `Bearer ${value}` } : {};
+}
 
 const DEFAULTS: BridgeConfig = {
   port: 31338,           // different from OpenClaw's 31337 to avoid conflicts
@@ -22,9 +54,10 @@ const DEFAULTS: BridgeConfig = {
 export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
   let saved: Partial<BridgeConfig> = {};
 
-  if (existsSync(CONFIG_FILE)) {
+  const file = configFile();
+  if (existsSync(file)) {
     try {
-      saved = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
+      saved = JSON.parse(readFileSync(file, 'utf-8'));
     } catch {
       // ignore corrupt config
     }
@@ -33,10 +66,12 @@ export function loadConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
   return { ...DEFAULTS, ...saved, ...overrides };
 }
 export function saveConfig(cfg: Partial<BridgeConfig>): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
+  const dir = runtimeDir();
+  const file = join(dir, 'config.json');
+  mkdirSync(dir, { recursive: true });
   const existing = loadConfig();
-  writeFileSync(CONFIG_FILE, JSON.stringify({ ...existing, ...cfg }, null, 2), { mode: 0o600 });
-  chmodSync(CONFIG_FILE, 0o600);
+  writeFileSync(file, JSON.stringify({ ...existing, ...cfg }, null, 2), { mode: 0o600 });
+  chmodSync(file, 0o600);
 }
 
 /**
@@ -54,7 +89,7 @@ export function saveConfig(cfg: Partial<BridgeConfig>): void {
  * lines, an optional `export ` prefix, and surrounding single/double quotes.
  * Returns the names (not values) of the variables it set.
  */
-export function loadDotEnv(dirs: string[] = [process.cwd(), CONFIG_DIR]): string[] {
+export function loadDotEnv(dirs: string[] = [process.cwd(), runtimeDir()]): string[] {
   const loaded: string[] = [];
   for (const dir of dirs) {
     const file = join(dir, '.env');

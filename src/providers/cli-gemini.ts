@@ -14,6 +14,7 @@ import {
   stripPrefix,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { cliSession } from './cli-auth.js';
 import { toAgyEffort } from '../effort.js';
 
 // Google Antigravity CLI binary is `agy` (install scripts from antigravity.google).
@@ -53,23 +54,32 @@ export class GeminiCliProvider implements ProviderAdapter {
 
   constructor(_cfg: BridgeConfig) {}
 
+  get credentialSource(): string {
+    return cliSession('gemini', ['agy', 'gemini', 'antigravity']).source;
+  }
+
   ownsModel(modelId: string): boolean {
     return modelId.startsWith(PREFIX);
   }
 
   async checkSession(): Promise<boolean> {
-    return resolveGeminiBin() !== null;
+    return cliSession('gemini', ['agy', 'gemini', 'antigravity']).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const ok = await this.checkSession();
-    if (!ok) {
+    const session = cliSession('gemini', ['agy', 'gemini', 'antigravity']);
+    if (!session.installed) {
       logger.warn(
         '[cli-gemini] `agy` not found on PATH. Install Antigravity CLI ' +
           '(https://antigravity.google/docs/cli/getting-started) — binary name is `agy`.',
       );
+      return false;
     }
-    return ok;
+    if (!session.authenticated) {
+      logger.warn('[cli-gemini] Gemini CLI is installed but not authenticated.');
+      return false;
+    }
+    return true;
   }
 
   async restoreSession(): Promise<boolean> {

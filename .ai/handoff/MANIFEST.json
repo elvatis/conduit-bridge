@@ -2,30 +2,30 @@
   "aahp_version": "3.0",
   "project": "conduit-bridge",
   "last_session": {
-    "agent": "gpt-5.6-sol",
-    "session_id": "cli-1788303954",
-    "timestamp": "2026-09-01T23:05:55Z",
-    "commit": "a5966a0",
+    "agent": "grok-4.6",
+    "session_id": "cli-1788334405",
+    "timestamp": "2026-09-02T07:33:26Z",
+    "commit": "40b0302",
     "phase": "fix",
-    "duration_minutes": 0
+    "duration_minutes": 45
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:1e33300da59c6d9e5ec0314862928d1f793fcd595261f8839abb7c137f93fa37",
-      "updated": "2026-09-01T23:05:28Z",
-      "lines": 37,
+      "checksum": "sha256:a70ee8c5930da65d037da74ff6101751b25069f6834697b5e8479711f18bc045",
+      "updated": "2026-09-02T07:33:19Z",
+      "lines": 48,
       "summary": "_Updated: 2026-09-02_"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:2b6cd2865e533d1cabfce416c7294ddff721609c5d0c7832260d29b5770b3526",
-      "updated": "2026-09-01T22:56:04Z",
+      "checksum": "sha256:992c73b1619ac9baaa56f98e271018aad8a0f0106145b61d8d85a8bedc2b0a7e",
+      "updated": "2026-09-02T07:33:19Z",
       "lines": 10,
       "summary": "_Updated: 2026-09-02_"
     },
     "LOG.md": {
-      "checksum": "sha256:83ce1399476c58a9c40d5a632c48885deaf7984a68e65cbac719dc9413059659",
-      "updated": "2026-09-01T23:05:28Z",
-      "lines": 24,
+      "checksum": "sha256:e69c19ba62730f9db2b47202e2071cecb25dec873a5be575cc7e7a16637a26b6",
+      "updated": "2026-09-02T07:33:19Z",
+      "lines": 45,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -41,8 +41,8 @@
       "summary": "_Updated: 2026-09-02_"
     },
     "TRUST.md": {
-      "checksum": "sha256:2405f9a9503bcef21e5607ce570cfb99371a02d2b9b07d6759ee87ea5a9cb8c5",
-      "updated": "2026-09-01T22:59:24Z",
+      "checksum": "sha256:8f00b7264c8cd0992576abec19f5f15134910ce78362ce1b0840fa8655198de4",
+      "updated": "2026-09-02T07:33:19Z",
       "lines": 26,
       "summary": "_Updated: 2026-09-02_"
     },
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "codeql-script-tag-fix",
+  "quick_context": "control-plane review follow-up",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 334,
-    "full_read": 3447
+    "manifest_plus_core": 472,
+    "full_read": 3819
   }
 }

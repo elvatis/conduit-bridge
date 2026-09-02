@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { BridgeServer } from './server.js';
-import { loadConfig, saveConfig, loadDotEnv } from './config.js';
+import { loadConfig, saveConfig, loadDotEnv, parseConfigValue, bearerAuthorization } from './config.js';
 import { logger, configureLogger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
 
@@ -23,17 +23,6 @@ for (let i = 1; i < args.length; i++) {
   if (match) flags[match[1]] = match[2];
   else if (args[i].startsWith('--') && args[i + 1] && !args[i + 1].startsWith('--')) flags[args[i].slice(2)] = args[++i];
   else if (/^--[a-z-]+$/.test(args[i])) flags[args[i].slice(2)] = 'true';
-}
-
-function parseConfigValue(raw: string): unknown {
-  const trimmed = raw.trim();
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-  if (trimmed && !Number.isNaN(Number(trimmed))) return Number(trimmed);
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try { return JSON.parse(trimmed); } catch { /* keep raw string */ }
-  }
-  return raw;
 }
 
 const cfg = loadConfig({
@@ -71,7 +60,7 @@ switch (cmd) {
   case 'status': {
     const url = `http://${cfg.host}:${cfg.port}/v1/status`;
     const http = await import('node:http');
-    http.get(url, res => {
+    http.get(url, { headers: bearerAuthorization(cfg.authToken) }, res => {
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
@@ -110,10 +99,10 @@ switch (cmd) {
       const [group, field] = key.split('.', 2);
       const existing = loadConfig() as any;
       const current = existing[group] && typeof existing[group] === 'object' ? existing[group] : {};
-      saveConfig({ [group]: { ...current, [field]: parseConfigValue(val) } } as any);
+      saveConfig({ [group]: { ...current, [field]: parseConfigValue(key, val) } } as any);
       console.log(`Config updated: ${key} = ${val}`);
     } else {
-      saveConfig({ [key]: parseConfigValue(val) } as any);
+      saveConfig({ [key]: parseConfigValue(key, val) } as any);
       console.log(`Config updated: ${key} = ${val}`);
     }
     break;

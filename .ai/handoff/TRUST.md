@@ -9,10 +9,10 @@ _Updated: 2026-09-02_
 | Windows and Linux Desktop platform gate | verified | test_verified | 2026-09-02 | gpt-5.6-sol | 30d | 2026-10-02 | Automated platform tests |
 | API/CLI/local registry separation | verified | test_verified | 2026-09-02 | gpt-5.6-sol | 30d | 2026-10-02 | Registry and provider tests |
 | `cli-grok` canonical ID and routing | verified | runtime_observed | 2026-09-02 | gpt-5.6-sol | 30d | 2026-10-02 | Tests and Windows status |
-| API credentials do not reuse CLI OAuth files | verified | test_verified | 2026-09-02 | gpt-5.6-sol | 30d | 2026-10-02 | Resolver source and tests |
+| API credentials do not reuse CLI OAuth files | verified | test_verified | 2026-09-02 | grok-4.6 | 30d | 2026-10-02 | Plants CLI OAuth files under mocked homedir |
 | Single loopback listener | verified | runtime_observed | 2026-09-02 | gpt-5.6-sol | 30d | 2026-10-02 | Windows health and socket checks |
 | Windows autostart lifecycle | verified | runtime_observed | 2026-09-02 | gpt-5.6-sol | 30d | 2026-10-02 | Task, PID, logs, stop, uninstall |
-| Tests, typecheck, and build pass | verified | test_verified | 2026-09-02 | gpt-5.6-sol | 14d | 2026-09-16 | 85 tests |
+| Tests, typecheck, and build pass | verified | test_verified | 2026-09-02 | grok-4.6 | 14d | 2026-09-16 | Focused 79 + registry/effort; tsc clean |
 
 ## Security
 

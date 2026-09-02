@@ -6,7 +6,9 @@ graphical login flow or access to a browser profile.
 
 Runtime configuration, PID data, launchers, and logs live below
 `%USERPROFILE%\.conduit` on Windows or `~/.conduit` on Linux. Set
-`CONDUIT_HOME` before installation only when required.
+`CONDUIT_HOME` before installation only when required. The generated launcher
+exports that directory into the child process so config, metrics, and
+run-history stay in the same tree.
 
 ## Windows Desktop
 
@@ -18,7 +20,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-autostart.ps1
 The installer creates
 `%USERPROFILE%\.conduit\bin\conduit-bridge-start.ps1`, registers the
 per-user Task Scheduler task `Conduit Bridge`, and starts it. The launcher
-runs `node dist/cli.js start --host=127.0.0.1 --port=31338`.
+runs `node dist/cli.js start --host=127.0.0.1 --port=31338` with a hidden
+console window so closing a visible window cannot kill the bridge.
 
 It records the PID in `%USERPROFILE%\.conduit\conduit-bridge.pid` and writes
 stdout and stderr below `%USERPROFILE%\.conduit\logs`.

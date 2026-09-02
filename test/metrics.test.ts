@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MetricsStore } from '../src/metrics.js';
 
 describe('MetricsStore', () => {
@@ -16,5 +19,20 @@ describe('MetricsStore', () => {
     expect(metric.inFlight).toBe(0);
     expect(metric.lastError).toContain('[redacted]');
     expect(metric.lastError).not.toContain('secret-value');
+  });
+
+  it('persists usage.json under CONDUIT_HOME', () => {
+    const dir = join(tmpdir(), 'conduit-metrics-home-' + Date.now());
+    const previous = process.env.CONDUIT_HOME;
+    process.env.CONDUIT_HOME = dir;
+    try {
+      const store = new MetricsStore();
+      store.begin('cli-grok/grok-4.5')();
+      expect(existsSync(join(dir, 'usage.json'))).toBe(true);
+    } finally {
+      if (previous === undefined) delete process.env.CONDUIT_HOME;
+      else process.env.CONDUIT_HOME = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

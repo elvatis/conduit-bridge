@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 // Redirect homedir() to a throwaway temp directory so the config module never
 // reads or writes the real ~/.conduit. The factory is fully self-contained so
@@ -22,7 +22,7 @@ const TEST_HOME = join(tmpdir(), 'conduit-bridge-test-home');
 const CONFIG_DIR = join(TEST_HOME, '.conduit');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
-import { loadConfig, saveConfig } from '../src/config.js';
+import { loadConfig, saveConfig, parseConfigValue, runtimeDir, bearerAuthorization } from '../src/config.js';
 
 function cleanHome() {
   rmSync(TEST_HOME, { recursive: true, force: true });
@@ -103,6 +103,44 @@ describe('config', () => {
       saveConfig({ apiKeys: { 'claude-api': 'sk-test-123' } });
       const cfg = loadConfig();
       expect(cfg.apiKeys['claude-api']).toBe('sk-test-123');
+    });
+  });
+
+  describe('parseConfigValue', () => {
+    it('keeps authToken as a string even when it looks numeric', () => {
+      expect(parseConfigValue('authToken', '12345678')).toBe('12345678');
+      expect(parseConfigValue('host', '127.0.0.1')).toBe('127.0.0.1');
+    });
+
+    it('coerces known numeric fields only', () => {
+      expect(parseConfigValue('port', '31338')).toBe(31338);
+      expect(parseConfigValue('rateLimit.perMinute', '12')).toBe(12);
+      expect(parseConfigValue('rateLimit.maxConcurrent', '4')).toBe(4);
+    });
+  });
+
+  describe('bearerAuthorization', () => {
+    it('omits the header when the token is empty', () => {
+      expect(bearerAuthorization('')).toEqual({});
+      expect(bearerAuthorization(undefined)).toEqual({});
+    });
+
+    it('sends Bearer when a token is configured', () => {
+      expect(bearerAuthorization('preserve-tkn')).toEqual({ Authorization: 'Bearer preserve-tkn' });
+    });
+  });
+
+  describe('runtimeDir', () => {
+    it('honors CONDUIT_HOME over the default ~/.conduit', () => {
+      const previous = process.env.CONDUIT_HOME;
+      const override = join(TEST_HOME, 'managed-home');
+      process.env.CONDUIT_HOME = override;
+      try {
+        expect(runtimeDir()).toBe(resolve(override));
+      } finally {
+        if (previous === undefined) delete process.env.CONDUIT_HOME;
+        else process.env.CONDUIT_HOME = previous;
+      }
     });
   });
 

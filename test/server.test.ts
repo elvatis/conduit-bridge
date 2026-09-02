@@ -21,6 +21,7 @@ const h = vi.hoisted(() => {
   const state = {
     connected: true,      // provider.ensureConnected() result
     chatThrows: false,    // provider.chat() throws when true
+    chatError: 'provider exploded',
   };
   return { grokModel, state };
 });
@@ -32,7 +33,7 @@ vi.mock('../src/registry.js', () => {
     models: [h.grokModel],
     async ensureConnected() { return h.state.connected; },
     async chat() {
-      if (h.state.chatThrows) throw new Error('provider exploded');
+      if (h.state.chatThrows) throw new Error(h.state.chatError);
       return 'mocked completion';
     },
     async *chatStream() { yield 'mocked'; yield ' completion'; },
@@ -47,6 +48,7 @@ vi.mock('../src/registry.js', () => {
       return model === h.grokModel.id ? provider : undefined;
     }
     get() { return provider; }
+    lookup(name: string) { return name === 'cli-grok' ? provider : undefined; }
     async getStatus() {
       return {
         running: true,
@@ -98,6 +100,7 @@ afterAll(async () => {
 beforeEach(() => {
   h.state.connected = true;
   h.state.chatThrows = false;
+  h.state.chatError = 'provider exploded';
 });
 
 describe('BridgeServer HTTP handler', () => {
@@ -272,6 +275,150 @@ describe('BridgeServer HTTP handler', () => {
       expect(res.status).toBe(404);
       const body = await res.json();
       expect(body.error.type).toBe('not_found');
+    });
+
+    it('matches routes on path and ignores query strings', async () => {
+      expect((await fetch(`${base}/health?ready=1`)).status).toBe(200);
+      const models = await fetch(`${base}/v1/models?foo=1`);
+      expect(models.status).toBe(200);
+      expect((await models.json()).object).toBe('list');
+    });
+  });
+
+  describe('CSRF vs allowedOrigins', () => {
+    const rawPost = (origin: string, site: string, extraOrigins: string[] = []) =>
+      new Promise<{ status: number; body: any }>(async (resolve, reject) => {
+        const port = await getFreePort();
+        const srv = new BridgeServer({
+          port,
+          host: '127.0.0.1',
+          logLevel: 'silent',
+          apiKeys: {},
+          allowedOrigins: extraOrigins,
+        });
+        await srv.start();
+        const u = new URL(`http://127.0.0.1:${port}/v1/chat/completions`);
+        const req = request(
+          {
+            hostname: u.hostname,
+            port: u.port,
+            path: u.pathname,
+            method: 'POST',
+            headers: {
+              origin,
+              'sec-fetch-site': site,
+              'content-type': 'application/json',
+            },
+          },
+          (res) => {
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', async () => {
+              await srv.stop();
+              resolve({ status: res.statusCode ?? 0, body: data ? JSON.parse(data) : {} });
+            });
+          },
+        );
+        req.on('error', async err => { await srv.stop(); reject(err); });
+        req.end(JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }] }));
+      });
+
+    it('allows a same-site POST from an allowlisted origin', async () => {
+      const res = await rawPost('http://127.0.0.1:3000', 'same-site', ['http://127.0.0.1:3000']);
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects a same-site POST from an origin that is not allowlisted', async () => {
+      const res = await rawPost('http://127.0.0.1:3000', 'same-site', []);
+      expect(res.status).toBe(403);
+      expect(res.body.error.type).toBe('forbidden');
+    });
+
+    it('rejects a cross-site POST even when Origin is missing', async () => {
+      const port = await getFreePort();
+      const srv = new BridgeServer({ port, host: '127.0.0.1', logLevel: 'silent', apiKeys: {} });
+      await srv.start();
+      try {
+        const u = new URL(`http://127.0.0.1:${port}/v1/chat/completions`);
+        const res = await new Promise<{ status: number }>((resolve, reject) => {
+          const req = request(
+            {
+              hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST',
+              headers: { 'sec-fetch-site': 'cross-site', 'content-type': 'application/json' },
+            },
+            (r) => { r.on('data', () => {}); r.on('end', () => resolve({ status: r.statusCode ?? 0 })); },
+          );
+          req.on('error', reject);
+          req.end(JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }] }));
+        });
+        expect(res.status).toBe(403);
+      } finally {
+        await srv.stop();
+      }
+    });
+  });
+
+  describe('activity redaction and settings', () => {
+    it('does not echo credential-shaped tokens in /v1/activity', async () => {
+      h.state.chatThrows = true;
+      h.state.chatError = 'Unauthorized: invalid API key sk-testvalue99';
+      await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'cli-grok/grok-4.5', messages: [{ role: 'user', content: 'hi' }] }),
+      });
+      const body = await (await fetch(`${base}/v1/activity`)).json();
+      const serialised = JSON.stringify(body);
+      expect(serialised).not.toContain('sk-testvalue99');
+      expect(serialised).toContain('[redacted]');
+    });
+
+    it('omits API key values from GET /v1/settings', async () => {
+      const res = await fetch(`${base}/v1/settings`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const serialised = JSON.stringify(body);
+      expect(serialised).not.toMatch(/sk-/);
+      expect(body.apiKeys['claude-api']).toMatchObject({ configured: false });
+      expect(body.apiKeys['claude-api'].source).toBeDefined();
+      expect(body.apiKeys['claude-api']).not.toHaveProperty('key');
+    });
+
+    it('returns 404 for an unknown POST /v1/tests/cli provider', async () => {
+      const res = await fetch(`${base}/v1/tests/cli`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'not-a-provider' }),
+      });
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error.type).toBe('not_found');
+    });
+
+    it('rate-limits compare and orchestrator fan-out the same way as chat', async () => {
+      const port = await getFreePort();
+      const srv = new BridgeServer({
+        port, host: '127.0.0.1', logLevel: 'silent', apiKeys: {},
+        rateLimit: { perMinute: 1, maxConcurrent: 16 },
+      });
+      await srv.start();
+      const root = `http://127.0.0.1:${port}`;
+      try {
+        const first = await fetch(`${root}/v1/compare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: 'x', models: ['cli-grok/grok-4.5'] }),
+        });
+        expect(first.status).toBe(200);
+        const second = await fetch(`${root}/v1/compare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: 'y', models: ['cli-grok/grok-4.5'] }),
+        });
+        expect(second.status).toBe(429);
+      } finally {
+        await srv.stop();
+      }
     });
   });
 });

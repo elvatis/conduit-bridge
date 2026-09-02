@@ -19,7 +19,8 @@ if ($null -eq $task) {
 if (Test-Path -LiteralPath $PidFile -PathType Leaf) {
     $ConduitPid = [int](Get-Content -LiteralPath $PidFile -ErrorAction SilentlyContinue)
     $ConduitProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $ConduitPid" -ErrorAction SilentlyContinue
-    if ($null -ne $ConduitProcess -and $ConduitProcess.Name -eq 'node.exe' -and $ConduitProcess.CommandLine -like '*dist\cli.js*--port=31338*') {
+    $normalized = if ($null -ne $ConduitProcess) { $ConduitProcess.CommandLine -replace '/', '\' } else { '' }
+    if ($null -ne $ConduitProcess -and $ConduitProcess.Name -eq 'node.exe' -and $normalized -like '*dist\cli.js*--port=31338*') {
         Stop-Process -Id $ConduitPid -Force -ErrorAction SilentlyContinue
         Write-Host "Stopped Conduit Bridge process: $ConduitPid"
     }

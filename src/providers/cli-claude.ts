@@ -13,6 +13,7 @@ import {
   flattenMessages,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
+import { cliSession } from './cli-auth.js';
 import { toClaudeEffort } from '../effort.js';
 import { CLI_ACCOUNTS, claudeAccountEnv, parseClaudeModel } from './cli-account.js';
 
@@ -50,22 +51,31 @@ export class ClaudeCliProvider implements ProviderAdapter {
 
   constructor(_cfg: BridgeConfig) {}
 
+  get credentialSource(): string {
+    return cliSession('claude', [BIN]).source;
+  }
+
   ownsModel(modelId: string): boolean {
     return modelId.startsWith(PREFIX);
   }
 
   async checkSession(): Promise<boolean> {
-    return resolveExecutable(BIN) !== null;
+    return cliSession('claude', [BIN]).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const ok = await this.checkSession();
-    if (!ok) {
+    const session = cliSession('claude', [BIN]);
+    if (!session.installed) {
       logger.warn(
         '[cli-claude] `claude` not found on PATH. Install with: npm i -g @anthropic-ai/claude-code',
       );
+      return false;
     }
-    return ok;
+    if (!session.authenticated) {
+      logger.warn('[cli-claude] `claude` is installed but not authenticated. Run `claude login`.');
+      return false;
+    }
+    return true;
   }
 
   async restoreSession(): Promise<boolean> {

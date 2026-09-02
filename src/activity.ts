@@ -1,3 +1,5 @@
+import { redactSecrets } from './redact.js';
+
 export type ActivityLevel = 'info' | 'success' | 'warning' | 'error';
 
 export interface ActivityEvent {
@@ -15,7 +17,7 @@ export class ActivityLog {
   private _nextId = 1;
 
   add(level: ActivityLevel, scope: string, message: string): ActivityEvent {
-    const event = { id: this._nextId++, time: Date.now(), level, scope, message };
+    const event = { id: this._nextId++, time: Date.now(), level, scope, message: redactSecrets(message) };
     this._events.push(event);
     if (this._events.length > 200) this._events.splice(0, this._events.length - 200);
     for (const listener of this._listeners) listener(event);

@@ -1,4 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  const path = await import('node:path');
+  return {
+    ...actual,
+    homedir: () => path.join(actual.tmpdir(), 'conduit-bridge-providers-test-home'),
+  };
+});
+
 import { ProviderRegistry } from '../src/registry.js';
 import { OpenRouterApiProvider } from '../src/providers/openrouter-api.js';
 import { PerplexityApiProvider } from '../src/providers/perplexity-api.js';
@@ -24,6 +37,13 @@ describe('new provider catalogs + ownsModel', () => {
   it('keeps API credentials independent from CLI authentication', () => {
     const names = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY'] as const;
     const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+    const home = join(tmpdir(), 'conduit-bridge-providers-test-home');
+    mkdirSync(join(home, '.claude'), { recursive: true });
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    mkdirSync(join(home, '.gemini'), { recursive: true });
+    writeFileSync(join(home, '.claude', '.credentials.json'), '{"placeholder":"cli-oauth"}');
+    writeFileSync(join(home, '.codex', 'auth.json'), '{"placeholder":"cli-oauth"}');
+    writeFileSync(join(home, '.gemini', 'oauth_creds.json'), '{"placeholder":"cli-oauth"}');
     try {
       for (const name of names) delete process.env[name];
       expect(new ClaudeApiProvider(cfg).credentialSource).toBe('Not detected');
@@ -32,6 +52,8 @@ describe('new provider catalogs + ownsModel', () => {
 
       const configured = { ...cfg, apiKeys: { 'claude-api': 'test-value' } };
       expect(new ClaudeApiProvider(configured).credentialSource).toBe('Bridge config');
+      expect(new GeminiApiProvider(configured).credentialSource).toBe('Not detected');
+      expect(new CodexApiProvider(configured).credentialSource).toBe('Not detected');
     } finally {
       for (const name of names) {
         if (saved[name] === undefined) delete process.env[name];

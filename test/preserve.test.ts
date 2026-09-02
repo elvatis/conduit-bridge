@@ -45,6 +45,7 @@ const h = vi.hoisted(() => {
     abortObserved: false,
     signalSeen: false,
     embeddingsModelSeen: null as string | null,
+    prompts: [] as string[],
   };
   return { PROMPT_MARKER, REPLY_MARKER, primaryModel, fallbackModel, state };
 });
@@ -56,9 +57,10 @@ vi.mock('../src/registry.js', () => {
     models,
     async ensureConnected() { return h.state.connected; },
     async checkSession() { return h.state.connected; },
-    async chat(req: { model: string; signal?: AbortSignal }) {
+    async chat(req: { model: string; signal?: AbortSignal; messages?: Array<{ content: string }> }) {
       h.state.chatCalls++;
       h.state.signalSeen = Boolean(req.signal);
+      if (req.messages?.[0]?.content) h.state.prompts.push(req.messages[0].content);
       if (h.state.hangUntilAbort) {
         // Never settles on its own: the only exit is the AbortSignal the server
         // must hand down when the HTTP client disconnects.
@@ -101,6 +103,7 @@ vi.mock('../src/registry.js', () => {
       return undefined;
     }
     get() { return grok; }
+    lookup(name: string) { return name === 'cli-grok' ? grok : name === 'openrouter-api' ? openrouter : undefined; }
     async getStatus() {
       return {
         running: true,
@@ -258,6 +261,7 @@ beforeEach(() => {
   h.state.abortObserved = false;
   h.state.signalSeen = false;
   h.state.embeddingsModelSeen = null;
+  h.state.prompts = [];
 });
 
 describe('regression preservation: pre-login behaviour still holds', () => {
@@ -456,6 +460,36 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     }
   });
 
+  it('debate feeds prior answers to later roles and stores a redacted preview, not full content', async () => {
+    const initial = await (await fetch(`${base}/v1/orchestrator`)).json();
+    try {
+      await post(`${base}/v1/orchestrator`, {
+        enabled: true,
+        strategy: 'debate',
+        roles: [
+          { name: 'Analyst', model: PRIMARY },
+          { name: 'Reviewer', model: PRIMARY },
+        ],
+        fallbackModels: [],
+      });
+      const run = await (await post(`${base}/v1/orchestrator/run`, { prompt: 'secret-orchestrator-prompt' })).json();
+      expect(run.strategy).toBe('debate');
+      expect(run.results).toHaveLength(2);
+      expect(h.state.prompts[0]).toBe('secret-orchestrator-prompt');
+      expect(h.state.prompts[1]).toContain('Critique the prior answers');
+      expect(h.state.prompts[1]).toContain('secret-orchestrator-prompt');
+
+      const history = await (await fetch(`${base}/v1/orchestrator/history`)).json();
+      const latest = history.runs[0];
+      expect(latest.results[0].preview).toBeDefined();
+      expect(latest.results[0].contentHash).toMatch(/^[0-9a-f]{16}$/);
+      expect(latest.results[0].content).toBeUndefined();
+      expect(JSON.stringify(history)).not.toContain('secret-orchestrator-prompt');
+    } finally {
+      await post(`${base}/v1/orchestrator`, { enabled: false, strategy: 'sequential', roles: initial.roles, fallbackModels: [] });
+    }
+  });
+
   it('returns one comparison result per requested model', async () => {
     const res = await post(`${base}/v1/compare`, { prompt: 'compare these', models: [PRIMARY, FALLBACK] });
     expect(res.status).toBe(200);
@@ -499,8 +533,9 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(allowed.status).toBe(200);
     expect((await allowed.json()).object).toBe('list');
 
-    // The dashboard is served from the same origin and is gated too.
-    expect((await fetch(`${authBase}/`)).status).toBe(401);
+    // Dashboard HTML is public so the page can collect a token; /v1/* stays gated.
+    expect((await fetch(`${authBase}/`)).status).toBe(200);
+    expect((await fetch(`${authBase}/help`)).status).toBe(200);
   });
 
   it('exposes availability metadata on /v1/models and keeps the OpenRouter passthrough namespace', async () => {
@@ -547,6 +582,9 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(() => new Function(dashboardScript)).not.toThrow();
     expect(DASHBOARD_HTML).toContain('Supported desktop platforms');
     expect(DASHBOARD_HTML).toContain('Desktop autostart');
+    expect(DASHBOARD_HTML).toContain('conduit-token.');
+    expect(DASHBOARD_HTML).toContain('sessionStorage');
+    expect(DASHBOARD_HTML).toContain('Authorization');
     expect(DASHBOARD_HTML).not.toContain('Fully remote bridge');
     expect(DASHBOARD_HTML).not.toContain('Local-first model infrastructure');
 

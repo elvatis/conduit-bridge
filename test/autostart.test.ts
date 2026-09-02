@@ -13,6 +13,7 @@ describe('desktop autostart installers', () => {
     expect(script).toContain('conduit-bridge-start');
     expect(script).toContain('conduit-bridge.desktop');
     expect(script).toContain('127.0.0.1 --port=31338');
+    expect(script).toContain('export CONDUIT_HOME');
     expect(script).not.toMatch(/x11vnc|noVNC|websockify|5900|6080/i);
   });
 
@@ -27,6 +28,8 @@ describe('desktop autostart installers', () => {
     expect(script).toContain('conduit-bridge.error.log');
     expect(script).toContain('conduit-bridge.pid');
     expect(script).toContain('Start-Process');
+    expect(script).toContain('-WindowStyle Hidden');
+    expect(script).toContain('CONDUIT_HOME');
     expect(script).toContain('127.0.0.1:31338');
     expect(script).not.toMatch(/Xvfb|x11vnc|noVNC|websockify|5900|6080/i);
 
@@ -34,5 +37,6 @@ describe('desktop autostart installers', () => {
     expect(uninstall).toContain('Stop-ScheduledTask');
     expect(uninstall).toContain('Unregister-ScheduledTask');
     expect(uninstall).toContain('Stop-Process');
+    expect(uninstall).toContain("-replace '/', '\\'");
   });
 });

@@ -12,3 +12,10 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    ignore:
+      # supply-chain-guard is consumed from the rolling major tag @v6.
+      # Its threat-intel routine ships new IOCs as new releases, so @v6 is how
+      # new indicators reach this repo. An exact-version or SHA pin freezes the
+      # indicator set and silently stops new threat intelligence.
+      # Do not remove this ignore without reading .ai/handoff/STATUS.md.
+      - dependency-name: "homeofe/supply-chain-guard"

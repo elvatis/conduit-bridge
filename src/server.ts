@@ -4,7 +4,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { BridgeConfig } from './types.js';
+import type { BridgeConfig, ProviderName } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
@@ -15,7 +15,8 @@ import { ActivityLog } from './activity.js';
 import { DEFAULT_ORCHESTRATOR, type OrchestratorConfig, type OrchestrationStrategy } from './orchestrator.js';
 import { RequestLimiter } from './limits.js';
 import { RunHistory } from './run-history.js';
-import { assertSupportedPlatform } from './platform.js';
+
+const CLI_PROVIDERS = new Set<ProviderName>(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok']);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -49,7 +50,6 @@ export class BridgeServer {
   }
 
   async start(): Promise<void> {
-    assertSupportedPlatform();
     this._server = createServer((req, res) => {
       this._handleRequest(req, res).catch(err => {
         logger.error(`Unhandled request error: ${err.message}`);
@@ -103,18 +103,10 @@ export class BridgeServer {
     }
   }
 
-  /**
-   * Auth for the event socket.
-   *
-   * A browser WebSocket cannot set an Authorization header, so when a token is
-   * configured the dashboard passes it as the 'conduit-token.<token>'
-   * sub-protocol (preferred — sub-protocols are not written to access logs the
-   * way query strings are) or as ?token=. The header form still works for
-   * non-browser clients.
-   */
+  /** WebSocket clients cannot set Authorization; accept a conduit-token.* subprotocol or ?token=. */
   private _checkSocketAuth(req: IncomingMessage): { ok: boolean; protocol?: string } {
     if (this._checkAuth(req)) return { ok: true };
-    const token = this._cfg.authToken ?? '';
+    const token = String(this._cfg.authToken ?? '');
     if (!token) return { ok: false };
 
     const offered = String(req.headers['sec-websocket-protocol'] ?? '')
@@ -183,7 +175,7 @@ export class BridgeServer {
    * <token>' header. The token comparison is constant-time.
    */
   private _checkAuth(req: IncomingMessage): boolean {
-    const token = this._cfg.authToken ?? '';
+    const token = String(this._cfg.authToken ?? '');
     const externallyBound = !['127.0.0.1', 'localhost', '::1', '[::1]'].includes(this._cfg.host);
     if (!token) return !externallyBound;
     const header = req.headers.authorization ?? '';
@@ -197,32 +189,28 @@ export class BridgeServer {
     return safeEqual(provided, token);
   }
 
-  /**
-   * Reject a state-changing request that a foreign web page made on the
-   * person's behalf.
-   *
-   * A cross-origin POST with a text/plain body is a "simple request": it is
-   * sent without a preflight, and CORS only hides the response. That is no
-   * comfort for a request whose side effect is storing an API key or changing
-   * orchestration, so those are gated on provenance instead.
-   *
-   * Requests with no Origin and no Sec-Fetch-Site (curl, an SDK, a script) are
-   * unaffected — a web page cannot suppress those headers.
-   */
+  /** Reject state-changing requests from origins outside the CORS allowlist. */
   private _isCrossSite(req: IncomingMessage): boolean {
-    const site = String(req.headers['sec-fetch-site'] ?? '').toLowerCase();
-    if (site) return site === 'cross-site' || site === 'same-site';
     const origin = req.headers.origin;
     if (typeof origin === 'string' && origin && origin !== 'null') {
       return !this._allowedOrigins().has(origin);
     }
-    return false;
+    return String(req.headers['sec-fetch-site'] ?? '').toLowerCase() === 'cross-site';
+  }
+
+  private _limit(req: IncomingMessage, res: ServerResponse): boolean {
+    const limits = this._cfg.rateLimit ?? { perMinute: 60, maxConcurrent: 16 };
+    const lease = this._limiter.acquire(req.socket.remoteAddress ?? 'local', limits.perMinute, limits.maxConcurrent);
+    if (!lease.ok) {
+      json(res, 429, { error: { message: lease.reason, type: 'rate_limit_error' } });
+      return false;
+    }
+    res.once('close', lease.release);
+    return true;
   }
 
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? '/';
-    // Routes below match on the path only; `url` keeps the query string for
-    // the handful of endpoints that read it.
     const path = url.split('?')[0];
     const method = req.method ?? 'GET';
 
@@ -239,22 +227,18 @@ export class BridgeServer {
 
     // ── GET /health ──────────────────────────────────────────────────────────
     // Always open (no auth) so health checks keep working.
-    if (url === '/health' && method === 'GET') {
+    if (path === '/health' && method === 'GET') {
       json(res, 200, { status: 'ok', service: 'conduit-bridge', version: PKG_VERSION });
       return;
     }
 
-    // Serve the local dashboard from the same origin as the API.
-    if ((url === '/' || url === '/dashboard' || url === '/help') && method === 'GET') {
-      if (!this._checkAuth(req)) {
-        json(res, 401, { error: { message: 'Unauthorized: valid bearer token required', type: 'invalid_request' } });
-        return;
-      }
+    // HTML is public on loopback so the page can collect a bearer token; /v1/* stays gated.
+    if ((path === '/' || path === '/dashboard' || path === '/help') && method === 'GET') {
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store',
       });
-      res.end(url === '/help' ? HELP_HTML : DASHBOARD_HTML);
+      res.end(path === '/help' ? HELP_HTML : DASHBOARD_HTML);
       return;
     }
 
@@ -275,7 +259,7 @@ export class BridgeServer {
     }
 
     // ── GET /v1/models ───────────────────────────────────────────────────────
-    if (url === '/v1/models' && method === 'GET') {
+    if (path === '/v1/models' && method === 'GET') {
       const models = this._registry.allModels().map(m => ({
         id: m.id,
         object: 'model',
@@ -287,7 +271,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/models/refresh' && method === 'POST') {
+    if (path === '/v1/models/refresh' && method === 'POST') {
       const refreshed = await this._registry.refreshApiModels();
       this._activity.add('success', 'models', 'Provider model catalogs refreshed');
       json(res, 200, { object: 'conduit.model_refresh', refreshed });
@@ -295,39 +279,40 @@ export class BridgeServer {
     }
 
     // ── GET /v1/status ───────────────────────────────────────────────────────
-    if (url === '/v1/status' && method === 'GET') {
+    if (path === '/v1/status' && method === 'GET') {
       const status = await this._registry.getStatus();
       json(res, 200, status);
       return;
     }
 
-    if (url === '/v1/metrics' && method === 'GET') {
+    if (path === '/v1/metrics' && method === 'GET') {
       json(res, 200, { object: 'conduit.metrics', generated_at: Date.now(), models: this._metrics.snapshot() });
       return;
     }
 
-    if (url === '/v1/activity' && method === 'GET') {
+    if (path === '/v1/activity' && method === 'GET') {
       json(res, 200, { object: 'conduit.activity', events: this._activity.snapshot() });
       return;
     }
 
-    if (url === '/v1/orchestrator' && method === 'GET') {
+    if (path === '/v1/orchestrator' && method === 'GET') {
       json(res, 200, this._orchestrator);
       return;
     }
 
-    if (url === '/v1/orchestrator/history' && method === 'GET') {
+    if (path === '/v1/orchestrator/history' && method === 'GET') {
       json(res, 200, { object: 'conduit.orchestrator_history', runs: this._runHistory.snapshot() });
       return;
     }
 
-    if (url === '/v1/compare' && method === 'POST') {
+    if (path === '/v1/compare' && method === 'POST') {
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
       if (typeof data?.prompt !== 'string' || !data.prompt.trim() || !Array.isArray(data.models) || !data.models.length) {
         json(res, 400, { error: { message: 'prompt and models are required', type: 'invalid_request' } }); return;
       }
+      if (!this._limit(req, res)) return;
       const controller = new AbortController();
       req.once('aborted', () => controller.abort());
       const models = data.models.filter((model: any) => typeof model === 'string').slice(0, 8);
@@ -351,7 +336,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/orchestrator' && method === 'POST') {
+    if (path === '/v1/orchestrator' && method === 'POST') {
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
@@ -364,7 +349,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/orchestrator/run' && method === 'POST') {
+    if (path === '/v1/orchestrator/run' && method === 'POST') {
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
@@ -372,8 +357,9 @@ export class BridgeServer {
       if (typeof data?.prompt !== 'string' || !data.prompt.trim()) { json(res, 400, { error: { message: 'prompt is required', type: 'invalid_request' } }); return; }
       const roles = this._orchestrator.roles.filter(r => r.model);
       if (!roles.length) { json(res, 400, { error: { message: 'Configure at least one role model', type: 'invalid_request' } }); return; }
+      if (!this._limit(req, res)) return;
       this._activity.add('info', 'orchestrator', 'Run started with ' + this._orchestrator.strategy + ' strategy');
-      const runRole = async (role: { name: string; model: string }) => {
+      const runRole = async (role: { name: string; model: string }, prompt: string) => {
         const candidates = [role.model, ...this._orchestrator.fallbackModels].filter((model, i, all) => model && all.indexOf(model) === i);
         let lastError: unknown = new Error(role.name + ': no usable model');
         for (const model of candidates) {
@@ -381,7 +367,7 @@ export class BridgeServer {
             const provider = this._registry.providerForModel(model);
             if (!provider || !(await provider.ensureConnected())) throw new Error('model is unavailable');
             this._activity.add('info', 'orchestrator', role.name + ' started on ' + model);
-            const content = await provider.chat({ model, messages: [{ role: 'user', content: data.prompt }], effort: data.effort });
+            const content = await provider.chat({ model, messages: [{ role: 'user', content: prompt }], effort: data.effort });
             this._activity.add('success', 'orchestrator', role.name + ' completed on ' + model);
             return { role: role.name, model, content };
           } catch (err) {
@@ -391,30 +377,55 @@ export class BridgeServer {
         }
         throw new Error(role.name + ': ' + (lastError as Error).message);
       };
+      const debatePrompt = (index: number, prior: Array<{ role: string; model: string; content: string }>): string => {
+        if (!prior.length) return data.prompt;
+        const transcript = prior.map(r => r.role + ' (' + r.model + '):\n' + r.content).join('\n\n');
+        const isLast = index === roles.length - 1;
+        return isLast
+          ? 'Original task:\n' + data.prompt + '\n\nPrior answers:\n' + transcript + '\n\nCritique the prior answers and produce a final synthesis.'
+          : 'Original task:\n' + data.prompt + '\n\nPrior answers:\n' + transcript + '\n\nGive your own answer, taking the prior answers into account.';
+      };
       try {
-        const results = this._orchestrator.strategy === 'parallel' ? await Promise.all(roles.map(runRole)) : [];
-        const ordered = this._orchestrator.strategy === 'parallel' ? results : [];
-        if (this._orchestrator.strategy !== 'parallel') {
-          for (const role of roles) ordered.push(await runRole(role));
+        const ordered: Array<{ role: string; model: string; content: string }> = [];
+        if (this._orchestrator.strategy === 'parallel') {
+          ordered.push(...await Promise.all(roles.map(role => runRole(role, data.prompt))));
+        } else if (this._orchestrator.strategy === 'debate') {
+          for (let i = 0; i < roles.length; i++) {
+            ordered.push(await runRole(roles[i], debatePrompt(i, ordered)));
+          }
+        } else {
+          for (const role of roles) ordered.push(await runRole(role, data.prompt));
         }
         const run = this._runHistory.add(this._orchestrator.strategy, data.prompt, ordered, Date.now());
         json(res, 200, { id: run.id, strategy: this._orchestrator.strategy, results: ordered, completed_at: run.completedAt });
       } catch (err) {
-        this._activity.add('error', 'orchestrator', 'Run failed: ' + (err as Error).message.replace(/\s+/g, ' ').slice(0, 240));
+        this._activity.add('error', 'orchestrator', 'Run failed: ' + (err as Error).message);
         json(res, 503, { error: { message: (err as Error).message, type: 'orchestrator_error' } });
       }
       return;
     }
 
-    if (url === '/v1/tests/cli' && method === 'POST') {
+    if (path === '/v1/tests/cli' && method === 'POST') {
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
-      const cliProviders = this._registry.allModels().filter(m => m.id.startsWith('cli-')).map(m => m.provider).filter((v, i, a) => a.indexOf(v) === i);
+      if (!this._limit(req, res)) return;
+      const cliProviders = [...CLI_PROVIDERS];
+      if (typeof data?.provider === 'string') {
+        const provider = this._registry.lookup(data.provider);
+        if (!provider || !CLI_PROVIDERS.has(data.provider as ProviderName)) {
+          json(res, 404, { error: { message: `Unknown CLI provider: ${data.provider}`, type: 'not_found' } });
+          return;
+        }
+      }
       const requested = typeof data?.provider === 'string' ? [data.provider] : cliProviders;
       const results = [];
       for (const providerName of requested) {
-        const provider = this._registry.get(providerName as import('./types.js').ProviderName);
+        const provider = this._registry.lookup(providerName);
+        if (!provider) {
+          results.push({ provider: providerName, model: undefined, ok: false, latencyMs: 0, error: 'unknown provider' });
+          continue;
+        }
         const model = provider.models.find(m => m.id.startsWith('cli-'))?.id;
         const started = Date.now();
         try {
@@ -432,7 +443,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/responses' && method === 'POST') {
+    if (path === '/v1/responses' && method === 'POST') {
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
@@ -454,7 +465,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/embeddings' && method === 'POST') {
+    if (path === '/v1/embeddings' && method === 'POST') {
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
@@ -471,7 +482,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/settings' && method === 'GET') {
+    if (path === '/v1/settings' && method === 'GET') {
       const status = await this._registry.getStatus();
       const apiProviders = ['claude-api', 'gemini-api', 'codex-api', 'openrouter-api', 'perplexity-api'];
       json(res, 200, {
@@ -485,7 +496,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/settings/api-key' && method === 'POST') {
+    if (path === '/v1/settings/api-key' && method === 'POST') {
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
@@ -505,7 +516,7 @@ export class BridgeServer {
       return;
     }
 
-    if (url === '/v1/capabilities' && method === 'GET') {
+    if (path === '/v1/capabilities' && method === 'GET') {
       const providers = this._registry.allModels().reduce<Record<string, ReturnType<typeof effortCapabilities>>>((out, model) => {
         out[model.provider] ??= effortCapabilities(model.provider);
         return out;
@@ -515,7 +526,7 @@ export class BridgeServer {
     }
 
     // ── POST /v1/chat/completions ────────────────────────────────────────────
-    if (url === '/v1/chat/completions' && method === 'POST') {
+    if (path === '/v1/chat/completions' && method === 'POST') {
       const body = await readBody(req);
       let req_data: any;
       try {
@@ -542,18 +553,11 @@ export class BridgeServer {
         return;
       }
 
-      const limits = this._cfg.rateLimit ?? { perMinute: 60, maxConcurrent: 16 };
-      const lease = this._limiter.acquire(req.socket.remoteAddress ?? 'local', limits.perMinute, limits.maxConcurrent);
-      if (!lease.ok) {
-        json(res, 429, { error: { message: lease.reason, type: 'rate_limit_error' } });
-        return;
-      }
-      res.once('close', lease.release);
+      if (!this._limit(req, res)) return;
 
       let selectedModel = model;
       let provider = this._registry.providerForModel(selectedModel);
       if (!provider) {
-        lease.release();
         json(res, 404, { error: { message: `Unknown model: ${model}`, type: 'invalid_request' } });
         return;
       }
@@ -574,7 +578,6 @@ export class BridgeServer {
         }
       }
       if (!connected) {
-        lease.release();
         this._activity.add('warning', provider.name, 'Request blocked because provider is not connected');
         json(res, 503, { error: { message: `${provider.name} is not connected. Configure its API credential or authenticate the local CLI.`, type: 'provider_unavailable' } });
         return;
@@ -715,8 +718,8 @@ export class BridgeServer {
 
 /** Constant-time string comparison (avoids leaking the token via timing). */
 function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
   if (ab.length !== bb.length) return false;
   return timingSafeEqual(ab, bb);
 }

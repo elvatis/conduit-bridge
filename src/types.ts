@@ -39,6 +39,7 @@ export interface BridgeConfig {
   /**
    * Optional bearer token for local API auth. When set, every /v1/* endpoint
    * requires an 'Authorization: Bearer <token>' header (401 otherwise).
+   * Dashboard HTML is served without a bearer so the page can collect the token.
    * When empty/unset (default), the server behaves exactly as before (no auth).
    */
   authToken?: string;

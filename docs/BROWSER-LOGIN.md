@@ -20,3 +20,12 @@ Use one of the supported transports:
 CLI authentication and API keys are independent. An authenticated CLI does not
 configure its API counterpart; when both are available, both providers appear
 separately in the dashboard.
+
+## Platform support
+
+The CLI product (`conduit-bridge start`) supports Windows Desktop and Linux
+Desktop only and exits on other platforms, including macOS. That is a breaking
+change for Mac embedders that previously called `new BridgeServer(cfg).start()`.
+`BridgeServer.start()` itself no longer throws on an unsupported platform, so
+`conduit-vscode` and other library users can skip the gate. Call
+`assertSupportedPlatform()` if you want the CLI product's restriction.

@@ -30,10 +30,12 @@ $safeEntryPoint = $EntryPoint.Replace("'", "''")
 $safeLogFile = $LogFile.Replace("'", "''")
 $safeErrorLogFile = $ErrorLogFile.Replace("'", "''")
 $safePidFile = $PidFile.Replace("'", "''")
+$safeRuntimeDir = $RuntimeDir.Replace("'", "''")
 @"
 `$ErrorActionPreference = 'Stop'
+`$env:CONDUIT_HOME = '$safeRuntimeDir'
 Set-Location -LiteralPath '$safeInstallDir'
-`$Process = Start-Process -FilePath '$safeNode' -ArgumentList @('$safeEntryPoint', 'start', '--host=127.0.0.1', '--port=31338') -WorkingDirectory '$safeInstallDir' -RedirectStandardOutput '$safeLogFile' -RedirectStandardError '$safeErrorLogFile' -PassThru
+`$Process = Start-Process -FilePath '$safeNode' -ArgumentList @('$safeEntryPoint', 'start', '--host=127.0.0.1', '--port=31338') -WorkingDirectory '$safeInstallDir' -RedirectStandardOutput '$safeLogFile' -RedirectStandardError '$safeErrorLogFile' -WindowStyle Hidden -PassThru
 `$Process.Id | Set-Content -LiteralPath '$safePidFile' -Encoding ASCII
 try {
     `$Process.WaitForExit()

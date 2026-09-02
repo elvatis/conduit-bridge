@@ -30,6 +30,7 @@ mkdir -p "$launcher_dir"
 cat > "$launcher_file" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+export CONDUIT_HOME="$runtime_dir"
 cd "$install_dir"
 exec "$node_bin" "$install_dir/dist/cli.js" start --host=127.0.0.1 --port=31338
 EOF

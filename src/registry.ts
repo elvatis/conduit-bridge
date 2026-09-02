@@ -45,7 +45,13 @@ export class ProviderRegistry {
   }
 
   get(name: ProviderName): ProviderAdapter {
-    return this._providers.get(name)!;
+    const provider = this._providers.get(name);
+    if (!provider) throw new Error(`Unknown provider: ${name}`);
+    return provider;
+  }
+
+  lookup(name: string): ProviderAdapter | undefined {
+    return this._providers.get(name as ProviderName);
   }
 
   allModels(): ModelDefinition[] {

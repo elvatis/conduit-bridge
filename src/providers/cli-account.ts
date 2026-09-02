@@ -1,5 +1,5 @@
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { runtimeDir } from '../config.js';
 
 export const DEFAULT_ACCOUNT = 'first-account';
 export const CLI_ACCOUNTS = ['first-account', 'second-account'] as const;
@@ -18,5 +18,5 @@ export function parseClaudeModel(model: string, prefix: string): { account: CliA
 /** Only second-account needs an alternate Claude config directory. */
 export function claudeAccountEnv(account: CliAccount): NodeJS.ProcessEnv {
   if (account === DEFAULT_ACCOUNT) return {};
-  return { CLAUDE_CONFIG_DIR: join(homedir(), '.conduit', 'accounts', 'cli-claude', account) };
+  return { CLAUDE_CONFIG_DIR: join(runtimeDir(), 'accounts', 'cli-claude', account) };
 }
