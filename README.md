@@ -4,7 +4,7 @@
 [![supply-chain-guard](https://img.shields.io/badge/supply--chain--guard-enabled-blue)](https://github.com/homeofe/supply-chain-guard)
 [![scanned by supply-chain-guard](https://img.shields.io/badge/scanned%20by-supply--chain--guard-2ea44f?logo=npm&logoColor=white)](https://github.com/homeofe/supply-chain-guard)
 
-**Current version:** 0.9.0
+**Current version:** 0.9.1
 
 Conduit Bridge is a local OpenAI-compatible gateway for direct provider APIs,
 authenticated coding CLIs, and LM Studio. It runs on Windows Desktop and Linux
@@ -228,6 +228,23 @@ Prompts, responses, tokens, cookies, and credentials must never be committed or
 written to operational logs. Runtime state belongs below `.conduit`.
 
 ## Changelog
+
+### 0.9.1
+
+- Governance only; no runtime change. The AAHP gates that had been reporting
+  SKIP since this repository was created now run in CI: version-sync against
+  three documented sites, doc-links, and the NEXT_ACTIONS freshness check.
+- `aahp check` runs in CI at all, for the first time. It had never run, so
+  forbidden-patterns was failing on main unseen with 51 banned em dash
+  characters across 50 lines. Those are removed.
+- The AAHP gate no longer exempts Dependabot. It stayed a required check while
+  reporting success without looking, which branch protection renders as green.
+- `.github/workflows/release.yml` gates the tag path, which had no gate at all:
+  tags are unprotected and main had no required status checks. It publishes no
+  asset, because this project ships none.
+- Required status checks now exist on main, verified by a throwaway pull request
+  that was correctly blocked.
+- New `CLAUDE.md`; SECURITY.md gained a Supported Versions section.
 
 ### 0.9.0
 

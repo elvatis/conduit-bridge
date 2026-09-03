@@ -1,3 +1,5 @@
+> Note (2026-09-03, claude-opus-5): Cut v0.9.1. Governance only, zero src changes since v0.9.0 - the running v0.9.0 was already functionally current, so this release ships documentation and gate configuration and nothing else. Also pinned CLAUDE.md as a fourth version site, mutation-proved: reverting its version line turns version-sync red. conduit-vscode pins the same file, and it had gone stale there at 0.9.0 against a package.json of 0.10.1, which is the exact defect this pins against. First release cut by .github/workflows/release.yml in this repository; it publishes no asset by design.
+
 > Note (2026-09-03, claude-opus-5): Added .github/workflows/release.yml. A tag push bypasses branch protection entirely here: tags are unprotected (rulesets is empty) and main has NO required status checks at all, so a tag could be cut at any commit in any state with nothing looking at it. The workflow refuses a tag that does not match package.json and package-lock.json, is not an ancestor of origin/main, or has no matching CHANGELOG.md section, then runs aahp verify/check/doctor plus typecheck, tests and build before publishing the GitHub Release with notes from the changelog. It publishes NO asset on purpose: this project is not on npm and ships no artifact, all 14 releases carry zero assets by design per docs/RELEASING.md, and porting conduit-vscode asset assertion would fail on every release forever. Lightweight tags (v0.2.5, v0.3.0, v0.4.0) fall back to the tag name for the title instead of failing. OPERATIONAL: GitHub loads the workflow from the TAGGED COMMIT, so the first tag cut before this file exists runs nothing, silently.
 
 > Note (2026-09-03, claude-opus-5): Renamed the secret-scan job display name to "Secret Scan". Both secret-scan.yml and supply-chain-guard.yml declared a job named "Scan", so two check runs shared one name. A required status check is matched by that string, which means requiring "Scan" could have been satisfied by whichever of the two reported, and the other could fail without blocking a merge. Prerequisite for adding required checks to this repository, which currently has NONE.
@@ -8,7 +10,7 @@
 
 # Status
 
-## Current Version: 0.9.0
+## Current Version: 0.9.1
 
 _Updated: 2026-09-02_
 

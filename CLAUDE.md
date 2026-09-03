@@ -1,6 +1,6 @@
 # conduit-bridge
 
-- Current version: `0.9.0`
+- Current version: `0.9.1`
 - Not published to npm. Releases are Git tags plus GitHub Releases; see `docs/RELEASING.md`.
 
 ## Code Style
