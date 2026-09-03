@@ -6,7 +6,7 @@
 
 **Current version:** 0.9.0
 
-Conduit Bridge is a local OpenAI-compatible gateway for direct provider APIs,
+Conduit Bridge — a local OpenAI-compatible gateway for direct provider APIs,
 authenticated coding CLIs, and LM Studio. It runs on Windows Desktop and Linux
 Desktop and exposes one loopback listener at `127.0.0.1:31338`.
 
