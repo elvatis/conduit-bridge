@@ -1,3 +1,5 @@
+> Note (2026-09-03, claude-opus-5): Added .claude/settings.local.json to .gitignore. The file is not tracked here, but nothing in the repository was excluding it either - only a global ~/.gitignore on one machine, which is per-machine state: a checkout on another machine would have committed it on its first "git add -A". That is exactly how conduit-vscode published the same file for five months (2026-03-15 to 2026-09-03), exposing the operator username and an internal host name. Repository-local rules are the only ones that travel with the repository.
+
 # Status
 
 _Updated: 2026-09-02_
