@@ -1,16 +1,20 @@
+> Note (2026-09-03, claude-opus-5): Turned on the governance gates that had been reporting SKIP since this repository existed. version-sync was never configured, and aahp check never ran in CI at all - only verify and doctor - so forbidden-patterns had been failing on main unseen with 51 banned em dash characters on 50 lines. The version anchors version-sync pins did not exist: README had no Current version banner, this file had no Current Version header, and its only boundary match for 0.9.0 was a coincidental mention of conduit-vscode, now v-prefixed and forbidden by a new rule. Also removed the Dependabot exemption: the gate stayed a required check while no-opping to success for dependabot[bot], which branch protection displays as green. aahp doctor now reports 7 of 7 gates. Every enabled gate was mutation-proved - nine mutations, each turning its gate red, unmodified tree green. Three of those proofs were wrong on the first pass and read exactly like blind gates, so the corrected constructions are recorded in the PR. Not in this change: the 84 em dashes in .ts, 19 of them in runtime strings, which is a behaviour change and needs its own review.
+
 > Note (2026-09-03, claude-opus-5): Added .claude/settings.local.json to .gitignore. The file is not tracked here, but nothing in the repository was excluding it either - only a global ~/.gitignore on one machine, which is per-machine state: a checkout on another machine would have committed it on its first "git add -A". That is exactly how conduit-vscode published the same file for five months (2026-03-15 to 2026-09-03), exposing the operator username and an internal host name. Repository-local rules are the only ones that travel with the repository.
 
 # Status
 
+## Current Version: 0.9.0
+
 _Updated: 2026-09-02_
 
-## v0.8.0 — CLI transport, modes, cwd and model discovery
+## v0.8.0 - CLI transport, modes, cwd and model discovery
 
 Four stacked defects made conduit-vscode appear dead in Ask, Edit, Plan and
 Agent. All four are bridge-side; the extension needs no change.
 
 1. **Prompt transport.** `claude` resolves to `claude.cmd`, so `runCli` routed
-   it through `cmd.exe /c`, which ends its command line at the first newline —
+   it through `cmd.exe /c`, which ends its command line at the first newline -
    exit 0, no stderr. Since `flattenMessages` puts the system prompt first and
    the user turn last, the CLI received the system prompt alone. Prompt now
    rides stdin; `runCli` refuses a multi-line argv arg on the cmd.exe path.
@@ -18,7 +22,7 @@ Agent. All four are bridge-side; the extension needs no change.
    chat / plan / agent are now distinct.
 3. **`agentCwd` fell back to `homedir()`**, giving a CLI agent the whole user
    profile. Unusable or absent `cwd` now lands in an empty sandbox dir.
-4. **The CLI catalogs were hardcoded and stale** — cli-gemini advertised a
+4. **The CLI catalogs were hardcoded and stale** - cli-gemini advertised a
    `gemini-3.5` family agy rejects and omitted the `3.7` family agy serves;
    cli-grok advertised `grok-4.3`, which `grok models` no longer reports. Both
    are now discovered at runtime, TTL-cached, refreshed via
@@ -28,12 +32,12 @@ Agent. All four are bridge-side; the extension needs no change.
 
 | provider | discovery | source |
 | --- | --- | --- |
-| `cli-gemini` | yes | `agy models` — tab-separated `id<TAB>Display Name` |
-| `cli-grok` | yes | `grok models` — bullet list under "Available models:" |
+| `cli-gemini` | yes | `agy models` - tab-separated `id<TAB>Display Name` |
+| `cli-grok` | yes | `grok models` - bullet list under "Available models:" |
 | `cli-codex` | yes | `GET chatgpt.com/backend-api/codex/models?client_version=<codex --version>` |
 | `cli-claude` | no | no listing of any kind; catalog file only |
 
-### One prefix, one TRANSPORT — resold models are kept
+### One prefix, one TRANSPORT - resold models are kept
 
 `agy models` also reports `claude-sonnet-4-6`, `claude-opus-4-6-thinking` and
 `gpt-oss-120b-medium`. An earlier commit filtered those out on the grounds that
@@ -42,15 +46,15 @@ was wrong and has been reverted.
 
 There is no collision. Every advertised id is `<prefix>/<model>`, the prefixes
 are distinct string constants, and `providerForModel` (registry.ts) resolves by
-exact id first and by `ownsModel` prefix second — so the two ids are different
+exact id first and by `ownsModel` prefix second - so the two ids are different
 strings reaching different provider classes. Measured: with the filter ON,
 `cli-gemini/claude-sonnet-4-6` was absent from `/v1/models` yet a POST to
 `/v1/chat/completions` with that id still routed and answered, because
 `ownsModel` matches the whole prefix regardless of the catalog. The filter only
 removed the models from the picker; it never removed the route.
 
-Reaching Claude Sonnet through an Antigravity subscription — different quota,
-auth and rate limits than an Anthropic one — is a capability, not an accident.
+Reaching Claude Sonnet through an Antigravity subscription - different quota,
+auth and rate limits than an Anthropic one - is a capability, not an accident.
 `noteForeignVendors` now logs the cross-vendor rows and returns them unchanged,
 on both routes (discovery and models.json).
 
@@ -63,7 +67,7 @@ What made the labelling honest instead:
   `grok`), not a guess at the model's author. Inferring the author from the id
   prefix conflates who built a model with where it can be obtained, and those
   differ: `gpt-oss-120b-medium` is OpenAI's open-weight model, is served here
-  by agy, and is not available from OpenAI at all — labelling it `openai` would
+  by agy, and is not available from OpenAI at all - labelling it `openai` would
   advertise a route that does not exist. The author stays legible in the id and
   the display name; what a caller cannot otherwise tell is which subscription
   answers.
@@ -78,7 +82,7 @@ Anyone who does want a single-vendor namespace pins the provider in
 ### Why not api.openai.com/v1/models for cli-codex
 
 That endpoint lists API-*platform* models for an API key, which is a different
-entitlement set from a ChatGPT subscription — measured: the platform advertises
+entitlement set from a ChatGPT subscription - measured: the platform advertises
 `gpt-5.5-pro`, and a ChatGPT account rejects it with "not supported when using
 Codex with a ChatGPT account". It is the right source for `api-codex` (which
 authenticates with a key) and the wrong one for `cli-codex`. With the codex OAuth
@@ -99,13 +103,13 @@ discover from.
 
 All four catalogs now live in `src/model-catalog.ts` as data, and any of them
 can be overridden from `~/.conduit/models.json` (or `$CONDUIT_MODELS_FILE`)
-with **no rebuild** — which is what removes the per-release build for the two
+with **no rebuild** - which is what removes the per-release build for the two
 providers that cannot discover. Naming a provider PINS it: the list is served
 verbatim and discovery is skipped for it, which doubles as the escape hatch for
 an offline CLI or unparsable `models` output. Providers the file omits are
 unaffected. Edits land on the next `POST /v1/models/refresh`, no restart.
 
-A pin outranks an already-discovered catalog, not just the next discovery —
+A pin outranks an already-discovered catalog, not just the next discovery -
 getting that wrong made the pin look accepted and then silently ignored, which
 is how it was found.
 
@@ -113,7 +117,7 @@ is how it was found.
 binary it returns "not supported when using Codex with a ChatGPT account". The
 other four were each verified usable. Availability is plan-dependent, so a plan
 that does include it can add it in models.json. The `api-codex/gpt-5.5-pro`
-entry is deliberately untouched — that provider authenticates with an API key,
+entry is deliberately untouched - that provider authenticates with an API key,
 not a ChatGPT account, and is a different availability set.
 
 ### API providers: discovery, and no advertising without a credential
@@ -124,7 +128,7 @@ the last providers advertising models nobody could reach.
 - **Discovery.** Each now refreshes from its vendor's documented list:
   `api.anthropic.com/v1/models` (`x-api-key` + `anthropic-version`, returns
   `{data:[{id, display_name}]}`), `generativelanguage.googleapis.com/v1beta/models`
-  (`x-goog-api-key` header — deliberately not the `?key=` query form, which would
+  (`x-goog-api-key` header - deliberately not the `?key=` query form, which would
   put the credential in a URL; returns `{models:[{name:"models/…", displayName}]}`
   and is filtered to entries supporting `generateContent`), and
   `api.openai.com/v1/models`, which is OpenAI-shaped and reuses the existing
@@ -137,7 +141,7 @@ the last providers advertising models nobody could reach.
 - **No credential, no advertisement.** `ProviderAdapter.hasCredentials()` is a
   synchronous "could this request possibly be authorised" check;
   `registry.allModels()` skips providers that answer false. Before this, 16
-  models sat in the picker whose request could only fail on auth — the same
+  models sat in the picker whose request could only fail on auth - the same
   defect as a hardcoded id the CLI no longer serves. `/v1/models` went 516 → 500.
 - Hiding is not silencing: `providerForModel` still resolves those ids, so a
   request answers `provider_unavailable` with "Configure its API credential"
@@ -152,7 +156,7 @@ strips the prefix.
 ### agy takes the prompt as JSON on stdin, not on argv
 
 `agy -p <prompt>` put the whole prompt on the command line, which Windows caps
-at 32767 characters — nowhere near enough for coding, where the prompt carries
+at 32767 characters - nowhere near enough for coding, where the prompt carries
 files. It now rides stdin as one NDJSON frame:
 
     {"event":"user","message":{"role":"user","content":"..."}}
@@ -172,15 +176,15 @@ dropped tail is visible instead of silent:
     203363 chars  "The input was truncated before reaching a final line"
     257365 chars  truncated
 
-So agy cuts just past 200000 — its own limit, not the OS's. `max_prompt_chars`
+So agy cuts just past 200000 - its own limit, not the OS's. `max_prompt_chars`
 reports 180000 for agy, six times the old argv ceiling, with room below the last
 measured success. The legacy `gemini` binary keeps the argv bound, because there
 the command line really is the limit.
 
 ### /v1/models reports a transport prompt ceiling
 
-`agy` takes the prompt on argv, so the OS command line bounds it — 30000 chars
-for agy.exe on Windows, 7000 through a .cmd shim, 120000 on Linux — while the
+`agy` takes the prompt on argv, so the OS command line bounds it - 30000 chars
+for agy.exe on Windows, 7000 through a .cmd shim, 120000 on Linux - while the
 models themselves advertise token windows in the millions. A client cannot
 derive that: it depends on the binary and the platform, not the model. Left to
 guess, conduit-vscode sized its context off the token window and the bridge
@@ -193,15 +197,15 @@ cli-grok) omit it, because for them there is none.
 ### /v1/models reports the limits too
 
 `context_window` and `max_output_tokens` now ship alongside `max_prompt_chars`.
-Discovered where a provider reports them — the Codex endpoint returns the
+Discovered where a provider reports them - the Codex endpoint returns the
 account's real `context_window` (272000 here), OpenRouter returns
-`context_length` — and otherwise from a single prefix table in
+`context_length` - and otherwise from a single prefix table in
 model-catalog.ts, which `~/.conduit/models.json` can override per model:
 
     { "cli-claude": [{ "id": "claude-opus-6", "contextWindow": 2000000 }] }
 
 Prefixes match longest-first, so `claude-haiku` gets 200000 while the rest of
-`claude-` gets a million, and a resold model keeps its own family's numbers —
+`claude-` gets a million, and a resold model keeps its own family's numbers -
 `cli-gemini/gpt-oss-120b-medium` reports 128000, not Gemini's million.
 
 This is what lets a client stop shipping its own copy. conduit-vscode carried
@@ -212,19 +216,19 @@ stale the moment catalogs became discovered rather than pinned.
 
     agy models        # tab-separated table
     grok models       # bullet list
-    codex             # then /model or /models in the TUI — no non-interactive form
+    codex             # then /model or /models in the TUI - no non-interactive form
     claude            # no listing at all; see model-catalog.ts / models.json
 
 ### CI now runs the test suite
 
 `.github/workflows/test.yml` runs typecheck, vitest and a real `npm run build` on
-Linux and Windows. Before it, nothing in CI executed the tests — aahp-verify,
+Linux and Windows. Before it, nothing in CI executed the tests - aahp-verify,
 CodeQL and the scanners were the entire gate, so a red suite could merge green.
 The Windows leg matters because the subprocess layer is Windows-specific (the
 cmd.exe truncation that caused this outage would not fail on Linux at all).
 
 Also: `agy` ignores the process cwd entirely (it runs in
-`~/.gemini/antigravity-cli/scratch`), so `--add-dir` is now passed — the editor's
+`~/.gemini/antigravity-cli/scratch`), so `--add-dir` is now passed - the editor's
 open folder was invisible to every `cli-gemini` turn before this. `quoteWin` no
 longer drops empty arguments; `--effort` is not sent alongside a tier-suffixed
 agy model id (agy refuses the combination); the argv bound scales to the
@@ -232,13 +236,13 @@ transport instead of applying a Windows constant on Linux; stdin has an error
 handler so an early child exit fails the run, not the process.
 
 `--effort` is doubly guarded, because a discovered catalog can contain ids no
-shape heuristic anticipates. agy refuses the flag two different ways — a
+shape heuristic anticipates. agy refuses the flag two different ways - a
 tier-suffixed id "conflicts with --effort", and some models (the Anthropic ones
-agy serves) do not support it at all — both exit 1 with empty stdout. The tier
+agy serves) do not support it at all - both exit 1 with empty stdout. The tier
 check avoids the common wasted call; a stderr-matched retry without the flag
 covers the rest, so a model agy adds later cannot break the provider.
 
-### Known gap — agy chat mode is write-capable
+### Known gap - agy chat mode is write-capable
 
 `agy` exposes no read-only mode (`--mode` takes only `plan` or `accept-edits`),
 so `cli-gemini` chat cannot be made read-only by a flag. With no permission flag
@@ -257,13 +261,13 @@ or a tool-deny flag.
 
 The global `conduit-bridge` install is a **symlink into this workspace**, so the
 running server is whatever `dist/` holds, and `/health` reports the version from
-`package.json` rather than the built bundle — a stale `dist/` reports the new
+`package.json` rather than the built bundle - a stale `dist/` reports the new
 version while running old code. Run `npm run build` and restart after pulling.
 
 ---
 
 **v0.7.0** added `mode` (`chat` | `plan` | `agent`) on `POST /v1/chat/completions`.
-Agent requires `cwd`. Grok is plan-by-default. Pair with conduit-vscode 0.9.0.
+Agent requires `cwd`. Grok is plan-by-default. Pair with conduit-vscode v0.9.0.
 
 CLI chat completions take `mode`: `chat` (read-only proxy, default),
 `plan` (native CLI plan function), `agent` (workspace write, requires `cwd`).
