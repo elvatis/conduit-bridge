@@ -1,0 +1,253 @@
+# Release - gates a tag and publishes its GitHub Release.
+#
+# Why this exists: a tag push bypasses branch protection entirely. Tags are
+# unprotected here (`gh api repos/elvatis/conduit-bridge/rulesets` returns []),
+# and as of this file main has no required status checks at all. So a tag can
+# be cut at any commit, in any state, and nothing looks at it. This workflow is
+# the only thing that does.
+#
+# It deliberately publishes NO asset. conduit-bridge is not published to npm and
+# ships no artifact: all 14 releases so far have zero assets, and that is by
+# design per docs/RELEASING.md, not the oversight it was in conduit-vscode.
+# Porting that repo's asset assertion here would fail on every release forever.
+#
+# OPERATIONAL, and it bites the first time: GitHub loads this file from the
+# TAGGED COMMIT's tree. A tag cut at a commit that predates it runs nothing at
+# all - no run, no red X, no notification. Only tag commits that already
+# contain .github/workflows/release.yml.
+#
+# Annotated tags are preferred, because the subject becomes the release title.
+# Three existing tags here (v0.2.5, v0.3.0, v0.4.0) are lightweight, so the
+# title falls back to the tag name rather than failing.
+#
+# The two-job split is a privilege boundary. `build` runs npm ci and the test
+# suite - the whole dependency tree - and holds no write scope. `publish` holds
+# contents: write and runs no repository or registry code at all.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vX.Y.Z tag to publish or repair
+        required: true
+        type: string
+      dry_run:
+        description: Run every gate, then stop before publishing
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    # The tag is resolved once and read from the environment everywhere. It is
+    # never interpolated into a run: block: GitHub substitutes ${{ }} into the
+    # script text before the shell parses it, and a git refname may contain
+    # ; $ ( ) ` " ' & | < >, which would be a command injection primitive in a
+    # workflow that ends in a job holding contents: write.
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      title: ${{ steps.title.outputs.title }}
+
+    steps:
+      - name: Validate the release request
+        run: |
+          # grep -q succeeds on ANY line, and a workflow_dispatch input is free
+          # text that may contain newlines where a refname cannot. Count lines
+          # first, then match the shape.
+          if [ "$(printf '%s' "$TAG" | wc -l)" -ne 0 ] \
+             || ! printf '%s' "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::refusing to release '$TAG'; expected vX.Y.Z"
+            exit 1
+          fi
+
+      - name: Checkout the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          # Full history: the ancestry check needs main, and the Layer 2 drift
+          # gate needs the tagged commit's parent.
+          fetch-depth: 0
+
+      - name: Refuse a tag that is not on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "::error::$TAG is not an ancestor of origin/main; refusing to release it"
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Tag must match package.json
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match package.json version $VERSION"
+            exit 1
+          fi
+          LOCK=$(node -p "require('./package-lock.json').version")
+          if [ "$LOCK" != "$VERSION" ]; then
+            echo "::error::package-lock.json says $LOCK, package.json says $VERSION"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Release title from the tag annotation
+        id: title
+        run: |
+          # Three existing tags are lightweight, so this must degrade rather
+          # than fail. git cat-file -t says which kind this one is.
+          SUBJECT=""
+          if [ "$(git cat-file -t "$TAG" 2>/dev/null)" = tag ]; then
+            SUBJECT=$(git for-each-ref "refs/tags/$TAG" --format='%(contents:subject)')
+          fi
+          [ -n "$SUBJECT" ] || SUBJECT="$TAG"
+          echo "title=$SUBJECT" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies (pinned AAHP CLI)
+        run: npm ci --ignore-scripts
+
+      # A tag push bypasses branch protection, so releasability is established
+      # here rather than assumed from the pull request that produced the commit.
+      - name: Resolve the Layer 2 base
+        run: |
+          PARENT=$(git rev-parse "HEAD^" 2>/dev/null || true)
+          if [ -z "$PARENT" ]; then
+            echo "::error::tagged commit has no parent; cannot compute the Layer 2 diff"
+            exit 1
+          fi
+          echo "AAHP_BASE_SHA=$PARENT" >> "$GITHUB_ENV"
+
+      - name: Run aahp verify (CI level, no escape hatch)
+        run: npx --no-install aahp verify . --level ci
+
+      - name: Run aahp check (governance gates)
+        run: npx --no-install aahp check .
+
+      - name: Run aahp doctor (conformance snapshot)
+        run: npx --no-install aahp doctor . --json
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Extract the release notes from CHANGELOG.md
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          # The version reaches awk as data via -v, never as program text, and
+          # the match is a literal prefix: the dots in a version are regex
+          # wildcards, and the closing bracket is what stops "## [0.9.0]" from
+          # also matching "## [0.9.01]".
+          awk -v want="## [${VERSION}]" '
+            { sub(/\r$/, "") }
+            index($0, want) == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release/RELEASE_NOTES.md"
+          if [ ! -s "$RUNNER_TEMP/release/RELEASE_NOTES.md" ]; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' section; refusing to publish a bodyless release"
+            exit 1
+          fi
+
+      - name: Hand the notes to the publish job
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release/RELEASE_NOTES.md
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # The only job with write scope. No checkout, no npm, no repository code.
+    permissions:
+      contents: write
+
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+      TITLE: ${{ needs.build.outputs.title }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Download the release notes
+        uses: actions/download-artifact@v7
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release
+
+      - name: Publish the release
+        run: |
+          NOTES="$RUNNER_TEMP/release/RELEASE_NOTES.md"
+          if OUT=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft 2>&1); then
+            EXISTS=true
+          elif printf '%s' "$OUT" | grep -qi 'release not found'; then
+            EXISTS=false
+          else
+            echo "::error::could not read the release for $TAG: $OUT"
+            exit 1
+          fi
+
+          if [ "$EXISTS" = true ]; then
+            # Re-run after a partial failure: publish a draft, leave a published
+            # release's body alone rather than overwriting hand-written notes.
+            if [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)" = true ]; then
+              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+              echo "::notice::published the existing draft for $TAG"
+            else
+              echo "::notice::$TAG already has a published release; leaving its body untouched"
+            fi
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --notes-file "$NOTES"
+          fi
+
+      - name: Assert the release is published and has a body
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,body > "$RUNNER_TEMP/rel.json"
+          if [ "$(jq -r .isDraft "$RUNNER_TEMP/rel.json")" != false ]; then
+            echo "::error::$TAG exists only as a draft; it has no public release page"
+            exit 1
+          fi
+          if [ "$(jq -r '.body | length' "$RUNNER_TEMP/rel.json")" -lt 1 ]; then
+            echo "::error::$TAG was published with an empty body"
+            exit 1
+          fi
+          echo "::notice::$TAG is published with release notes"

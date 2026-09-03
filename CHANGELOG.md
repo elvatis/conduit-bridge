@@ -10,6 +10,16 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `.github/workflows/release.yml`. A tag push bypasses branch protection entirely -
+  tags are unprotected here and main has no required status checks - so a tag could be
+  cut at any commit, in any state, with nothing looking at it. The workflow refuses a
+  tag that does not match package.json and package-lock.json, is not an ancestor of
+  main, or has no matching CHANGELOG.md section, then runs aahp verify, check and
+  doctor plus typecheck, tests and build before publishing the GitHub Release with
+  notes taken from the changelog.
+- It deliberately publishes no asset. This project is not published to npm and ships no
+  artifact; all 14 releases so far carry zero assets, which is the documented design
+  rather than the oversight it was in conduit-vscode.
 - `aahp check` runs in CI. Only `aahp verify` and `aahp doctor` ran before, so the
   governance gates could not fail a build. `forbidden-patterns` had been failing
   on `main` unseen, with 51 banned em dash characters across 50 lines.
