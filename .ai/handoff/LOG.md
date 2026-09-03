@@ -7,7 +7,7 @@ _Reverse chronological._
 - CLI transport, modes, cwd and model discovery (#103). GitHub Release only.
 - Requires `npm run build` after pulling: the global install symlinks into the
   workspace and serves `dist/`, while `/health` reports the package.json version
-  — a stale `dist/` therefore claims the new version while running old code.
+  - a stale `dist/` therefore claims the new version while running old code.
 
 ## 2026-09-02 - CLI transport, modes and model discovery
 
@@ -18,7 +18,7 @@ _Reverse chronological._
 - Model catalogs are discovered (`agy models`, `grok models`, the Codex and the
   three vendor `models` endpoints) or read from `~/.conduit/models.json`.
 - Providers without a credential stop advertising models; they still route.
-- OPEN: the API-provider discovery paths are unverified live — no key is
+- OPEN: the API-provider discovery paths are unverified live - no key is
   configured for `claude-api`, `gemini-api` or `codex-api` on this machine.
 
 ## 2026-09-02 - v0.7.0
@@ -32,14 +32,14 @@ _Reverse chronological._
 - All four CLI providers map through `cliPermissionArgs`. Grok is plan-by-default.
 - conduit-vscode Plan chat sends `mode: plan`; spawn/fix-issue send `mode: agent`.
 
-## 2026-09-02 — v0.5.2 release
+## 2026-09-02 - v0.5.2 release
 
 - Squash-merged PR #99 onto main (`a4a7a46`).
 - Applied Dependabot bumps: `@anthropic-ai/sdk` 0.122.0, `@types/node` 26.4.1,
   `vitest` 4.1.11. Closed #97 as superseded (AAHP already 3.12.0).
 - Version bump, changelog, GitHub Release v0.5.2.
 
-## 2026-09-02 — control-plane review follow-up
+## 2026-09-02 - control-plane review follow-up
 
 - CSRF now consults `allowedOrigins` before treating `same-site` as forbidden.
 - Dashboard HTML is served without bearer auth; JS collects a token and sends
@@ -60,7 +60,7 @@ _Reverse chronological._
 - Routes match on path. Library start no longer throws on unsupported OS.
 - Focused tests 79 passing; CSRF mutation red then green; tsc clean.
 
-## 2026-09-02 — provider architecture cleanup
+## 2026-09-02 - provider architecture cleanup
 
 - Removed all `web-*` providers and interactive sign-in routes.
 - Removed the Playwright dependency and the browser runtime.

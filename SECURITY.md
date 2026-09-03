@@ -16,6 +16,21 @@ If you believe you have found a security vulnerability in this project, please r
 
 We appreciate responsible disclosure.
 
+
+## Supported Versions
+
+Only the latest release is supported. This project is not published to npm;
+releases are Git tags with a matching GitHub Release, so "latest" means the
+highest version tag on `main`.
+
+| Version | Supported |
+| --- | --- |
+| 0.9.x | yes |
+| older | no |
+
+Report against the latest release. A fix ships in the next release rather
+than as a patch to an older tag.
+
 ## Handling API Keys
 
 This is a **public** repository and the bridge talks to several paid AI APIs, so a

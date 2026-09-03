@@ -8,7 +8,61 @@
     {
       "id": "em-dash",
       "pattern": "\\u2014",
-      "message": "em dash (U+2014) is banned; use a hyphen"
+      "message": "em dash (U+2014) is banned; use a hyphen",
+      "include": [
+        "*.md",
+        "*.mjs",
+        "*.js",
+        "*.json",
+        "*.sh",
+        "*.bash",
+        "*.bats",
+        "*.yml",
+        "*.yaml",
+        "*.txt",
+        "*.example"
+      ]
+    },
+    {
+      "id": "bare-sibling-version",
+      "pattern": "conduit-vscode\\s+(?!v)\\d+\\.\\d+\\.\\d+",
+      "flags": "g",
+      "include": [
+        "*.md"
+      ],
+      "message": "write the sibling repo version as vX.Y.Z so version-sync cannot count it"
     }
-  ]
+  ],
+  "versionSites": [
+    {
+      "file": "README.md",
+      "minOccurrences": 2,
+      "boundary": true,
+      "note": "Current version banner + the bare '### X.Y.Z' changelog heading. Keep those headings BARE: a 'vX.Y.Z' heading is not boundary-matched and this floor would drop to 1."
+    },
+    {
+      "file": "CHANGELOG.md",
+      "minOccurrences": 2,
+      "boundary": true,
+      "note": "'## [X.Y.Z]' release heading plus the '[X.Y.Z]:' compare-link definition"
+    },
+    {
+      "file": ".ai/handoff/STATUS.md",
+      "minOccurrences": 1,
+      "boundary": true,
+      "note": "'## Current Version:' header. Sibling-repo mentions are v-prefixed by the bare-sibling-version rule, so they cannot satisfy this floor by coincidence."
+    }
+  ],
+  "docLinks": {
+    "include": [
+      "README.md",
+      "CLAUDE.md",
+      "CONTRIBUTING.md",
+      "docs/*.md",
+      ".ai/handoff/*.md"
+    ]
+  },
+  "verifyWorkflow": {
+    "enforce": true
+  }
 }

@@ -8,13 +8,46 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `aahp check` runs in CI. Only `aahp verify` and `aahp doctor` ran before, so the
+  governance gates could not fail a build. `forbidden-patterns` had been failing
+  on `main` unseen, with 51 banned em dash characters across 50 lines.
+- `versionSites` for README.md, CHANGELOG.md and .ai/handoff/STATUS.md.
+  `version-sync` had reported "SKIP - no versionSites configured" since this
+  repository was created, so nothing checked that the documented version matched
+  package.json. The anchors it pins did not exist and were added: a
+  "Current version" banner in README, a "## Current Version" header in STATUS.md,
+  and a freshness header in NEXT_ACTIONS.md that is compared for exact equality.
+- `docLinks`, which now resolves 9 internal documentation links, and a
+  `bare-sibling-version` rule so a mention of conduit-vscode's version cannot be
+  counted as this project's own by `version-sync`.
+- `CLAUDE.md`. Its absence is the likeliest reason this repository accumulated 51
+  em dash violations while conduit-vscode, whose CLAUDE.md bans them, had none.
+- SECURITY.md gained a Supported Versions section; the bug report template now
+  asks for OS, node and CLI versions, which this project hard-gates on.
+
+### Changed
+
+- The AAHP gate no longer exempts Dependabot. It stayed a required check while
+  no-opping to success for dependabot[bot], which is worse than an absent check
+  because branch protection displays it as green. `aahp doctor` classified the
+  gate as bypassable for exactly this reason; it now reports 7 of 7 gates passing.
+
+### Fixed
+
+- 51 em dash characters removed from documentation (`.md` and `.env.example`).
+  The gate reports one failure per line and README.md carries two on one line,
+  so a cleanup driven by the finding count would have left it red.
+- NEXT_ACTIONS.md still referred to tagging v0.7.0, two releases back.
+
 ## [0.9.0] - 2026-09-02
 
 ### Added
 
 - `/v1/models` reports `context_window` and `max_output_tokens`. Discovered
-  where a provider says so — the Codex endpoint returns the account's real
-  window — and otherwise from one prefix table in `model-catalog.ts` that
+  where a provider says so - the Codex endpoint returns the account's real
+  window - and otherwise from one prefix table in `model-catalog.ts` that
   `~/.conduit/models.json` can override per model without a rebuild. This is
   the last thing that forced a client to ship its own model table, and such a
   table goes stale the moment catalogs are discovered rather than pinned.
@@ -28,7 +61,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 - `/v1/models` reports `max_prompt_chars` for models whose transport bounds the
   prompt. `agy` takes the prompt on argv, so the OS command line caps it far
-  below the model's token window — a client sizing its context off that window
+  below the model's token window - a client sizing its context off that window
   builds a request the bridge can only reject, which in agent mode kills the
   loop. Only the bridge knows this limit: it follows from the binary and the
   platform, not from the model. Providers on stdin or a prompt file omit the
@@ -40,7 +73,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 - CLI providers could not deliver the user's message on Windows. `claude`
   resolves to `claude.cmd`, so the runner went through `cmd.exe`, which ends its
-  command line at the first newline — the CLI received the system prompt alone,
+  command line at the first newline - the CLI received the system prompt alone,
   exit 0, no error. Prompts now go on stdin, and a multi-line argv argument on
   that path is refused rather than truncated. (#103)
 - `chat` emitted the CLI's plan flags, so an Ask turn was answered by a planner.
@@ -61,7 +94,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
   `models` endpoints for `claude-api`, `gemini-api` and `codex-api`. Results are
   TTL-cached and forced past the TTL by `POST /v1/models/refresh`.
 - `~/.conduit/models.json` (or `$CONDUIT_MODELS_FILE`) overrides any provider's
-  catalog with no rebuild — the only route for `cli-claude`, whose CLI exposes no
+  catalog with no rebuild - the only route for `cli-claude`, whose CLI exposes no
   model listing. Naming a provider pins it and skips discovery for it.
 - `/v1/models` now reports `display_name`.
 - A test workflow: typecheck, vitest and a real build, on Linux and Windows.
@@ -74,7 +107,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - `owned_by` names the CLI that answers (`agy`, `claude-code`, `codex`, `grok`)
   instead of guessing the model's author from its id.
 - Providers advertise everything their CLI serves, including models it resells
-  from other vendors — `cli-gemini` exposes the Anthropic and GPT-OSS models
+  from other vendors - `cli-gemini` exposes the Anthropic and GPT-OSS models
   Antigravity offers. A prefix names the transport, not the vendor.
 - Dropped `gpt-5.5-pro` from the `cli-codex` defaults: a ChatGPT account rejects
   it outright.

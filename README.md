@@ -4,6 +4,8 @@
 [![supply-chain-guard](https://img.shields.io/badge/supply--chain--guard-enabled-blue)](https://github.com/homeofe/supply-chain-guard)
 [![scanned by supply-chain-guard](https://img.shields.io/badge/scanned%20by-supply--chain--guard-2ea44f?logo=npm&logoColor=white)](https://github.com/homeofe/supply-chain-guard)
 
+**Current version:** 0.9.0
+
 Conduit Bridge is a local OpenAI-compatible gateway for direct provider APIs,
 authenticated coding CLIs, and LM Studio. It runs on Windows Desktop and Linux
 Desktop and exposes one loopback listener at `127.0.0.1:31338`.
@@ -73,10 +75,10 @@ on Windows or `~/.conduit/config.json` on Linux.
 
 Authenticate each installed tool using its official login flow:
 
-- `cli-claude` — Claude Code
-- `cli-codex` — Codex CLI
-- `cli-gemini` — the configured Gemini-compatible CLI
-- `cli-grok` — Grok CLI
+- `cli-claude` - Claude Code
+- `cli-codex` - Codex CLI
+- `cli-gemini` - the configured Gemini-compatible CLI
+- `cli-grok` - Grok CLI
 
 Conduit invokes these tools non-interactively for requests. Provider accounts,
 subscriptions, usage limits, and terms remain controlled by each provider.
@@ -85,7 +87,7 @@ subscriptions, usage limits, and terms remain controlled by each provider.
 
 `cli-gemini` and `cli-grok` learn their catalogs at runtime from `agy models`
 and `grok models`, so a new model release appears on its own. `cli-claude` and
-`cli-codex` cannot — neither binary has a model-listing subcommand — so their
+`cli-codex` cannot - neither binary has a model-listing subcommand - so their
 lists ship as defaults.
 
 Any of the four can be overridden from `~/.conduit/models.json` (or the path in
@@ -106,14 +108,14 @@ offers today:
 | --- | --- |
 | `agy` | `agy models` |
 | `grok` | `grok models` |
-| `codex` | run `codex`, then `/model` — it has no non-interactive listing |
+| `codex` | run `codex`, then `/model` - it has no non-interactive listing |
 | `claude` | no listing of any kind; use this file |
 
 `cli-codex` discovers its catalog over HTTP from ChatGPT's own Codex model
 endpoint, which reports the account's real entitlements.
 
 A prefix names the **transport**, not the vendor. `agy` resells Anthropic and
-GPT-OSS models alongside Google's, and those are advertised too — reaching
+GPT-OSS models alongside Google's, and those are advertised too - reaching
 Claude Sonnet through an Antigravity subscription is a different quota, auth
 and rate limit than reaching it through an Anthropic one, which is the point:
 
@@ -123,13 +125,13 @@ cli-claude/claude-sonnet-5     claude-sonnet-5 (Claude Code CLI)        owned_by
 ```
 
 Ids stay unique because the prefixes differ, and `owned_by` names the CLI that
-answers rather than guessing the model's author from its id — `gpt-oss-120b` is
+answers rather than guessing the model's author from its id - `gpt-oss-120b` is
 OpenAI's open-weight model but is not obtainable from OpenAI, so calling it
 `openai` would advertise a route that does not exist. To restrict a provider
 to one vendor, pin it in `models.json`.
 
 Naming a provider **pins** it: that list is served verbatim and runtime
-discovery is skipped for it — the escape hatch for a CLI that is offline or
+discovery is skipped for it - the escape hatch for a CLI that is offline or
 whose `models` output cannot be parsed. Providers the file does not mention are
 unaffected. Edits are picked up on the next `POST /v1/models/refresh`, without
 restarting the bridge. An entry that is malformed, empty, or has no valid model
