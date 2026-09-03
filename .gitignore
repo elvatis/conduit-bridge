@@ -18,3 +18,12 @@ dist/
 secrets.json
 credentials.json
 service-account*.json
+
+# Claude Code machine-local settings. settings.local.json holds a per-machine
+# permission allowlist of absolute paths, so it carries the operator's username
+# and internal host names into a public repository. It is NOT tracked here, but
+# was covered only by a global ~/.gitignore, which is per-machine: a checkout on
+# another machine would commit it on its first "git add -A". conduit-vscode was
+# exposed exactly that way from 2026-03-15 to 2026-09-03.
+.claude/settings.local.json
+.claude/*.local.json
