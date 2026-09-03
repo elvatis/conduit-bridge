@@ -51,6 +51,12 @@
       "minOccurrences": 1,
       "boundary": true,
       "note": "'## Current Version:' header. Sibling-repo mentions are v-prefixed by the bare-sibling-version rule, so they cannot satisfy this floor by coincidence."
+    },
+    {
+      "file": "CLAUDE.md",
+      "minOccurrences": 1,
+      "boundary": true,
+      "note": "the Current version line. conduit-vscode pins this too; it went stale there at 0.9.0 while package.json read 0.10.1."
     }
   ],
   "docLinks": {
