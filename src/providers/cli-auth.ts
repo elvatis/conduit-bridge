@@ -15,7 +15,10 @@ export interface CliSessionState {
 const CRED_FILES: Record<CliAuthKind, string[]> = {
   claude: ['.claude/.credentials.json', '.claude.json'],
   codex: ['.codex/auth.json'],
-  gemini: ['.gemini/oauth_creds.json'],
+  // .gemini/oauth_creds.json is the legacy `gemini` CLI's token. The current
+  // `agy` (Antigravity CLI) binary that cli-gemini actually shells out to
+  // writes its own token elsewhere, so both paths have to be checked.
+  gemini: ['.gemini/oauth_creds.json', '.gemini/antigravity-cli/antigravity-oauth-token'],
   grok: ['.grok/auth.json', '.grok/credentials.json'],
 };
 
