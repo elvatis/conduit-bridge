@@ -2,6 +2,16 @@
 
 _Reverse chronological._
 
+## 2026-09-06 - cli-gemini auth probe missed the Antigravity token
+
+- `hasCliCredentialFile('gemini')` only checked `.gemini/oauth_creds.json`
+  (the legacy `gemini` CLI), not `.gemini/antigravity-cli/antigravity-oauth-token`
+  (the `agy` binary `cli-gemini` actually runs). An authenticated `agy` install
+  read as logged out, so `/v1/chat/completions` failed with
+  `provider_unavailable` while `agy models`/`agy -p` worked fine directly.
+- Fixed in `src/providers/cli-auth.ts`; regression test added and mutation
+  proved (red on the pre-fix code). PR #114.
+
 ## 2026-09-02 - v0.8.0
 
 - CLI transport, modes, cwd and model discovery (#103). GitHub Release only.
