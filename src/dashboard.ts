@@ -1,3 +1,5 @@
+import { TRANSLATIONS } from './i18n.js';
+import { I18N_SCRIPT } from './ui/i18n.js';
 import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
 import { PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
 
@@ -109,6 +111,18 @@ const SHARED_STYLE = `
     background: var(--panel);
     border-color: var(--line);
   }
+  .nav-group-label {
+    font: 600 9.5px ui-monospace, monospace;
+    letter-spacing: .12em;
+    color: var(--muted);
+    padding: 10px 10px 3px;
+    text-transform: uppercase;
+    opacity: .55;
+    pointer-events: none;
+    user-select: none;
+  }
+  .sidebar.collapsed .nav-group-label { display: none; }
+  button > svg { flex-shrink: 0; }
   .side-menu {
     display: grid;
     gap: 3px;
@@ -349,7 +363,7 @@ const SHARED_STYLE = `
   .setting-badge.muted { color: var(--muted); background: #1a2536; border-color: var(--line); }
   .policy-form { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
   .policy-controls-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr) auto; gap: 12px; align-items: end; }
-  
+
   /* Tool Multi-Select Component */
   .tool-picker-container {
     background: #081526;
@@ -812,11 +826,11 @@ const SHARED_STYLE = `
 `;
 
 export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Conduit Bridge - Provider Control Plane</title>
+  <title data-i18n="ui_title">Conduit Bridge - Provider Control Plane</title>
   <style>${SHARED_STYLE}</style>
 </head>
 <body>
@@ -825,112 +839,118 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
     <div class="sidebar-header">
       <div class="brand">
         <div class="brand-info">
-          <div class="brand-mark">OPEN SOURCE / COMMUNITY</div>
+          <div class="brand-mark" data-i18n="ui_community">OPEN SOURCE / COMMUNITY</div>
           <h1>Conduit Bridge</h1>
-          <small>Provider control plane</small>
+          <small data-i18n="ui_provider_control">Provider control plane</small>
         </div>
       </div>
-      <button class="collapse-btn" id="sidebar-collapse-btn" type="button" title="Toggle sidebar layout" aria-label="Toggle sidebar">
+      <button class="collapse-btn" id="sidebar-collapse-btn" type="button" title="Toggle sidebar layout" data-i18n-title="ui_toggle_sidebar_layout" aria-label="Toggle sidebar" data-i18n-aria="ui_toggle_sidebar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9-3 3 3 3"/></svg>
       </button>
     </div>
-    <nav class="side-menu" aria-label="Dashboard sections" id="side-nav">
-      <button class="active" data-section="overview" title="Overview">
+    <nav class="side-menu" aria-label="Dashboard sections" data-i18n-aria="ui_dashboard_sections" id="side-nav">
+      <div class="nav-group-label" data-nav-group="core" data-i18n="group_core">Core</div>
+      <button class="active" data-section="overview" title="Overview" data-i18n-title="nav_overview">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-        <span class="nav-label">Overview</span>
+        <span class="nav-label" data-i18n="nav_overview">Overview</span>
       </button>
-      <button data-section="platform" title="Conversation & agent workspace">
+      <button data-section="platform" title="Conversation &amp; Agent Workspace" data-i18n-title="h_platform">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
-        <span class="nav-label">Webchat & agents</span>
+        <span class="nav-label" data-i18n="nav_platform">Webchat &amp; agents</span>
       </button>
-      <button data-section="playground" title="Playground">
+      <button data-section="playground" title="Playground" data-i18n-title="nav_playground">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-        <span class="nav-label">Playground</span>
+        <span class="nav-label" data-i18n="nav_playground">Playground</span>
       </button>
-      <button data-section="api-providers" title="API Providers">
+      <div class="nav-group-label" data-nav-group="providers" data-i18n="group_providers">Providers</div>
+      <button data-section="api-providers" title="API providers" data-i18n-title="nav_api_providers">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-        <span class="nav-label">API providers</span>
+        <span class="nav-label" data-i18n="nav_api_providers">API providers</span>
       </button>
-      <button data-section="cli-providers" title="CLI Providers">
+      <button data-section="cli-providers" title="CLI providers" data-i18n-title="nav_cli_providers">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
-        <span class="nav-label">CLI providers</span>
+        <span class="nav-label" data-i18n="nav_cli_providers">CLI providers</span>
       </button>
-      <button data-section="agent-controls" title="Agent Controls">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-        <span class="nav-label">Agent controls</span>
-      </button>
-      <button data-section="pipelines" title="Pipelines & Chaining">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6"/><circle cx="18" cy="9" r="3"/><path d="M6 15a6 6 0 0 0 6-6V9a6 6 0 0 1 6-6"/></svg>
-        <span class="nav-label">Pipelines</span>
-      </button>
-      <button data-section="governance" title="Repository Governance">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        <span class="nav-label">Governance</span>
-      </button>
-      <button data-section="budgets" title="Budget Controls">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v2"/><path d="M12 16v2"/></svg>
-        <span class="nav-label">Budgets</span>
-      </button>
-      <button data-section="workspaces" title="Workspaces & Working Directories">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        <span class="nav-label">Workspaces</span>
-      </button>
-      <button data-section="local-providers" title="Local Providers">
+      <button data-section="local-providers" title="Local providers" data-i18n-title="nav_local_providers">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
-        <span class="nav-label">Local providers</span>
+        <span class="nav-label" data-i18n="nav_local_providers">Local providers</span>
       </button>
-      <button data-section="models" title="Models">
+      <div class="nav-group-label" data-nav-group="agent_ops" data-i18n="group_agent_ops">Agent Ops</div>
+      <button data-section="agent-controls" title="Agent controls" data-i18n-title="nav_agent_controls">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+        <span class="nav-label" data-i18n="nav_agent_controls">Agent controls</span>
+      </button>
+      <button data-section="pipelines" title="Pipelines &amp; Chaining" data-i18n-title="ui_pipelines_chaining">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6"/><circle cx="18" cy="9" r="3"/><path d="M6 15a6 6 0 0 0 6-6V9a6 6 0 0 1 6-6"/></svg>
+        <span class="nav-label" data-i18n="nav_pipelines">Pipelines</span>
+      </button>
+      <button data-section="governance" title="Repository Governance" data-i18n-title="h_governance">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span class="nav-label" data-i18n="nav_governance">Governance</span>
+      </button>
+      <button data-section="budgets" title="Budget Controls" data-i18n-title="h_budgets">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v2"/><path d="M12 16v2"/></svg>
+        <span class="nav-label" data-i18n="nav_budgets">Budgets</span>
+      </button>
+      <button data-section="workspaces" title="Workspaces &amp; Working Directories" data-i18n-title="ui_workspaces_directories">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span class="nav-label" data-i18n="nav_workspaces">Workspaces</span>
+      </button>
+      <div class="nav-group-label" data-nav-group="analytics" data-i18n="group_analytics">Analytics</div>
+      <button data-section="models" title="Models" data-i18n-title="nav_models">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
-        <span class="nav-label">Models</span>
+        <span class="nav-label" data-i18n="nav_models">Models</span>
       </button>
-      <button data-section="usage" title="Usage Statistics">
+      <button data-section="usage" title="Usage Statistics" data-i18n-title="ui_usage_statistics">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-        <span class="nav-label">Usage</span>
+        <span class="nav-label" data-i18n="nav_usage">Usage</span>
       </button>
-      <button data-section="orchestrator" title="Orchestrator">
+      <button data-section="orchestrator" title="Orchestrator" data-i18n-title="nav_orchestrator">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><circle cx="5" cy="19" r="2"/><path d="M10.4 10.4 6.5 6.5"/><path d="M13.6 10.4l3.9-3.9"/><path d="M10.4 13.6 6.5 17.5"/><path d="M13.6 13.6l3.9 3.9"/></svg>
-        <span class="nav-label">Orchestrator</span>
+        <span class="nav-label" data-i18n="nav_orchestrator">Orchestrator</span>
       </button>
-      <button data-section="integration" title="Integration Tests">
+      <div class="nav-group-label" data-nav-group="system" data-i18n="group_system">System</div>
+      <button data-section="integration" title="Integration tests" data-i18n-title="nav_integration">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        <span class="nav-label">Integration tests</span>
+        <span class="nav-label" data-i18n="nav_integration">Integration tests</span>
       </button>
-      <button data-section="recommendations" title="Recommendations">
+      <button data-section="recommendations" title="Recommendations" data-i18n-title="nav_recommendations">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-        <span class="nav-label">Recommendations</span>
+        <span class="nav-label" data-i18n="nav_recommendations">Recommendations</span>
       </button>
-      <button data-section="activity" title="Activity & Telemetry">
+      <button data-section="activity" title="Activity &amp; Telemetry" data-i18n-title="h_activity">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        <span class="nav-label">Activity</span>
+        <span class="nav-label" data-i18n="nav_activity">Activity</span>
       </button>
-      <button data-section="settings" title="Settings">
+      <button data-section="settings" title="Settings" data-i18n-title="nav_settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span class="nav-label">Settings</span>
+        <span class="nav-label" data-i18n="nav_settings">Settings</span>
       </button>
-      <button data-section="help" title="Help & Documentation">
+      <button data-section="help" title="Help &amp; Documentation" data-i18n-title="ui_help_documentation">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-        <span class="nav-label">Help</span>
+        <span class="nav-label" data-i18n="nav_help">Help</span>
       </button>
     </nav>
-    <button class="nav-custom-trigger" id="open-nav-custom-btn" type="button" title="Customize navigation visibility">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
-      <span>Customize Nav</span>
+    <button class="nav-custom-trigger" id="open-nav-custom-btn" type="button" title="Customize navigation visibility" data-i18n-title="ui_customize_visibility"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="15"/><line x1="12" x2="12" y1="11" y2="3"/><line x1="20" x2="20" y1="21" y2="17"/><line x1="20" x2="20" y1="13" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="15" y2="15"/><line x1="17" x2="23" y1="17" y2="17"/></svg>
+
+      <span data-i18n="ui_customize_nav">Customize Nav</span>
     </button>
     <div class="side-footer">
-      <span id="side-runtime">Loading...</span>
+      <span id="side-runtime" data-i18n="ui_loading">Loading...</span>
     </div>
   </aside>
 
   <div class="workspace">
-    <nav class="appbar" aria-label="Dashboard controls">
+    <nav class="appbar" aria-label="Dashboard controls" data-i18n-aria="ui_dashboard_controls">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <button id="menu-toggle" type="button" aria-label="Toggle navigation">Menu</button>
+        <button id="menu-toggle" type="button" aria-label="Toggle navigation" data-i18n-aria="ui_toggle_navigation" data-i18n="ui_menu">Menu</button>
         <span class="appbrand">CONDUIT BRIDGE</span>
       </div>
       <div class="header-actions">
+        <button id="lang-toggle" type="button" title="Switch language" data-i18n-title="ui_switch_language" aria-label="Toggle language" data-i18n-aria="ui_toggle_language"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="lang-label">DE</span></button>
         <button id="refresh" type="button">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-          Refresh
+          <span class="action-label" data-i18n="btn_refresh">Refresh</span>
         </button>
       </div>
     </nav>
@@ -942,43 +962,43 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
     <div id="overview-section" class="page-section active">
       <header id="overview" class="anchor">
         <div>
-          <h1>Operational Dashboard</h1>
-          <div class="muted" id="version">Loading...</div>
+          <h1 data-i18n="h_overview">Operational Dashboard</h1>
+          <div class="muted" id="version" data-i18n="ui_loading">Loading...</div>
         </div>
       </header>
-      <div class="summary" aria-label="Runtime summary">
-        <div class="summary-item"><strong id="summary-connected">-</strong><span>Connected providers</span></div>
-        <div class="summary-item"><strong id="summary-models">-</strong><span>Registered models</span></div>
-        <div class="summary-item"><strong id="summary-requests">-</strong><span>Requests handled</span></div>
-        <div class="summary-item"><strong id="summary-active">-</strong><span>Active requests</span></div>
+      <div class="summary" aria-label="Runtime summary" data-i18n-aria="ui_runtime_summary">
+        <div class="summary-item"><strong id="summary-connected">-</strong><span data-i18n="ui_connected_providers">Connected providers</span></div>
+        <div class="summary-item"><strong id="summary-models">-</strong><span data-i18n="ui_registered_models">Registered models</span></div>
+        <div class="summary-item"><strong id="summary-requests">-</strong><span data-i18n="ui_requests_handled">Requests handled</span></div>
+        <div class="summary-item"><strong id="summary-active">-</strong><span data-i18n="ui_active_requests">Active requests</span></div>
       </div>
       <div class="grid">
-        <article class="transport"><strong>api-*</strong><h3>Direct APIs</h3><p>Requests use provider SDK or REST endpoints. Independent API keys managed via protected Bridge settings.</p></article>
-        <article class="transport"><strong>cli-*</strong><h3>Local coding CLIs</h3><p>Requests route to Claude Code, OpenAI Codex, Antigravity Gemini, or Grok CLI with account isolation.</p></article>
-        <article class="transport"><strong>lmstudio/*</strong><h3>Local models</h3><p>Requests route to an OpenAI-compatible LM Studio server on localhost without cloud dependencies.</p></article>
+        <article class="transport"><strong>api-*</strong><h3 data-i18n="ui_direct_apis">Direct APIs</h3><p data-i18n="ui_direct_apis_description">Requests use provider SDK or REST endpoints. Independent API keys managed via protected Bridge settings.</p></article>
+        <article class="transport"><strong>cli-*</strong><h3 data-i18n="ui_local_clis">Local coding CLIs</h3><p data-i18n="ui_local_clis_description">Requests route to Claude Code, OpenAI Codex, Antigravity Gemini, or Grok CLI with account isolation.</p></article>
+        <article class="transport"><strong>lmstudio/*</strong><h3 data-i18n="ui_local_models">Local models</h3><p data-i18n="ui_local_models_description">Requests route to an OpenAI-compatible LM Studio server on localhost without cloud dependencies.</p></article>
       </div>
     </div>
 
     <!-- Playground Section -->
     <section id="playground-section" class="playground page-section">
-      <h2>Local Playground</h2>
-      <p class="muted">Send interactive test requests through the OpenAI-compatible proxy interface.</p>
-      <label>Model<select id="play-model"></select></label>
-      <label>Mode
+      <h2 data-i18n="h_playground">Local Playground</h2>
+      <p class="muted" data-i18n="ui_playground_description">Send interactive test requests through the OpenAI-compatible proxy interface.</p>
+      <label><span data-i18n="lbl_model">Model</span><select id="play-model"></select></label>
+      <label><span data-i18n="lbl_mode">Mode</span>
         <select id="play-mode">
-          <option value="chat">Chat (read-only inference)</option>
-          <option value="plan">Plan (architectural proposal)</option>
-          <option value="agent">Agent (autonomous workspace writes)</option>
+          <option value="chat" data-i18n="mode_chat_description">Chat (read-only inference)</option>
+          <option value="plan" data-i18n="mode_plan_description">Plan (architectural proposal)</option>
+          <option value="agent" data-i18n="mode_agent_description">Agent (autonomous workspace writes)</option>
         </select>
       </label>
       <div style="display: grid; grid-template-columns: 1fr minmax(180px, 260px); gap: 10px; align-items: end;">
-        <label>Working directory<input id="play-cwd" type="text" placeholder="Absolute path (required when agent mode is selected)"></label>
-        <label>Workspace quick select<select id="play-ws-select"><option value="">-- Choose Workspace --</option></select></label>
+        <label><span data-i18n="lbl_working_dir">Working directory</span><input id="play-cwd" type="text" placeholder="Absolute path (required when agent mode is selected)" data-i18n-ph="ph_absolute_path"></label>
+        <label><span data-i18n="lbl_workspace_quick">Workspace quick select</span><select id="play-ws-select"><option value="" data-i18n="ui_choose_workspace">-- Choose Workspace --</option></select></label>
       </div>
-      <label>Effort tier<select id="play-effort"></select></label>
-      <label>Prompt<textarea id="play-prompt">Reply with exactly: pong</textarea></label>
+      <label><span data-i18n="lbl_effort">Effort tier</span><select id="play-effort"></select></label>
+      <label><span data-i18n="lbl_prompt">Prompt</span><textarea id="play-prompt" data-i18n-value="sample_ping">Reply with exactly: pong</textarea></label>
       <div class="play-actions">
-        <button id="play-run" class="primary" type="button">Run test</button>
+        <button id="play-run" class="primary" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_run_test">Run test</span></button>
         <span id="play-note" class="muted"></span>
       </div>
       <pre id="play-output" aria-live="polite">No test run yet.</pre>
@@ -987,52 +1007,52 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
     <!-- API Providers Section -->
     <div id="api-providers-section" class="wide page-section">
       <section>
-        <h2>API providers</h2>
-        <p class="muted">Direct cloud APIs configured via environment variables or write-only settings.</p>
-        <div id="api-provider-list">Loading...</div>
+        <h2 data-i18n="h_api_providers">API providers</h2>
+        <p class="muted" data-i18n="ui_api_description">Direct cloud APIs configured via environment variables or write-only settings.</p>
+        <div id="api-provider-list" data-i18n="ui_loading">Loading...</div>
       </section>
     </div>
 
     <!-- CLI Providers Section -->
     <div id="cli-providers-section" class="wide page-section">
       <section>
-        <h2>CLI providers</h2>
-        <p class="muted">Installed command-line tools leveraging native terminal authentication and workspaces.</p>
-        <div id="cli-provider-list">Loading...</div>
+        <h2 data-i18n="h_cli_providers">CLI providers</h2>
+        <p class="muted" data-i18n="ui_cli_description">Installed command-line tools leveraging native terminal authentication and workspaces.</p>
+        <div id="cli-provider-list" data-i18n="ui_loading">Loading...</div>
       </section>
     </div>
 
     <!-- Agent Controls Section -->
     <div id="agent-controls-section" class="wide page-section">
       <section>
-        <h2>Provider agent controls</h2>
-        <p class="muted">Govern autonomous agent execution, default run modes, and restricted tools per provider with structured tool selection inspired by OpenClaw.</p>
-        <div id="agent-policy-list">Loading...</div>
+        <h2 data-i18n="h_agent_controls">Agent controls</h2>
+        <p class="muted" data-i18n="ui_agent_description">Govern autonomous agent execution, default run modes, and restricted tools per provider with structured tool selection inspired by OpenClaw.</p>
+        <div id="agent-policy-list" data-i18n="ui_loading">Loading...</div>
       </section>
 
       <section style="margin-top: 20px;">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
           <div>
-            <h3>Host Discovered System Tools (Windows Environment)</h3>
-            <p class="muted">Automatically detected developer binaries and environments on system PATH.</p>
+            <h3 data-i18n="h_system_tools">Discovered System Tools</h3>
+            <p class="muted" data-i18n="ui_system_tools_description">Automatically detected developer binaries and environments on system PATH.</p>
           </div>
-          <button type="button" id="btn-rediscover-tools" class="primary">Rediscover Tools</button>
+          <button type="button" id="btn-rediscover-tools" class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg><span class="action-label" data-i18n="btn_rediscover_tools">Rediscover Tools</span></button>
         </div>
-        <div id="system-tools-list">Scanning system PATH...</div>
+        <div id="system-tools-list" data-i18n="ui_scanning_system">Scanning system PATH...</div>
       </section>
 
       <section style="margin-top: 20px;">
-        <h3>Human-Readable Tool Catalog</h3>
-        <p class="muted">Capability badges, classification tags, and security risk levels for all bridge operations.</p>
+        <h3 data-i18n="h_tool_catalog">Tool Catalog</h3>
+        <p class="muted" data-i18n="ui_tool_catalog_description">Capability badges, classification tags, and security risk levels for all bridge operations.</p>
         <div class="filter-chips" id="catalog-class-chips">
-          <button type="button" class="filter-chip active" data-class="all">All Tools</button>
-          <button type="button" class="filter-chip" data-class="Read Only">Read Only</button>
-          <button type="button" class="filter-chip" data-class="Workspace Modify">Workspace Modify</button>
-          <button type="button" class="filter-chip" data-class="System Modify">System Modify</button>
-          <button type="button" class="filter-chip" data-class="Network Access">Network Access</button>
-          <button type="button" class="filter-chip" data-class="External Service">External Service</button>
+          <button type="button" class="filter-chip active" data-class="all" data-i18n="ui_all_tools">All Tools</button>
+          <button type="button" class="filter-chip" data-class="Read Only" data-i18n="class_read_only">Read Only</button>
+          <button type="button" class="filter-chip" data-class="Workspace Modify" data-i18n="class_workspace_modify">Workspace Modify</button>
+          <button type="button" class="filter-chip" data-class="System Modify" data-i18n="class_system_modify">System Modify</button>
+          <button type="button" class="filter-chip" data-class="Network Access" data-i18n="class_network_access">Network Access</button>
+          <button type="button" class="filter-chip" data-class="External Service" data-i18n="class_external_service">External Service</button>
         </div>
-        <div id="tool-catalog-container" class="tool-catalog-grid">Loading catalog...</div>
+        <div id="tool-catalog-container" class="tool-catalog-grid" data-i18n="ui_loading_catalog">Loading catalog...</div>
       </section>
     </div>
 
@@ -1041,42 +1061,42 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
       <section>
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
           <div>
-            <h2>Agent Pipelines & Chaining</h2>
-            <p class="muted">Multi-step agent pipelines across heterogeneous providers with dependency resolution, parallel review stages, and human approval checkpoints.</p>
+            <h2 data-i18n="h_pipelines">Agent Pipelines</h2>
+            <p class="muted" data-i18n="ui_pipelines_description">Multi-step agent pipelines across heterogeneous providers with dependency resolution, parallel review stages, and human approval checkpoints.</p>
           </div>
-          <button id="btn-open-create-pipeline" class="primary" type="button">+ New Custom Pipeline</button>
+          <button id="btn-open-create-pipeline" class="primary" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_new_pipeline">New Custom Pipeline</span></button>
         </div>
 
         <div class="pipeline-run-box">
-          <h3>Trigger Pipeline Execution</h3>
-          <p class="muted">Launch an end-to-end multi-agent workflow with repository binding and budget controls.</p>
+          <h3 data-i18n="h_trigger_pipeline">Trigger Pipeline Execution</h3>
+          <p class="muted" data-i18n="ui_trigger_pipeline_description">Launch an end-to-end multi-agent workflow with repository binding and budget controls.</p>
           <div class="pipeline-run-fields">
-            <label><span>Select Pipeline</span><select id="pipe-run-select"></select></label>
-            <label><span>Repository Target</span><select id="pipe-run-repo"><option value="">Default / Global</option></select></label>
-            <label><span>Working Directory</span><select id="pipe-run-cwd"><option value="">Default Workspace</option></select></label>
-            <button id="pipe-run-btn" class="primary" type="button" style="height: 42px;">Execute Pipeline</button>
+            <label><span data-i18n="lbl_pipeline">Select Pipeline</span><select id="pipe-run-select"></select></label>
+            <label><span data-i18n="lbl_repository">Repository Target</span><select id="pipe-run-repo"><option value="" data-i18n="ui_default_global">Default / Global</option></select></label>
+            <label><span data-i18n="lbl_working_dir">Working directory</span><select id="pipe-run-cwd"><option value="" data-i18n="ui_default_workspace">Default Workspace</option></select></label>
+            <button id="pipe-run-btn" class="primary" type="button" style="height: 42px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg><span class="action-label" data-i18n="btn_execute_pipeline">Execute Pipeline</span></button>
           </div>
-          <label><span>Initial Prompt / Task Description</span><textarea id="pipe-run-prompt" placeholder="Describe the goal or codebase problem to solve across the pipeline steps...">Refactor the authentication middleware to support token rotation and write comprehensive unit tests.</textarea></label>
+          <label><span data-i18n="lbl_initial_prompt">Initial Prompt / Task Description</span><textarea id="pipe-run-prompt" placeholder="Describe the goal or codebase problem to solve across the pipeline steps..." data-i18n-ph="ph_initial_prompt" data-i18n-value="sample_pipeline">Refactor the authentication middleware to support token rotation and write comprehensive unit tests.</textarea></label>
           <div id="pipe-live-status" aria-live="polite" aria-atomic="false"></div>
         </div>
 
         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; flex-wrap: wrap; gap: 10px;">
-          <h3 style="margin: 0;">Available Pipelines & Governance Templates</h3>
+          <h3 style="margin: 0;" data-i18n="h_available_pipelines">Pipelines &amp; Governance Templates</h3>
           <div class="filter-chips" id="pipe-category-chips" style="margin: 0;">
-            <button type="button" class="filter-chip active" data-cat="all">All</button>
-            <button type="button" class="filter-chip" data-cat="governance">Governance</button>
-            <button type="button" class="filter-chip" data-cat="review">Review</button>
-            <button type="button" class="filter-chip" data-cat="engineering">Engineering</button>
-            <button type="button" class="filter-chip" data-cat="security">Security</button>
-            <button type="button" class="filter-chip" data-cat="custom">Custom</button>
+            <button type="button" class="filter-chip active" data-cat="all" data-i18n="ui_all">All</button>
+            <button type="button" class="filter-chip" data-cat="governance" data-i18n="nav_governance">Governance</button>
+            <button type="button" class="filter-chip" data-cat="review" data-i18n="ui_review">Review</button>
+            <button type="button" class="filter-chip" data-cat="engineering" data-i18n="ui_engineering">Engineering</button>
+            <button type="button" class="filter-chip" data-cat="security" data-i18n="ui_security">Security</button>
+            <button type="button" class="filter-chip" data-cat="custom" data-i18n="ui_custom">Custom</button>
           </div>
         </div>
-        <div id="pipelines-list">Loading pipelines...</div>
+        <div id="pipelines-list" data-i18n="ui_loading_pipelines">Loading pipelines...</div>
 
-        <h3 style="margin-top: 24px;">Approval Inbox</h3>
-        <div id="pipeline-approvals" class="activity-list">No approvals pending.</div>
-        <h3 style="margin-top: 24px;">Execution History</h3>
-        <div id="pipelines-history" class="activity-list">No runs recorded yet.</div>
+        <h3 style="margin-top: 24px;" data-i18n="ui_approval_inbox">Approval Inbox</h3>
+        <div id="pipeline-approvals" class="activity-list" data-i18n="ui_no_approvals">No approvals pending.</div>
+        <h3 style="margin-top: 24px;" data-i18n="ui_exec_history">Execution History</h3>
+        <div id="pipelines-history" class="activity-list" data-i18n="ui_no_runs">No runs recorded yet.</div>
       </section>
     </div>
 
@@ -1085,72 +1105,72 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
       <section>
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
           <div>
-            <h2>Repository Governance & Pipeline Templates</h2>
-            <p class="muted">Bind multi-agent governance templates to repositories, configure mandatory approval gates, and track audit records.</p>
+            <h2 data-i18n="h_governance">Repository Governance</h2>
+            <p class="muted" data-i18n="ui_governance_description">Bind multi-agent governance templates to repositories, configure mandatory approval gates, and track audit records.</p>
           </div>
-          <button id="btn-open-add-repo" class="primary" type="button">+ Register Repository</button>
+          <button id="btn-open-add-repo" class="primary" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_register_repo">Register Repository</span></button>
         </div>
 
-        <h3>Active Repositories</h3>
-        <div id="repos-table-container">Loading repositories...</div>
+        <h3 data-i18n="h_active_repositories">Active Repositories</h3>
+        <div id="repos-table-container" data-i18n="ui_loading_repositories">Loading repositories...</div>
 
         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 28px; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
           <div>
-            <h3 style="margin: 0;">Governance Approval Audit Trail</h3>
-            <p class="muted" style="margin: 0; font-size: 13px;">Full audit log of human authorizations, gate sign-offs, and rejections.</p>
+            <h3 style="margin: 0;" data-i18n="h_governance_audit">Governance Approval Audit Trail</h3>
+            <p class="muted" style="margin: 0; font-size: 13px;" data-i18n="ui_governance_audit_description">Full audit log of human authorizations, gate sign-offs, and rejections.</p>
           </div>
           <div class="play-actions">
-            <button type="button" id="btn-export-audit-json">Export JSON</button>
-            <button type="button" class="primary" id="btn-export-audit-md">Export Markdown</button>
+            <button type="button" id="btn-export-audit-json"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span class="action-label" data-i18n="btn_export_json">Export JSON</span></button>
+            <button type="button" class="primary" id="btn-export-audit-md"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span class="action-label" data-i18n="btn_export_md">Export Markdown</span></button>
           </div>
         </div>
-        <div id="audit-trail-container">Loading audit trail...</div>
+        <div id="audit-trail-container" data-i18n="ui_loading_audit">Loading audit trail...</div>
       </section>
     </div>
 
     <!-- Budgets Section -->
     <div id="budgets-section" class="wide page-section">
       <section>
-        <h2>Pipeline Budget Controls & Spending Limits</h2>
-        <p class="muted">Enforce cost limits, token consumption thresholds, and daily/monthly spending caps with hard stops and soft warnings.</p>
+        <h2 data-i18n="h_budgets">Budget Controls</h2>
+        <p class="muted" data-i18n="ui_budgets_description">Enforce cost limits, token consumption thresholds, and daily/monthly spending caps with hard stops and soft warnings.</p>
 
         <div class="grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
           <div class="budget-gauge" id="daily-budget-gauge">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <strong>Daily Spending Budget</strong>
+              <strong data-i18n="lbl_daily_spending">Daily Spending Budget</strong>
               <span id="daily-budget-text" class="setting-badge ok">$0.00 / $10.00 (0%)</span>
             </div>
             <div class="budget-meter"><div id="daily-budget-fill" class="budget-fill safe" style="width: 0%;"></div></div>
-            <small class="muted" id="daily-budget-sub">Resets at midnight UTC</small>
+            <small class="muted" id="daily-budget-sub" data-i18n="ui_daily_reset">Resets at midnight UTC</small>
           </div>
 
           <div class="budget-gauge" id="monthly-budget-gauge">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <strong>Monthly Spending Budget</strong>
+              <strong data-i18n="lbl_monthly_spending">Monthly Spending Budget</strong>
               <span id="monthly-budget-text" class="setting-badge ok">$0.00 / $100.00 (0%)</span>
             </div>
             <div class="budget-meter"><div id="monthly-budget-fill" class="budget-fill safe" style="width: 0%;"></div></div>
-            <small class="muted" id="monthly-budget-sub">Resets on 1st of month</small>
+            <small class="muted" id="monthly-budget-sub" data-i18n="ui_monthly_reset">Resets on 1st of month</small>
           </div>
         </div>
 
-        <h3>Budget Configuration</h3>
+        <h3 data-i18n="h_budget_configuration">Budget Configuration</h3>
         <form id="budget-config-form" class="provider-block" style="padding: 16px;">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
-            <label><span>Daily Budget (USD)</span><input type="number" step="0.5" min="0" id="cfg-daily-budget"></label>
-            <label><span>Monthly Budget (USD)</span><input type="number" step="1" min="0" id="cfg-monthly-budget"></label>
-            <label><span>Max Cost Per Run (USD)</span><input type="number" step="0.05" min="0" id="cfg-max-cost-run"></label>
-            <label><span>Max Tokens Per Run</span><input type="number" step="5000" min="0" id="cfg-max-tokens-run"></label>
-            <label><span>Warning Threshold (%)</span><input type="number" min="10" max="95" id="cfg-warn-threshold"></label>
-            <label><span>Limit Enforcement</span>
+            <label><span data-i18n="lbl_daily_budget">Daily Budget (USD)</span><input type="number" step="0.5" min="0" id="cfg-daily-budget"></label>
+            <label><span data-i18n="lbl_monthly_budget">Monthly Budget (USD)</span><input type="number" step="1" min="0" id="cfg-monthly-budget"></label>
+            <label><span data-i18n="lbl_max_cost_run">Max Cost Per Run (USD)</span><input type="number" step="0.05" min="0" id="cfg-max-cost-run"></label>
+            <label><span data-i18n="lbl_max_tokens_run">Max Tokens Per Run</span><input type="number" step="5000" min="0" id="cfg-max-tokens-run"></label>
+            <label><span data-i18n="lbl_warn_threshold">Warning Threshold (%)</span><input type="number" min="10" max="95" id="cfg-warn-threshold"></label>
+            <label><span data-i18n="lbl_enforcement">Limit Enforcement</span>
               <select id="cfg-hard-stop">
-                <option value="true">Hard Stop (Block execution when exceeded)</option>
-                <option value="false">Soft Warning (Notify operator only)</option>
+                <option value="true" data-i18n="ui_hard_stop">Hard Stop (Block execution when exceeded)</option>
+                <option value="false" data-i18n="ui_soft_warning">Soft Warning (Notify operator only)</option>
               </select>
             </label>
           </div>
           <div class="play-actions">
-            <button type="submit" class="primary">Save Budget Limits</button>
+            <button type="submit" class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="btn_save_budget">Save Budget Limits</span></button>
             <span id="budget-save-note" class="muted"></span>
           </div>
         </form>
@@ -1162,29 +1182,29 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
       <section>
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
           <div>
-            <h2>Working Directories & Workspaces</h2>
-            <p class="muted">Manage validated project working directories, permissions, and browse local filesystem paths safely.</p>
+            <h2 data-i18n="h_workspaces">Workspaces</h2>
+            <p class="muted" data-i18n="ui_workspaces_description">Manage validated project working directories, permissions, and browse local filesystem paths safely.</p>
           </div>
         </div>
 
         <div class="provider-block" style="padding: 14px; margin-bottom: 18px;">
-          <h3 style="margin-bottom: 10px;">Register New Workspace</h3>
+          <h3 style="margin-bottom: 10px;" data-i18n="h_register_workspace">Register New Workspace</h3>
           <form id="add-workspace-form" style="display: grid; grid-template-columns: 1fr minmax(180px, 240px) auto; gap: 10px; align-items: end;">
-            <label><span>Workspace Absolute Path</span><input type="text" id="new-ws-path" placeholder="C:\\path\\to\\project"></label>
-            <label><span>Friendly Name</span><input type="text" id="new-ws-name" placeholder="Optional label"></label>
-            <button type="submit" class="primary" style="height: 40px;">Add Workspace</button>
+            <label><span data-i18n="lbl_workspace_path">Workspace Absolute Path</span><input type="text" id="new-ws-path" placeholder="C:\\path\\to\\project" data-i18n-ph="ph_workspace_path"></label>
+            <label><span data-i18n="lbl_friendly_name">Friendly Name</span><input type="text" id="new-ws-name" placeholder="Optional label" data-i18n-ph="ph_optional_label"></label>
+            <button type="submit" class="primary" style="height: 40px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_add_workspace">Add Workspace</span></button>
           </form>
         </div>
 
-        <h3>Registered Workspaces</h3>
-        <div id="workspaces-table-container">Loading workspaces...</div>
+        <h3 data-i18n="h_registered_workspaces">Registered Workspaces</h3>
+        <div id="workspaces-table-container" data-i18n="ui_loading_workspaces">Loading workspaces...</div>
 
-        <h3 style="margin-top: 24px;">Filesystem Directory Browser</h3>
-        <p class="muted">Browse directories to verify paths and inspect folder accessibility.</p>
+        <h3 style="margin-top: 24px;" data-i18n="h_directory_browser">Filesystem Directory Browser</h3>
+        <p class="muted" data-i18n="ui_directory_description">Browse directories to verify paths and inspect folder accessibility.</p>
         <div class="dir-browser">
           <div class="dir-breadcrumb">
-            <span>Path:</span> <strong id="browser-current-path">-</strong>
-            <button type="button" id="browser-up-btn" style="padding: 2px 8px; font-size: 11px;">Up one level</button>
+            <span data-i18n="lbl_path">Path:</span> <strong id="browser-current-path">-</strong>
+            <button type="button" id="browser-up-btn" style="padding: 2px 8px; font-size: 11px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span class="action-label" data-i18n="btn_parent_directory">Up one level</span></button>
           </div>
           <div id="browser-dirs-list" style="display: grid; gap: 4px; max-height: 240px; overflow-y: auto;"></div>
         </div>
@@ -1194,58 +1214,58 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
     <!-- Local Providers Section -->
     <div id="local-providers-section" class="wide page-section">
       <section>
-        <h2>Local providers</h2>
-        <p class="muted">On-device services such as LM Studio that require no cloud credentials.</p>
-        <div id="local-provider-list">Loading...</div>
+        <h2 data-i18n="h_local_providers">Local providers</h2>
+        <p class="muted" data-i18n="ui_local_providers_description">On-device services such as LM Studio that require no cloud credentials.</p>
+        <div id="local-provider-list" data-i18n="ui_loading">Loading...</div>
       </section>
     </div>
 
     <!-- Models Section -->
     <div id="models-section" class="wide page-section">
       <section>
-        <h2>Models by transport and provider</h2>
-        <p class="muted">Explore models across transports, context windows, output caps, and availability.</p>
+        <h2 data-i18n="h_models">Models</h2>
+        <p class="muted" data-i18n="ui_models_description">Explore models across transports, context windows, output caps, and availability.</p>
         <div class="model-tools">
-          <input id="model-search" type="search" placeholder="Search model, owner, or provider">
-          <select id="model-transport-filter" aria-label="Filter by transport">
-            <option value="">All transports</option>
-            <option value="api-*">Direct APIs</option>
-            <option value="cli-*">Coding CLIs</option>
-            <option value="lmstudio/*">Local models</option>
+          <input id="model-search" type="search" placeholder="Search model, owner, or provider" data-i18n-ph="ph_search_models">
+          <select id="model-transport-filter" aria-label="Filter by transport" data-i18n-aria="ui_filter_transport">
+            <option value="" data-i18n="ui_all_transports">All transports</option>
+            <option value="api-*" data-i18n="ui_direct_apis">Direct APIs</option>
+            <option value="cli-*" data-i18n="ui_coding_clis">Coding CLIs</option>
+            <option value="lmstudio/*" data-i18n="ui_local_models">Local models</option>
           </select>
-          <select id="model-provider-filter" aria-label="Filter by provider">
-            <option value="">All providers</option>
+          <select id="model-provider-filter" aria-label="Filter by provider" data-i18n-aria="ui_filter_provider">
+            <option value="" data-i18n="ui_all_providers">All providers</option>
           </select>
-          <button id="model-refresh" type="button">Refresh catalogs</button>
+          <button id="model-refresh" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg><span class="action-label" data-i18n="btn_reload_catalog">Load catalog</span></button>
         </div>
         <div id="model-count" class="muted"></div>
         <div id="model-summary" class="model-summary"></div>
-        <div id="model-list">Loading...</div>
+        <div id="model-list" data-i18n="ui_loading">Loading...</div>
       </section>
     </div>
 
     <!-- Orchestrator Section -->
     <section id="orchestrator-section" class="wide page-section">
-      <h2>Orchestrator</h2>
-      <p class="muted">Multi-model consensus and synthesis. Sequential, parallel, and debate strategies.</p>
-      <label><span>Enabled</span>
+      <h2 data-i18n="h_orchestrator">Orchestrator</h2>
+      <p class="muted" data-i18n="ui_orchestrator_description">Multi-model consensus and synthesis. Sequential, parallel, and debate strategies.</p>
+      <label><span data-i18n="status_enabled">Enabled</span>
         <select id="orch-enabled">
-          <option value="false">Disabled</option>
-          <option value="true">Enabled</option>
+          <option value="false" data-i18n="status_disabled">Disabled</option>
+          <option value="true" data-i18n="status_enabled">Enabled</option>
         </select>
       </label>
-      <label><span>Strategy</span>
+      <label><span data-i18n="lbl_strategy">Strategy</span>
         <select id="orch-strategy">
-          <option value="sequential">Sequential review</option>
-          <option value="parallel">Parallel panel</option>
-          <option value="debate">Debate chain</option>
+          <option value="sequential" data-i18n="strategy_sequential">Sequential review</option>
+          <option value="parallel" data-i18n="strategy_parallel">Parallel panel</option>
+          <option value="debate" data-i18n="strategy_debate">Debate chain</option>
         </select>
       </label>
       <div id="orch-roles"></div>
-      <label><span>Fallback models</span><select id="orch-fallbacks" multiple size="4"></select></label>
+      <label><span data-i18n="lbl_fallback_models">Fallback models</span><select id="orch-fallbacks" multiple size="4"></select></label>
       <div class="play-actions">
-        <button id="orch-save" type="button">Save orchestration</button>
-        <button id="orch-run" type="button">Run orchestration</button>
+        <button id="orch-save" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="btn_save_orchestration">Save orchestration</span></button>
+        <button id="orch-run" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg><span class="action-label" data-i18n="btn_run_orchestration">Run orchestration</span></button>
         <span id="orch-note" class="muted"></span>
       </div>
       <pre id="orch-output">No orchestration run yet.</pre>
@@ -1253,129 +1273,129 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
 
     <!-- Integration Tests Section -->
     <section id="integration-section" class="wide page-section">
-      <h2>Integration tests</h2>
-      <p class="muted">Automated verification testing OpenAI routes and provider execution matrices.</p>
+      <h2 data-i18n="h_integration">Integration tests</h2>
+      <p class="muted" data-i18n="ui_integration_description">Automated verification testing OpenAI routes and provider execution matrices.</p>
       <pre>Base URL: http://127.0.0.1:31338/v1
 Endpoint: POST /chat/completions</pre>
       <div class="play-actions">
-        <button id="test-all-cli" type="button">Test all CLI providers</button>
-        <button id="test-openai" type="button">Test OpenAI-compatible route</button>
+        <button id="test-all-cli" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_test_clis">Test all CLI providers</span></button>
+        <button id="test-openai" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_test_openai">Test OpenAI-compatible route</span></button>
       </div>
-      <div id="test-output" class="activity-list" style="margin-top: 14px;">No integration test run yet.</div>
+      <div id="test-output" class="activity-list" style="margin-top: 14px;" data-i18n="ui_no_integration">No integration test run yet.</div>
     </section>
 
     <!-- Recommendations Section -->
     <section id="recommendations-section" class="wide page-section">
-      <h2>Recommendations</h2>
-      <p class="muted">Operational guidance for high-reliability agent routing.</p>
-      <div class="recommendation"><strong>Use CLI providers for coding work.</strong><br><span class="muted">They leverage local workspace context, genuine account licenses, and effort level controls.</span></div>
-      <div class="recommendation"><strong>Use API providers for automation.</strong><br><span class="muted">They use explicit credentials and are suited for background services and scheduled jobs.</span></div>
-      <div class="recommendation"><strong>Validate changes with ping-pong first.</strong><br><span class="muted">Run the CLI provider matrix, then an OpenAI-compatible request, then pipeline workflows.</span></div>
+      <h2 data-i18n="h_recommendations">Recommendations</h2>
+      <p class="muted" data-i18n="ui_recommendations_description">Operational guidance for high-reliability agent routing.</p>
+      <div class="recommendation"><strong data-i18n="ui_recommend_cli">Use CLI providers for coding work.</strong><br><span class="muted" data-i18n="ui_recommend_cli_detail">They leverage local workspace context, genuine account licenses, and effort level controls.</span></div>
+      <div class="recommendation"><strong data-i18n="ui_recommend_api">Use API providers for automation.</strong><br><span class="muted" data-i18n="ui_recommend_api_detail">They use explicit credentials and are suited for background services and scheduled jobs.</span></div>
+      <div class="recommendation"><strong data-i18n="ui_recommend_test">Validate changes with ping-pong first.</strong><br><span class="muted" data-i18n="ui_recommend_test_detail">Run the CLI provider matrix, then an OpenAI-compatible request, then pipeline workflows.</span></div>
     </section>
 
     <!-- Activity Section -->
     <section id="activity-section" class="wide page-section">
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
         <div>
-          <h2>Activity Streams & Operational Telemetry</h2>
-          <p class="muted">Human-readable operational journal with filtering, correlation tracking, and log export.</p>
+          <h2 data-i18n="h_activity">Activity &amp; Telemetry</h2>
+          <p class="muted" data-i18n="ui_activity_description">Human-readable operational journal with filtering, correlation tracking, and log export.</p>
         </div>
         <div class="play-actions">
-          <button type="button" id="btn-export-activity-json">Export JSON</button>
-          <button type="button" class="primary" id="btn-export-activity-md">Export Markdown</button>
+          <button type="button" id="btn-export-activity-json"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span class="action-label" data-i18n="btn_export_json">Export JSON</span></button>
+          <button type="button" class="primary" id="btn-export-activity-md"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span class="action-label" data-i18n="btn_export_md">Export Markdown</span></button>
         </div>
       </div>
 
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 12px 0;">
         <div class="filter-chips" id="activity-level-chips" style="margin: 0;">
-          <button type="button" class="filter-chip active" data-level="all">All Events</button>
-          <button type="button" class="filter-chip" data-level="info">Info</button>
-          <button type="button" class="filter-chip" data-level="success">Success</button>
-          <button type="button" class="filter-chip" data-level="warning">Warning</button>
-          <button type="button" class="filter-chip" data-level="error">Error</button>
+          <button type="button" class="filter-chip active" data-level="all" data-i18n="ui_all_events">All Events</button>
+          <button type="button" class="filter-chip" data-level="info" data-i18n="level_info">Info</button>
+          <button type="button" class="filter-chip" data-level="success" data-i18n="level_success">Success</button>
+          <button type="button" class="filter-chip" data-level="warning" data-i18n="level_warning">Warning</button>
+          <button type="button" class="filter-chip" data-level="error" data-i18n="level_error">Error</button>
         </div>
-        <input type="text" id="activity-search" placeholder="Filter log entries..." style="max-width: 240px; padding: 6px 10px;">
+        <input type="text" id="activity-search" placeholder="Filter log entries..." data-i18n-ph="ph_filter_log" style="max-width: 240px; padding: 6px 10px;">
       </div>
 
-      <div id="activity-log" class="activity-list">No events yet.</div>
-      <h3 style="margin-top: 24px;">Request telemetry</h3>
-      <div id="metrics">No requests yet.</div>
+      <div id="activity-log" class="activity-list" data-i18n="ui_no_events">No events yet.</div>
+      <h3 style="margin-top: 24px;" data-i18n="h_request_telemetry">Request telemetry</h3>
+      <div id="metrics" data-i18n="ui_no_requests">No requests yet.</div>
     </section>
 
     <!-- Usage Statistics Section -->
     <section id="usage-section" class="wide page-section">
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
         <div>
-          <h2>Usage Statistics & Visual Analytics</h2>
-          <p class="muted">Real-time telemetry, model breakdowns, token consumption, and cost tracking.</p>
+          <h2 data-i18n="h_usage">Usage &amp; Analytics</h2>
+          <p class="muted" data-i18n="ui_usage_description">Real-time telemetry, model breakdowns, token consumption, and cost tracking.</p>
         </div>
-        <button type="button" id="btn-refresh-analytics" class="primary">Refresh Analytics</button>
+        <button type="button" id="btn-refresh-analytics" class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg><span class="action-label" data-i18n="btn_refresh_analytics">Refresh Analytics</span></button>
       </div>
 
       <div class="summary">
-        <div class="summary-item"><strong id="usage-total">0</strong><span>Total requests</span></div>
-        <div class="summary-item"><strong id="usage-success">0</strong><span>Successful</span></div>
-        <div class="summary-item"><strong id="usage-failure">0</strong><span>Failed</span></div>
-        <div class="summary-item"><strong id="usage-latency">-</strong><span>Average latency</span></div>
+        <div class="summary-item"><strong id="usage-total">0</strong><span data-i18n="lbl_total_requests">Total requests</span></div>
+        <div class="summary-item"><strong id="usage-success">0</strong><span data-i18n="status_successful">Successful</span></div>
+        <div class="summary-item"><strong id="usage-failure">0</strong><span data-i18n="status_failed">Failed</span></div>
+        <div class="summary-item"><strong id="usage-latency">-</strong><span data-i18n="lbl_average_latency">Average latency</span></div>
       </div>
 
       <!-- Real-time SVG Charts Grid -->
       <div class="chart-grid">
         <div class="chart-card">
           <div class="chart-header">
-            <h3>Request Volumes & Latencies</h3>
-            <span class="chart-badge">MODELS</span>
+            <h3 data-i18n="h_request_volumes">Request Volumes &amp; Latencies</h3>
+            <span class="chart-badge" data-i18n="badge_models">MODELS</span>
           </div>
           <div id="chart-requests-container" style="min-height: 180px;"></div>
         </div>
 
         <div class="chart-card">
           <div class="chart-header">
-            <h3>Token & Cost Share</h3>
-            <span class="chart-badge">SPEND</span>
+            <h3 data-i18n="h_token_cost">Token &amp; Cost Share</h3>
+            <span class="chart-badge" data-i18n="badge_spend">SPEND</span>
           </div>
           <div id="chart-cost-container" style="min-height: 180px;"></div>
         </div>
 
         <div class="chart-card">
           <div class="chart-header">
-            <h3>Pipeline Run Outcomes</h3>
-            <span class="chart-badge">PIPELINES</span>
+            <h3 data-i18n="h_pipeline_outcomes">Pipeline Run Outcomes</h3>
+            <span class="chart-badge" data-i18n="badge_pipelines">PIPELINES</span>
           </div>
           <div id="chart-pipelines-container" style="min-height: 180px;"></div>
         </div>
 
         <div class="chart-card">
           <div class="chart-header">
-            <h3>Operational Events by Severity</h3>
-            <span class="chart-badge">TELEMETRY</span>
+            <h3 data-i18n="h_event_severity">Events by Severity</h3>
+            <span class="chart-badge" data-i18n="badge_telemetry">TELEMETRY</span>
           </div>
           <div id="chart-activity-container" style="min-height: 180px;"></div>
         </div>
       </div>
 
-      <h3 style="margin-top: 20px;">Detailed Model Metrics</h3>
-      <div id="usage-table" class="model-list">No usage yet.</div>
+      <h3 style="margin-top: 20px;" data-i18n="h_model_metrics">Detailed Model Metrics</h3>
+      <div id="usage-table" class="model-list" data-i18n="ui_no_usage">No usage yet.</div>
     </section>
 
     <!-- Settings Section -->
     <section id="settings-section" class="wide page-section">
-      <h2>Settings</h2>
-      <p class="muted">Configure API credentials and platform settings. Secret keys are write-only.</p>
+      <h2 data-i18n="h_settings">Settings</h2>
+      <p class="muted" data-i18n="ui_settings_description">Configure API credentials and platform settings. Secret keys are write-only.</p>
       <section>
-        <h3>API credentials</h3>
-        <div id="settings-keys">Loading...</div>
+        <h3 data-i18n="lbl_api_credentials">API credentials</h3>
+        <div id="settings-keys" data-i18n="ui_loading">Loading...</div>
       </section>
     </section>
 
     <!-- Help Section -->
     <section id="help-section-v2" class="wide page-section">
-      <h2>Help and operating guide</h2>
-      <p class="muted">Getting started, connecting clients, and managing autonomous agent policies.</p>
-      <section><h3>Supported desktop platforms</h3><p>Conduit Bridge currently supports Windows Desktop and Linux Desktop. It needs Node.js 24 or newer. Start the bridge on the desktop and open <code>http://127.0.0.1:31338/</code>.</p></section>
-      <section><h3>Desktop autostart</h3><p>After building, use <code>./scripts/install-autostart.sh</code> on Linux Desktop or <code>powershell -ExecutionPolicy Bypass -File .\\scripts\\install-autostart.ps1</code> on Windows Desktop. The bridge starts as the logged-in desktop user on <code>127.0.0.1:31338</code>. See <code>docs/AUTOSTART.md</code> for removal and troubleshooting.</p></section>
+      <h2 data-i18n="h_help">Help and Operating Guide</h2>
+      <p class="muted" data-i18n="ui_help_description">Getting started, connecting clients, and managing autonomous agent policies.</p>
+      <section><h3 data-i18n="h_supported_platforms">Supported desktop platforms</h3><p><span data-i18n="help_platforms_dashboard">Conduit Bridge currently supports Windows Desktop and Linux Desktop. It needs Node.js 24 or newer. Start the bridge on the desktop and open</span> <code>http://127.0.0.1:31338/</code>.</p></section>
+      <section><h3 data-i18n="h_desktop_autostart">Desktop autostart</h3><p><span data-i18n="help_after_build">After building, use</span> <code>./scripts/install-autostart.sh</code> <span data-i18n="help_linux_or">on Linux Desktop or</span> <code>powershell -ExecutionPolicy Bypass -File .\\scripts\\install-autostart.ps1</code> <span data-i18n="help_windows_start">on Windows Desktop. The bridge starts as the logged-in desktop user on</span> <code>127.0.0.1:31338</code><span data-i18n="help_see_inline">. See</span> <code>docs/AUTOSTART.md</code> <span data-i18n="help_removal">for removal and troubleshooting.</span></p></section>
       <section>
-        <h3>Client endpoints</h3>
+        <h3 data-i18n="h_client_endpoints">Client endpoints</h3>
         <pre>Base URL: http://127.0.0.1:31338/v1
 Models:   GET /v1/models
 Status:   GET /v1/status
@@ -1392,28 +1412,29 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 <div class="modal-backdrop" id="nav-modal">
   <div class="modal-dialog">
     <div class="modal-header">
-      <h3 style="margin: 0;">Customize Navigation Visibility</h3>
-      <button class="modal-close" id="close-nav-modal">&times;</button>
+      <h3 style="margin: 0;" data-i18n="h_customize_navigation">Customize Navigation Visibility</h3>
+      <button class="modal-close" id="close-nav-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
-      <p class="muted" style="margin: 0;">Choose which sections appear in the sidebar navigation. Preferences persist in local browser storage.</p>
+      <p class="muted" style="margin: 0;" data-i18n="ui_nav_description">Choose which sections appear in the sidebar navigation. Preferences persist in local browser storage.</p>
       <div>
-        <label style="font-weight: 600; color: var(--text);">Presets</label>
+        <label style="font-weight: 600; color: var(--text);" data-i18n="ui_nav_presets">Presets</label>
         <div class="preset-buttons">
-          <button type="button" class="preset-btn" data-preset="all">All Features</button>
-          <button type="button" class="preset-btn" data-preset="developer">Developer</button>
-          <button type="button" class="preset-btn" data-preset="simple">Simple / Chat</button>
-          <button type="button" class="preset-btn" data-preset="governance">Ops / Governance</button>
+          <button type="button" class="preset-btn" data-preset="all" data-i18n="preset_all">All Features</button>
+          <button type="button" class="preset-btn" data-preset="developer" data-i18n="preset_developer">Developer</button>
+          <button type="button" class="preset-btn" data-preset="simple" data-i18n="preset_simple">Simple / Chat</button>
+          <button type="button" class="preset-btn" data-preset="governance" data-i18n="preset_governance">Ops / Governance</button>
+          <button type="button" class="preset-btn" data-preset="bitnet" data-i18n="preset_bitnet">BitNet Testing</button>
         </div>
       </div>
       <div>
-        <label style="font-weight: 600; color: var(--text); margin-bottom: 8px;">Visible Sections</label>
+        <label style="font-weight: 600; color: var(--text); margin-bottom: 8px;" data-i18n="ui_visible_sections">Visible Sections</label>
         <div class="nav-checkboxes" id="nav-checkboxes-container"></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button type="button" id="reset-nav-btn">Reset Defaults</button>
-      <button type="button" class="primary" id="save-nav-btn">Apply Preferences</button>
+      <button type="button" id="reset-nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg><span class="action-label" data-i18n="ui_reset_defaults">Reset Defaults</span></button>
+      <button type="button" class="primary" id="save-nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="ui_apply_prefs">Apply Preferences</span></button>
     </div>
   </div>
 </div>
@@ -1422,23 +1443,23 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 <div class="modal-backdrop" id="pipeline-modal">
   <div class="modal-dialog" style="max-width: 740px;">
     <div class="modal-header">
-      <h3 style="margin: 0;" id="pipeline-modal-title">Create Custom Agent Pipeline</h3>
-      <button class="modal-close" id="close-pipeline-modal">&times;</button>
+      <h3 style="margin: 0;" id="pipeline-modal-title" data-i18n="h_create_pipeline">Create Custom Agent Pipeline</h3>
+      <button class="modal-close" id="close-pipeline-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
-      <label><span>Pipeline Name</span><input type="text" id="pipe-name-input" placeholder="e.g. Architect -> Implement -> Audit"></label>
-      <label><span>Description</span><input type="text" id="pipe-desc-input" placeholder="Brief workflow summary"></label>
+      <label><span data-i18n="lbl_pipeline_name">Pipeline Name</span><input type="text" id="pipe-name-input" placeholder="e.g. Architect -&gt; Implement -&gt; Audit" data-i18n-ph="ph_pipeline_name"></label>
+      <label><span data-i18n="lbl_description">Description</span><input type="text" id="pipe-desc-input" placeholder="Brief workflow summary" data-i18n-ph="ph_pipeline_description"></label>
       <div>
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-          <label style="font-weight: 600; color: var(--text); margin: 0;">Pipeline Steps</label>
-          <button type="button" id="pipe-add-step-btn" style="font-size: 12px;">+ Add Step</button>
+          <label style="font-weight: 600; color: var(--text); margin: 0;" data-i18n="lbl_pipeline_steps">Pipeline Steps</label>
+          <button type="button" id="pipe-add-step-btn" style="font-size: 12px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_add_step">Add Step</span></button>
         </div>
         <div id="pipe-steps-container" style="display: grid; gap: 10px;"></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button type="button" id="cancel-pipeline-btn">Cancel</button>
-      <button type="button" class="primary" id="save-pipeline-btn">Save Pipeline</button>
+      <button type="button" id="cancel-pipeline-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg><span class="action-label" data-i18n="btn_cancel">Cancel</span></button>
+      <button type="button" class="primary" id="save-pipeline-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="btn_save_pipeline">Save Pipeline</span></button>
     </div>
   </div>
 </div>
@@ -1447,35 +1468,37 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 <div class="modal-backdrop" id="repo-modal">
   <div class="modal-dialog" style="max-width: 580px;">
     <div class="modal-header">
-      <h3 style="margin: 0;">Register Repository & Pipeline Template</h3>
-      <button class="modal-close" id="close-repo-modal">&times;</button>
+      <h3 style="margin: 0;" data-i18n="h_register_repository">Register Repository</h3>
+      <button class="modal-close" id="close-repo-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
-      <label><span>Repository Identifier (e.g. org/repo)</span><input type="text" id="repo-id-input" placeholder="acme/service-mesh"></label>
-      <label><span>Repository Friendly Name</span><input type="text" id="repo-name-input" placeholder="Acme Service Mesh"></label>
-      <label><span>Local Absolute Path</span><input type="text" id="repo-path-input" placeholder="C:\\path\\to\\project"></label>
-      <label><span>Description</span><input type="text" id="repo-desc-input" placeholder="Purpose and architecture role"></label>
-      <label><span>Assigned Governance Pipeline</span>
+      <label><span data-i18n="lbl_repo_identifier">Repository Identifier (e.g. org/repo)</span><input type="text" id="repo-id-input" placeholder="acme/service-mesh" data-i18n-ph="ph_repo_id"></label>
+      <label><span data-i18n="lbl_repo_name">Repository Friendly Name</span><input type="text" id="repo-name-input" placeholder="Acme Service Mesh" data-i18n-ph="ph_repo_name"></label>
+      <label><span data-i18n="lbl_local_path">Local Absolute Path</span><input type="text" id="repo-path-input" placeholder="C:\\path\\to\\project" data-i18n-ph="ph_workspace_path"></label>
+      <label><span data-i18n="lbl_description">Description</span><input type="text" id="repo-desc-input" placeholder="Purpose and architecture role" data-i18n-ph="ph_repo_description"></label>
+      <label><span data-i18n="lbl_governance_pipeline">Assigned Governance Pipeline</span>
         <select id="repo-pipeline-select">
-          <option value="standard-governance">Standard Governance (Impl -> Review -> Security -> Compliance -> Sign-off)</option>
-          <option value="pr-review">Automated PR Review</option>
-          <option value="refactoring-review">Refactoring Review</option>
-          <option value="release-readiness">Release Readiness Checklist</option>
-          <option value="architecture-review">Architecture & Design Review</option>
-          <option value="dependency-risk">Dependency Risk Assessment</option>
-          <option value="supply-chain-security">Supply Chain & Security Posture</option>
-          <option value="doc-generation">Documentation Generation</option>
+          <option value="standard-governance" data-i18n="pipeline_standard">Standard Governance (Impl -&gt; Review -&gt; Security -&gt; Compliance -&gt; Sign-off)</option>
+          <option value="pr-review" data-i18n="pipeline_pr_review">Automated PR Review</option>
+          <option value="refactoring-review" data-i18n="pipeline_refactoring">Refactoring Review</option>
+          <option value="release-readiness" data-i18n="pipeline_release">Release Readiness Checklist</option>
+          <option value="architecture-review" data-i18n="pipeline_architecture">Architecture &amp; Design Review</option>
+          <option value="dependency-risk" data-i18n="pipeline_dependency">Dependency Risk Assessment</option>
+          <option value="supply-chain-security" data-i18n="pipeline_supply_chain">Supply Chain &amp; Security Posture</option>
+          <option value="doc-generation" data-i18n="pipeline_documentation">Documentation Generation</option>
         </select>
       </label>
     </div>
     <div class="modal-footer">
-      <button type="button" id="cancel-repo-btn">Cancel</button>
-      <button type="button" class="primary" id="save-repo-btn">Register Repository</button>
+      <button type="button" id="cancel-repo-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg><span class="action-label" data-i18n="btn_cancel">Cancel</span></button>
+      <button type="button" class="primary" id="save-repo-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_register_repo">Register Repository</span></button>
     </div>
   </div>
 </div>
 
+<script>window.__CB_TRANSLATIONS = ${JSON.stringify(TRANSLATIONS).replace(/</g, '\\u003c')};</script>
 <script>
+  ${I18N_SCRIPT}
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
@@ -1500,29 +1523,30 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   // Navigation visibility customization
   const NAV_SECTIONS = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'platform', label: 'Webchat & agents' },
-    { key: 'playground', label: 'Playground' },
-    { key: 'api-providers', label: 'API providers' },
-    { key: 'cli-providers', label: 'CLI providers' },
-    { key: 'agent-controls', label: 'Agent controls' },
-    { key: 'pipelines', label: 'Pipelines' },
-    { key: 'governance', label: 'Governance' },
-    { key: 'budgets', label: 'Budgets' },
-    { key: 'workspaces', label: 'Workspaces' },
-    { key: 'local-providers', label: 'Local providers' },
-    { key: 'models', label: 'Models' },
-    { key: 'usage', label: 'Usage' },
-    { key: 'orchestrator', label: 'Orchestrator' },
-    { key: 'integration', label: 'Integration tests' },
-    { key: 'recommendations', label: 'Recommendations' },
-    { key: 'activity', label: 'Activity' },
-    { key: 'settings', label: 'Settings' },
-    { key: 'help', label: 'Help' },
+    { key: 'overview', label: 'nav_overview' },
+    { key: 'platform', label: 'nav_platform' },
+    { key: 'playground', label: 'nav_playground' },
+    { key: 'api-providers', label: 'nav_api_providers' },
+    { key: 'cli-providers', label: 'nav_cli_providers' },
+    { key: 'agent-controls', label: 'nav_agent_controls' },
+    { key: 'pipelines', label: 'nav_pipelines' },
+    { key: 'governance', label: 'nav_governance' },
+    { key: 'budgets', label: 'nav_budgets' },
+    { key: 'workspaces', label: 'nav_workspaces' },
+    { key: 'local-providers', label: 'nav_local_providers' },
+    { key: 'models', label: 'nav_models' },
+    { key: 'usage', label: 'nav_usage' },
+    { key: 'orchestrator', label: 'nav_orchestrator' },
+    { key: 'integration', label: 'nav_integration' },
+    { key: 'recommendations', label: 'nav_recommendations' },
+    { key: 'activity', label: 'nav_activity' },
+    { key: 'settings', label: 'nav_settings' },
+    { key: 'help', label: 'nav_help' },
   ];
 
   const PRESETS = {
     all: NAV_SECTIONS.map(s => s.key),
+    bitnet: ['overview', 'playground', 'local-providers', 'models', 'usage', 'activity', 'settings'],
     developer: ['overview', 'platform', 'playground', 'cli-providers', 'agent-controls', 'pipelines', 'workspaces', 'models', 'integration', 'activity', 'help'],
     simple: ['overview', 'platform', 'playground', 'pipelines', 'models', 'help'],
     governance: ['overview', 'platform', 'api-providers', 'agent-controls', 'pipelines', 'governance', 'budgets', 'workspaces', 'usage', 'activity', 'settings'],
@@ -1536,26 +1560,37 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         if (Array.isArray(parsed) && parsed.length > 0) return new Set(parsed);
       }
     } catch {}
-    return new Set(PRESETS.all);
+    return new Set(PRESETS.developer);
   }
 
+  function updateNavGroups() {
+    document.querySelectorAll('#side-nav .nav-group-label').forEach(label => {
+      let next = label.nextElementSibling, visible = false;
+      while (next && !next.classList.contains('nav-group-label')) {
+        if (next.matches('button[data-section]') && !next.hidden && next.style.display !== 'none') visible = true;
+        next = next.nextElementSibling;
+      }
+      label.hidden = !visible;
+    });
+  }
   function applyNavVisibility() {
     const visible = getVisibleNavs();
     document.querySelectorAll('#side-nav button[data-section]').forEach(btn => {
       const key = btn.dataset.section;
       btn.style.display = visible.has(key) ? 'flex' : 'none';
     });
+    updateNavGroups();
   }
 
   function openNavModal() {
     const visible = getVisibleNavs();
     const container = $('nav-checkboxes-container');
-    container.innerHTML = NAV_SECTIONS.map(s =>
+    setLocalizedHtml(container, () => NAV_SECTIONS.map(s =>
       '<label class="nav-checkbox-label">' +
         '<input type="checkbox" data-nav-key="' + esc(s.key) + '"' + (visible.has(s.key) ? ' checked' : '') + '> ' +
-        esc(s.label) +
+        esc(t(s.label)) +
       '</label>'
-    ).join('');
+    ).join(''));
     $('nav-modal').classList.add('open');
   }
 
@@ -1619,7 +1654,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       button.classList.toggle('active', button.dataset.section === name);
     });
     sidebar.classList.remove('open');
-    if (name === 'platform') platformRefresh().catch(error => pfStatus(error.message, true));
+    if (name === 'platform') platformRefresh().catch(error => pfStatus(() => error.message, true));
     scheduleLiveRefresh();
   }
 
@@ -1644,14 +1679,14 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     options.headers = withAuth(options.headers);
     let response = await fetch(path, options);
     if (response.status === 401) {
-      const entered = prompt('This bridge requires an auth token');
-      if (!entered) throw new Error('Unauthorized: valid bearer token required');
+      const entered = prompt(t('ui_auth_token_required'));
+      if (!entered) throw localizedError(() => t('error_unauthorized'));
       try { sessionStorage.setItem('conduit-auth-token', entered); } catch {}
       options.headers = withAuth(options.headers);
       response = await fetch(path, options);
     }
     const data = await response.json();
-    if (!response.ok) throw new Error(data?.error?.message || data?.message || 'Request failed');
+    if (!response.ok) throw localizedError(() => data?.error?.message || data?.message || t('error_request_failed'));
     return data;
   }
 
@@ -1670,7 +1705,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   document.addEventListener('change', markDirty);
 
   const family = id => id.startsWith('api-') ? 'api-*' : id.startsWith('cli-') ? 'cli-*' : (id.startsWith('lmstudio/') || id.startsWith('bitnet/')) ? 'lmstudio/*' : 'other';
-  const familyHelp = {'api-*':'Direct APIs','cli-*':'Local coding CLIs','lmstudio/*':'Local models','other':'Other'};
+  const familyHelp = {'api-*':'ui_direct_apis','cli-*':'ui_local_clis','lmstudio/*':'ui_local_models','other':'ui_other'};
   const familyOrder = ['api-*','cli-*','lmstudio/*','other'];
   const providerForModel = id => id.startsWith('api-claude/') ? 'claude-api' : id.startsWith('api-gemini/') ? 'gemini-api' : id.startsWith('api-codex/') ? 'codex-api' : id.startsWith('api-openrouter/') ? 'openrouter-api' : id.startsWith('api-perplexity/') ? 'perplexity-api' : id.startsWith('cli-grok/') ? 'cli-grok' : id.startsWith('cli-codex/') ? 'cli-codex' : id.startsWith('cli-claude/') ? 'cli-claude' : id.startsWith('cli-gemini/') ? 'cli-gemini' : id.startsWith('bitnet/') ? 'bitnet' : 'lmstudio';
 
@@ -1681,8 +1716,8 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     return Object.entries(groups).sort(([a],[b]) => a.localeCompare(b)).map(([provider, grouped]) =>
       '<optgroup label="' + esc(provider) + '">' + grouped.sort((a,b) => a.id.localeCompare(b.id)).map(model => {
         const shortName = model.id.slice(model.id.indexOf('/') + 1);
-        const ctx = model.contextWindow ? (Math.round(model.contextWindow / 1000) + 'k ctx') : '';
-        const outCap = model.maxOutputTokens ? (Math.round(model.maxOutputTokens / 1000) + 'k out') : '';
+        const ctx = model.contextWindow ? (Math.round(model.contextWindow / 1000) + t('ui_context_abbr')) : '';
+        const outCap = model.maxOutputTokens ? (Math.round(model.maxOutputTokens / 1000) + t('ui_output_abbr')) : '';
         const meta = [ctx, outCap].filter(Boolean).join(' | ');
         const labelText = meta ? (shortName + ' (' + meta + ')') : shortName;
         return '<option value="' + esc(model.id) + '"' + (selectedIds.has(model.id) ? ' selected' : '') + '>' + esc(labelText) + '</option>';
@@ -1694,16 +1729,16 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   function stateClass(p) { return p.connected ? 'ok' : ''; }
   function stateText(p) {
     return p.connected
-      ? (p.loginType === 'api-key' ? 'API credential available' : p.loginType === 'cli' ? 'CLI authenticated' : 'Local service available')
-      : (p.loginType === 'api-key' ? 'No API credential - configure in Settings' : p.loginType === 'cli' ? (p.credentialSource === 'CLI not installed' ? 'CLI unavailable - install binary' : 'CLI unavailable - authenticate binary') : 'Local service unavailable');
+      ? (p.loginType === 'api-key' ? t('status_api_available') : p.loginType === 'cli' ? t('status_cli_authenticated') : t('status_local_available'))
+      : (p.loginType === 'api-key' ? t('status_no_api_credential') : p.loginType === 'cli' ? (p.credentialSource === 'CLI not installed' ? t('status_cli_install') : t('status_cli_login')) : t('status_local_unavailable'));
   }
 
   function renderProviderGroup(items, type, target) {
     const group = items.filter(provider => provider.loginType === type);
-    $(target).innerHTML = group.length ? '<div class="provider-block">' + group.map(provider =>
+    setLocalizedHtml($(target), () => group.length ? '<div class="provider-block">' + group.map(provider =>
       '<div class="provider"><div class="status"><span class="dot ' + stateClass(provider) + '"></span>' + esc(provider.name) + '</div>' +
-      '<small>' + esc(stateText(provider)) + (provider.credentialSource ? ' · ' + esc(provider.credentialSource) : '') + ' · ' + esc(provider.models.length) + ' models registered</small></div>'
-    ).join('') + '</div>' : '<span class="muted">No providers registered in this category.</span>';
+      '<small>' + esc(stateText(provider)) + (provider.credentialSource ? ' · ' + esc(localizedValue(provider.credentialSource)) : '') + ' · ' + esc(provider.models.length) + (' ' + esc(t('ui_models_registered')) + '</small></div>')
+    ).join('') + '</div>' : ('<span class="muted">' + esc(t('ui_no_providers')) + '</span>'));
   }
 
   function renderProviders(items) {
@@ -1716,7 +1751,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   function renderModels(items) {
     const selectedPlayModel = $('play-model').value;
     models = items;
-    $('play-model').innerHTML = modelOptionGroups(selectedPlayModel || items[0]?.id || '');
+    setLocalizedHtml($('play-model'), () => modelOptionGroups(selectedPlayModel || items[0]?.id || ''));
     updateEffortOptions();
 
     const query = ($('model-search')?.value || '').trim().toLowerCase();
@@ -1725,7 +1760,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const selectedProvider = providerFilter.value;
     const providerCounts = {};
     items.forEach(model => { const p = providerForModel(model.id); providerCounts[p] = (providerCounts[p] || 0) + 1; });
-    providerFilter.innerHTML = '<option value="">All providers</option>' + Object.entries(providerCounts).sort(([a],[b]) => a.localeCompare(b)).map(([p,c]) => '<option value="' + esc(p) + '">' + esc(p) + ' (' + c + ')</option>').join('');
+    setLocalizedHtml(providerFilter, () => ('<option value="">' + esc(t('ui_all_providers')) + '</option>') + Object.entries(providerCounts).sort(([a],[b]) => a.localeCompare(b)).map(([p,c]) => '<option value="' + esc(p) + '">' + esc(p) + ' (' + c + ')</option>').join(''));
     if (providerCounts[selectedProvider]) providerFilter.value = selectedProvider;
     const provider = providerFilter.value;
 
@@ -1734,29 +1769,29 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       return (!query || model.id.toLowerCase().includes(query) || String(model.owned_by || '').toLowerCase().includes(query) || routeProvider.toLowerCase().includes(query)) &&
         (!transport || family(model.id) === transport) && (!provider || routeProvider === provider);
     });
-    $('model-count').textContent = visible.length + ' of ' + items.length + ' models';
+    setLocalizedText($('model-count'), () => visible.length + (' ' + t('ui_of') + ' ') + items.length + (' ' + t('ui_models_count')));
     const familyCounts = {}; visible.forEach(model => { const name = family(model.id); familyCounts[name] = (familyCounts[name] || 0) + 1; });
-    $('model-summary').innerHTML = familyOrder.filter(name => familyCounts[name]).map(name => '<span><strong>' + esc(name) + '</strong> ' + familyCounts[name] + ' · ' + esc(familyHelp[name]) + '</span>').join('');
+    setLocalizedHtml($('model-summary'), () => familyOrder.filter(name => familyCounts[name]).map(name => '<span><strong>' + esc(name) + '</strong> ' + familyCounts[name] + ' · ' + esc(t(familyHelp[name])) + '</span>').join(''));
 
     const groups = {};
     visible.forEach(model => (((groups[family(model.id)] ||= {})[providerForModel(model.id)] ||= []).push(model)));
     const expand = Boolean(query || transport || provider);
-    $('model-list').innerHTML = familyOrder.filter(name => groups[name]).map(name => {
+    setLocalizedHtml($('model-list'), () => familyOrder.filter(name => groups[name]).map(name => {
       const providerGroups = Object.entries(groups[name]).sort(([a],[b]) => a.localeCompare(b));
-      return '<div class="model-transport-group"><h3><span>' + esc(familyHelp[name]) + ' <code>' + esc(name) + '</code></span><small>' + familyCounts[name] + ' models across ' + providerGroups.length + ' providers</small></h3>' + providerGroups.map(([routeProvider, grouped]) => {
+      return '<div class="model-transport-group"><h3><span>' + esc(t(familyHelp[name])) + ' <code>' + esc(name) + '</code></span><small>' + familyCounts[name] + (' ' + t('ui_models_across') + ' ') + providerGroups.length + (' ' + esc(t('ui_providers_count')) + '</small></h3>') + providerGroups.map(([routeProvider, grouped]) => {
         const providerStatus = (lastProviders || []).find(item => item.name === routeProvider);
         const ready = Boolean(providerStatus?.connected);
-        const providerState = ready ? 'Ready' : 'Unavailable';
+        const providerState = ready ? t('status_ready') : t('status_unavailable');
         const ordered = grouped.sort((a,b) => a.id.localeCompare(b.id));
-        return '<details class="model-provider-group"' + (expand || ordered.length <= 8 ? ' open' : '') + '><summary><span><strong>' + esc(routeProvider) + '</strong><small>Route through ' + esc(familyHelp[name].toLowerCase()) + '</small></span><span class="provider-state ' + (ready ? 'ready' : 'unavailable') + '">' + esc(providerState) + '</span><span>' + ordered.length + ' models</span></summary><div class="model-provider-models">' + ordered.map(model => {
+        return '<details class="model-provider-group"' + (expand || ordered.length <= 8 ? ' open' : '') + '><summary><span><strong>' + esc(routeProvider) + ('</strong><small>' + esc(t('ui_route_through')) + ' ') + esc(t(familyHelp[name])) + '</small></span><span class="provider-state ' + (ready ? 'ready' : 'unavailable') + '">' + esc(providerState) + '</span><span>' + ordered.length + (' ' + esc(t('ui_models_count')) + '</span></summary><div class="model-provider-models">') + ordered.map(model => {
           const target = model.id.slice(model.id.indexOf('/') + 1);
-          const source = model.conduit?.source || model.source || model.owned_by || 'provider catalog';
+          const source = model.conduit?.source || model.source || model.owned_by || t('ui_provider_catalog');
           const availability = model.conduit?.availability || model.availability || 'dynamic';
-          const ctxInfo = model.contextWindow ? (' · ' + Math.round(model.contextWindow/1000) + 'k ctx') : '';
-          return '<div class="model-row"><div><strong>' + esc(target) + '</strong><code>' + esc(model.id) + '</code></div><span class="model-meta">' + esc(availability) + ' · ' + esc(source) + esc(ctxInfo) + '</span><button type="button" data-use-model="' + esc(model.id) + '">Use in Playground</button></div>';
+          const ctxInfo = model.contextWindow ? (' · ' + Math.round(model.contextWindow/1000) + t('ui_context_abbr')) : '';
+          return '<div class="model-row"><div><strong>' + esc(target) + '</strong><code>' + esc(model.id) + '</code></div><span class="model-meta">' + esc(localizedValue(availability)) + ' · ' + esc(localizedValue(source)) + esc(ctxInfo) + '</span><button type="button" data-use-model="' + esc(model.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>' + '<span class="action-label">' + esc(t('btn_use_playground')) + '</span>' + '</button></div>');
         }).join('') + '</div></details>';
       }).join('') + '</div>';
-    }).join('') || '<span class="muted">No matching models.</span>';
+    }).join('') || ('<span class="muted">' + esc(t('ui_no_models_match')) + '</span>'));
   }
 
   // Multi-Select Structured Tool Picker for Agent Policies
@@ -1774,28 +1809,28 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     const chipsHtml = Array.from(selectedTools).sort().map(tool =>
       '<span class="tool-chip"><span>' + esc(tool) + '</span><button type="button" class="chip-del" data-remove-tool="' + esc(tool) + '" data-for-provider="' + esc(providerName) + '">&times;</button></span>'
-    ).join('') || '<span class="muted" style="font-size:12px;">No tools restricted. Agent has full tool permissions.</span>';
+    ).join('') || ('<span class="muted" style="font-size:12px;">' + esc(t('ui_no_restrictions')) + '</span>');
 
     const accordionHtml = categories.map(cat => {
-      const toolsInCat = knownTools.filter(t => t.category === cat);
+      const toolsInCat = knownTools.filter(tool => tool.category === cat);
       if (!toolsInCat.length) return '';
-      const restrictedCount = toolsInCat.filter(t => selectedTools.has(t.name)).length;
-      return '<div class="tool-cat-block" data-cat-block="' + esc(cat) + '">' +
+      const restrictedCount = toolsInCat.filter(tool => selectedTools.has(tool.name)).length;
+      return '<div class="tool-cat-block" data-cat-block="' + esc(localizedValue(cat)) + '">' +
         '<div class="tool-cat-title" onclick="this.parentElement.classList.toggle(\\'open\\')">' +
-          '<span>' + esc(cat) + '</span>' +
-          '<span class="cat-badge">' + restrictedCount + ' of ' + toolsInCat.length + ' restricted</span>' +
+          '<span>' + esc(localizedValue(cat)) + '</span>' +
+          '<span class="cat-badge">' + restrictedCount + (' ' + t('ui_of') + ' ') + toolsInCat.length + (' ' + esc(t('ui_restricted')) + '</span>') +
         '</div>' +
         '<div class="tool-pills-list">' +
-          toolsInCat.map(t => {
-            const isSelected = selectedTools.has(t.name);
-            const tagClass = t.mutating ? 'mutating' : 'readonly';
-            const tagLabel = t.mutating ? 'MUT' : 'RO';
+          toolsInCat.map(tool => {
+            const isSelected = selectedTools.has(tool.name);
+            const tagClass = tool.mutating ? 'mutating' : 'readonly';
+            const tagLabel = tool.mutating ? t('badge_mutating') : t('badge_readonly');
             return '<button type="button" class="tool-pill' + (isSelected ? ' selected' : '') + '" ' +
-              'data-tool-name="' + esc(t.name) + '" ' +
+              'data-tool-name="' + esc(tool.name) + '" ' +
               'data-tool-provider="' + esc(providerName) + '" ' +
-              'title="' + esc(t.description) + ' (' + (t.mutating ? 'Mutating file/system state' : 'Read-only') + ')">' +
+              'title="' + esc(tool.description) + ' (' + (tool.mutating ? t('ui_mutating_state') : t('ui_read_only')) + ')">' +
               '<span class="pill-tag ' + tagClass + '">' + tagLabel + '</span>' +
-              '<span>' + esc(t.name) + '</span>' +
+              '<span>' + esc(tool.name) + '</span>' +
             '</button>';
           }).join('') +
         '</div>' +
@@ -1804,11 +1839,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     return '<div class="tool-picker-container" data-picker-for="' + esc(providerName) + '">' +
       '<div class="tool-picker-top">' +
-        '<span style="font-size: 12px; font-weight: 600; color: var(--text);">Disallowed Tools Policy</span>' +
+        ('<span style="font-size: 12px; font-weight: 600; color: var(--text);">' + esc(t('lbl_disallowed_tools')) + '</span>') +
         '<div class="tool-picker-actions">' +
-          '<button type="button" data-tool-action="mutating" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + '>Restrict Mutating</button>' +
-          '<button type="button" data-tool-action="all" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + '>Select All</button>' +
-          '<button type="button" data-tool-action="clear" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + '>Clear All</button>' +
+          '<button type="button" data-tool-action="mutating" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + ('>' + '<span class="action-label">' + esc(t('btn_restrict_mutating')) + '</span>' + '</button>') +
+          '<button type="button" data-tool-action="all" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + ('>' + '<span class="action-label">' + esc(t('btn_select_all')) + '</span>' + '</button>') +
+          '<button type="button" data-tool-action="clear" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + ('>' + '<span class="action-label">' + esc(t('btn_clear_all')) + '</span>' + '</button>') +
         '</div>' +
       '</div>' +
       '<input type="hidden" name="disallowedTools" value="' + esc(disallowedCsv || '') + '">' +
@@ -1826,9 +1861,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     const chipsArea = picker.querySelector('[data-chips-for="' + providerName + '"]');
     if (chipsArea) {
-      chipsArea.innerHTML = Array.from(newSet).sort().map(tool =>
+      setLocalizedHtml(chipsArea, () => Array.from(newSet).sort().map(tool =>
         '<span class="tool-chip"><span>' + esc(tool) + '</span><button type="button" class="chip-del" data-remove-tool="' + esc(tool) + '" data-for-provider="' + esc(providerName) + '">&times;</button></span>'
-      ).join('') || '<span class="muted" style="font-size:12px;">No tools restricted. Agent has full tool permissions.</span>';
+      ).join('') || ('<span class="muted" style="font-size:12px;">' + esc(t('ui_no_restrictions')) + '</span>'));
     }
 
     picker.querySelectorAll('.tool-pill').forEach(pill => {
@@ -1838,10 +1873,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     picker.querySelectorAll('.tool-cat-block').forEach(block => {
       const cat = block.dataset.catBlock;
-      const toolsInCat = knownTools.filter(t => t.category === cat);
-      const restricted = toolsInCat.filter(t => newSet.has(t.name)).length;
+      const toolsInCat = knownTools.filter(tool => tool.category === cat);
+      const restricted = toolsInCat.filter(tool => newSet.has(tool.name)).length;
       const badge = block.querySelector('.cat-badge');
-      if (badge) badge.textContent = restricted + ' of ' + toolsInCat.length + ' restricted';
+      if (badge) setLocalizedText(badge, () => restricted + (' ' + t('ui_of') + ' ') + toolsInCat.length + (' ' + t('ui_restricted')));
     });
   }
 
@@ -1851,29 +1886,29 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (!list) return;
     const policies = data?.policies || {};
     const entries = Object.entries(policies);
-    if (!entries.length) { list.innerHTML = '<span class="muted">No provider policies available.</span>'; return; }
+    if (!entries.length) { setLocalizedHtml(list, () => '<span class="muted">' + esc(t('ui_no_policies')) + '</span>'); return; }
 
-    list.innerHTML = entries.map(([name, p]) => {
+    setLocalizedHtml(list, () => entries.map(([name, p]) => {
       const isCli = Boolean(p.hasAgentCapability);
       const badgeClass = isCli ? (p.agentEnabled ? 'ok' : 'warn') : 'muted';
-      const badgeText = isCli ? (p.agentEnabled ? 'Agent mode enabled' : 'Agent mode disabled') : 'Inference only';
+      const badgeText = isCli ? (p.agentEnabled ? t('status_agent_enabled') : t('status_agent_disabled')) : t('status_inference_only');
       return '<div class="provider-block" data-policy-card="' + esc(name) + '">' +
         '<h3><span>' + esc(name) + '</span><span class="setting-badge ' + badgeClass + '">' + esc(badgeText) + '</span></h3>' +
         '<form class="policy-form" data-policy-provider="' + esc(name) + '">' +
           '<div class="policy-controls-row">' +
-            '<label><span>Agent mode</span><select name="agentEnabled"' + (isCli ? '' : ' disabled') + '>' +
-              '<option value="true"' + (p.agentEnabled ? ' selected' : '') + '>Allowed (writes workspace)</option>' +
-              '<option value="false"' + (!p.agentEnabled ? ' selected' : '') + '>Disabled (read-only)</option>' +
+            ('<label><span>' + esc(t('lbl_agent_mode')) + '</span><select name="agentEnabled"') + (isCli ? '' : ' disabled') + '>' +
+              '<option value="true"' + (p.agentEnabled ? ' selected' : '') + ('>' + esc(t('ui_agent_allowed')) + '</option>') +
+              '<option value="false"' + (!p.agentEnabled ? ' selected' : '') + ('>' + esc(t('ui_agent_blocked')) + '</option>') +
             '</select></label>' +
-            '<label><span>Default run mode</span><select name="defaultMode">' +
-              (p.supportedModes || ['chat']).map(m => '<option value="' + esc(m) + '"' + (p.defaultMode === m ? ' selected' : '') + '>' + esc(m) + '</option>').join('') +
+            ('<label><span>' + esc(t('lbl_default_run_mode')) + '</span><select name="defaultMode">') +
+              (p.supportedModes || ['chat']).map(m => '<option value="' + esc(m) + '"' + (p.defaultMode === m ? ' selected' : '') + '>' + esc(localizedValue(m)) + '</option>').join('') +
             '</select></label>' +
-            '<div class="play-actions"><button type="submit" class="primary"' + (isCli ? '' : ' disabled') + '>Save policy</button><span class="muted" data-feedback-for="' + esc(name) + '"></span></div>' +
+            '<div class="play-actions"><button type="submit" class="primary"' + (isCli ? '' : ' disabled') + ('>' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' + '<span class="action-label">' + esc(t('btn_save_policy')) + '</span>' + '</button><span class="muted" data-feedback-for="') + esc(name) + '"></span></div>' +
           '</div>' +
           (isCli ? renderToolPicker(name, p.disallowedTools, isCli) : '') +
         '</form>' +
       '</div>';
-    }).join('');
+    }).join(''));
 
     list.querySelectorAll('form[data-policy-provider]').forEach(form => form.addEventListener('submit', saveAgentPolicy));
 
@@ -1916,9 +1951,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         if (!input) return;
         let set = new Set();
         if (action === 'all') {
-          set = new Set(knownTools.map(t => t.name));
+          set = new Set(knownTools.map(tool => tool.name));
         } else if (action === 'mutating') {
-          set = new Set(knownTools.filter(t => t.mutating).map(t => t.name));
+          set = new Set(knownTools.filter(tool => tool.mutating).map(tool => tool.name));
         } else if (action === 'clear') {
           set = new Set();
         }
@@ -1934,7 +1969,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const button = form.querySelector('button[type="submit"]');
     const feedback = form.querySelector('[data-feedback-for="' + provider + '"]');
     button.disabled = true;
-    if (feedback) feedback.textContent = 'Saving...';
+    if (feedback) setLocalizedText(feedback, () => t('status_saving'));
     try {
       const agentEnabled = form.querySelector('[name="agentEnabled"]').value === 'true';
       const defaultMode = form.querySelector('[name="defaultMode"]').value;
@@ -1944,12 +1979,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, agentEnabled, defaultMode, disallowedTools }),
       });
-      if (feedback) feedback.textContent = 'Saved';
-      $('notice').textContent = 'Agent policy saved for ' + provider;
+      if (feedback) setLocalizedText(feedback, () => t('status_saved'));
+      setLocalizedText($('notice'), () => (t('ui_policy_saved_for') + ' ') + provider);
       await refresh();
     } catch (error) {
-      if (feedback) feedback.textContent = error.message;
-      $('notice').textContent = error.message;
+      if (feedback) setLocalizedText(feedback, () => error.message);
+      setLocalizedText($('notice'), () => error.message);
     } finally {
       button.disabled = false;
     }
@@ -1961,7 +1996,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const select = $('pipe-run-select');
     if (select) {
       const prev = select.value;
-      select.innerHTML = cachedPipelines.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join('');
+      setLocalizedHtml(select, () => cachedPipelines.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join(''));
       if (prev && cachedPipelines.some(p => p.id === prev)) select.value = prev;
     }
 
@@ -1982,63 +2017,63 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     }
 
     if (!filtered.length) {
-      container.innerHTML = '<span class="muted">No pipelines found in this category.</span>';
+      setLocalizedHtml(container, () => '<span class="muted">' + esc(t('ui_no_pipelines')) + '</span>');
       return;
     }
 
-    container.innerHTML = filtered.map(pipe => {
+    setLocalizedHtml(container, () => filtered.map(pipe => {
       const stepsHtml = (pipe.steps || []).map((step, idx) => {
         const isCheckpoint = Boolean(step.requiresApproval);
         return '<div class="pipeline-step-pill">' +
           '<span class="step-badge">' + (idx + 1) + '</span>' +
           '<strong>' + esc(step.name) + '</strong>' +
-          '<span class="step-meta">[' + esc(step.model) + ' · ' + esc(step.mode || 'chat') + ']</span>' +
-          '<span class="step-meta">' + (step.dependsOn?.length ? 'After: ' + step.dependsOn.map(esc).join(', ') : 'Start step') + '</span>' +
-          (isCheckpoint ? '<span class="checkpoint-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Approval Gate</span>' : '') +
+          '<span class="step-meta">[' + esc(step.model) + ' · ' + esc(localizedValue(step.mode || 'chat')) + ']</span>' +
+          '<span class="step-meta">' + (step.dependsOn?.length ? (t('ui_after') + ' ') + step.dependsOn.map(esc).join(', ') : t('ui_start_step')) + '</span>' +
+          (isCheckpoint ? ('<span class="checkpoint-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' + ' ' + esc(t('ui_approval_gate')) + '</span>') : '') +
         '</div>';
       }).join('');
 
       return '<div class="pipeline-card" data-pipe-id="' + esc(pipe.id) + '">' +
         '<div class="pipeline-header">' +
           '<div>' +
-            '<h3 style="margin: 0 0 4px; color: var(--text);">' + esc(pipe.name) + (pipe.isBuiltIn ? ' <span class="setting-badge info">Built-in Preset</span>' : '') + '</h3>' +
+            '<h3 style="margin: 0 0 4px; color: var(--text);">' + esc(pipe.name) + (pipe.isBuiltIn ? (' <span class="setting-badge info">' + esc(t('ui_built_in')) + '</span>') : '') + '</h3>' +
             '<span class="muted" style="font-size: 13px;">' + esc(pipe.description) + '</span>' +
           '</div>' +
           '<div class="actions">' +
-            '<button type="button" class="primary" data-run-pipe="' + esc(pipe.id) + '">Select to Run</button>' +
-            (!pipe.isBuiltIn ? '<button type="button" class="danger" data-del-pipe="' + esc(pipe.id) + '">Delete</button>' : '') +
+            '<button type="button" class="primary" data-run-pipe="' + esc(pipe.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>' + '<span class="action-label">' + esc(t('btn_select_run')) + '</span>' + '</button>') +
+            (!pipe.isBuiltIn ? '<button type="button" class="danger" data-del-pipe="' + esc(pipe.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="10" y2="17"/><line x1="14" x2="14" y1="10" y2="17"/></svg>' + '<span class="action-label">' + esc(t('btn_delete')) + '</span>' + '</button>') : '') +
           '</div>' +
         '</div>' +
         '<div class="pipeline-steps-flow">' + stepsHtml + '</div>' +
       '</div>';
-    }).join('');
+    }).join(''));
   }
 
   function renderPipelineRuns(runs) {
     cachedRuns = runs || [];
     const approvals = $('pipeline-approvals');
-    if (approvals) approvals.innerHTML = cachedRuns.filter(run => run.status === 'waiting_approval').map(run =>
-      '<div class="activity-event warning run-history-item"><span><strong>' + esc(run.pipelineName) + '</strong><br>Step: ' + esc(run.pendingApprovalStepId || 'pending') + '</span><button type="button" data-view-run="' + esc(run.id) + '">Review approval</button></div>'
-    ).join('') || '<span class="muted">No approvals pending.</span>';
+    if (approvals) setLocalizedHtml(approvals, () => cachedRuns.filter(run => run.status === 'waiting_approval').map(run =>
+      '<div class="activity-event warning run-history-item"><span><strong>' + esc(run.pipelineName) + ('</strong><br>' + esc(t('ui_step_colon')) + ' ') + esc(run.pendingApprovalStepId || 'pending') + '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 0 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + '<span class="action-label">' + esc(t('btn_review_approval')) + '</span>' + '</button></div>')
+    ).join('') || ('<span class="muted">' + esc(t('ui_no_approvals')) + '</span>'));
     const selected = cachedRuns.find(run => run.id === selectedRunId);
     if (selected) renderLiveRun(selected);
     const container = $('pipelines-history');
     if (!container) return;
     if (!runs || !runs.length) {
-      container.innerHTML = '<span class="muted">No runs recorded yet.</span>';
+      setLocalizedHtml(container, () => '<span class="muted">' + esc(t('ui_no_runs')) + '</span>');
       return;
     }
 
-    container.innerHTML = runs.map(run => {
+    setLocalizedHtml(container, () => runs.map(run => {
       const statusClass = run.status === 'completed' ? 'success' : (run.status === 'waiting_approval' ? 'warning' : (run.status === 'running' ? 'info' : 'error'));
       return '<div class="activity-event run-history-item ' + statusClass + '">' +
         '<span>' +
-          '<time>' + new Date(run.startedAt).toLocaleString() + '</time><br>' +
-          '<strong class="level">' + esc(run.status.toUpperCase()) + '</strong> · ' +
-          esc(run.pipelineName) + (run.initialPrompt ? ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' : ' · Saved summary; prompt and output are not retained') +
-        '</span><button type="button" data-view-run="' + esc(run.id) + '">View run</button>' +
+          '<time>' + new Date(run.startedAt).toLocaleString(currentLang) + '</time><br>' +
+          '<strong class="level">' + esc(localizedValue(run.status.toUpperCase())) + '</strong> · ' +
+          esc(run.pipelineName) + (run.initialPrompt ? ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' : (' ' + t('ui_saved_summary_only'))) +
+        '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<span class="action-label">' + esc(t('btn_view_run')) + '</span>' + '</button>') +
       '</div>';
-    }).join('');
+    }).join(''));
   }
 
   let cachedRuns = [], activePipelineRun = null;
@@ -2048,7 +2083,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       const result = await request('/v1/pipelines/runs/' + encodeURIComponent(runId));
       renderLiveRun(result.run);
       $('pipe-live-status').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (error) { $('notice').textContent = error.message; }
+    } catch (error) { setLocalizedText($('notice'), () => error.message); }
   }
   for (const id of ['pipelines-history', 'pipeline-approvals']) {
     $(id).addEventListener('click', event => {
@@ -2068,35 +2103,36 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (!box) return;
     if (!run) { box.innerHTML = ''; return; }
 
+    setLocalizedHtml(box, () => {
     const statusBadge = run.status === 'completed'
-      ? '<span class="setting-badge ok">COMPLETED</span>'
+      ? ('<span class="setting-badge ok">' + esc(t('status_completed')) + '</span>')
       : (run.status === 'waiting_approval'
-        ? '<span class="setting-badge warn">AWAITING OPERATOR APPROVAL</span>'
+        ? ('<span class="setting-badge warn">' + esc(t('ui_awaiting_operator')) + '</span>')
         : (run.status === 'running'
-          ? '<span class="setting-badge info">RUNNING</span>'
-          : '<span class="setting-badge bad">' + esc(run.status.toUpperCase()) + '</span>'));
+          ? ('<span class="setting-badge info">' + esc(t('status_running')) + '</span>')
+          : '<span class="setting-badge bad">' + esc(localizedValue(run.status.toUpperCase())) + '</span>'));
 
     let checkpointAlert = '';
     if (run.status === 'waiting_approval' && run.pendingApprovalStepId) {
       const stepName = run.stepResults[run.pendingApprovalStepId]?.stepName || run.pendingApprovalStepId;
       checkpointAlert = '<div class="checkpoint-banner">' +
-        '<div><strong>Checkpoint Reached:</strong> Step <code>' + esc(stepName) + '</code> requires human authorization before execution.</div>' +
-        '<input type="text" id="checkpoint-feedback" placeholder="Optional approval feedback or steering guidance">' +
+        ('<div><strong>' + esc(t('ui_checkpoint_reached')) + '</strong>' + ' ' + esc(t('ui_step')) + ' ' + '<code>') + esc(stepName) + ('</code>' + ' ' + esc(t('ui_requires_authorization')) + '</div>') +
+        ('<input type="text" id="checkpoint-feedback" placeholder="' + esc(t('ui_optional_feedback')) + '">') +
         '<div style="display: flex; gap: 8px;">' +
-          '<button type="button" class="success" id="btn-approve-step">Approve & Resume</button>' +
-          '<button type="button" class="danger" id="btn-reject-step">Reject Pipeline</button>' +
+          ('<button type="button" class="success" id="btn-approve-step">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 0 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + '<span class="action-label">' + esc(t('btn_approve')) + '</span>' + '</button>') +
+          ('<button type="button" class="danger" id="btn-reject-step">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>' + '<span class="action-label">' + esc(t('btn_reject')) + '</span>' + '</button>') +
         '</div>' +
       '</div>';
     }
 
     const stepsDetail = Object.values(run.stepResults || {}).map(step => {
       const badge = step.status === 'completed'
-        ? '<span class="setting-badge ok">DONE (' + (step.latencyMs || 0) + ' ms)</span>'
+        ? ('<span class="setting-badge ok">' + esc(t('ui_done_latency'))) + (step.latencyMs || 0) + ' ms)</span>'
         : (step.status === 'waiting_approval'
-          ? '<span class="setting-badge warn">PAUSED (Checkpoint)</span>'
+          ? ('<span class="setting-badge warn">' + esc(t('ui_paused_checkpoint')) + '</span>')
           : (step.status === 'running'
-            ? '<span class="setting-badge info">IN FLIGHT</span>'
-            : '<span class="setting-badge bad">' + esc(step.status.toUpperCase()) + '</span>'));
+            ? ('<span class="setting-badge info">' + esc(t('ui_in_flight')) + '</span>')
+            : '<span class="setting-badge bad">' + esc(localizedValue(step.status.toUpperCase())) + '</span>'));
 
       return '<div class="step-result-card ' + esc(step.status) + '">' +
         '<div class="step-result-header">' +
@@ -2108,24 +2144,25 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       '</div>';
     }).join('');
 
-    box.innerHTML = '<div style="margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;">' +
+    return '<div style="margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;">' +
       '<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px;">' +
-        '<strong>Run Status: ' + esc(run.pipelineName) + '</strong>' +
+        ('<strong>' + esc(t('ui_run_status')) + ' ') + esc(run.pipelineName) + '</strong>' +
         statusBadge +
       '</div>' +
-      '<div class="muted">Run ' + esc(run.id) + (run.error ? ' · ' + esc(run.error) : '') + '</div>' +
-      (!run.initialPrompt ? '<p class="muted">Saved summary: prompts and model output are kept only while the service is running.</p>' : '') +
-      (run.status === 'interrupted' ? '<p>Inspect the workspace before starting again. This run cannot resume after the service restarts.</p><button type="button" id="btn-prepare-run">Prepare a new run</button>' : '') +
-      (['running', 'waiting_approval'].includes(run.status) ? '<button type="button" class="danger" id="btn-cancel-run">Cancel run</button>' : '') +
+      ('<div class="muted">' + esc(t('ui_run')) + ' ') + esc(run.id) + (run.error ? ' · ' + esc(run.error) : '') + '</div>' +
+      (!run.initialPrompt ? ('<p class="muted">' + esc(t('ui_saved_run_description')) + '</p>') : '') +
+      (run.status === 'interrupted' ? ('<p>' + esc(t('ui_interrupted_run_description')) + '</p><button type="button" id="btn-prepare-run">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>' + '<span class="action-label">' + esc(t('btn_prepare_run')) + '</span>' + '</button>') : '') +
+      (['running', 'waiting_approval'].includes(run.status) ? ('<button type="button" class="danger" id="btn-cancel-run">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>' + '<span class="action-label">' + esc(t('btn_cancel_run')) + '</span>' + '</button>') : '') +
       checkpointAlert +
       '<div style="display: grid; gap: 8px;">' + stepsDetail + '</div>' +
     '</div>';
+    });
     if ($('checkpoint-feedback')) $('checkpoint-feedback').value = feedbackDraft;
     $('btn-prepare-run')?.addEventListener('click', () => {
       $('pipe-run-select').value = run.pipelineId;
       $('pipe-run-prompt').value = '';
       $('pipe-run-prompt').focus();
-      $('notice').textContent = 'Review the repository and working directory, then enter a fresh prompt to start a new run.';
+      setLocalizedText($('notice'), () => t('ui_prepare_run_guidance'));
     });
     $('btn-cancel-run')?.addEventListener('click', async event => {
       const cancelButton = event.currentTarget;
@@ -2137,7 +2174,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         });
         renderLiveRun(result.run);
         scheduleLiveRefresh();
-      } catch (error) { $('notice').textContent = error.message; cancelButton.disabled = false; }
+      } catch (error) { setLocalizedText($('notice'), () => error.message); cancelButton.disabled = false; }
     });
 
     const approveBtn = $('btn-approve-step');
@@ -2154,7 +2191,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           renderLiveRun(res.run);
           await refresh();
         } catch (err) {
-          alert('Approval error: ' + err.message);
+          alert((t('error_approval') + ' ') + err.message);
           approveBtn.disabled = false;
         }
       });
@@ -2164,7 +2201,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (rejectBtn) {
       rejectBtn.addEventListener('click', async () => {
         rejectBtn.disabled = true;
-        const feedback = $('checkpoint-feedback')?.value || 'Rejected by operator';
+        const feedback = $('checkpoint-feedback')?.value || t('ui_rejected_operator');
         try {
           const res = await request('/v1/pipelines/runs/action', {
             method: 'POST',
@@ -2174,7 +2211,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           renderLiveRun(res.run);
           await refresh();
         } catch (err) {
-          alert('Rejection error: ' + err.message);
+          alert((t('error_rejection') + ' ') + err.message);
           rejectBtn.disabled = false;
         }
       });
@@ -2187,12 +2224,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const repository = $('pipe-run-repo')?.value || undefined;
     const workingDirectory = $('pipe-run-cwd')?.value || undefined;
     if (!pipelineId || !prompt) {
-      alert('Please select a pipeline and enter an initial prompt');
+      alert(t('error_select_pipeline_prompt'));
       return;
     }
     const btn = $('pipe-run-btn');
     btn.disabled = true;
-    btn.textContent = 'Executing...';
+    setLocalizedText(btn, () => t('status_executing'));
     try {
       const res = await request('/v1/pipelines/run', {
         method: 'POST',
@@ -2202,10 +2239,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       renderLiveRun(res.run);
       await refresh();
     } catch (err) {
-      alert('Pipeline execution failed: ' + err.message);
+      alert((t('error_pipeline_execution') + ' ') + err.message);
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Execute Pipeline';
+      setLocalizedText(btn, () => t('btn_execute_pipeline'));
     }
   });
 
@@ -2220,12 +2257,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const delBtn = event.target.closest('[data-del-pipe]');
     if (delBtn) {
       const pipeId = delBtn.dataset.delPipe;
-      if (!confirm('Are you sure you want to delete this custom pipeline?')) return;
+      if (!confirm(t('confirm_delete_pipeline'))) return;
       try {
         await request('/v1/pipelines/' + pipeId, { method: 'DELETE' });
         await refresh();
       } catch (err) {
-        alert('Delete failed: ' + err.message);
+        alert((t('error_delete_failed') + ' ') + err.message);
       }
     }
   });
@@ -2236,7 +2273,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const idx = container.children.length + 1;
     const s = step || {
       id: 'step-' + idx,
-      name: 'Step ' + idx,
+      name: (t('ui_step') + ' ') + idx,
       model: models[0]?.id || 'cli-claude/claude-sonnet-5',
       mode: 'chat',
       requiresApproval: false,
@@ -2247,27 +2284,27 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     row.className = 'provider-block';
     row.style.margin = '0';
     row.style.padding = '12px';
-    row.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
-      '<strong>Step ' + idx + '</strong>' +
-      '<button type="button" class="modal-close" style="color: var(--bad);">&times;</button>' +
+    setLocalizedHtml(row, () => '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
+      ('<strong>' + esc(t('ui_step')) + ' ') + idx + '</strong>' +
+      '<button type="button" class="modal-close" style="color: var(--bad);" title="' + esc(t('btn_remove_step')) + '" aria-label="' + esc(t('btn_remove_step')) + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="10" y2="17"/><line x1="14" x2="14" y1="10" y2="17"/></svg></button>' +
     '</div>' +
     '<div style="display: grid; grid-template-columns: 1fr 1.2fr 100px; gap: 8px; margin-bottom: 8px;">' +
-      '<label><span>Step Name</span><input type="text" class="step-name-inp" value="' + esc(s.name) + '"></label>' +
-      '<label><span>Model</span><select class="step-model-inp">' + modelOptionGroups(s.model) + '</select></label>' +
-      '<label><span>Mode</span><select class="step-mode-inp">' +
-        '<option value="chat"' + (s.mode === 'chat' ? ' selected' : '') + '>Chat</option>' +
-        '<option value="plan"' + (s.mode === 'plan' ? ' selected' : '') + '>Plan</option>' +
-        '<option value="agent"' + (s.mode === 'agent' ? ' selected' : '') + '>Agent</option>' +
+      ('<label><span>' + esc(t('lbl_step_name')) + '</span><input type="text" class="step-name-inp" value="') + esc(s.name) + '"></label>' +
+      ('<label><span>' + esc(t('lbl_model')) + '</span><select class="step-model-inp">') + modelOptionGroups(s.model) + '</select></label>' +
+      ('<label><span>' + esc(t('lbl_mode')) + '</span><select class="step-mode-inp">') +
+        '<option value="chat"' + (s.mode === 'chat' ? ' selected' : '') + ('>' + esc(t('mode_chat')) + '</option>') +
+        '<option value="plan"' + (s.mode === 'plan' ? ' selected' : '') + ('>' + esc(t('mode_plan')) + '</option>') +
+        '<option value="agent"' + (s.mode === 'agent' ? ' selected' : '') + ('>' + esc(t('mode_agent')) + '</option>') +
       '</select></label>' +
     '</div>' +
     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">' +
       '<label class="nav-checkbox-label" style="font-size: 12px;">' +
-        '<input type="checkbox" class="step-approval-inp"' + (s.requiresApproval ? ' checked' : '') + '> Require Human Approval Checkpoint before this step' +
+        '<input type="checkbox" class="step-approval-inp"' + (s.requiresApproval ? ' checked' : '') + ('>' + ' ' + esc(t('lbl_approval_checkpoint'))) +
       '</label>' +
     '</div>' +
-    '<label><span>Prompt Template (use {{prompt}}, {{previous_output}}, or {{prior_steps}})</span>' +
+    '<label><span>' + esc(t('lbl_prompt_template')) + '</span>' +
       '<textarea class="step-prompt-inp" style="min-height: 56px;">' + esc(s.promptTemplate || '{{prompt}}') + '</textarea>' +
-    '</label>';
+    '</label>');
 
     row.querySelector('.modal-close').addEventListener('click', () => row.remove());
     container.appendChild(row);
@@ -2287,14 +2324,14 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   $('save-pipeline-btn').addEventListener('click', async () => {
     const name = $('pipe-name-input').value.trim();
     const description = $('pipe-desc-input').value.trim();
-    if (!name) { alert('Pipeline name is required'); return; }
+    if (!name) { alert(t('error_pipeline_name')); return; }
 
     const stepRows = document.querySelectorAll('#pipe-steps-container > .provider-block');
-    if (!stepRows.length) { alert('At least one step is required'); return; }
+    if (!stepRows.length) { alert(t('error_pipeline_steps')); return; }
 
     const steps = [...stepRows].map((row, idx) => ({
       id: 'step-' + (idx + 1),
-      name: row.querySelector('.step-name-inp').value.trim() || ('Step ' + (idx + 1)),
+      name: row.querySelector('.step-name-inp').value.trim() || ((t('ui_step') + ' ') + (idx + 1)),
       model: row.querySelector('.step-model-inp').value,
       mode: row.querySelector('.step-mode-inp').value,
       requiresApproval: row.querySelector('.step-approval-inp').checked,
@@ -2311,18 +2348,18 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       $('pipeline-modal').classList.remove('open');
       await refresh();
     } catch (err) {
-      alert('Save failed: ' + err.message);
+      alert((t('error_save_failed') + ' ') + err.message);
     }
   });
 
   // Telemetry, Metrics, Usage, Settings
   function renderMetrics(data) {
     const rows = Object.entries(data.models || {}).sort((a,b) => (b[1].requests || 0) - (a[1].requests || 0));
-    $('metrics').innerHTML = rows.length
+    setLocalizedHtml($('metrics'), () => rows.length
       ? '<div class="model-list">' + rows.map(([model, m]) =>
-          '<div><code>' + esc(model) + '</code> · ' + m.successes + '/' + m.requests + ' successful · ' + (m.averageLatencyMs ?? '-') + ' ms avg · ' + m.inFlight + ' active' + (m.lastError ? ' · <span class="muted">last error: ' + esc(m.lastError) + '</span>' : '') + '</div>'
+          '<div><code>' + esc(model) + '</code> · ' + m.successes + '/' + m.requests + (' ' + t('ui_successful_count') + ' ') + (m.averageLatencyMs ?? '-') + (' ' + t('ui_average_ms') + ' ') + m.inFlight + (' ' + t('ui_active_count')) + (m.lastError ? (' · <span class="muted">' + esc(t('ui_last_error')) + ' ') + esc(m.lastError) + '</span>' : '') + '</div>'
         ).join('') + '</div>'
-      : 'No requests yet.';
+      : t('ui_no_requests'));
   }
 
   function renderActivity(data) {
@@ -2344,21 +2381,21 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     }
 
     if (!filtered.length) {
-      container.innerHTML = 'No matching operational events found.';
+      setLocalizedHtml(container, () => t('ui_no_matching_events'));
       return;
     }
 
-    container.innerHTML = filtered.slice(0, 100).map(event =>
-      '<div class="activity-event ' + esc(event.level) + '">' +
-        '<time>' + new Date(event.time).toLocaleTimeString() + '</time>' +
+    setLocalizedHtml(container, () => filtered.slice(0, 100).map(event =>
+      '<div class="activity-event ' + esc(localizedValue(event.level)) + '">' +
+        '<time>' + new Date(event.time).toLocaleTimeString(currentLang) + '</time>' +
         '<span class="scope">' + esc(event.scope) + '</span>' +
         '<span>' +
-          '<strong class="level">' + esc(event.level) + '</strong> · ' +
+          '<strong class="level">' + esc(localizedValue(event.level)) + '</strong> · ' +
           esc(event.message) +
           ['traceId', 'runId', 'stepId', 'provider', 'model', 'status', 'attempt', 'durationMs'].filter(key => event[key] !== undefined).map(key => ' <code class="trace-pill">' + key + ':' + esc(event[key]) + '</code>').join('') +
         '</span>' +
       '</div>'
-    ).join('');
+    ).join(''));
   }
 
   function renderSystemTools(tools) {
@@ -2367,30 +2404,30 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (!container) return;
     const sys = cachedSystemTools;
     if (!sys.length) {
-      container.innerHTML = '<span class="muted">No system CLI tools discovered yet. Click Rediscover Tools above to scan PATH.</span>';
+      setLocalizedHtml(container, () => '<span class="muted">' + esc(t('ui_no_system_tools')) + '</span>');
       return;
     }
-    container.innerHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px;">' +
-      sys.map(t => {
-        const isAvail = Boolean(t.available !== false && (t.available || t.detected));
-        const displayName = t.name || t.displayName || t.executable;
-        const binPath = t.path || t.binaryPath || 'PATH';
-        const risk = t.riskLevel || 'Low';
+    setLocalizedHtml(container, () => '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px;">' +
+      sys.map(tool => {
+        const isAvail = Boolean(tool.available !== false && (tool.available || tool.detected));
+        const displayName = tool.name || tool.displayName || tool.executable;
+        const binPath = tool.path || tool.binaryPath || 'PATH';
+        const risk = tool.riskLevel || 'Low';
         const riskClass = risk === 'Critical' || risk === 'High' ? 'bad' : (risk === 'Medium' ? 'warn' : 'ok');
         return '<div class="provider-block" style="padding: 10px; margin: 0;">' +
           '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">' +
             '<strong>' + esc(displayName) + '</strong>' +
-            '<span class="setting-badge ' + (isAvail ? 'ok' : 'bad') + '">' + (isAvail ? 'Available' : 'Missing') + '</span>' +
+            '<span class="setting-badge ' + (isAvail ? 'ok' : 'bad') + '">' + (isAvail ? t('status_available') : t('status_missing')) + '</span>' +
           '</div>' +
           '<div class="muted" style="font-size: 12px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
           '<div style="display: flex; gap: 6px; margin-top: 6px; font-size: 11px;">' +
-            '<span class="setting-badge info">' + esc(t.category || t.classification || 'System') + '</span>' +
-            '<span class="setting-badge ' + riskClass + '">Risk: ' + esc(risk) + '</span>' +
-            (t.version ? '<span class="setting-badge muted">' + esc(t.version) + '</span>' : '') +
+            '<span class="setting-badge info">' + esc(tool.category || tool.classification || t('group_system')) + '</span>' +
+            '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(risk)) + '</span>' +
+            (tool.version ? '<span class="setting-badge muted">' + esc(tool.version) + '</span>' : '') +
           '</div>' +
         '</div>';
       }).join('') +
-    '</div>';
+    '</div>');
   }
 
   function renderToolCatalog(filterClass) {
@@ -2399,31 +2436,31 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (!container) return;
     let list = knownTools || [];
     if (currentToolFilter && currentToolFilter !== 'all') {
-      list = list.filter(t => t.classification === currentToolFilter);
+      list = list.filter(tool => tool.classification === currentToolFilter);
     }
     if (!list.length) {
-      container.innerHTML = '<span class="muted">No tools match this classification filter.</span>';
+      setLocalizedHtml(container, () => '<span class="muted">' + esc(t('ui_no_tools_match')) + '</span>');
       return;
     }
 
-    container.innerHTML = list.map(t => {
-      const riskClass = t.riskLevel === 'Critical' || t.riskLevel === 'High' ? 'bad' : (t.riskLevel === 'Medium' ? 'warn' : 'ok');
+    setLocalizedHtml(container, () => list.map(tool => {
+      const riskClass = tool.riskLevel === 'Critical' || tool.riskLevel === 'High' ? 'bad' : (tool.riskLevel === 'Medium' ? 'warn' : 'ok');
       return '<div class="tool-card">' +
         '<div class="tool-card-title">' +
           '<div>' +
-            '<strong>' + esc(t.displayName || t.name) + '</strong> ' +
-            '<code>' + esc(t.name) + '</code>' +
+            '<strong>' + esc(tool.displayName || tool.name) + '</strong> ' +
+            '<code>' + esc(tool.name) + '</code>' +
           '</div>' +
-          '<span class="setting-badge ' + riskClass + '">Risk: ' + esc(t.riskLevel || 'Low') + '</span>' +
+          '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(tool.riskLevel || 'Low')) + '</span>' +
         '</div>' +
         '<div class="tool-card-badges">' +
-          '<span class="setting-badge info">' + esc(t.classification || 'Operation') + '</span>' +
-          '<span class="setting-badge muted">' + esc(t.category || 'general') + '</span>' +
-          (t.mutating ? '<span class="setting-badge warn">Workspace Mutating</span>' : '<span class="setting-badge ok">Read-Only</span>') +
+          '<span class="setting-badge info">' + esc(localizedValue(tool.classification || t('ui_operation'))) + '</span>' +
+          '<span class="setting-badge muted">' + esc(localizedValue(tool.category || 'general')) + '</span>' +
+          (tool.mutating ? ('<span class="setting-badge warn">' + esc(t('ui_workspace_mutating')) + '</span>') : ('<span class="setting-badge ok">' + esc(t('ui_read_only')) + '</span>')) +
         '</div>' +
-        '<p class="tool-card-desc">' + esc(t.description || 'No description available.') + '</p>' +
+        '<p class="tool-card-desc">' + esc(tool.description || t('ui_no_tool_description')) + '</p>' +
       '</div>';
-    }).join('');
+    }).join(''));
   }
 
   function renderGovernance(repos, audits) {
@@ -2433,23 +2470,23 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const repoSelect = $('pipe-run-repo');
     if (repoSelect) {
       const prev = repoSelect.value;
-      repoSelect.innerHTML = '<option value="">Default / Global</option>' +
-        cachedRepositories.map(r => '<option value="' + esc(r.id) + '">' + esc(r.name || r.id) + ' (' + esc(r.id) + ')</option>').join('');
+      setLocalizedHtml(repoSelect, () => ('<option value="">' + esc(t('ui_default_global')) + '</option>') +
+        cachedRepositories.map(r => '<option value="' + esc(r.id) + '">' + esc(r.name || r.id) + ' (' + esc(r.id) + ')</option>').join(''));
       if (prev && cachedRepositories.some(r => r.id === prev)) repoSelect.value = prev;
     }
 
     const repoTableContainer = $('repos-table-container');
     if (repoTableContainer) {
       if (!cachedRepositories.length) {
-        repoTableContainer.innerHTML = '<span class="muted">No repositories registered yet. Click Register Repository above.</span>';
+        setLocalizedHtml(repoTableContainer, () => '<span class="muted">' + esc(t('ui_no_repositories')) + '</span>');
       } else {
-        repoTableContainer.innerHTML = '<table class="data-table">' +
+        setLocalizedHtml(repoTableContainer, () => '<table class="data-table">' +
           '<thead><tr>' +
-            '<th>Repository</th>' +
-            '<th>Local Path</th>' +
-            '<th>Assigned Pipeline</th>' +
-            '<th>Policy Overrides</th>' +
-            '<th>Actions</th>' +
+            ('<th>' + esc(t('lbl_repository_table')) + '</th>') +
+            ('<th>' + esc(t('lbl_local_path_table')) + '</th>') +
+            ('<th>' + esc(t('lbl_assigned_pipeline')) + '</th>') +
+            ('<th>' + esc(t('lbl_policy_overrides')) + '</th>') +
+            ('<th>' + esc(t('lbl_actions')) + '</th>') +
           '</tr></thead>' +
           '<tbody>' +
           cachedRepositories.map(r =>
@@ -2457,47 +2494,47 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
               '<td><strong>' + esc(r.name || r.id) + '</strong><br><small class="muted"><code>' + esc(r.id) + '</code></small></td>' +
               '<td style="font-family: monospace; font-size: 12px;">' + esc(r.path) + '</td>' +
               '<td><span class="setting-badge info">' + esc(r.assignedGovernancePipeline || r.assignedPipeline || 'standard-governance') + '</span></td>' +
-              '<td><small class="muted">' + (r.policyOverrides ? 'Custom (' + Object.keys(r.policyOverrides).length + ' rules)' : 'Standard') + '</small></td>' +
+              '<td><small class="muted">' + (r.policyOverrides ? t('ui_custom_rules') + Object.keys(r.policyOverrides).length + (' ' + t('ui_rules_suffix')) : t('ui_standard')) + '</small></td>' +
               '<td>' +
                 '<div style="display: flex; gap: 6px;">' +
-                  '<button type="button" data-run-repo-pipe="' + esc(r.assignedGovernancePipeline || r.assignedPipeline || 'standard-governance') + '" data-repo-id="' + esc(r.id) + '" data-repo-path="' + esc(r.path) + '">Run</button>' +
-                  '<button type="button" class="danger" data-del-repo="' + esc(r.id) + '">Delete</button>' +
+                  '<button type="button" data-run-repo-pipe="' + esc(r.assignedGovernancePipeline || r.assignedPipeline || 'standard-governance') + '" data-repo-id="' + esc(r.id) + '" data-repo-path="' + esc(r.path) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>' + '<span class="action-label">' + esc(t('btn_run')) + '</span>' + '</button>') +
+                  '<button type="button" class="danger" data-del-repo="' + esc(r.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="10" y2="17"/><line x1="14" x2="14" y1="10" y2="17"/></svg>' + '<span class="action-label">' + esc(t('btn_delete')) + '</span>' + '</button>') +
                 '</div>' +
               '</td>' +
             '</tr>'
           ).join('') +
-          '</tbody></table>';
+          '</tbody></table>');
       }
     }
 
     const auditContainer = $('audit-trail-container');
     if (auditContainer) {
       if (!cachedAuditTrail.length) {
-        auditContainer.innerHTML = '<span class="muted">No approval audit records yet. Run a pipeline with approval gates to record decisions.</span>';
+        setLocalizedHtml(auditContainer, () => '<span class="muted">' + esc(t('ui_no_audit')) + '</span>');
       } else {
-        auditContainer.innerHTML = '<table class="data-table">' +
+        setLocalizedHtml(auditContainer, () => '<table class="data-table">' +
           '<thead><tr>' +
-            '<th>Timestamp</th>' +
-            '<th>Decision</th>' +
-            '<th>Pipeline / Run</th>' +
-            '<th>Step</th>' +
-            '<th>Operator</th>' +
-            '<th>Feedback / Rationale</th>' +
+            ('<th>' + esc(t('lbl_timestamp')) + '</th>') +
+            ('<th>' + esc(t('lbl_decision')) + '</th>') +
+            ('<th>' + esc(t('lbl_pipeline_run')) + '</th>') +
+            ('<th>' + esc(t('ui_step')) + '</th>') +
+            ('<th>' + esc(t('lbl_operator')) + '</th>') +
+            ('<th>' + esc(t('lbl_feedback_rationale')) + '</th>') +
           '</tr></thead>' +
           '<tbody>' +
           cachedAuditTrail.slice(0, 30).map(a => {
             const isApproved = a.action === 'approved' || a.decision === 'approved';
             const actionText = (a.action || a.decision || 'unknown').toUpperCase();
             return '<tr>' +
-              '<td><time class="muted">' + new Date(a.timestamp).toLocaleString() + '</time></td>' +
-              '<td><span class="setting-badge ' + (isApproved ? 'ok' : 'bad') + '">' + esc(actionText) + '</span></td>' +
+              '<td><time class="muted">' + new Date(a.timestamp).toLocaleString(currentLang) + '</time></td>' +
+              '<td><span class="setting-badge ' + (isApproved ? 'ok' : 'bad') + '">' + esc(localizedValue(actionText)) + '</span></td>' +
               '<td><strong>' + esc(a.pipelineId) + '</strong><br><small class="muted"><code>' + esc((a.runId || '').slice(0, 8)) + '</code></small></td>' +
               '<td><code>' + esc(a.stepId) + '</code></td>' +
               '<td><span class="muted">' + esc(a.operator || 'system') + '</span></td>' +
-              '<td>' + esc(a.feedback || 'None provided') + '</td>' +
+              '<td>' + esc(a.feedback || t('ui_none_provided')) + '</td>' +
             '</tr>';
           }).join('') +
-          '</tbody></table>';
+          '</tbody></table>');
       }
     }
   }
@@ -2514,7 +2551,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const dailyFillClass = dailyPct >= 100 ? 'danger' : (dailyPct >= dailyWarn ? 'warn' : 'safe');
 
     if ($('daily-budget-text')) {
-      $('daily-budget-text').textContent = '$' + dailySpent.toFixed(2) + ' / $' + dailyLimit.toFixed(2) + ' (' + dailyPct + '%)';
+      setLocalizedText($('daily-budget-text'), () => '$' + dailySpent.toFixed(2) + ' / $' + dailyLimit.toFixed(2) + ' (' + dailyPct + '%)');
       $('daily-budget-text').className = 'setting-badge ' + dailyClass;
     }
     if ($('daily-budget-fill')) {
@@ -2529,7 +2566,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const monthlyFillClass = monthlyPct >= 100 ? 'danger' : (monthlyPct >= dailyWarn ? 'warn' : 'safe');
 
     if ($('monthly-budget-text')) {
-      $('monthly-budget-text').textContent = '$' + monthlySpent.toFixed(2) + ' / $' + monthlyLimit.toFixed(2) + ' (' + monthlyPct + '%)';
+      setLocalizedText($('monthly-budget-text'), () => '$' + monthlySpent.toFixed(2) + ' / $' + monthlyLimit.toFixed(2) + ' (' + monthlyPct + '%)');
       $('monthly-budget-text').className = 'setting-badge ' + monthlyClass;
     }
     if ($('monthly-budget-fill')) {
@@ -2553,49 +2590,49 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const playWsSelect = $('play-ws-select');
     if (playWsSelect) {
       const prev = playWsSelect.value;
-      playWsSelect.innerHTML = '<option value="">-- Choose Workspace --</option>' +
-        cachedWorkspaces.map(w => '<option value="' + esc(w.path) + '">' + esc(w.name || w.path) + '</option>').join('');
+      setLocalizedHtml(playWsSelect, () => ('<option value="">' + esc(t('ui_choose_workspace')) + '</option>') +
+        cachedWorkspaces.map(w => '<option value="' + esc(w.path) + '">' + esc(w.name || w.path) + '</option>').join(''));
       if (prev && cachedWorkspaces.some(w => w.path === prev)) playWsSelect.value = prev;
     }
 
     const pipeCwdSelect = $('pipe-run-cwd');
     if (pipeCwdSelect) {
       const prev = pipeCwdSelect.value;
-      pipeCwdSelect.innerHTML = '<option value="">Default Workspace</option>' +
-        cachedWorkspaces.map(w => '<option value="' + esc(w.path) + '">' + esc(w.name || w.path) + '</option>').join('');
+      setLocalizedHtml(pipeCwdSelect, () => ('<option value="">' + esc(t('ui_default_workspace')) + '</option>') +
+        cachedWorkspaces.map(w => '<option value="' + esc(w.path) + '">' + esc(w.name || w.path) + '</option>').join(''));
       if (prev && cachedWorkspaces.some(w => w.path === prev)) pipeCwdSelect.value = prev;
     }
 
     const tableContainer = $('workspaces-table-container');
     if (tableContainer) {
       if (!cachedWorkspaces.length) {
-        tableContainer.innerHTML = '<span class="muted">No workspaces registered. Enter a workspace path above to register.</span>';
+        setLocalizedHtml(tableContainer, () => '<span class="muted">' + esc(t('ui_no_workspaces')) + '</span>');
       } else {
-        tableContainer.innerHTML = '<table class="data-table">' +
+        setLocalizedHtml(tableContainer, () => '<table class="data-table">' +
           '<thead><tr>' +
-            '<th>Workspace / Label</th>' +
-            '<th>Absolute Path</th>' +
-            '<th>Status</th>' +
-            '<th>Permissions</th>' +
-            '<th>Actions</th>' +
+            ('<th>' + esc(t('lbl_workspace_label')) + '</th>') +
+            ('<th>' + esc(t('lbl_absolute_path')) + '</th>') +
+            ('<th>' + esc(t('lbl_status')) + '</th>') +
+            ('<th>' + esc(t('lbl_permissions')) + '</th>') +
+            ('<th>' + esc(t('lbl_actions')) + '</th>') +
           '</tr></thead>' +
           '<tbody>' +
           cachedWorkspaces.map(w =>
             '<tr>' +
-              '<td><strong>' + esc(w.name || 'Workspace') + '</strong></td>' +
+              '<td><strong>' + esc(w.name || t('lbl_workspace')) + '</strong></td>' +
               '<td style="font-family: monospace; font-size: 12px;">' + esc(w.path) + '</td>' +
-              '<td><span class="setting-badge ' + (w.exists ? 'ok' : 'bad') + '">' + (w.exists ? 'Found on Disk' : 'Not Found') + '</span></td>' +
-              '<td><span class="setting-badge ' + (w.isWritable || w.writable ? 'ok' : 'warn') + '">' + (w.isWritable || w.writable ? 'Read-Write' : 'Read-Only') + '</span></td>' +
+              '<td><span class="setting-badge ' + (w.exists ? 'ok' : 'bad') + '">' + (w.exists ? t('status_found_disk') : t('status_not_found')) + '</span></td>' +
+              '<td><span class="setting-badge ' + (w.isWritable || w.writable ? 'ok' : 'warn') + '">' + (w.isWritable || w.writable ? t('permission_read_write') : t('ui_read_only')) + '</span></td>' +
               '<td>' +
                 '<div style="display: flex; gap: 6px;">' +
-                  '<button type="button" data-browse-ws="' + esc(w.path) + '">Browse</button>' +
-                  '<button type="button" data-use-ws="' + esc(w.path) + '">Playground</button>' +
-                  '<button type="button" class="danger" data-del-ws="' + esc(w.id || w.path) + '">Delete</button>' +
+                  '<button type="button" data-browse-ws="' + esc(w.path) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>' + '<span class="action-label">' + esc(t('btn_browse')) + '</span>' + '</button>') +
+                  '<button type="button" data-use-ws="' + esc(w.path) + ('">' + '<span class="action-label">' + esc(t('nav_playground')) + '</span>' + '</button>') +
+                  '<button type="button" class="danger" data-del-ws="' + esc(w.id || w.path) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="10" y2="17"/><line x1="14" x2="14" y1="10" y2="17"/></svg>' + '<span class="action-label">' + esc(t('btn_delete')) + '</span>' + '</button>') +
                 '</div>' +
               '</td>' +
             '</tr>'
           ).join('') +
-          '</tbody></table>';
+          '</tbody></table>');
       }
     }
   }
@@ -2608,22 +2645,22 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         body: JSON.stringify({ path: targetPath || '' })
       });
       currentDirBrowsePath = data.current || data.currentPath || '';
-      if ($('browser-current-path')) $('browser-current-path').textContent = currentDirBrowsePath || '-';
+      if ($('browser-current-path')) setLocalizedText($('browser-current-path'), () => currentDirBrowsePath || '-');
       const listEl = $('browser-dirs-list');
       if (listEl) {
         const dirs = data.directories || [];
         if (!dirs.length) {
-          listEl.innerHTML = '<div class="muted" style="padding: 8px;">No child directories found.</div>';
+          setLocalizedHtml(listEl, () => '<div class="muted" style="padding: 8px;">' + esc(t('ui_no_directories')) + '</div>');
         } else {
-          listEl.innerHTML = dirs.map(d =>
+          setLocalizedHtml(listEl, () => dirs.map(d =>
             '<div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; border-radius: 4px; background: var(--panel);">' +
               '<div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" data-nav-dir="' + esc(d.path) + '">' +
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
                 '<strong>' + esc(d.name) + '</strong>' +
               '</div>' +
-              '<button type="button" style="padding: 2px 8px; font-size: 11px;" data-add-dir-ws="' + esc(d.path) + '" data-name="' + esc(d.name) + '">+ Add Workspace</button>' +
+              '<button type="button" style="padding: 2px 8px; font-size: 11px;" data-add-dir-ws="' + esc(d.path) + '" data-name="' + esc(d.name) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>' + '<span class="action-label">' + esc(t('btn_add_workspace')) + '</span>' + '</button>') +
             '</div>'
-          ).join('');
+          ).join(''));
         }
       }
       if ($('browser-up-btn')) {
@@ -2632,7 +2669,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         $('browser-up-btn').dataset.parentPath = data.parent || '';
       }
     } catch (err) {
-      if ($('browser-dirs-list')) $('browser-dirs-list').innerHTML = '<div class="activity-event error">' + esc(err.message) + '</div>';
+      if ($('browser-dirs-list')) setLocalizedHtml($('browser-dirs-list'), () => '<div class="activity-event error">' + esc(err.message) + '</div>');
     }
   }
 
@@ -2646,25 +2683,25 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const reqContainer = $('chart-requests-container');
     if (reqContainer) {
       if (!modelsData.length) {
-        reqContainer.innerHTML = '<div class="muted" style="padding: 30px; text-align: center;">No model request data yet.</div>';
+        setLocalizedHtml(reqContainer, () => '<div class="muted" style="padding: 30px; text-align: center;">' + esc(t('ui_no_model_requests')) + '</div>');
       } else {
         const topModels = modelsData.slice(0, 5);
         const maxReq = Math.max(...topModels.map(m => m.requests || 1), 1);
         const barHeight = 24;
         const totalHeight = topModels.length * (barHeight + 10) + 20;
 
-        const barsSvg = topModels.map((m, i) => {
+        const barsSvg = () => topModels.map((m, i) => {
           const y = i * (barHeight + 10) + 10;
           const barWidth = Math.max(8, Math.round(((m.requests || 0) / maxReq) * 260));
           const shortModel = m.model.split('/').pop() || m.model;
           return '<g>' +
             '<text x="10" y="' + (y + 16) + '" fill="var(--text)" font-size="11" font-family="monospace">' + esc(shortModel.slice(0, 18)) + '</text>' +
             '<rect x="140" y="' + y + '" width="' + barWidth + '" height="' + barHeight + '" rx="4" fill="var(--accent)" opacity="0.85"/>' +
-            '<text x="' + (146 + barWidth) + '" y="' + (y + 16) + '" fill="var(--muted)" font-size="11">' + m.requests + ' req (' + (m.avgLatencyMs ?? 0) + 'ms)</text>' +
+            '<text x="' + (146 + barWidth) + '" y="' + (y + 16) + '" fill="var(--muted)" font-size="11">' + m.requests + (' ' + t('ui_request_abbr')) + (m.avgLatencyMs ?? 0) + 'ms)</text>' +
           '</g>';
         }).join('');
 
-        reqContainer.innerHTML = '<svg aria-hidden="true" viewBox="0 0 460 ' + totalHeight + '" width="100%" height="' + totalHeight + '" style="display: block;">' + barsSvg + '</svg><ul class="chart-values">' + topModels.map(m => '<li>' + esc(m.model) + ': ' + esc(m.requests) + ' requests; average latency ' + esc(m.avgLatencyMs ?? 0) + ' ms</li>').join('') + '</ul>';
+        setLocalizedHtml(reqContainer, () => '<svg aria-hidden="true" viewBox="0 0 460 ' + totalHeight + '" width="100%" height="' + totalHeight + '" style="display: block;">' + barsSvg() + '</svg><ul class="chart-values">' + topModels.map(m => '<li>' + esc(m.model) + ': ' + esc(m.requests) + (' ' + t('ui_requests_latency') + ' ') + esc(m.avgLatencyMs ?? 0) + ' ms</li>').join('') + '</ul>');
       }
     }
 
@@ -2676,26 +2713,26 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       const estCost = tokenData.costUsd || 0;
 
       if (totalTok === 0 && estCost === 0) {
-        costContainer.innerHTML = '<div class="muted" style="padding: 30px; text-align: center;">No token consumption recorded yet.</div>';
+        setLocalizedHtml(costContainer, () => '<div class="muted" style="padding: 30px; text-align: center;">' + esc(t('ui_no_tokens')) + '</div>');
       } else {
         const inPct = totalTok ? Math.round((inTok / totalTok) * 100) : 50;
         const outPct = 100 - inPct;
 
-        costContainer.innerHTML = '<div style="padding: 10px 0;">' +
+        setLocalizedHtml(costContainer, () => '<div style="padding: 10px 0;">' +
           '<div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">' +
-            '<span>Input: <strong>' + inTok.toLocaleString() + '</strong> (' + inPct + '%)</span>' +
-            '<span>Output: <strong>' + outTok.toLocaleString() + '</strong> (' + outPct + '%)</span>' +
+            ('<span>' + esc(t('lbl_input_colon')) + ' ' + '<strong>') + inTok.toLocaleString(currentLang) + '</strong> (' + inPct + '%)</span>' +
+            ('<span>' + esc(t('lbl_output_colon')) + ' ' + '<strong>') + outTok.toLocaleString(currentLang) + '</strong> (' + outPct + '%)</span>' +
           '</div>' +
           '<div style="height: 16px; border-radius: 8px; overflow: hidden; display: flex; background: var(--panel); border: 1px solid var(--line);">' +
-            '<div style="width: ' + inPct + '%; background: var(--accent);" title="Input tokens"></div>' +
-            '<div style="width: ' + outPct + '%; background: var(--ok);" title="Output tokens"></div>' +
+            '<div style="width: ' + inPct + ('%; background: var(--accent);" title="' + esc(t('lbl_input_tokens')) + '"></div>') +
+            '<div style="width: ' + outPct + ('%; background: var(--ok);" title="' + esc(t('lbl_output_tokens')) + '"></div>') +
           '</div>' +
           '<div style="margin-top: 16px; text-align: center;">' +
-            '<span class="muted" style="font-size: 12px;">Estimated Total Cost</span>' +
+            ('<span class="muted" style="font-size: 12px;">' + esc(t('lbl_estimated_total_cost')) + '</span>') +
             '<div style="font-size: 24px; font-weight: 700; color: var(--ok); margin-top: 2px;">$' + estCost.toFixed(6) + '</div>' +
-            '<span class="muted" style="font-size: 11px;">Reported usage across completions and pipeline steps; provider estimates may be incomplete</span>' +
+            ('<span class="muted" style="font-size: 11px;">' + esc(t('ui_usage_estimates')) + '</span>') +
           '</div>' +
-        '</div>';
+        '</div>');
       }
     }
 
@@ -2703,31 +2740,31 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (pipeContainer) {
       const totalRuns = pipelineData.totalRuns || 0;
       if (totalRuns === 0) {
-        pipeContainer.innerHTML = '<div class="muted" style="padding: 30px; text-align: center;">No pipeline runs recorded yet.</div>';
+        setLocalizedHtml(pipeContainer, () => '<div class="muted" style="padding: 30px; text-align: center;">' + esc(t('ui_no_pipeline_runs')) + '</div>');
       } else {
         const completed = pipelineData.completed || 0;
         const waiting = pipelineData.waitingApproval || 0;
         const running = pipelineData.running || 0;
         const failed = (pipelineData.failed || 0) + (pipelineData.rejected || 0) + (pipelineData.cancelled || 0);
 
-        pipeContainer.innerHTML = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0;">' +
+        setLocalizedHtml(pipeContainer, () => '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0;">' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--ok);">' +
             '<div style="font-size: 20px; font-weight: 700; color: var(--ok);">' + completed + '</div>' +
-            '<div class="muted" style="font-size: 12px;">Completed</div>' +
+            ('<div class="muted" style="font-size: 12px;">' + esc(t('status_completed')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--warn);">' +
             '<div style="font-size: 20px; font-weight: 700; color: var(--warn);">' + waiting + '</div>' +
-            '<div class="muted" style="font-size: 12px;">Awaiting Gate</div>' +
+            ('<div class="muted" style="font-size: 12px;">' + esc(t('ui_awaiting_gate')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--accent);">' +
             '<div style="font-size: 20px; font-weight: 700; color: var(--accent);">' + running + '</div>' +
-            '<div class="muted" style="font-size: 12px;">In Flight</div>' +
+            ('<div class="muted" style="font-size: 12px;">' + esc(t('status_running')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--bad);">' +
             '<div style="font-size: 20px; font-weight: 700; color: var(--bad);">' + failed + '</div>' +
-            '<div class="muted" style="font-size: 12px;">Failed / Rejected / Cancelled</div>' +
+            ('<div class="muted" style="font-size: 12px;">' + esc(t('ui_failed_rejected_cancelled')) + '</div>') +
           '</div>' +
-        '</div>';
+        '</div>');
       }
     }
 
@@ -2740,22 +2777,22 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       const totalEvents = info + success + warning + error;
 
       if (totalEvents === 0) {
-        actContainer.innerHTML = '<div class="muted" style="padding: 30px; text-align: center;">No activity events recorded yet.</div>';
+        setLocalizedHtml(actContainer, () => '<div class="muted" style="padding: 30px; text-align: center;">' + esc(t('ui_no_activity_recorded')) + '</div>');
       } else {
         const maxVal = Math.max(info, success, warning, error, 1);
         const categories = [
-          { label: 'Info', count: info, color: 'var(--accent)' },
-          { label: 'Success', count: success, color: 'var(--ok)' },
-          { label: 'Warning', count: warning, color: 'var(--warn)' },
-          { label: 'Error', count: error, color: 'var(--bad)' }
+          { label: 'level_info', count: info, color: 'var(--accent)' },
+          { label: 'level_success', count: success, color: 'var(--ok)' },
+          { label: 'level_warning', count: warning, color: 'var(--warn)' },
+          { label: 'level_error', count: error, color: 'var(--bad)' }
         ];
 
-        actContainer.innerHTML = '<div style="display: grid; gap: 8px; padding: 4px 0;">' +
+        setLocalizedHtml(actContainer, () => '<div style="display: grid; gap: 8px; padding: 4px 0;">' +
           categories.map(c => {
             const pct = Math.max(6, Math.round((c.count / maxVal) * 100));
             return '<div>' +
               '<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px;">' +
-                '<span>' + c.label + '</span>' +
+                '<span>' + esc(t(c.label)) + '</span>' +
                 '<strong>' + c.count + '</strong>' +
               '</div>' +
               '<div style="height: 8px; border-radius: 4px; background: var(--panel); overflow: hidden;">' +
@@ -2763,7 +2800,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
               '</div>' +
             '</div>';
           }).join('') +
-        '</div>';
+        '</div>');
       }
     }
   }
@@ -2772,15 +2809,15 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (dirtySections.has('orchestrator-section')) return;
     $('orch-enabled').value = String(Boolean(data.enabled));
     $('orch-strategy').value = data.strategy || 'sequential';
-    $('orch-roles').innerHTML = (data.roles || []).map((role, i) =>
-      '<label><span>Role ' + (i + 1) + ': ' + esc(role.name) + '</span><select data-orch-role="' + i + '"><option value="">Select a model</option>' + modelOptionGroups(role.model) + '</select></label>'
-    ).join('');
-    $('orch-fallbacks').innerHTML = modelOptionGroups(data.fallbackModels || []);
+    setLocalizedHtml($('orch-roles'), () => (data.roles || []).map((role, i) =>
+      ('<label><span>' + esc(t('lbl_role')) + ' ') + (i + 1) + ': ' + esc(localizedValue(role.name)) + '</span><select data-orch-role="' + i + ('"><option value="">' + esc(t('ui_select_model')) + '</option>') + modelOptionGroups(role.model) + '</select></label>'
+    ).join(''));
+    setLocalizedHtml($('orch-fallbacks'), () => modelOptionGroups(data.fallbackModels || []));
   }
 
   async function saveOrchestrator() {
     const roles = [...document.querySelectorAll('[data-orch-role]')].map((select, i) => ({
-      name: ['Analyst', 'Reviewer', 'Synthesizer'][i] || 'Role ' + (i + 1),
+      name: ['Analyst', 'Reviewer', 'Synthesizer'][i] || (t('lbl_role') + ' ') + (i + 1),
       model: select.value
     }));
     const fallbackModels = [...$('orch-fallbacks').selectedOptions].map(option => option.value);
@@ -2791,12 +2828,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     });
     dirtySections.delete('orchestrator-section');
     renderOrchestrator(data);
-    $('orch-note').textContent = 'Configuration saved';
+    setLocalizedText($('orch-note'), () => t('ui_configuration_saved'));
   }
 
   async function runOrchestrator() {
     $('orch-run').disabled = true;
-    $('orch-note').textContent = 'Running...';
+    setLocalizedText($('orch-note'), () => t('status_running_ellipsis'));
     try {
       await saveOrchestrator();
       const data = await request('/v1/orchestrator/run', {
@@ -2804,12 +2841,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: 'Compare the current project state and identify the most important next engineering action.' })
       });
-      $('orch-output').textContent = data.results.map(r => r.role + ' (' + r.model + ')\\n' + (r.preview || r.content || '')).join('\\n\\n');
-      $('orch-note').textContent = 'Completed';
+      setLocalizedText($('orch-output'), () => data.results.map(r => r.role + ' (' + r.model + ')\\n' + (r.preview || r.content || '')).join('\\n\\n'));
+      setLocalizedText($('orch-note'), () => t('status_completed'));
       showSection('activity');
     } catch (error) {
-      $('orch-output').textContent = error.message;
-      $('orch-note').textContent = 'Failed';
+      setLocalizedText($('orch-output'), () => error.message);
+      setLocalizedText($('orch-note'), () => t('status_failed'));
     } finally {
       $('orch-run').disabled = false;
     }
@@ -2817,15 +2854,15 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   async function runCliTests() {
     $('test-all-cli').disabled = true;
-    $('test-output').textContent = 'Running CLI provider matrix...';
+    setLocalizedText($('test-output'), () => t('ui_running_cli_tests'));
     try {
       const data = await request('/v1/tests/cli', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      $('test-output').innerHTML = data.results.map(r =>
-        '<div class="activity-event ' + (r.ok ? 'success' : 'error') + '"><span class="scope">' + esc(r.provider) + '</span><span>' + (r.ok ? 'PASS' : 'FAIL') + '</span><span>' + esc(r.model || '') + ' · ' + esc(r.output || r.error || '') + ' · ' + r.latencyMs + ' ms</span></div>'
-      ).join('');
+      setLocalizedHtml($('test-output'), () => data.results.map(r =>
+        '<div class="activity-event ' + (r.ok ? 'success' : 'error') + '"><span class="scope">' + esc(r.provider) + '</span><span>' + (r.ok ? t('status_pass') : t('status_fail')) + '</span><span>' + esc(r.model || '') + ' · ' + esc(r.output || r.error || '') + ' · ' + r.latencyMs + ' ms</span></div>'
+      ).join(''));
       showSection('activity');
     } catch (error) {
-      $('test-output').textContent = error.message;
+      setLocalizedText($('test-output'), () => error.message);
     } finally {
       $('test-all-cli').disabled = false;
     }
@@ -2833,7 +2870,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   async function runOpenAiTest() {
     $('test-openai').disabled = true;
-    $('test-output').textContent = 'Testing OpenAI-compatible route...';
+    setLocalizedText($('test-output'), () => t('ui_testing_openai'));
     try {
       const model = models.find(m => m.id.startsWith('cli-'))?.id || models[0]?.id;
       const data = await request('/v1/chat/completions', {
@@ -2841,9 +2878,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with exactly: pong' }], max_tokens: 16 })
       });
-      $('test-output').innerHTML = '<div class="activity-event success"><span class="scope">OpenClaw route</span><span>PASS</span><span>' + esc(model) + ' · ' + esc(data.choices?.[0]?.message?.content || '') + '</span></div>';
+      setLocalizedHtml($('test-output'), () => ('<div class="activity-event success"><span class="scope">' + esc(t('ui_openclaw_route')) + '</span><span>' + esc(t('status_pass')) + '</span><span>') + esc(model) + ' · ' + esc(data.choices?.[0]?.message?.content || '') + '</span></div>');
     } catch (error) {
-      $('test-output').textContent = error.message;
+      setLocalizedText($('test-output'), () => error.message);
     } finally {
       $('test-openai').disabled = false;
     }
@@ -2858,30 +2895,30 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const inputTokens = rows.reduce((n,[,m]) => n + (m.inputTokens || 0), 0);
     const outputTokens = rows.reduce((n,[,m]) => n + (m.outputTokens || 0), 0);
     const cost = rows.reduce((n,[,m]) => n + (m.estimatedCostUsd || 0), 0);
-    $('usage-total').textContent = total;
-    $('usage-success').textContent = success;
-    $('usage-failure').textContent = failure;
-    $('usage-latency').textContent = total ? Math.round(latency / total) + ' ms' : '-';
-    $('usage-table').innerHTML = rows.length
-      ? '<p class="muted">Estimated tokens: ' + inputTokens + ' in / ' + outputTokens + ' out · estimated cost: $' + cost.toFixed(6) + '</p>' +
-        rows.map(([model,m]) => '<div><code>' + esc(model) + '</code> · ' + m.requests + ' requests · ' + m.successes + ' successful · ' + m.failures + ' failed · ' + (m.inputTokens || 0) + ' input tokens · ' + (m.outputTokens || 0) + ' output tokens · $' + (m.estimatedCostUsd || 0).toFixed(6) + ' estimated · ' + (m.averageLatencyMs ?? '-') + ' ms average</div>').join('')
-      : 'No usage yet.';
+    setLocalizedText($('usage-total'), () => total);
+    setLocalizedText($('usage-success'), () => success);
+    setLocalizedText($('usage-failure'), () => failure);
+    setLocalizedText($('usage-latency'), () => total ? Math.round(latency / total) + ' ms' : '-');
+    setLocalizedHtml($('usage-table'), () => rows.length
+      ? ('<p class="muted">' + esc(t('lbl_estimated_tokens')) + ' ') + inputTokens + (' ' + t('ui_tokens_in') + ' ') + outputTokens + (' ' + t('ui_tokens_out_cost')) + cost.toFixed(6) + '</p>' +
+        rows.map(([model,m]) => '<div><code>' + esc(model) + '</code> · ' + m.requests + (' ' + t('ui_requests_count') + ' ') + m.successes + (' ' + t('ui_successful_count') + ' ') + m.failures + (' ' + t('ui_failed_count') + ' ') + (m.inputTokens || 0) + (' ' + t('ui_input_tokens_count') + ' ') + (m.outputTokens || 0) + (' ' + t('ui_output_tokens_count')) + (m.estimatedCostUsd || 0).toFixed(6) + (' ' + t('ui_estimated_count') + ' ') + (m.averageLatencyMs ?? '-') + (' ' + esc(t('ui_ms_average')) + '</div>')).join('')
+      : t('ui_no_usage'));
   }
 
   function updateEffortOptions() {
     const model = $('play-model').value;
     const provider = providerForModel(model);
     const info = capabilities[provider] || { values: ['none','minimal','low','medium','high','xhigh','max'] };
-    $('play-effort').innerHTML = info.values.map(value =>
-      '<option value="' + value + '">' + value + (info.aliases && info.aliases[value] ? ' (maps to ' + info.aliases[value] + ')' : '') + '</option>'
-    ).join('');
+    setLocalizedHtml($('play-effort'), () => info.values.map(value =>
+      '<option value="' + value + '">' + esc(localizedValue(value)) + (info.aliases && info.aliases[value] ? (' ' + t('ui_maps_to') + ' ') + esc(localizedValue(info.aliases[value])) + ')' : '') + '</option>'
+    ).join(''));
   }
 
   function renderSettings(data) {
     if (dirtySections.has('settings-section')) return;
-    $('settings-keys').innerHTML = '<div class="setting-list">' + Object.entries(data.apiKeys || {}).map(([provider, info]) =>
-      '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(info.source || (info.configured ? 'Configured' : 'Not detected')) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" placeholder="' + (info.configured ? 'Replace stored API key' : 'Paste API key') + '"><button type="submit">Save API key</button></form></div>'
-    ).join('') + '</div><p class="muted">Keys are write-only and independent from CLI authentication.</p>';
+    setLocalizedHtml($('settings-keys'), () => '<div class="setting-list">' + Object.entries(data.apiKeys || {}).map(([provider, info]) =>
+      '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(localizedValue(info.source || (info.configured ? t('status_configured') : t('status_not_detected')))) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" placeholder="' + (info.configured ? t('ph_replace_api_key') : t('ph_paste_api_key')) + ('"><button type="submit">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' + '<span class="action-label">' + esc(t('btn_save_api_key')) + '</span>' + '</button></form></div>')
+    ).join('') + ('</div><p class="muted">' + esc(t('ui_keys_write_only')) + '</p>'));
     document.querySelectorAll('[data-key-provider]').forEach(form => form.addEventListener('submit', saveKey));
   }
 
@@ -2899,10 +2936,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         body: JSON.stringify({ provider: form.dataset.keyProvider, key: input.value })
       });
       input.value = '';
-      $('notice').textContent = 'Credential saved for ' + form.dataset.keyProvider;
+      setLocalizedText($('notice'), () => (t('ui_credential_saved_for') + ' ') + form.dataset.keyProvider);
       await refresh();
     } catch (error) {
-      $('notice').textContent = error.message;
+      setLocalizedText($('notice'), () => error.message);
     } finally {
       button.disabled = false;
     }
@@ -2938,8 +2975,8 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         jobs.push(request('/v1/metrics').then(data => {
           renderMetrics(data); renderUsage(data);
           const rows = Object.values(data.models || {});
-          $('summary-requests').textContent = rows.reduce((sum, model) => sum + model.requests, 0);
-          $('summary-active').textContent = rows.reduce((sum, model) => sum + model.inFlight, 0);
+          setLocalizedText($('summary-requests'), () => rows.reduce((sum, model) => sum + model.requests, 0));
+          setLocalizedText($('summary-active'), () => rows.reduce((sum, model) => sum + model.inFlight, 0));
         }));
       }
       if (activeSection === 'activity') jobs.push(request('/v1/activity').then(renderActivity));
@@ -2947,21 +2984,21 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       if (activeSection === 'platform') jobs.push(platformRefresh());
       const outcomes = await Promise.allSettled(jobs);
       const failure = outcomes.find(result => result.status === 'rejected');
-      if (failure) $('notice').textContent = 'Live update failed: ' + failure.reason.message;
+      if (failure) setLocalizedText($('notice'), () => (t('error_live_update') + ' ') + failure.reason.message);
     } finally { finishRefresh(); }
   }
   async function refresh() {
     if (refreshInFlight) { fullRefreshPending = true; return; }
     refreshInFlight = true;
-    $('notice').textContent = 'Refreshing...';
+    setLocalizedText($('notice'), () => t('status_refreshing'));
     try {
       const identity = await request('/v1/platform/me');
       pfState.operator = identity.operator;
       if (identity.operator?.source === 'operator-token') {
-        $('side-runtime').textContent = 'Workspace access · ' + identity.operator.role;
+        setLocalizedText($('side-runtime'), () => (t('ui_workspace_access') + ' ') + identity.operator.role);
         showSection('platform');
         await platformRefresh();
-        $('notice').textContent = 'Workspace loaded for ' + (identity.operator.displayName || identity.operator.operatorId);
+        setLocalizedText($('notice'), () => (t('ui_workspace_loaded_for') + ' ') + (identity.operator.displayName || identity.operator.operatorId));
         return;
       }
       const [
@@ -2990,13 +3027,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       capabilities = capabilityData.effort || {};
       knownTools = toolsData.data || [];
       const systemTools = toolsData.system_tools || [];
-      $('version').textContent = 'v' + status.version + ' · port ' + status.port + ' · uptime ' + Math.floor(status.uptime) + 's';
-      $('side-runtime').textContent = '127.0.0.1:' + status.port + ' · v' + status.version;
-      $('summary-connected').textContent = status.providers.filter(p => p.connected).length + '/' + status.providers.length;
-      $('summary-models').textContent = (modelData.data || []).length;
+      setLocalizedText($('version'), () => 'v' + status.version + (' ' + t('ui_port') + ' ') + status.port + (' ' + t('ui_uptime') + ' ') + Math.floor(status.uptime) + 's');
+      setLocalizedText($('side-runtime'), () => '127.0.0.1:' + status.port + ' · v' + status.version);
+      setLocalizedText($('summary-connected'), () => status.providers.filter(p => p.connected).length + '/' + status.providers.length);
+      setLocalizedText($('summary-models'), () => (modelData.data || []).length);
       const metricRows = Object.values(metricData.models || {});
-      $('summary-requests').textContent = metricRows.reduce((n, m) => n + m.requests, 0);
-      $('summary-active').textContent = metricRows.reduce((n, m) => n + m.inFlight, 0);
+      setLocalizedText($('summary-requests'), () => metricRows.reduce((n, m) => n + m.requests, 0));
+      setLocalizedText($('summary-active'), () => metricRows.reduce((n, m) => n + m.inFlight, 0));
 
       renderProviders(status.providers);
       renderModels(modelData.data || []);
@@ -3016,9 +3053,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       renderAnalyticsCharts(analyticsData);
       platformSyncModels();
 
-      $('notice').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      setLocalizedText($('notice'), () => (t('ui_updated') + ' ') + new Date().toLocaleTimeString(currentLang));
     } catch (error) {
-      $('notice').textContent = error.message;
+      setLocalizedText($('notice'), () => error.message);
     } finally { finishRefresh(); }
   }
 
@@ -3028,14 +3065,14 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     $('play-model').value = use.dataset.useModel;
     updateEffortOptions();
     showSection('playground');
-    $('notice').textContent = use.dataset.useModel + ' selected in Playground.';
+    setLocalizedText($('notice'), () => use.dataset.useModel + (' ' + t('ui_selected_playground')));
   });
 
   async function runPlayground() {
     const button = $('play-run');
     button.disabled = true;
-    $('play-note').textContent = 'Running...';
-    $('play-output').textContent = '';
+    setLocalizedText($('play-note'), () => t('status_running_ellipsis'));
+    setLocalizedText($('play-output'), () => '');
     try {
       const cwd = $('play-cwd').value.trim();
       const body = {
@@ -3051,11 +3088,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      $('play-output').textContent = result.choices?.[0]?.message?.content || JSON.stringify(result, null, 2);
-      $('play-note').textContent = 'Completed';
+      setLocalizedText($('play-output'), () => result.choices?.[0]?.message?.content || JSON.stringify(result, null, 2));
+      setLocalizedText($('play-note'), () => t('status_completed'));
     } catch (error) {
-      $('play-output').textContent = error.message;
-      $('play-note').textContent = 'Failed';
+      setLocalizedText($('play-output'), () => error.message);
+      setLocalizedText($('play-note'), () => t('status_failed'));
     } finally {
       button.disabled = false;
     }
@@ -3076,7 +3113,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       $('model-refresh').disabled = false;
     }
   });
-  $('orch-save').addEventListener('click', () => saveOrchestrator().catch(error => $('orch-note').textContent = error.message));
+  $('orch-save').addEventListener('click', () => saveOrchestrator().catch(error => setLocalizedText($('orch-note'), () => error.message)));
   $('orch-run').addEventListener('click', runOrchestrator);
   $('test-all-cli').addEventListener('click', runCliTests);
   $('test-openai').addEventListener('click', runOpenAiTest);
@@ -3084,15 +3121,15 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   // Subsystem event listeners
   $('btn-rediscover-tools')?.addEventListener('click', async () => {
     $('btn-rediscover-tools').disabled = true;
-    $('btn-rediscover-tools').textContent = 'Scanning PATH...';
+    setLocalizedText($('btn-rediscover-tools'), () => t('status_scanning_path'));
     try {
       await request('/v1/tools/discover', { method: 'POST' });
       await refresh();
     } catch (err) {
-      alert('Discovery error: ' + err.message);
+      alert((t('error_discovery') + ' ') + err.message);
     } finally {
       $('btn-rediscover-tools').disabled = false;
-      $('btn-rediscover-tools').textContent = 'Rediscover Tools';
+      setLocalizedText($('btn-rediscover-tools'), () => t('btn_rediscover_tools'));
     }
   });
 
@@ -3129,7 +3166,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const path = $('repo-path-input').value.trim();
     const description = $('repo-desc-input').value.trim();
     const assignedGovernancePipeline = $('repo-pipeline-select').value;
-    if (!id || !path) { alert('Repository identifier and local path are required'); return; }
+    if (!id || !path) { alert(t('error_repo_required')); return; }
 
     const btn = $('save-repo-btn');
     btn.disabled = true;
@@ -3142,7 +3179,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       $('repo-modal').classList.remove('open');
       await refresh();
     } catch (err) {
-      alert('Save failed: ' + err.message);
+      alert((t('error_save_failed') + ' ') + err.message);
     } finally {
       btn.disabled = false;
     }
@@ -3152,12 +3189,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const delBtn = event.target.closest('[data-del-repo]');
     if (delBtn) {
       const repoId = delBtn.dataset.delRepo;
-      if (!confirm('Unregister repository ' + repoId + '?')) return;
+      if (!confirm((t('confirm_unregister_repo') + ' ') + repoId + '?')) return;
       try {
         await request('/v1/repositories/' + encodeURIComponent(repoId), { method: 'DELETE' });
         await refresh();
       } catch (err) {
-        alert('Delete error: ' + err.message);
+        alert((t('error_delete') + ' ') + err.message);
       }
       return;
     }
@@ -3171,7 +3208,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       if ($('pipe-run-select')) $('pipe-run-select').value = pipeId;
       if ($('pipe-run-repo')) $('pipe-run-repo').value = repoId;
       if ($('pipe-run-cwd') && repoPath) $('pipe-run-cwd').value = repoPath;
-      $('notice').textContent = 'Loaded pipeline ' + pipeId + ' for repository ' + repoId;
+      setLocalizedText($('notice'), () => (t('ui_loaded_pipeline') + ' ') + pipeId + (' ' + t('ui_for_repository') + ' ') + repoId);
     }
   });
 
@@ -3183,7 +3220,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   $('budget-config-form')?.addEventListener('submit', async event => {
     event.preventDefault();
     const note = $('budget-save-note');
-    if (note) note.textContent = 'Saving...';
+    if (note) setLocalizedText(note, () => t('status_saving'));
     try {
       await request('/v1/budgets', {
         method: 'POST',
@@ -3197,11 +3234,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           hardStop: $('cfg-hard-stop').value === 'true'
         })
       });
-      if (note) note.textContent = 'Limits saved';
+      if (note) setLocalizedText(note, () => t('ui_limits_saved'));
       dirtySections.delete('budgets-section');
       await refresh();
     } catch (err) {
-      if (note) note.textContent = err.message;
+      if (note) setLocalizedText(note, () => err.message);
     }
   });
 
@@ -3221,7 +3258,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       await refresh();
       browseDirectory(path);
     } catch (err) {
-      alert('Add workspace failed: ' + err.message);
+      alert((t('error_add_workspace') + ' ') + err.message);
     }
   });
 
@@ -3229,12 +3266,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const delBtn = event.target.closest('[data-del-ws]');
     if (delBtn) {
       const wsId = delBtn.dataset.delWs;
-      if (!confirm('Remove workspace ' + wsId + '?')) return;
+      if (!confirm((t('confirm_remove_workspace') + ' ') + wsId + '?')) return;
       try {
         await request('/v1/workspaces/' + encodeURIComponent(wsId), { method: 'DELETE' });
         await refresh();
       } catch (err) {
-        alert('Delete failed: ' + err.message);
+        alert((t('error_delete_failed') + ' ') + err.message);
       }
       return;
     }
@@ -3249,7 +3286,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (useBtn) {
       $('play-cwd').value = useBtn.dataset.useWs;
       showSection('playground');
-      $('notice').textContent = 'Selected workspace in Playground: ' + useBtn.dataset.useWs;
+      setLocalizedText($('notice'), () => (t('ui_selected_workspace') + ' ') + useBtn.dataset.useWs);
     }
   });
 
@@ -3276,7 +3313,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         });
         await refresh();
       } catch (err) {
-        alert('Add failed: ' + err.message);
+        alert((t('error_add') + ' ') + err.message);
       }
     }
   });
@@ -3319,7 +3356,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       } catch {}
     };
     ws.onerror = () => {
-      if (!eventsConnected) $('notice').textContent = 'Live updates unavailable. Polling every 15s.';
+      if (!eventsConnected) setLocalizedText($('notice'), () => t('ui_live_unavailable'));
     };
     ws.onclose = () => {
       eventsConnected = false;
@@ -3339,15 +3376,15 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 </body>
 </html>`);
 
-export const HELP_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conduit Bridge Help</title><style>${SHARED_STYLE}</style></head>
-<body><main class="help"><header><div><h1>Conduit Bridge Help</h1><div class="muted">Installation, provider routing, and operations</div></div><nav class="nav"><a class="link" href="/">Dashboard</a></nav></header>
-  <section><h2>Requirements and installation</h2><p>Conduit Bridge runs on Windows Desktop and Linux Desktop. It requires Node.js 24 or newer.</p><pre>npm install
+export const HELP_HTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title data-i18n="help_title">Conduit Bridge Help</title><style>${SHARED_STYLE}</style></head>
+<body><main class="help"><header><div><h1 data-i18n="help_title">Conduit Bridge Help</h1><div class="muted" data-i18n="help_subtitle">Installation, provider routing, and operations</div></div><nav class="nav"><button id="lang-toggle" type="button" title="Switch language" data-i18n-title="ui_switch_language" aria-label="Toggle language" data-i18n-aria="ui_toggle_language"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="lang-label">DE</span></button><a class="link" href="/" data-i18n="help_dashboard">Dashboard</a></nav></header>
+  <section><h2 data-i18n="help_installation">Requirements and installation</h2><p data-i18n="help_platforms">Conduit Bridge runs on Windows Desktop and Linux Desktop. It requires Node.js 24 or newer.</p><pre>npm install
 npm run build
-node dist/cli.js start --host=127.0.0.1 --port=31338</pre><p>Open <code>http://127.0.0.1:31338/</code>. The dashboard, API, and event stream share this one listener.</p></section>
-    <section><h2>Desktop autostart</h2><p>Run <code>./scripts/install-autostart.sh</code> on Linux Desktop or <code>powershell -ExecutionPolicy Bypass -File ./scripts/install-autostart.ps1</code> on Windows Desktop after building. These installers start Conduit as the interactive desktop user. See <code>docs/AUTOSTART.md</code> for uninstall commands.</p></section>
-  <section><h2>Provider authentication</h2><p>Conduit supports explicit API credentials, authenticated local CLI tools, and LM Studio. Browser-session providers were removed because real desktop testing showed that their unattended runtime was not consistently reliable across provider security checks.</p><ul><li><code>cli-grok</code>: authenticate the installed Grok CLI.</li><li><code>cli-claude</code>: authenticate Claude Code.</li><li><code>cli-codex</code>: authenticate Codex CLI.</li><li><code>cli-gemini</code>: authenticate the configured Gemini-compatible CLI.</li></ul></section>
-  <section><h2>Model routing</h2><ul><li><code>api-*</code> uses a direct provider API or aggregator.</li><li><code>cli-*</code> invokes an installed coding CLI and can isolate accounts.</li><li><code>lmstudio/*</code> forwards to a local OpenAI-compatible LM Studio server.</li></ul><p>The Models page groups the catalog by transport and provider, shows readiness and source, and filters by search, transport, or provider. Use the complete model ID shown there. Availability labels are <strong>verified</strong>, <strong>documented</strong>, or <strong>dynamic</strong>.</p></section>
-  <section><h2>OpenAI-compatible endpoints</h2><pre>GET  /health
+node dist/cli.js start --host=127.0.0.1 --port=31338</pre><p><span data-i18n="help_open">Open</span> <code>http://127.0.0.1:31338/</code><span data-i18n="help_shared_listener">. The dashboard, API, and event stream share this one listener.</span></p></section>
+    <section><h2 data-i18n="h_desktop_autostart">Desktop autostart</h2><p><span data-i18n="help_run">Run</span> <code>./scripts/install-autostart.sh</code> <span data-i18n="help_linux_or">on Linux Desktop or</span> <code>powershell -ExecutionPolicy Bypass -File ./scripts/install-autostart.ps1</code> <span data-i18n="help_windows_installers">on Windows Desktop after building. These installers start Conduit as the interactive desktop user. See</span> <code>docs/AUTOSTART.md</code> <span data-i18n="help_uninstall">for uninstall commands.</span></p></section>
+  <section><h2 data-i18n="help_provider_auth">Provider authentication</h2><p data-i18n="help_provider_auth_description">Conduit supports explicit API credentials, authenticated local CLI tools, and LM Studio. Browser-session providers were removed because real desktop testing showed that their unattended runtime was not consistently reliable across provider security checks.</p><ul><li><code>cli-grok</code><span data-i18n="help_auth_grok">: authenticate the installed Grok CLI.</span></li><li><code>cli-claude</code><span data-i18n="help_auth_claude">: authenticate Claude Code.</span></li><li><code>cli-codex</code><span data-i18n="help_auth_codex">: authenticate Codex CLI.</span></li><li><code>cli-gemini</code><span data-i18n="help_auth_gemini">: authenticate the configured Gemini-compatible CLI.</span></li></ul></section>
+  <section><h2 data-i18n="help_model_routing">Model routing</h2><ul><li><code>api-*</code> <span data-i18n="help_route_api">uses a direct provider API or aggregator.</span></li><li><code>cli-*</code> <span data-i18n="help_route_cli">invokes an installed coding CLI and can isolate accounts.</span></li><li><code>lmstudio/*</code> <span data-i18n="help_route_local">forwards to a local OpenAI-compatible LM Studio server.</span></li></ul><p><span data-i18n="help_models_description">The Models page groups the catalog by transport and provider, shows readiness and source, and filters by search, transport, or provider. Use the complete model ID shown there. Availability labels are</span> <strong data-i18n="availability_verified">verified</strong>, <strong data-i18n="availability_documented">documented</strong><span data-i18n="help_comma_or">, or</span> <strong data-i18n="availability_dynamic">dynamic</strong>.</p></section>
+  <section><h2 data-i18n="help_endpoints">OpenAI-compatible endpoints</h2><pre>GET  /health
 GET  /v1/status
 GET  /v1/models
 GET  /v1/capabilities
@@ -3357,11 +3394,11 @@ GET  /v1/pipelines
 POST /v1/chat/completions
 POST /v1/pipelines/run
 POST /v1/pipelines/runs/action
-WS   /v1/events</pre><p>The base URL for clients is <code>http://127.0.0.1:31338/v1</code>. Chat supports SSE streaming, <code>fallback_models</code>, provider-specific <code>effort</code> or <code>reasoning_effort</code>, and CLI <code>mode</code> (<code>chat</code>, <code>plan</code>, <code>agent</code>) with optional <code>cwd</code>.</p></section>
-  <section><h2>Authentication by transport</h2><ul><li>CLI providers use the CLI's existing authentication. Claude CLI supports neutral <code>first-account</code> and isolated <code>second-account</code> routes.</li><li>API providers use protected environment variables or write-only dashboard settings.</li></ul><p>Never put credentials in the repository, URLs, command arguments, or logs.</p></section>
-  <section><h2>Security</h2><ul><li>Loopback is the required desktop bind.</li><li>Cross-site state-changing requests and foreign WebSocket origins are rejected. Allowlisted origins (including another local port) may POST.</li><li>Activity and metrics do not store prompts, responses, cookies, or credentials. Orchestrator history stores a short redacted preview.</li><li>macOS is not a supported CLI target: <code>conduit-bridge start</code> exits. Library embedders may still construct <code>BridgeServer</code>.</li></ul></section>
-  <section><h2>Troubleshooting</h2><pre>curl http://127.0.0.1:31338/health
+WS   /v1/events</pre><p><span data-i18n="help_base_url">The base URL for clients is</span> <code>http://127.0.0.1:31338/v1</code><span data-i18n="help_chat_streaming">. Chat supports SSE streaming,</span> <code>fallback_models</code><span data-i18n="help_provider_specific">, provider-specific</span> <code>effort</code> <span data-i18n="help_or">or</span> <code>reasoning_effort</code><span data-i18n="help_and_cli">, and CLI</span> <code>mode</code> (<code>chat</code>, <code>plan</code>, <code>agent</code><span data-i18n="help_optional">) with optional</span> <code>cwd</code>.</p></section>
+  <section><h2 data-i18n="help_auth_transport">Authentication by transport</h2><ul><li><span data-i18n="help_cli_authentication">CLI providers use the CLI&#39;s existing authentication. Claude CLI supports neutral</span> <code>first-account</code> <span data-i18n="help_isolated">and isolated</span> <code>second-account</code> <span data-i18n="help_routes">routes.</span></li><li data-i18n="help_api_authentication">API providers use protected environment variables or write-only dashboard settings.</li></ul><p data-i18n="help_credentials">Never put credentials in the repository, URLs, command arguments, or logs.</p></section>
+  <section><h2 data-i18n="ui_security">Security</h2><ul><li data-i18n="help_loopback">Loopback is the required desktop bind.</li><li data-i18n="help_origins">Cross-site state-changing requests and foreign WebSocket origins are rejected. Allowlisted origins (including another local port) may POST.</li><li data-i18n="help_privacy">Activity and metrics do not store prompts, responses, cookies, or credentials. Orchestrator history stores a short redacted preview.</li><li><span data-i18n="help_macos">macOS is not a supported CLI target:</span> <code>conduit-bridge start</code> <span data-i18n="help_library_embed">exits. Library embedders may still construct</span> <code>BridgeServer</code>.</li></ul></section>
+  <section><h2 data-i18n="help_troubleshooting">Troubleshooting</h2><pre>curl http://127.0.0.1:31338/health
 curl http://127.0.0.1:31338/v1/status
 curl http://127.0.0.1:31338/v1/models
-node dist/cli.js status</pre><ul><li><strong>CLI unavailable:</strong> install the named CLI, authenticate it normally, and ensure its binary is on PATH.</li><li><strong>API unavailable:</strong> add the provider credential through the write-only Settings form or the documented environment variable.</li></ul><p>See <code>docs/AUTOSTART.md</code> for the desktop startup guide.</p></section>
-</main></body></html>`;
+node dist/cli.js status</pre><ul><li><strong data-i18n="help_cli_unavailable">CLI unavailable:</strong> <span data-i18n="help_cli_fix">install the named CLI, authenticate it normally, and ensure its binary is on PATH.</span></li><li><strong data-i18n="help_api_unavailable">API unavailable:</strong> <span data-i18n="help_api_fix">add the provider credential through the write-only Settings form or the documented environment variable.</span></li></ul><p><span data-i18n="help_see">See</span> <code>docs/AUTOSTART.md</code> <span data-i18n="help_startup_guide">for the desktop startup guide.</span></p></section>
+</main><script>window.__CB_TRANSLATIONS = ${JSON.stringify(TRANSLATIONS).replace(/</g, '\\u003c')};</script><script>${I18N_SCRIPT}</script></body></html>`;

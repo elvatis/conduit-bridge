@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createContext, runInContext, Script } from 'node:vm';
 import { PLATFORM_SCRIPT } from '../src/platform-ui.js';
+import { TRANSLATIONS } from '../src/i18n.js';
+import { I18N_SCRIPT } from '../src/ui/i18n.js';
 
 type Option = { value: string; textContent: string; selected: boolean };
 class Element {
@@ -30,7 +32,7 @@ class Element {
   focus() {}
 }
 
-function workspace() {
+function workspace(lang = 'en') {
   const elements = new Map<string, Element>();
   const element = (id: string) => { if (!elements.has(id)) elements.set(id, new Element(id)); return elements.get(id)!; };
   const calls: Array<{ path: string; options: any; body: any }> = [];
@@ -38,12 +40,17 @@ function workspace() {
   const context = createContext({
     $: element,
     esc: (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!),
-    document: { querySelectorAll: () => [], createElement: () => ({ value: '', textContent: '', selected: false }), hidden: false },
+    document: { getElementById: element, querySelectorAll: () => [], createElement: () => ({ value: '', textContent: '', selected: false }), addEventListener() {}, readyState: 'loading', documentElement: { lang }, hidden: false },
+    window: { __CB_TRANSLATIONS: TRANSLATIONS }, localStorage: { getItem: () => lang, setItem() {} },
     request: async (path: string, options: any) => { calls.push({ path, options, body: options?.body ? JSON.parse(options.body) : undefined }); return structuredClone(fixtures.get(path) ?? { data: [] }); },
     models: [{ id: 'cli-codex/first' }, { id: 'cli-gemini/second' }], cachedWorkspaces: [], activeSection: 'platform',
     setInterval() {}, withAuth: (headers: unknown) => headers,
     TextDecoder, Uint8Array, AbortController, console,
   });
+  new Script(I18N_SCRIPT).runInContext(context);
+  // This contract harness models HTML as a string; native DOM identity is covered
+  // by the localization/browser checks rather than this platform API fixture.
+  runInContext('appendLocalizedHtml = (element, render) => { element.innerHTML += render(); }',context);
   new Script(PLATFORM_SCRIPT).runInContext(context);
   return { element, calls, fixtures, context, run: (source: string) => runInContext(source, context) };
 }
@@ -200,5 +207,21 @@ describe('platform workspace browser behavior', () => {
     ui.run(`pfState.operator = {role:'viewer'}`);
     await expect(ui.run(`pfInstallPreset('platform-bugfix')`)).rejects.toThrow('administrator role');
     expect(ui.calls).toHaveLength(2);
+  });
+
+  it('uses German labels with unchanged scope, status and model values', async () => {
+    const ui = workspace('de');
+    ui.element('pf-chat-model').value = 'cli-codex/first';
+    ui.run(`pfState.session = {id:'s',messages:[{id:'m',role:'user',content:'Save agent'}]}; pfRenderTranscript()`);
+    expect(ui.element('pf-transcript').innerHTML).toContain('Save agent');
+    expect(ui.element('pf-transcript').innerHTML).toContain('>Sie</strong>');
+    expect(ui.element('pf-transcript').innerHTML).toContain('Kopieren');
+    ui.run(`pfState.tab = 'memory'`);
+    ui.element('pf-memory-title').value = 'Konvention'; ui.element('pf-memory-content').value = 'Kurze Beispiele';
+    ui.element('pf-memory-scope').value = 'workspace'; ui.element('pf-memory-scope-id').value = 'ws';
+    ui.fixtures.set('/v1/platform/memories', { memory: { id:'m',scope:'workspace',scopeId:'ws',status:'candidate',revision:1 } });
+    await ui.run('pfSaveMemory()');
+    expect(ui.calls[0].body).toMatchObject({ scope:'workspace', status:'candidate' });
+    expect(ui.element('pf-status').textContent).toBe('Erinnerung gespeichert.');
   });
 });

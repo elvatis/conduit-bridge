@@ -23,7 +23,7 @@ export const settingHelpComponent: UiComponent<SettingHelpProps> = {
     const tooltip = getSettingTooltip(setting);
     if (!tooltip) throw new Error(`Unknown setting tooltip: ${setting}`);
     if (!/^[A-Za-z][\w:.-]*$/.test(descriptionId)) throw new Error('A safe, unique tooltip description ID is required');
-    return `<span class="setting-help-wrap" data-setting-help="${escapeHtml(setting)}"><span class="setting-help-icon" tabindex="0" role="img" aria-label="Help: ${escapeHtml(tooltip.label)}" aria-describedby="${descriptionId}" title="${escapeHtml(tooltip.help)}">?</span><span class="setting-help-bubble" id="${descriptionId}" role="tooltip">${escapeHtml(tooltip.help)}</span></span>`;
+    return `<span class="setting-help-wrap" data-setting-help="${escapeHtml(setting)}"><span class="setting-help-icon" tabindex="0" role="img" aria-label="Help: ${escapeHtml(tooltip.label)}" data-i18n-aria="tip_label_${setting}" aria-describedby="${descriptionId}" title="${escapeHtml(tooltip.help)}" data-i18n-title="tip_${setting}">?</span><span class="setting-help-bubble" id="${descriptionId}" role="tooltip" data-i18n="tip_${setting}">${escapeHtml(tooltip.help)}</span></span>`;
   },
 };
 
@@ -45,7 +45,7 @@ export function decorateSettingTooltips(html: string): string {
     opening = description
       ? opening.replace(description[0], `aria-describedby="${description[1]} ${descriptionId}"`)
       : opening.replace(/>$/, ` aria-describedby="${descriptionId}">`);
-    if (!/\btitle=/.test(opening)) opening = opening.replace(/>$/, ` title="${escapeHtml(tooltip.help)}">`);
+    if (!/\btitle=/.test(opening)) opening = opening.replace(/>$/, ` title="${escapeHtml(tooltip.help)}" data-i18n-title="tip_${setting}">`);
     opening = opening.replace(/>$/, ` data-setting-tooltip-key="${setting}">`);
     const caption = `<span class="setting-caption">${content.slice(0, control.index)}${settingHelpComponent.render({ setting, descriptionId })}</span>`;
     return `<label${attributes}>${caption}${opening}${content.slice(control.index + control[0].length)}</label>`;
@@ -68,6 +68,21 @@ export const SETTING_TOOLTIP_SCRIPT = `
   const settingTooltipRegistry = ${JSON.stringify(TOOLTIP_REGISTRY).replace(/</g, '\\u003c')};
   const dynamicSettingTooltips = ${JSON.stringify(DYNAMIC_SETTING_TOOLTIPS)};
   let settingTooltipSequence = 0;
+  function settingTooltipText(key, part) {
+    const help = settingTooltipRegistry[key];
+    if (!help) return '';
+    return typeof t === 'function' ? t((part === 'label' ? 'tip_label_' : 'tip_') + key) : (part === 'label' ? 'Help: ' + help.label : help.help);
+  }
+  function updateSettingTooltipLanguage() {
+    document.querySelectorAll('[data-setting-help]').forEach(wrapper => {
+      const key = wrapper.getAttribute('data-setting-help');
+      const icon = wrapper.querySelector('.setting-help-icon');
+      const bubble = wrapper.querySelector('.setting-help-bubble');
+      if (icon) { icon.setAttribute('aria-label', settingTooltipText(key, 'label')); icon.setAttribute('title', settingTooltipText(key, 'help')); }
+      if (bubble) bubble.textContent = settingTooltipText(key, 'help');
+    });
+    document.querySelectorAll('[data-setting-tooltip-key]').forEach(control => control.setAttribute('title', settingTooltipText(control.getAttribute('data-setting-tooltip-key'), 'help')));
+  }
   function attachDynamicSettingHelp(control, key) {
     const help = settingTooltipRegistry[key]; if (!help) return;
     const previousId = control.getAttribute('data-setting-tooltip-description');
@@ -80,10 +95,10 @@ export const SETTING_TOOLTIP_SCRIPT = `
     caption.classList.add('setting-caption');
     const descriptionId = 'setting-help-dynamic-' + (++settingTooltipSequence);
     const escape = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-    caption.insertAdjacentHTML('beforeend', '<span class="setting-help-wrap" data-setting-help="' + escape(key) + '"><span class="setting-help-icon" tabindex="0" role="img" aria-label="Help: ' + escape(help.label) + '" aria-describedby="' + descriptionId + '" title="' + escape(help.help) + '">?</span><span class="setting-help-bubble" id="' + descriptionId + '" role="tooltip">' + escape(help.help) + '</span></span>');
+    caption.insertAdjacentHTML('beforeend', '<span class="setting-help-wrap" data-setting-help="' + escape(key) + '"><span class="setting-help-icon" tabindex="0" role="img" aria-label="' + escape(settingTooltipText(key, 'label')) + '" aria-describedby="' + descriptionId + '" title="' + escape(settingTooltipText(key, 'help')) + '">?</span><span class="setting-help-bubble" id="' + descriptionId + '" role="tooltip">' + escape(settingTooltipText(key, 'help')) + '</span></span>');
     control.setAttribute('data-setting-tooltip-description', descriptionId);
     control.setAttribute('data-setting-tooltip-key', key);
-    control.setAttribute('title', help.help);
+    control.setAttribute('title', settingTooltipText(key, 'help'));
     const existing = (control.getAttribute('aria-describedby') || '').split(/\\s+/).filter(id => id && id !== previousId);
     control.setAttribute('aria-describedby', [...existing, descriptionId].join(' '));
   }

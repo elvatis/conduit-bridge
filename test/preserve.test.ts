@@ -596,13 +596,13 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(DASHBOARD_HTML).toContain(`$('model-search').addEventListener('input'`);
     expect(DASHBOARD_HTML).toContain('id="model-transport-filter"');
     expect(DASHBOARD_HTML).toContain('id="model-provider-filter"');
-    expect(DASHBOARD_HTML).toContain('Models by transport and provider');
+    expect(DASHBOARD_HTML).toContain('data-i18n="h_models">Models</h2>');
     expect(DASHBOARD_HTML).toContain('data-use-model');
     expect(DASHBOARD_HTML).toContain('id="api-provider-list"');
     expect(DASHBOARD_HTML).toContain('id="cli-provider-list"');
     expect(DASHBOARD_HTML).toContain('id="local-provider-list"');
     expect(DASHBOARD_HTML).not.toContain('Open login browser');
-    const dashboardScript = DASHBOARD_HTML.match(/<script>([\s\S]*)<\/script>/i)?.[1] ?? '';
+    const dashboardScript = Array.from(DASHBOARD_HTML.matchAll(/<script>([\s\S]*?)<\/script>/gi), match => match[1]).join('\n');
     expect(dashboardScript.length).toBeGreaterThan(0);
     expect(() => new Function(dashboardScript)).not.toThrow();
     expect(DASHBOARD_HTML).toContain('Supported desktop platforms');
@@ -629,6 +629,7 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(text).not.toContain('Xvfb');
     expect(text).toContain('Provider authentication');
     expect(text).toContain('Security');
-    expect(text.endsWith('</main></body></html>')).toBe(true);
+    expect(text).toContain('</main><script>window.__CB_TRANSLATIONS =');
+    expect(text.endsWith('</script></body></html>')).toBe(true);
   });
 });

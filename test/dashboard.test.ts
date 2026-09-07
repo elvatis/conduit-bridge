@@ -4,7 +4,7 @@ import { DASHBOARD_HTML } from '../src/dashboard.js';
 
 // Execute the shipped browser script without a browser dependency. Elements retain
 // observable content and handlers; layout is verified separately in browser QA.
-function dashboard() {
+function dashboard(lang = 'en') {
   const elements = new Map<string, any>();
   const element = (id: string): any => {
     if (!elements.has(id)) elements.set(id, {
@@ -19,14 +19,15 @@ function dashboard() {
   const requests: string[] = [];
   const stored = new Map();
   const context = createContext({
-    document: { getElementById: element, querySelectorAll: () => [], addEventListener() {}, hidden: false },
+    document: { getElementById: element, querySelectorAll: () => [], addEventListener() {}, documentElement: { lang }, readyState: 'loading', hidden: false },
     sessionStorage: { getItem: (key: string) => stored.get(key), setItem: (key: string, value: string) => stored.set(key, value) },
-    localStorage: { getItem: () => null },
+    localStorage: { getItem: (key: string) => key === 'conduit_lang' ? lang : stored.get(key), setItem: (key: string, value: string) => stored.set(key,value) },
+    window: {},
     setTimeout: (callback: () => void) => { timers.push(callback); return timers.length; },
     setInterval() {}, console, alert: vi.fn(),
     fetch: async (path: string) => { requests.push(path); return { ok: true, status: 200, json: async () => ({ data: [] }) }; },
   });
-  const script = DASHBOARD_HTML.match(/<script>([\s\S]*?)<\/script>/)![1];
+  const script = Array.from(DASHBOARD_HTML.matchAll(/<script>([\s\S]*?)<\/script>/g), match => match[1]).join('\n');
   // These are startup effects only; test the unmodified function bodies/handlers.
   const source = script.replace(/^  (?:refresh\(\)|connectEvents\(\)|browseDirectory\(''\));$/gm, '');
   new Script(source).runInContext(context);
@@ -61,7 +62,7 @@ describe('dashboard browser contracts', () => {
     const ui = dashboard();
     ui.run(`selectedRunId = 'run-1'; renderPipelineRuns([{id:'run-1',pipelineId:'p',pipelineName:'Review',initialPrompt:'<demo>',startedAt:1,status:'waiting_approval',pendingApprovalStepId:'check',stepResults:{check:{stepName:'Review',status:'waiting_approval'}}}])`);
     expect(ui.element('pipeline-approvals').innerHTML).toContain('data-view-run="run-1"');
-    expect(ui.element('pipe-live-status').innerHTML).toContain('Approve & Resume');
+    expect(ui.element('pipe-live-status').innerHTML).toContain('Approve &amp; Resume');
     expect(ui.element('pipelines-history').innerHTML).toContain('&lt;demo&gt;');
     ui.element('checkpoint-feedback').value = 'Keep it short';
     ui.run(`renderLiveRun({...activePipelineRun,updatedAt:2})`);
@@ -83,7 +84,7 @@ describe('dashboard browser contracts', () => {
     expect(ui.element('pipeline-approvals').innerHTML).toContain('No approvals pending');
     expect(ui.element('pipe-live-status').innerHTML).toContain('This run cannot resume after the service restarts');
     expect(ui.element('pipe-live-status').innerHTML).toContain('Prepare a new run');
-    expect(ui.element('pipe-live-status').innerHTML).not.toContain('Approve & Resume');
+    expect(ui.element('pipe-live-status').innerHTML).not.toContain('Approve &amp; Resume');
   });
 
   it('does not replace edited provider policies or API-key forms', () => {
@@ -93,5 +94,25 @@ describe('dashboard browser contracts', () => {
     ui.run(`dirtySections.add('agent-controls-section'); dirtySections.add('settings-section'); renderAgentPolicies({policies:{}}); renderSettings({apiKeys:{}})`);
     expect(ui.element('agent-policy-list').innerHTML).toBe('draft policy');
     expect(ui.element('settings-keys').innerHTML).toBe('draft credential');
+  });
+
+  it('uses developer defaults and the BitNet preset without translating navigation IDs', () => {
+    const ui = dashboard('de');
+    expect(ui.run('[...getVisibleNavs()]')).toEqual(ui.run('PRESETS.developer'));
+    expect(ui.run('PRESETS.bitnet')).toEqual(['overview','playground','local-providers','models','usage','activity','settings']);
+    expect(ui.run('NAV_SECTIONS.map(section => section.key)')).toContain('settings');
+    ui.stored.set('conduit_nav_visibility', JSON.stringify(['overview','local-providers']));
+    expect(ui.run('[...getVisibleNavs()]')).toEqual(['overview','local-providers']);
+    ui.stored.set('conduit_nav_visibility', 'invalid JSON');
+    expect(ui.run('[...getVisibleNavs()]')).toEqual(ui.run('PRESETS.developer'));
+  });
+
+  it('renders German approval actions with icons while preserving pipeline action values', async () => {
+    const ui = dashboard('de');
+    ui.run(`renderLiveRun({id:'r',pipelineName:'Prüfung',status:'waiting_approval',pendingApprovalStepId:'s',stepResults:{s:{stepName:'Check',status:'waiting_approval'}}})`);
+    expect(ui.element('pipe-live-status').innerHTML).toContain('Genehmigen &amp; Fortfahren');
+    expect(ui.element('pipe-live-status').innerHTML).toContain('Pipeline ablehnen');
+    expect(ui.element('pipe-live-status').innerHTML).toContain('<svg width="18" height="18"');
+    expect(ui.element('pipe-live-status').innerHTML).not.toContain('data-i18n=');
   });
 });
