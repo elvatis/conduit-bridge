@@ -47,13 +47,14 @@ describe('ContentCipher', () => {
 });
 
 describe('platform key adapters', () => {
+  // The round trip starts two DPAPI processes, each bounded at 15 seconds, plus process startup overhead.
   it.runIf(process.platform === 'win32')('round-trips through the real current-user DPAPI adapter', () => {
     const directory = mkdtempSync(join(tmpdir(), 'conduit-real-dpapi-'));
     const cipher = createContentCipher({ purpose: 'state', platform: 'win32', env: {}, directory });
     const sealed = cipher.seal('dpapi-private');
     const reopened = createContentCipher({ purpose: 'state', platform: 'win32', env: {}, directory });
     expect(reopened.open(sealed)).toBe('dpapi-private');
-  });
+  }, 40_000);
 
   it('uses a DPAPI-wrapped key file on Windows and never stores the raw key', () => {
     const directory = mkdtempSync(join(tmpdir(), 'conduit-dpapi-'));

@@ -150,3 +150,11 @@ Hosted Ubuntu passed. Windows CI found the command test comparing RUNNER~1 to
 runneradmin even though both identify the same temporary directory. The assertion
 now expects realpathSync.native(root), matching the runtime's intentional
 canonicalization. Focused real-process tests pass; runtime code is unchanged.
+
+## 2026-09-07: bounded time allowance for real DPAPI integration test
+
+Hosted Windows passed the corrected cwd test, then the real DPAPI round trip
+completed after 16 seconds and exceeded Vitest's unrelated five-second default.
+Only that OS integration test now allows 40 seconds, covering its two production
+subprocess calls (15 seconds each) and startup overhead. Runtime cryptographic
+behavior and subprocess deadlines are unchanged.

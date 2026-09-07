@@ -3,17 +3,17 @@
   "project": "pb",
   "last_session": {
     "agent": "cli-tool",
-    "session_id": "cli-1788792969",
-    "timestamp": "2026-09-07T14:56:10Z",
-    "commit": "27451e3",
+    "session_id": "cli-1788793186",
+    "timestamp": "2026-09-07T14:59:46Z",
+    "commit": "b424a37",
     "phase": "idle",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:b9ba2cfae7fc8b3cd72f6505d6f9430e4efd809675bc37e8b2aba86fb8e96d95",
-      "updated": "2026-09-07T14:56:08Z",
-      "lines": 392,
+      "checksum": "sha256:a3d2fd16dee5110cf2184fdce90ba64e86de9078b688e26159385d159b03a6ba",
+      "updated": "2026-09-07T14:59:44Z",
+      "lines": 393,
       "summary": "_Updated: 2026-09-07_"
     },
     "NEXT_ACTIONS.md": {
@@ -23,9 +23,9 @@
       "summary": "Current version: **v0.9.1**"
     },
     "LOG.md": {
-      "checksum": "sha256:c02e6b60457f29bea5a772f18c67ccd74c3a6845766b6d18c0866580a2fbb845",
-      "updated": "2026-09-07T14:56:08Z",
-      "lines": 152,
+      "checksum": "sha256:36eb7bb916e518643aa673553b6a32e405c338b6242815042811c175b3d0f0ed",
+      "updated": "2026-09-07T14:59:44Z",
+      "lines": 160,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -74,7 +74,7 @@
   "quick_context": "_Updated: 2026-09-07_ Current version: **v0.9.1** ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 5527,
-    "full_read": 10235
+    "manifest_plus_core": 5561,
+    "full_read": 10349
   }
 }

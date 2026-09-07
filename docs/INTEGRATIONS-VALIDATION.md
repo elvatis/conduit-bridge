@@ -18,6 +18,9 @@ The first hosted Windows run found a fixture assumption: the runner's temporary
 directory used a Windows short path while the child reported its canonical long
 path. The assertion now compares against the canonical directory, preserving the
 check that execution used the selected workspace. No runtime behavior changed.
+The real Windows DPAPI integration test also has its own 40-second allowance for
+two subprocess calls that each have a 15-second production limit. This avoids
+mistaking a slow hosted process startup for a failed cryptographic round trip.
 
 Coverage includes strict argument validation, executable registry authorization,
 workspace traversal/junction/hardlink refusal, opened-file identity checks,
