@@ -18,8 +18,10 @@ export class CodeSearch {
     const workspace = this.context.workspace;
     if (!workspace) throw new SkillError('Select a workspace for code search');
     const requested = cwd || process.env.TGREP_INDEX_PATH || '.';
-    if (isAbsolute(requested) && !isPathWithin(realpathSync.native(workspace.root), realpathSync.native(requested))) throw new SkillError('Search root is outside the workspace', 403);
-    const root = resolveSkillPath(this.context, isAbsolute(requested) ? relative(workspace.root, requested) : requested);
+    const workspaceRoot = realpathSync.native(workspace.root);
+    const requestedRoot = isAbsolute(requested) ? realpathSync.native(requested) : undefined;
+    if (requestedRoot && !isPathWithin(workspaceRoot, requestedRoot)) throw new SkillError('Search root is outside the workspace', 403);
+    const root = resolveSkillPath(this.context, requestedRoot ? relative(workspaceRoot, requestedRoot) : requested);
     if (!statSync(root).isDirectory()) throw new SkillError('Search root must be a directory');
     return root;
   }
@@ -75,7 +77,7 @@ export class CodeSearch {
       try {
         const absolute = isAbsolute(row.file) ? row.file : join(root, row.file);
         if (!isPathWithin(root, absolute)) continue;
-        const path = relative(this.context.workspace!.root, absolute);
+        const path = relative(realpathSync.native(this.context.workspace!.root), absolute);
         await this.context.authorize('read', { skill: 'filesystem' });
         const content = await filesystemSkill.execute({ action: 'read', path }, this.context) as { content: string };
         const snippet = content.content.split(/\r?\n/)[row.line - 1];

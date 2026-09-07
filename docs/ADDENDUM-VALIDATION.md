@@ -17,6 +17,11 @@ Date: 2026-09-07. Branch: `feat/provider-agent-management`.
   with exact commit links in [PR #117](https://github.com/elvatis/conduit-bridge/pull/117).
   A successful Test workflow is not a substitute for other required PR checks.
 
+The first hosted Windows run exposed result paths computed against an aliased
+temporary directory. Code search now uses canonical workspace paths for both
+absolute cwd conversion and result names. A real junction/symlink ancestor in
+the regression fixture exercises this case without weakening file authorization.
+
 ## Real local service checks
 
 Nine service scenarios passed on the Windows bridge at `127.0.0.1:31338`:

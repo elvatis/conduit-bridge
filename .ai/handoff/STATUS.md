@@ -18,6 +18,9 @@ _Updated: 2026-09-07_
 
 ## Addendum: planning, CLI sessions, BitNet and code search
 
+- Hosted Windows CI exposed aliased temporary-path output in code search. Search
+  roots and result paths now share canonical workspace coordinates; regression
+  coverage uses a real junction/symlink ancestor and verifies absolute cwd too.
 - Registered eleven executable skills and eleven providers. Added persistent
   per-provider cloud quotas/cost estimates, validated task splitting/execution,
   keyword routing, notifications, scoped daily journals and native CLI continuity.

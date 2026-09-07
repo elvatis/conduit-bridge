@@ -2,6 +2,13 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - Canonical code-search paths
+
+- Corrected relative search results for workspaces below an aliased ancestor,
+  discovered by hosted Windows CI. Canonicalized absolute cwd conversion too.
+- Extended the existing authorization test with a real junction/symlink ancestor;
+  focused tests, strict typecheck and production build pass.
+
 ## 2026-09-07 - Addendum integrations
 
 - Adapted elvatis-mcp patterns into typed native bridge modules: persistent

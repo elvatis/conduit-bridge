@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, linkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, linkSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 vi.mock('../../src/providers/llama-server.js', async original => ({ ...await original<typeof import('../../src/providers/llama-server.js')>(), runLocalTool: vi.fn(), tgrepRpc: vi.fn() }));
@@ -9,14 +9,17 @@ import { skillContext } from './addendum-context.js';
 let root: string;
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'conduit-code-search-')); vi.stubEnv('CONDUIT_HOME', join(root, 'runtime')); vi.stubEnv('TGREP_URL', 'tcp://127.0.0.1:7700'); vi.stubEnv('TGREP_INDEX_PATH', ''); vi.mocked(runLocalTool).mockReset(); vi.mocked(tgrepRpc).mockReset(); });
 afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
-it('verifies indexed paths and re-reads snippets, refusing traversal, credential files and hard links', async () => {
-  mkdirSync(join(root, 'workspace')); writeFileSync(join(root, 'workspace', 'code.ts'), 'const answer = 42;\n'); writeFileSync(join(root, 'workspace', '.env'), 'secret'); writeFileSync(join(root, 'outside.txt'), 'secret'); linkSync(join(root, 'outside.txt'), join(root, 'workspace', 'linked.ts'));
+it('canonicalizes root aliases and verifies indexed snippets, refusing traversal, credential files and hard links', async () => {
+  const workspace = join(root, 'workspace', 'project');
+  mkdirSync(workspace, { recursive: true }); writeFileSync(join(workspace, 'code.ts'), 'const answer = 42;\n'); writeFileSync(join(workspace, '.env'), 'secret'); writeFileSync(join(root, 'workspace', 'outside.txt'), 'secret'); linkSync(join(root, 'workspace', 'outside.txt'), join(workspace, 'linked.ts'));
   vi.mocked(tgrepRpc).mockResolvedValue({ matches: [
     { type: 'match', file: 'code.ts', line: 1, columns: [7], content: 'untrusted cache text' },
     ...['../outside.txt', '.env', 'linked.ts'].map(file => ({ type: 'match', file, line: 1, columns: [1], content: 'secret' })),
   ] });
-  const search = new CodeSearch(skillContext(join(root, 'workspace')));
+  symlinkSync(join(root, 'workspace'), join(root, 'alias'), process.platform === 'win32' ? 'junction' : 'dir');
+  const search = new CodeSearch(skillContext(join(root, 'alias', 'project')));
   expect(await search.search('answer')).toEqual([{ file: 'code.ts', line: 1, column: 7, snippet: 'const answer = 42;' }]); expect(runLocalTool).not.toHaveBeenCalled();
+  expect(await search.search('answer', { cwd: workspace })).toEqual([{ file: 'code.ts', line: 1, column: 7, snippet: 'const answer = 42;' }]);
 });
 it('falls back through tgrep CLI to rg without a shell and handles no matches', async () => {
   writeFileSync(join(root, 'code.ts'), 'const answer = 42;'); vi.mocked(tgrepRpc).mockRejectedValue(new Error('unreachable'));
