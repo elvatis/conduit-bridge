@@ -4,6 +4,8 @@ _Reverse chronological._
 
 ## 2026-09-07 - Native BitNet without Conda
 
+- Pinned native compatibility patches to LF after reproducing a CRLF patch
+  failure. Verified LF patches against CRLF source without changing runtime code.
 - Built pinned Microsoft BitNet natively using installed Clang/Visual Studio
   tools and static libraries. Added a reproducible helper, official chat template
   and scoped b1.58 2B relu2 patch after live tests confirmed upstream issue #602.

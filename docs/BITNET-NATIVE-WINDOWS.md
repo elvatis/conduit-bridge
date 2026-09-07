@@ -49,6 +49,8 @@ The helper fetches the pinned source when absent, checks both revisions,
 applies the checked-in patch idempotently, and builds release CPU executables.
 Existing source at another revision is rejected; use `-SourceDirectory` with
 a new directory when needed. Stop a running native server before rebuilding.
+Git attributes preserve LF in the patch file, including on Windows checkouts;
+the patch was also verified against CRLF source files.
 
 The default executable is:
 

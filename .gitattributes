@@ -1,0 +1,2 @@
+# Unified patches must retain LF even when checked out on Windows.
+scripts/bitnet/*.patch text eol=lf

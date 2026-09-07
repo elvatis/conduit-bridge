@@ -34,6 +34,8 @@ _Updated: 2026-09-07_
 - BitNet 2B-4T now runs natively on Windows without Conda. The checked-in build
   helper applies a narrowly scoped upstream relu2 correction; host-only tokenizer
   and chat-template settings preserve the supplied, ignored GGUF unchanged.
+  Patch files are pinned to LF; reverse application was verified against a
+  Windows CRLF source checkout to keep the native build reproducible.
   Four direct/provider checks, eight bridge checks and one full local planning/
   execution request pass. Sustained generation measured about 31-32 tokens/s.
 - Planning now specifies string task IDs and retains original input in every
