@@ -1,3 +1,5 @@
+> Note (2026-09-07, Dependabot #113): Updated `actions/download-artifact` from v7 to v8; refreshed the handoff manifest for this workflow dependency change.
+
 > Note (2026-09-07, Dependabot #115): Updated `vitest` from 4.1.11 to 5.0.0; refreshed the handoff manifest for this dependency change.
 
 > Note (2026-09-07, Dependabot #116): Updated `@anthropic-ai/sdk` from 0.122.0 to 0.123.0; refreshed the handoff manifest for this dependency change.
