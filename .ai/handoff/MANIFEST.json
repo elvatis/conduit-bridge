@@ -3,29 +3,29 @@
   "project": "pb",
   "last_session": {
     "agent": "codex",
-    "session_id": "cli-1788811965",
-    "timestamp": "2026-09-07T20:12:45Z",
-    "commit": "eebea10",
-    "phase": "idle",
+    "session_id": "cli-1788813463",
+    "timestamp": "2026-09-07T20:37:43Z",
+    "commit": "407c371",
+    "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:236581e97f9c0bd9ce0bd2888599266d1faa0f369430a5c7be33bf39b59b9ea8",
-      "updated": "2026-09-07T20:12:23Z",
-      "lines": 425,
+      "checksum": "sha256:8919adef03c590a5df68c8f1bda3cc95593c50f7595daab83baba641121aa91e",
+      "updated": "2026-09-07T20:37:17Z",
+      "lines": 427,
       "summary": "_Updated: 2026-09-07_"
     },
     "NEXT_ACTIONS.md": {
       "checksum": "sha256:3933911b0f295790255da77f0dae18a876f3d468c01bf1233b578be6dcbd0ca2",
-      "updated": "2026-09-07T20:12:23Z",
+      "updated": "2026-09-07T20:33:56Z",
       "lines": 48,
       "summary": "Current version: **v0.10.0**"
     },
     "LOG.md": {
-      "checksum": "sha256:db51aa7ead38cc923e705d48d57484e90f24ae7fe6967df2ab3546de1d41a78a",
-      "updated": "2026-09-07T20:12:23Z",
-      "lines": 220,
+      "checksum": "sha256:c9f031ddd09a343ea7e8aff7bd11ed9917041645206c40219f9bd8a86b649820",
+      "updated": "2026-09-07T20:37:17Z",
+      "lines": 227,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Durable SQLite vault, recurring BitNet suggestions and verified native startup",
+  "quick_context": "Merge current main baseline with provider management",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 6053,
-    "full_read": 11524
+    "manifest_plus_core": 6094,
+    "full_read": 11627
   }
 }

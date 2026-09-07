@@ -2,6 +2,13 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - cli-gemini Antigravity credential detection
+
+- Merged the `cli-gemini` authentication probe fix from PR #114. The probe now
+  recognizes the Antigravity CLI token file used by `agy` in addition to the
+  legacy Gemini CLI credential path.
+- Added a regression test for an Antigravity-only credential installation.
+
 ## 2026-09-07 - Durable vault and native inference startup
 
 - Default encrypted SQLite imports legacy file state without deleting the source.

@@ -49,4 +49,14 @@ describe('CLI authentication probes', () => {
     expect(hasCliCredentialFile('gemini')).toBe(true);
     expect(hasCliCredentialFile('grok')).toBe(false);
   });
+
+  it('recognizes the Antigravity CLI (agy) token, not just the legacy gemini path', () => {
+    mkdirSync(join(TEST_HOME, '.gemini', 'antigravity-cli'), { recursive: true });
+    writeFileSync(
+      join(TEST_HOME, '.gemini', 'antigravity-cli', 'antigravity-oauth-token'),
+      '{"placeholder":true}',
+    );
+
+    expect(hasCliCredentialFile('gemini')).toBe(true);
+  });
 });

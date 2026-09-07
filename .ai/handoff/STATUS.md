@@ -1,3 +1,5 @@
+> Note (2026-09-07): `cli-gemini` now recognizes the Antigravity CLI credential file used by `agy`, with a regression test. This keeps authenticated model discovery and chat execution aligned on the current `main` baseline.
+
 > Note (2026-09-07): Conversations now always persist locally in encrypted SQLite by default, with legacy file import and no conversation TTL. Vault adds SQLite FTS5/tgrep search and recurring local BitNet prompt suggestions. Configured Llama inference autostarts with Conduit. Windows: 547 tests/64 files, build and two real native start-stop cycles pass; see `docs/validation/vault.md`.
 
 > Note (2026-09-07, feat/provider-agent-management): v0.10.0 work includes the Elvatis Conduit dashboard rebrand, named work routing, native BitNet, tgrep, persistent sessions, scoped skills, provider profiles, governed runs, budgets and diagnostics. The prior orchestration and governance platform remains part of this release.
