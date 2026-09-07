@@ -143,3 +143,10 @@ not configured, so remote mutations use transport fixtures; no remote project
 was changed. No new dependencies, extra listener, release or merge. Protocol,
 usage and measured limitations are documented in docs/TOOLS-AND-PROJECTS.md,
 docs/vscode-bridge.md and docs/INTEGRATIONS-VALIDATION.md.
+
+## 2026-09-07: canonical subprocess cwd fixture on hosted Windows
+
+Hosted Ubuntu passed. Windows CI found the command test comparing RUNNER~1 to
+runneradmin even though both identify the same temporary directory. The assertion
+now expects realpathSync.native(root), matching the runtime's intentional
+canonicalization. Focused real-process tests pass; runtime code is unchanged.

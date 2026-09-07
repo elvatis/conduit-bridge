@@ -14,6 +14,11 @@ foundation at `96fd849`. See [Tools and Projects](TOOLS-AND-PROJECTS.md) and the
   untested environment dependency; `secret-tool` is absent in this WSL image.
 - Repository credential scan passed with tracked and untracked source included.
 
+The first hosted Windows run found a fixture assumption: the runner's temporary
+directory used a Windows short path while the child reported its canonical long
+path. The assertion now compares against the canonical directory, preserving the
+check that execution used the selected workspace. No runtime behavior changed.
+
 Coverage includes strict argument validation, executable registry authorization,
 workspace traversal/junction/hardlink refusal, opened-file identity checks,
 overwrite consent, bounded real subprocess execution and termination, credential

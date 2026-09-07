@@ -23,7 +23,7 @@ import WebSocket from 'ws';
 
 const socket = new WebSocket('ws://127.0.0.1:31338/vscode', {
   headers: { Authorization: `Bearer ${await loadTokenFromSecretStorage()}` },
-  maxPayload: 256 * 1024,
+  maxPayload: 1024 * 1024,
 });
 
 socket.on('message', raw => {
@@ -49,7 +49,7 @@ type Inbound = {
 };
 ```
 
-The bridge sends `response`, `stream-chunk`, `usage`, or `error` messages carrying the same `requestId`. Up to four requests may be active on one connection. Messages are limited to 256 KiB. Disconnecting aborts active HTTP and provider work.
+The bridge sends `response`, `stream-chunk`, `usage`, or `error` messages carrying the same `requestId`. Up to four requests may be active on one connection. Client messages are limited to 256 KiB; server messages can contain up to 1 MiB, including retained session context. Disconnecting aborts active HTTP and provider work.
 
 ## Chat
 

@@ -30,6 +30,7 @@ _Updated: 2026-09-07_
   Claude streaming, Codex edit proposals and an approved Codex physical file write.
 - GitHub remote mutations are fixture-tested only: the local service has no
   GITHUB_TOKEN and returns the expected 503. See docs/INTEGRATIONS-VALIDATION.md.
+- Hosted Windows CI exposed a short-path versus canonical-path fixture mismatch; the subprocess cwd assertion now uses the canonical directory. Runtime behavior is unchanged.
 - No new package dependencies, ports, database decision, merge or release.
 ## PR #117 provider and agent platform
 
