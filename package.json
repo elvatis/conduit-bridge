@@ -1,6 +1,6 @@
 {
   "name": "@elvatis/conduit-bridge",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Standalone OpenAI-compatible gateway for API, CLI, and local model providers",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,7 +15,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc --noEmit && esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=node --packages=external --sourcemap && esbuild src/cli.ts --bundle --outfile=dist/cli.js --format=esm --platform=node --packages=external --sourcemap && node -e \"try{require('fs').chmodSync('dist/cli.js',0o755)}catch{}\"",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=node --packages=external --sourcemap && esbuild src/cli.ts --bundle --outfile=dist/cli.js --format=esm --platform=node --packages=external --sourcemap && node -e \"try{require('fs').chmodSync('dist/cli.js',0o755)}catch{}\" && node scripts/copy-ui-assets.mjs",
     "dev": "node --watch dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",

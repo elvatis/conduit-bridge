@@ -6,11 +6,14 @@ import type {
   ProviderAdapter,
 } from '../types.js';
 import { logger } from '../logger.js';
+import { withCliSession, parseCliSessionOutput, type CliSessionLease } from '../session-registry.js';
 import {
-  resolveExecutable,
+  diagnoseCliExecutable,
+  resolveCliExecutable,
   runCli,
   flattenMessages,
   agentCwd,
+  CLI_AUTH_ENV_KEYS,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
@@ -27,6 +30,7 @@ const BIN = 'claude';
 
 export class ClaudeCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-claude';
+  private readonly _cfg: BridgeConfig;
 
   /**
    * `claude` has no model-listing subcommand, so there is nothing to discover.
@@ -54,10 +58,19 @@ export class ClaudeCliProvider implements ProviderAdapter {
     ];
   }
 
-  constructor(_cfg: BridgeConfig) {}
+  constructor(cfg: BridgeConfig) { this._cfg = cfg; }
+
+  private executable() {
+    return resolveCliExecutable(this._cfg, 'cli-claude', [BIN]);
+  }
+
+  diagnostics() {
+    return diagnoseCliExecutable(this._cfg, 'cli-claude', [BIN]);
+  }
 
   get credentialSource(): string {
-    return cliSession('claude', [BIN]).source;
+    const path = this.executable().path;
+    return cliSession('claude', path ? [path] : []).source;
   }
 
   ownsModel(modelId: string): boolean {
@@ -65,14 +78,16 @@ export class ClaudeCliProvider implements ProviderAdapter {
   }
 
   async checkSession(): Promise<boolean> {
-    return cliSession('claude', [BIN]).authenticated;
+    const path = this.executable().path;
+    return cliSession('claude', path ? [path] : []).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const session = cliSession('claude', [BIN]);
+    const executable = this.executable();
+    const session = cliSession('claude', executable.path ? [executable.path] : []);
     if (!session.installed) {
       logger.warn(
-        '[cli-claude] `claude` not found on PATH. Install with: npm i -g @anthropic-ai/claude-code',
+        `[cli-claude] ${executable.error ?? '`claude` not found on PATH. Install with: npm i -g @anthropic-ai/claude-code'}`,
       );
       return false;
     }
@@ -98,17 +113,18 @@ export class ClaudeCliProvider implements ProviderAdapter {
     logger.info('[cli-claude] local CLI — nothing to disconnect');
   }
 
-  private async _run(req: ChatRequest): Promise<string> {
-    const binPath = resolveExecutable(BIN);
+  private async _run(req: ChatRequest, lease?: CliSessionLease): Promise<{ text: string; sessionId?: string }> {
+    const executable = this.executable();
+    const binPath = executable.path;
     if (!binPath) {
       throw new Error(
-        'claude CLI not found on PATH. Install with: npm i -g @anthropic-ai/claude-code',
+        `claude CLI unavailable: ${executable.error ?? 'not found on PATH'}`,
       );
     }
 
     const accountModel = parseClaudeModel(req.model, PREFIX);
     const model = accountModel.model;
-    const prompt = flattenMessages(req.messages);
+    const prompt = flattenMessages(lease?.messages ?? req.messages);
     const effort = toClaudeEffort(req.effort);
     const mode = req.mode ?? 'chat';
 
@@ -122,9 +138,10 @@ export class ClaudeCliProvider implements ProviderAdapter {
     // prompt alone, exit 0, no stderr, and the user's question silently gone.
     const args = [
       '-p',
-      '--output-format', 'text',
+      '--output-format', lease ? 'json' : 'text',
+      ...(lease ? lease.sessionId ? ['--resume', lease.sessionId] : ['--session-id', lease.newSessionId] : []),
       '--model', model,
-      ...cliPermissionArgs('cli-claude', mode),
+      ...cliPermissionArgs('cli-claude', mode, { disallowedTools: req.disallowedTools }),
       ...(effort ? ['--effort', effort] : []),
     ];
 
@@ -135,6 +152,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: agentCwd(req),
       env: claudeAccountEnv(accountModel.account),
+      envKeys: CLI_AUTH_ENV_KEYS['cli-claude'],
       label: 'cli-claude',
       log: msg => logger.info(msg),
       signal: req.signal,
@@ -149,15 +167,20 @@ export class ClaudeCliProvider implements ProviderAdapter {
           : result.stderr || '(no output)';
       throw new Error(`claude exited ${result.exitCode}: ${detail}`);
     }
-    return result.stdout || result.stderr;
+    if (lease) {
+      const parsed = parseCliSessionOutput('cli-claude', result.stdout);
+      if (result.exitCode !== 0 || !parsed.text || result.aborted || result.timedOut) throw new Error('Claude session turn did not complete');
+      return { text: parsed.text, sessionId: parsed.sessionId ?? lease.sessionId ?? lease.newSessionId };
+    }
+    return { text: result.stdout || result.stderr };
   }
 
   async chat(req: ChatRequest): Promise<string> {
-    return this._run(req);
+    return withCliSession(req, 'cli-claude', this.executable().path ?? '', lease => this._run(req, lease));
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
-    const content = await this._run(req);
+    const content = await this.chat(req);
     if (content) yield content;
   }
 }

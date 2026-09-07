@@ -6,14 +6,17 @@ import type {
   ProviderAdapter,
 } from '../types.js';
 import { logger } from '../logger.js';
+import { withCliSession, parseCliSessionOutput, type CliSessionLease } from '../session-registry.js';
 import {
-  resolveExecutable,
+  diagnoseCliExecutable,
+  resolveCliExecutable,
   runCli,
   flattenMessages,
   stripPrefix,
   agentCwd,
   DEFAULT_CLI_TIMEOUT_MS,
   argvLimitFor,
+  CLI_AUTH_ENV_KEYS,
 } from './cli-util.js';
 import { basename } from 'node:path';
 import { cliSession } from './cli-auth.js';
@@ -144,15 +147,7 @@ export function isAgyBin(binPath: string): boolean {
  */
 export const AGY_STDIN_LIMIT = 180_000;
 
-function resolveGeminiBin(): string | null {
-  // Prefer the current Antigravity CLI binary name.
-  return resolveExecutable('agy')
-    ?? resolveExecutable('gemini')
-    ?? resolveExecutable('antigravity');
-}
-
-function toDefinition(m: AgyModel): ModelDefinition {
-  const binPath = resolveGeminiBin();
+function toDefinition(m: AgyModel, binPath: string | null): ModelDefinition {
   return {
     id: `${PREFIX}${m.id}`,
     provider: 'cli-gemini',
@@ -172,6 +167,7 @@ function toDefinition(m: AgyModel): ModelDefinition {
 
 export class GeminiCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-gemini';
+  private readonly _cfg: BridgeConfig;
 
   private _discovered: ModelDefinition[] | null = null;
   /** Last ATTEMPT, not last success — a failing agy must not be re-spawned per request. */
@@ -185,10 +181,20 @@ export class GeminiCliProvider implements ProviderAdapter {
     // Seed list from model-catalog.ts (overridable via ~/.conduit/models.json):
     // what we advertise before the first `agy models` answers, and when agy is
     // missing or logged out.
-    return catalogFor('cli-gemini').map(m => toDefinition({ id: m.id, displayName: m.displayName ?? m.id }));
+    const binPath = this.executable().path;
+    return catalogFor('cli-gemini').map(m => toDefinition({ id: m.id, displayName: m.displayName ?? m.id }, binPath));
   }
 
-  constructor(_cfg: BridgeConfig) {}
+  constructor(cfg: BridgeConfig) { this._cfg = cfg; }
+
+  private executable() {
+    // Prefer the current Antigravity CLI binary name when no override is set.
+    return resolveCliExecutable(this._cfg, 'cli-gemini', ['agy', 'gemini', 'antigravity']);
+  }
+
+  diagnostics() {
+    return diagnoseCliExecutable(this._cfg, 'cli-gemini', ['agy', 'gemini', 'antigravity']);
+  }
 
   /**
    * Ask agy which models it actually serves. Returns the number discovered.
@@ -218,7 +224,7 @@ export class GeminiCliProvider implements ProviderAdapter {
   private async _discover(): Promise<number> {
     // A pinned catalog is the user's explicit answer; do not overwrite it.
     if (isPinned('cli-gemini')) return catalogFor('cli-gemini').length;
-    const binPath = resolveGeminiBin();
+    const binPath = this.executable().path;
     if (!binPath || !/agy(\.exe)?$/i.test(binPath)) return this._discovered?.length ?? 0;
 
     try {
@@ -227,6 +233,7 @@ export class GeminiCliProvider implements ProviderAdapter {
         args: ['models'],
         timeoutMs: DISCOVERY_TIMEOUT_MS,
         label: 'cli-gemini/models',
+        envKeys: CLI_AUTH_ENV_KEYS['cli-gemini'],
         log: msg => logger.info(msg),
       });
       if (result.exitCode !== 0) {
@@ -240,7 +247,7 @@ export class GeminiCliProvider implements ProviderAdapter {
         logger.warn('[cli-gemini] `agy models` returned no parsable rows; keeping previous catalog');
         return this._discovered?.length ?? 0;
       }
-      this._discovered = parsed.map(toDefinition);
+      this._discovered = parsed.map(model => toDefinition(model, binPath));
       logger.info(`[cli-gemini] discovered ${parsed.length} models from \`agy models\``);
       return parsed.length;
     } catch (err) {
@@ -250,7 +257,8 @@ export class GeminiCliProvider implements ProviderAdapter {
   }
 
   get credentialSource(): string {
-    return cliSession('gemini', ['agy', 'gemini', 'antigravity']).source;
+    const path = this.executable().path;
+    return cliSession('gemini', path ? [path] : []).source;
   }
 
   ownsModel(modelId: string): boolean {
@@ -258,15 +266,17 @@ export class GeminiCliProvider implements ProviderAdapter {
   }
 
   async checkSession(): Promise<boolean> {
-    return cliSession('gemini', ['agy', 'gemini', 'antigravity']).authenticated;
+    const path = this.executable().path;
+    return cliSession('gemini', path ? [path] : []).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const session = cliSession('gemini', ['agy', 'gemini', 'antigravity']);
+    const executable = this.executable();
+    const session = cliSession('gemini', executable.path ? [executable.path] : []);
     if (!session.installed) {
       logger.warn(
-        '[cli-gemini] `agy` not found on PATH. Install Antigravity CLI ' +
-          '(https://antigravity.google/docs/cli/getting-started) — binary name is `agy`.',
+        `[cli-gemini] ${executable.error ?? '`agy` not found on PATH. Install Antigravity CLI ' +
+          '(https://antigravity.google/docs/cli/getting-started) — binary name is `agy`.'}`,
       );
       return false;
     }
@@ -296,16 +306,17 @@ export class GeminiCliProvider implements ProviderAdapter {
     logger.info('[cli-gemini] local CLI — nothing to disconnect');
   }
 
-  private async _run(req: ChatRequest): Promise<string> {
-    const binPath = resolveGeminiBin();
+  private async _run(req: ChatRequest, lease?: CliSessionLease): Promise<{ text: string; sessionId?: string }> {
+    const executable = this.executable();
+    const binPath = executable.path;
     if (!binPath) {
       throw new Error(
-        'agy CLI not found on PATH. Install Antigravity CLI (binary: agy).',
+        `agy CLI unavailable: ${executable.error ?? 'not found on PATH'}`,
       );
     }
 
     const model = stripPrefix(req.model, PREFIX);
-    const prompt = flattenMessages(req.messages);
+    const prompt = flattenMessages(lease?.messages ?? req.messages);
     const isAgy = isAgyBin(binPath);
     const mode = req.mode ?? 'chat';
     const permission = cliPermissionArgs('cli-gemini', mode, { isAgy });
@@ -347,6 +358,7 @@ export class GeminiCliProvider implements ProviderAdapter {
       ? [
           '--input-format', 'stream-json',
           '--output-format', 'stream-json',
+          ...(lease?.sessionId ? ['--conversation', lease.sessionId] : []),
           '--model', model,
           '--add-dir', workspace,
           ...permission,
@@ -356,7 +368,8 @@ export class GeminiCliProvider implements ProviderAdapter {
       : [
           '-p', prompt,
           '-m', model,
-          '-o', 'text',
+          '-o', lease ? 'json' : 'text',
+          ...(lease?.sessionId ? ['--resume', lease.sessionId] : []),
           ...permission,
         ];
 
@@ -366,6 +379,7 @@ export class GeminiCliProvider implements ProviderAdapter {
       ...(isAgy ? { stdin: agyStreamInput(prompt) } : {}),
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: workspace,
+      envKeys: CLI_AUTH_ENV_KEYS['cli-gemini'],
       label: 'cli-gemini',
       log: msg => logger.info(msg),
       signal: req.signal,
@@ -396,7 +410,8 @@ export class GeminiCliProvider implements ProviderAdapter {
             : parsed.error || result.stderr || '(no output)';
         throw new Error(`cli-gemini exited ${result.exitCode}: ${detail}`);
       }
-      return parsed.text;
+      if (lease && (result.exitCode !== 0 || result.aborted || result.timedOut || parsed.error)) throw new Error('Gemini session turn did not complete');
+      return { text: parsed.text, ...(lease ? { sessionId: parseCliSessionOutput('cli-gemini', result.stdout).sessionId } : {}) };
     }
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
@@ -408,15 +423,20 @@ export class GeminiCliProvider implements ProviderAdapter {
           : result.stderr || '(no output)';
       throw new Error(`cli-gemini exited ${result.exitCode}: ${detail}`);
     }
-    return result.stdout || result.stderr;
+    if (lease) {
+      const parsedSession = parseCliSessionOutput('cli-gemini', result.stdout);
+      if (result.exitCode !== 0 || !parsedSession.text || result.aborted || result.timedOut) throw new Error('Gemini session turn did not complete');
+      return parsedSession;
+    }
+    return { text: result.stdout || result.stderr };
   }
 
   async chat(req: ChatRequest): Promise<string> {
-    return this._run(req);
+    return withCliSession(req, 'cli-gemini', this.executable().path ?? '', lease => this._run(req, lease));
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
-    const content = await this._run(req);
+    const content = await this.chat(req);
     if (content) yield content;
   }
 }

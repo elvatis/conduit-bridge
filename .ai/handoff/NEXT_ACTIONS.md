@@ -1,13 +1,21 @@
 # Next actions
 
-Current version: **v0.9.1**
+Current version: **v0.10.0**
 
-_Updated: 2026-09-02_
+_Updated: 2026-09-07_
 
-1. After v0.9.1 is tagged, no follow-up unless a regression is reported.
-
-Do not reintroduce `web-*`, Playwright, cookie extraction, VNC components, or
-additional user ports.
+1. Review PR #117 on `feat/provider-agent-management`, including the provider/agent platform, Elvatis Conduit dashboard and `docs/guides/platform.md`. Storage defaults to encrypted SQLite with one-time legacy-file import; explicit encrypted-file and injected Prisma backends remain supported. Production memory-only storage is rejected.
+2. Verify hosted CI on the synced branch before merge. Windows 547 tests/64 files and build pass. Native BitNet now passes chat, streaming, lifecycle and local planning/execution checks; see `docs/guides/bitnet.md` and PR #117 for exact evidence.
+3. Inspect the retained `Four-provider handoff ce0f4121` conversation and completed runs in the running local dashboard. All 12 real Claude, Codex, agy/Gemini and Grok matrix cases passed, including context handoff, bounded loops and physical file verification.
+4. Choose the deployment storage backend when operational requirements are known. Real Prisma deployment, live Linux Secret Service integration and Linux CLI authentication remain explicit environment-specific validation work. Do not treat adapter contract tests as production database evidence.
+5. Implement the documented `/vscode` client in the sibling extension when ready. Configure a service `GITHUB_TOKEN` and designated test project for live GitHub Projects validation; transport/permission tests currently use fixtures. Release v0.10.0 only after the required CI checks are green.
+6. Native BitNet and tgrep are configured locally. The available Llama server
+   now starts automatically with the bridge; BITNET_AUTOSTART=false disables it. Rebuild with `scripts/bitnet/build-windows.ps1`
+   after stopping it. Review upstream #602 before removing the 2B relu2 patch.
+   Live LM Studio/Gemini API planning still needs a loaded model/credentials.
+Do not reintroduce `web-*`, Playwright, cookie extraction or VNC components.
+Keep the gateway port unchanged; optional BitNet/tgrep daemon ports are explicit
+administrator-controlled integrations requested in the addendum.
 
 ## Open after the 2026-09-03 governance parity pass
 
@@ -17,17 +25,13 @@ mutation-proved (18 proofs, each turning its gate red on the exact staleness
 it exists to catch, with the unmodified tree green). What is left needs a
 decision or source work, so it is recorded here rather than assumed.
 
-1. **Required status checks: there are NONE.** `gh api
-   repos/elvatis/conduit-bridge/branches/main/protection/required_status_checks`
-   returns 404, "Required status checks not enabled". CI runs on every pull
-   request and blocks nothing, so every gate added on 2026-09-03 is advisory.
-   The name collision that stood in the way is fixed: `Scan` and `Secret Scan`
-   are now distinct. Needs a repository settings change, so it needs Emre.
-   After setting them, verify with a throwaway pull request carrying one em
-   dash and confirm the merge is actually blocked. A required check that does
-   not block is the same failure this pass was cleaning up.
+1. **Required checks now exist.** Read-only verification on 2026-09-07 found
+   `aahp-verify`, `Test (ubuntu-latest)`, `Test (windows-latest)`, `Secret Scan`,
+   `Scan`, and `Analyze (javascript-typescript)`, with `strict: false`. The old
+   404/no-required-checks statement below is historical. A merge-blocking mutation
+   proof and a decision about strict branch freshness remain follow-ups.
 
-2. **84 em dash characters in 26 `.ts` files**, on 82 lines, 19 of them on
+2. **79 em dash characters in 25 `.ts` files** at the 2026-09-07 review snapshot, on 77 lines, 19 of them on
    non-comment lines: CLI output, provider error strings, and a note string
    that leaves the process on `/v1/models`. `em-dash.include` deliberately
    does not cover `*.ts` yet, because fixing them changes observable output.

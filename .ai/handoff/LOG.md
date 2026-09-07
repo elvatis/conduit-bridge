@@ -2,15 +2,120 @@
 
 _Reverse chronological._
 
-## 2026-09-06 - cli-gemini auth probe missed the Antigravity token
+## 2026-09-07 - GHAS hardening before merge
 
-- `hasCliCredentialFile('gemini')` only checked `.gemini/oauth_creds.json`
-  (the legacy `gemini` CLI), not `.gemini/antigravity-cli/antigravity-oauth-token`
-  (the `agy` binary `cli-gemini` actually runs). An authenticated `agy` install
-  read as logged out, so `/v1/chat/completions` failed with
-  `provider_unavailable` while `agy models`/`agy -p` worked fine directly.
-- Fixed in `src/providers/cli-auth.ts`; regression test added and mutation
-  proved (red on the pre-fix code). PR #114.
+- Fixed CodeQL findings for incomplete Markdown escaping in governance and
+  activity exports, uppercase script tags in the dashboard test harness, and
+  credential material in the CLI config display. Config output now exposes only
+  provider and bridge-token status and omits secret references and verifiers.
+- Moved the optional matrix/demo bearer lookup into a network-free loopback auth
+  helper, validated control characters, pinned Supply Chain Guard to its reviewed
+  v6 commit, and added a signed build-provenance subject to the release workflow.
+- Relevant security/configuration tests, build, Secret Scan and AAHP check pass.
+
+## 2026-09-07 - cli-gemini Antigravity credential detection
+
+- Merged the `cli-gemini` authentication probe fix from PR #114. The probe now
+  recognizes the Antigravity CLI token file used by `agy` in addition to the
+  legacy Gemini CLI credential path.
+- Added a regression test for an Antigravity-only credential installation.
+
+## 2026-09-07 - Durable vault and native inference startup
+
+- Default encrypted SQLite imports legacy file state without deleting the source.
+  All platform conversations persist until explicit deletion; legacy ephemeral
+  and TTL settings no longer erase history. Save user requests before inference
+  and retain failed/interrupted output with explicit status.
+- Added a bilingual Vault view, full-message SQLite FTS5 and scoped native tgrep
+  regex search. Local hourly BitNet scans keep a durable cursor and propose
+  evidence-linked drafts with constrained JSON output and current authorization.
+- Configured native Llama inference autostarts with the bridge, reuses healthy
+  external servers without ownership and stops its own child on graceful shutdown.
+- Verified migration of six existing conversations/28 messages; later restart
+  preserved seven conversations/34 messages. Two isolated real native start-stop
+  cycles preserved six messages, scan state and a suggestion; tgrep 1.0.4 passed.
+- Browser checks cover German/English, exact source navigation and corrected
+  Windows UTF-8 labels. Full suite: 547 tests/64 files; production build passes.
+  README and the platform/storage/BitNet guides document behavior and limits.
+
+
+## 2026-09-07 - Native BitNet without Conda
+
+- Pinned native compatibility patches to LF after reproducing a CRLF patch
+  failure. Verified LF patches against CRLF source without changing runtime code.
+- Built pinned Microsoft BitNet natively using installed Clang/Visual Studio
+  tools and static libraries. Added a reproducible helper, official chat template
+  and scoped b1.58 2B relu2 patch after live tests confirmed upstream issue #602.
+- Verified the supplied GGUF against Microsoft's SHA-256; it remains unchanged
+  and is excluded by *.gguf. Local .env config points to the native executable.
+- Added validated host tokenizer/template options to the server manager. Real
+  chat, streaming, aliasing, lifecycle and plain local orchestration now pass;
+  observed about 31-32 generated tokens/s with eight CPU threads.
+- Clarified planner ID types and retained original request data in subtasks.
+  Full Windows suite: 512 tests/62 files; typecheck/build pass. Documented the
+  small model's provider-name wording failure rather than claiming universal
+  instruction compliance. No merge, release or package dependency change.
+
+## 2026-09-07 - Canonical code-search paths
+
+- Corrected relative search results for workspaces below an aliased ancestor,
+  discovered by hosted Windows CI. Canonicalized absolute cwd conversion too.
+- Extended the existing authorization test with a real junction/symlink ancestor;
+  focused tests, strict typecheck and production build pass.
+
+## 2026-09-07 - Addendum integrations
+
+- Adapted elvatis-mcp patterns into typed native bridge modules: persistent
+  rate limits and CLI sessions, prompt splitting, dependency execution, routing,
+  daily memory and local/webhook notifications. No MCP or SSH dependency added.
+- Registered BitNet and added approved native BitNet/tgrep server management.
+  Verified upstream tgrep uses TCP JSON-RPC and automatic port discovery; live
+  testing corrected daemon reindex to use reload rather than a competing CLI build.
+- Scoped retained CLI sessions passed real two-turn Claude, Codex and agy checks.
+  Corrected Codex's Windows-safe sandbox argument after its first native test.
+- Windows full suite: 510/62 pass. Nine real service checks and seven native tgrep
+  checks pass; auto planning also correctly reaches heuristics when Gemini API
+  authentication and loaded local models are absent. BitNet remains fixture-only.
+- README, integration guide, validation report and this handoff describe actual
+  interfaces, ownership and persistence limits. Branch remains
+  feat/provider-agent-management; no merge, release or new package dependency.
+
+## 2026-09-07 - PR #117 fixes, real pipeline demos and management roadmap
+
+- Appended the Astra product/stability and Daybreak security review to PR #117.
+- Fixed the reviewed pipeline, policy, accounting, workspace, Windows argument,
+  persistence and dashboard issues on the existing local branch.
+- Stopped the scheduled local service, built the branch, and restarted it.
+- Full suite passes: 281 tests in 24 files. Real Claude Sonnet 5 calls passed the
+  write/verify, approval/execute and parallel debate/synthesis examples (seven steps).
+- Live Codex testing exposed a flag conflict (fixed), then a local npm CLI versus
+  desktop config compatibility problem (documented, user config preserved).
+- Added reproducible examples, a demo runner, measured validation and a proposed
+  SQLite/credentials/session/memory/skills/loops roadmap using read-only inspection
+  of the sibling ai.elvatis.com implementation.
+- Corrected stale next actions: PR #117 already exists and six required checks are
+  enabled. No repository settings changes, push, merge, release or version bump.
+
+## 2026-09-07 - Enterprise governance templates, budget controls, workspace browsing, tool discovery, and visual analytics
+
+- Implemented 9 repository-specific governance pipeline templates (standard-governance, doc-generation, doc-review, refactoring-review, pr-review, release-readiness, architecture-review, dependency-risk, supply-chain-security) with parallel reviews, mandatory approval gates, and repository policy overrides.
+- Added BudgetManager (`src/budget.ts`) enforcing daily and monthly USD limits, per-run cost and token caps, safe/warning/exceeded thresholds, hard stops vs soft warnings, and persistence.
+- Added WorkspaceManager (`src/workspaces.ts`) validating directory existence, write permissions, path normalization, and safe filesystem browsing.
+- Added automatic system tool discovery on host PATH (`src/cli-mode.ts`) detecting git, node, npm, python, docker, and developer tools with security risk levels (low/medium/high/critical) and classification tags.
+- Added endpoints: `GET|POST /v1/budgets`, `GET|POST|DELETE /v1/repositories`, `GET /v1/governance/audit`, `GET /v1/governance/audit/export`, `GET|POST|DELETE /v1/workspaces`, `POST /v1/workspaces/browse`, `POST /v1/tools/discover`, `GET /v1/activity/export`, `GET /v1/analytics/overview`.
+- Upgraded dashboard with pure SVG analytics charts (model request volume/latencies, spend share, pipeline run outcomes, event severity), budget gauges, repository manager modal, directory browser, and log search with traceId correlation pills.
+- Added comprehensive unit and integration suite in `test/governance.test.ts` (17 tests). All 225 suite tests passing.
+
+## 2026-09-07 - Provider agent controls, collapsible dashboard UI, tool picker, and multi-step agent pipelines
+
+- Added per-provider agent policies (`agentEnabled`, `defaultMode`, `disallowedTools`) with persistence in `agentPolicies` within BridgeConfig.
+- Added `GET /v1/settings/agent-policy` and `POST /v1/settings/agent-policy` endpoints to inspect and govern agent execution per provider.
+- Added 403 `permission_denied` protection on `POST /v1/chat/completions` when agent mode is disabled by policy.
+- Added `GET /v1/tools` returning categorized catalog of 23 known tools across 7 categories (File Operations, Shell / Terminal, Web Access, MCP Tools, Workspace Editing, Notebook Operations, Custom Provider Tools).
+- Implemented multi-step agent pipelines in `src/pipelines.ts` with template interpolation (`{{prompt}}`, `{{previous_output}}`, `{{prior_steps}}`), built-in presets (`tri-vendor-review`, `code-gen-test`, `debate-consensus`), dependency execution, and human approval checkpoint support (`waiting_approval` with pause/resume).
+- Added pipeline endpoints: `GET /v1/pipelines`, `POST /v1/pipelines`, `DELETE /v1/pipelines/:id`, `POST /v1/pipelines/run`, `GET /v1/pipelines/runs`, `POST /v1/pipelines/runs/action`.
+- Upgraded dashboard with icon-based navigation, collapsible sidebar (expanded vs collapsed mode with localStorage persistence), structured searchable tool picker replacing free-text inputs, customizable navigation visibility with workspace presets (All, Developer, Simple/Chat, Ops/Governance), and interactive pipeline builder and execution runner.
+- Targeted tests (78 tests across pipelines, server, cli-mode, preserve) all passing. Zero em dashes introduced.
 
 ## 2026-09-02 - v0.8.0
 
@@ -90,3 +195,44 @@ _Reverse chronological._
   completed successfully.
 - Resolved the new CodeQL HTML-filtering alert in the dashboard syntax test by
   matching script tags case-insensitively.
+
+## 2026-09-07: provider and agent platform implementation
+
+Implemented encrypted pluggable state, cross-platform vault keys, canonical
+retained/ephemeral sessions, reviewed scoped memory, pinned skill/prompt catalog,
+agent definitions, durable bounded runs, artifacts/evaluations, scoped operators,
+provider profiles and five installable coding pipelines. The production database
+choice remains open. Fixed loop-step snapshot bookkeeping and Windows Codex
+sandbox selection after real failures, then reran all four providers successfully.
+Windows 379 tests/build pass; Linux full suite/build plus final UI delta pass.
+All 12 real Windows matrix cases pass; see docs/PLATFORM-VALIDATION.md for evidence
+and explicit Prisma/Linux Secret Service limitations. Service rebuilt and running.
+The user authorized syncing feat/provider-agent-management; no merge or release.
+
+## 2026-09-07: executable tools, GitHub Projects, help and VS Code protocol
+
+Implemented the supplied integration prompt against the existing encrypted state
+and authorization model. Six executable tools, Projects v2 item APIs/workspace
+links, typed accessible tooltips, and a dedicated authenticated /vscode socket
+are covered by 470 Windows tests and 469 Linux passes plus one Windows-only skip.
+All ten live smoke checks pass, including Perplexity search, Claude streaming,
+Codex inline proposal and an approved Codex file write. GitHub service token is
+not configured, so remote mutations use transport fixtures; no remote project
+was changed. No new dependencies, extra listener, release or merge. Protocol,
+usage and measured limitations are documented in docs/TOOLS-AND-PROJECTS.md,
+docs/vscode-bridge.md and docs/INTEGRATIONS-VALIDATION.md.
+
+## 2026-09-07: canonical subprocess cwd fixture on hosted Windows
+
+Hosted Ubuntu passed. Windows CI found the command test comparing RUNNER~1 to
+runneradmin even though both identify the same temporary directory. The assertion
+now expects realpathSync.native(root), matching the runtime's intentional
+canonicalization. Focused real-process tests pass; runtime code is unchanged.
+
+## 2026-09-07: bounded time allowance for real DPAPI integration test
+
+Hosted Windows passed the corrected cwd test, then the real DPAPI round trip
+completed after 16 seconds and exceeded Vitest's unrelated five-second default.
+Only that OS integration test now allows 40 seconds, covering its two production
+subprocess calls (15 seconds each) and startup overhead. Runtime cryptographic
+behavior and subprocess deadlines are unchanged.

@@ -18,6 +18,37 @@ import { logger } from '../logger.js';
 const DEFAULT_URL = 'http://127.0.0.1:1234';
 const PREFIX = 'lmstudio/';
 
+/** Incremental reasoning filter; incomplete tags stay buffered and unfinished reasoning is discarded. */
+export class ThinkTagFilter {
+  private pending = '';
+  private thinking = false;
+  /** Accept a transport chunk without exposing reasoning or partial tag prefixes. */
+  push(chunk: string, final = false): string {
+    this.pending += chunk;
+    let output = '';
+    while (this.pending) {
+      const marker = this.thinking ? '</think>' : '<think>';
+      const index = this.pending.toLowerCase().indexOf(marker);
+      if (index >= 0) {
+        if (!this.thinking) output += this.pending.slice(0, index);
+        this.pending = this.pending.slice(index + marker.length); this.thinking = !this.thinking;
+        continue;
+      }
+      let keep = 0;
+      if (!final) for (let length = 1; length < marker.length; length++) if (this.pending.toLowerCase().endsWith(marker.slice(0, length))) keep = length;
+      if (!this.thinking) output += this.pending.slice(0, this.pending.length - keep);
+      this.pending = keep ? this.pending.slice(-keep) : '';
+      break;
+    }
+    return output;
+  }
+}
+/** Strip reasoning blocks from a complete local model answer. */
+export function stripThinkTags(value: string): string { return new ThinkTagFilter().push(value, true); }
+
+/** Configuration shared by local OpenAI-compatible providers. */
+export interface LocalProviderOptions { name: ProviderName; prefix: string; defaultUrl: string; environment: string; label: string }
+
 interface LmStudioApiModel {
   id: string;
   object?: string;
@@ -25,17 +56,18 @@ interface LmStudioApiModel {
 }
 
 export class LmStudioProvider implements ProviderAdapter {
-  readonly name: ProviderName = 'lmstudio';
+  readonly name: ProviderName;
 
   private readonly _cfg: BridgeConfig;
   private _discovered: ModelDefinition[] = [];
 
-  constructor(cfg: BridgeConfig) {
+  constructor(cfg: BridgeConfig, protected readonly local: LocalProviderOptions = { name: 'lmstudio', prefix: PREFIX, defaultUrl: DEFAULT_URL, environment: 'LM_STUDIO_URL', label: 'LM Studio' }) {
     this._cfg = cfg;
+    this.name = local.name;
   }
 
   private get _baseUrl(): string {
-    const raw = process.env.LM_STUDIO_URL || this._cfg.lmStudioUrl || DEFAULT_URL;
+    const raw = process.env[this.local.environment] || (this.name === 'lmstudio' ? this._cfg.lmStudioUrl : undefined) || this.local.defaultUrl;
     return raw.replace(/\/+$/, '');
   }
 
@@ -43,10 +75,10 @@ export class LmStudioProvider implements ProviderAdapter {
     // Always advertise "auto"; append any models discovered from a reachable server.
     return [
       {
-        id: 'lmstudio/auto',
-        provider: 'lmstudio',
-        displayName: 'LM Studio (active model)',
-        owned_by: 'lmstudio',
+        id: `${this.local.prefix}auto`,
+        provider: this.name,
+        displayName: `${this.local.label} (active model)`,
+        owned_by: this.name,
       },
       ...this._discovered,
     ];
@@ -54,7 +86,7 @@ export class LmStudioProvider implements ProviderAdapter {
 
   /** Route any "lmstudio/…" model here, even before discovery has populated the list. */
   ownsModel(modelId: string): boolean {
-    return modelId === 'lmstudio/auto' || modelId.startsWith(PREFIX);
+    return modelId.startsWith(this.local.prefix);
   }
 
   /** Query LM Studio for its currently loaded models. Returns [] if unreachable. */
@@ -69,10 +101,10 @@ export class LmStudioProvider implements ProviderAdapter {
       this._discovered = (data.data ?? [])
         .filter(m => !/embed/i.test(m.id))
         .map(m => ({
-          id: `${PREFIX}${m.id}`,
-          provider: 'lmstudio' as ProviderName,
-          displayName: `${m.id} (LM Studio)`,
-          owned_by: m.owned_by ?? 'lmstudio',
+          id: `${this.local.prefix}${m.id}`,
+          provider: this.name,
+          displayName: `${m.id} (${this.local.label})`,
+          owned_by: m.owned_by ?? this.name,
         }));
       return this._discovered;
     } catch {
@@ -115,7 +147,7 @@ export class LmStudioProvider implements ProviderAdapter {
 
   /** "lmstudio/llama-3.1-8b" → "llama-3.1-8b"; "lmstudio/auto" → "" (server picks). */
   private _toApiModel(pluginId: string): string {
-    const raw = pluginId.startsWith(PREFIX) ? pluginId.slice(PREFIX.length) : pluginId;
+    const raw = pluginId.startsWith(this.local.prefix) ? pluginId.slice(this.local.prefix.length) : pluginId;
     return raw === 'auto' ? '' : raw;
   }
 
@@ -128,6 +160,7 @@ export class LmStudioProvider implements ProviderAdapter {
     if (model) body.model = model; // omit for "auto" so LM Studio uses the loaded model
     if (req.max_tokens) body.max_tokens = req.max_tokens;
     if (req.temperature !== undefined) body.temperature = req.temperature;
+    if (req.response_format) body.response_format = req.response_format;
     return JSON.stringify(body);
   }
 
@@ -136,16 +169,16 @@ export class LmStudioProvider implements ProviderAdapter {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: this._body(req, false),
-      signal: AbortSignal.timeout(req.max_tokens ? 300_000 : 120_000),
+      signal: AbortSignal.any([AbortSignal.timeout(req.max_tokens ? 300_000 : 120_000), ...(req.signal ? [req.signal] : [])]),
     });
     if (!resp.ok) {
-      const errBody = await resp.text().catch(() => resp.statusText);
-      throw new Error(`LM Studio error ${resp.status}: ${errBody}`);
+      await resp.body?.cancel();
+      throw new Error(`${this.local.label} error ${resp.status}`);
     }
     const data = (await resp.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
-    return data.choices?.[0]?.message?.content ?? '';
+    return stripThinkTags(data.choices?.[0]?.message?.content ?? '');
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
@@ -153,11 +186,11 @@ export class LmStudioProvider implements ProviderAdapter {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: this._body(req, true),
-      signal: AbortSignal.timeout(req.max_tokens ? 300_000 : 120_000),
+      signal: AbortSignal.any([AbortSignal.timeout(req.max_tokens ? 300_000 : 120_000), ...(req.signal ? [req.signal] : [])]),
     });
     if (!resp.ok) {
-      const errBody = await resp.text().catch(() => resp.statusText);
-      throw new Error(`LM Studio error ${resp.status}: ${errBody}`);
+      await resp.body?.cancel();
+      throw new Error(`${this.local.label} error ${resp.status}`);
     }
     if (!resp.body) {
       throw new Error('LM Studio: no response body for streaming request');
@@ -166,12 +199,13 @@ export class LmStudioProvider implements ProviderAdapter {
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    const filter = new ThinkTagFilter();
 
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        buffer += done ? decoder.decode() + '\n' : decoder.decode(value, { stream: true });
+        if (buffer.length > 1024 * 1024) throw new Error('Local model stream frame exceeds 1 MiB');
 
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
@@ -180,19 +214,22 @@ export class LmStudioProvider implements ProviderAdapter {
           const trimmed = line.trim();
           if (!trimmed.startsWith('data:')) continue;
           const payload = trimmed.slice(trimmed.indexOf(':') + 1).trim();
-          if (payload === '[DONE]') return;
+          if (payload === '[DONE]') { const tail = filter.push('', true); if (tail) yield tail; return; }
           try {
             const chunk = JSON.parse(payload) as {
               choices?: Array<{ delta?: { content?: string } }>;
             };
             const delta = chunk.choices?.[0]?.delta?.content;
-            if (delta) yield delta;
+            if (delta) { const visible = filter.push(delta); if (visible) yield visible; }
           } catch {
             // skip malformed SSE chunks
           }
         }
+        if (done) break;
       }
+      const tail = filter.push('', true); if (tail) yield tail;
     } finally {
+      await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
   }

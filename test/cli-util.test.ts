@@ -5,11 +5,16 @@ import { join } from 'node:path';
 import {
   agentCwd,
   argvLimitFor,
+  buildMinimalEnv,
+  CLI_AUTH_ENV_KEYS,
   findMultilineArg,
   quoteWin,
+  diagnoseCliExecutable,
+  resolveCliExecutable,
   runCli,
   sandboxCwd,
 } from '../src/providers/cli-util.js';
+import { codexPlatformSandboxArgs } from '../src/providers/cli-codex.js';
 
 describe('runCli cancellation', () => {
   it('terminates a child process when the request signal is aborted', async () => {
@@ -68,6 +73,12 @@ describe('runCli cancellation', () => {
       .toBe('--tools "" --model x');
   });
 
+  it('quoteWin rejects quote breakout and contains shell metacharacters', () => {
+    expect(() => quoteWin('Write"&echo injected&rem "')).toThrow(/refusing/i);
+    expect(quoteWin('folder & tools')).toBe('"folder & tools"');
+    expect(quoteWin('%TEMP%')).toBe('"%TEMP%"');
+  });
+
   it('argvLimitFor scales the bound to the transport, not to Windows', () => {
     const win = process.platform === 'win32';
     // A .cmd shim goes through cmd.exe, whose whole command line caps at 8191.
@@ -77,6 +88,58 @@ describe('runCli cancellation', () => {
     // Linux allows 131072 per argument, so a Windows-derived bound must not
     // reject prompts there.
     expect(argvLimitFor('/usr/bin/agy')).toBeGreaterThanOrEqual(win ? 7_000 : 120_000);
+  });
+
+  it('uses absolute per-provider executable overrides and fails closed when invalid', () => {
+    const configured = resolveCliExecutable(
+      { cliExecutables: { 'cli-codex': process.execPath } },
+      'cli-codex',
+      ['definitely-not-the-selected-command'],
+    );
+    expect(configured).toMatchObject({ configured: true, path: process.execPath });
+
+    const invalid = resolveCliExecutable(
+      { cliExecutables: { 'cli-codex': 'relative/codex' } },
+      'cli-codex',
+      ['node'],
+    );
+    expect(invalid.path).toBeNull();
+    expect(invalid.error).toMatch(/absolute/i);
+  });
+
+  it('reports a configured CLI path and version without invoking a model', async () => {
+    const diagnostic = await diagnoseCliExecutable(
+      { cliExecutables: { 'cli-claude': process.execPath } },
+      'cli-claude',
+      ['missing'],
+    );
+    expect(diagnostic).toMatchObject({
+      provider: 'cli-claude',
+      configured: true,
+      available: true,
+      path: process.execPath,
+    });
+    expect(diagnostic.version).toMatch(/^v\d+/);
+  });
+
+  it('scopes subprocess credentials to one CLI provider', () => {
+    const codexKey = CLI_AUTH_ENV_KEYS['cli-codex'][0];
+    const claudeKey = CLI_AUTH_ENV_KEYS['cli-claude'][0];
+    const saved = { [codexKey]: process.env[codexKey], [claudeKey]: process.env[claudeKey] };
+    process.env[codexKey] = 'codex-test-credential';
+    process.env[claudeKey] = 'claude-test-credential';
+    try {
+      expect(buildMinimalEnv()).not.toHaveProperty('OPENAI_API_KEY');
+      expect(buildMinimalEnv()).not.toHaveProperty('ANTHROPIC_API_KEY');
+      const codex = buildMinimalEnv(CLI_AUTH_ENV_KEYS['cli-codex']);
+      expect(codex.OPENAI_API_KEY).toBe('codex-test-credential');
+      expect(codex).not.toHaveProperty('ANTHROPIC_API_KEY');
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it('cli-gemini points agy at the workspace with --add-dir', () => {
@@ -91,6 +154,22 @@ describe('runCli cancellation', () => {
       const src = readFileSync(join(process.cwd(), 'src/providers', file), 'utf8');
       expect(src, file).toMatch(/stdin:\s*prompt/);
     }
+  });
+
+  it('all CLI adapters use configured executable resolution and expose diagnostics', () => {
+    for (const file of ['cli-claude.ts', 'cli-codex.ts', 'cli-gemini.ts', 'grok-cli.ts']) {
+      const src = readFileSync(join(process.cwd(), 'src/providers', file), 'utf8');
+      expect(src, file).toContain('resolveCliExecutable');
+      expect(src, file).toContain('diagnoseCliExecutable');
+    }
+  });
+
+  it('isolates Codex from user config while retaining explicit bridge policy flags', () => {
+    const src = readFileSync(join(process.cwd(), 'src/providers/cli-codex.ts'), 'utf8');
+    expect(src).toContain("'--ignore-user-config'");
+    expect(src).toContain("cliPermissionArgs('cli-codex', mode)");
+    expect(codexPlatformSandboxArgs('win32')).toEqual(['-c', "windows.sandbox='unelevated'"]);
+    expect(codexPlatformSandboxArgs('linux')).toEqual([]);
   });
 
   it('grok-cli uses shared runCli so Windows abort taskkills the process tree', () => {

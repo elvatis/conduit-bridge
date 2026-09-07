@@ -5,7 +5,7 @@ import { ProviderRegistry } from '../src/registry.js';
 
 const ALL_PROVIDERS: ProviderName[] = [
   'claude-api', 'gemini-api', 'codex-api',
-  'openrouter-api', 'perplexity-api', 'lmstudio', 'cli-grok',
+  'openrouter-api', 'perplexity-api', 'lmstudio', 'bitnet', 'cli-grok',
   'cli-codex', 'cli-claude', 'cli-gemini',
 ];
 
@@ -26,7 +26,7 @@ describe('ProviderRegistry', () => {
   });
 
   describe('provider registration', () => {
-    it('registers all ten built-in providers', () => {
+    it('registers all eleven built-in providers', () => {
       for (const name of ALL_PROVIDERS) {
         expect(registry.get(name).name).toBe(name);
       }

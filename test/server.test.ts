@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer, request } from 'node:http';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { BridgeConfig } from '../src/types.js';
 
 // Redirect the home directory so MetricsStore never writes the real
@@ -18,45 +21,53 @@ vi.mock('node:os', async (importOriginal) => {
 // mock factory (which is hoisted above imports) can reference it safely.
 const h = vi.hoisted(() => {
   const grokModel = { id: 'cli-grok/grok-4.5', provider: 'cli-grok', displayName: 'Grok 4.5', owned_by: 'xai' };
+  const codexModel = { id: 'cli-codex/gpt-test', provider: 'cli-codex', displayName: 'Codex Test', owned_by: 'openai' };
   const state = {
     connected: true,      // provider.ensureConnected() result
     chatThrows: false,    // provider.chat() throws when true
     chatError: 'provider exploded',
     lastReq: undefined as { mode?: string; cwd?: string } | undefined,
+    lastProvider: undefined as string | undefined,
   };
-  return { grokModel, state };
+  return { grokModel, codexModel, state };
 });
 
 // Replace the real ProviderRegistry with a lightweight fake.
 vi.mock('../src/registry.js', () => {
-  const provider = {
-    name: 'cli-grok',
-    models: [h.grokModel],
+  const makeProvider = (name: string, model: typeof h.grokModel) => ({
+    name,
+    models: [model],
     async ensureConnected() { return h.state.connected; },
     async chat(req: { mode?: string; cwd?: string }) {
       h.state.lastReq = req;
-      if (h.state.chatThrows) throw new Error(h.state.chatError);
+      h.state.lastProvider = name;
+      if (h.state.chatThrows && name === 'cli-grok') throw new Error(h.state.chatError);
       return 'mocked completion';
     },
     async *chatStream() { yield 'mocked'; yield ' completion'; },
     async checkSession() { return true; },
     async restoreSession() { return true; },
-  };
+  });
+  const grokProvider = makeProvider('cli-grok', h.grokModel);
+  const codexProvider = makeProvider('cli-codex', h.codexModel);
 
   class FakeRegistry {
     constructor(public cfg: BridgeConfig) {}
-    allModels() { return [h.grokModel]; }
+    allModels() { return [h.grokModel, h.codexModel]; }
     providerForModel(model: string) {
-      return model === h.grokModel.id ? provider : undefined;
+      return model === h.grokModel.id ? grokProvider : model === h.codexModel.id ? codexProvider : undefined;
     }
-    get() { return provider; }
-    lookup(name: string) { return name === 'cli-grok' ? provider : undefined; }
+    get(name: string) { return name === 'cli-codex' ? codexProvider : grokProvider; }
+    lookup(name: string) { return name === 'cli-grok' ? grokProvider : name === 'cli-codex' ? codexProvider : undefined; }
     async getStatus() {
       return {
         running: true,
         port: this.cfg.port,
         version: '9.9.9',
-        providers: [{ name: 'cli-grok', connected: true, models: [h.grokModel.id], loginType: 'cli' }],
+        providers: [
+          { name: 'cli-grok', connected: true, models: [h.grokModel.id], loginType: 'cli' },
+          { name: 'cli-codex', connected: true, models: [h.codexModel.id], loginType: 'cli' },
+        ],
         uptime: 1,
       };
     }
@@ -104,12 +115,13 @@ beforeEach(() => {
   h.state.chatThrows = false;
   h.state.chatError = 'provider exploded';
   h.state.lastReq = undefined;
+  h.state.lastProvider = undefined;
 });
 
 describe('BridgeServer HTTP handler', () => {
   describe('CORS', () => {
     // Raw request so we can set Origin (fetch strips it as a forbidden header).
-    const raw = (path: string, opts: { method?: string; headers?: Record<string, string> } = {}) =>
+    const raw = (path: string, opts: { method?: string; headers?: Record<string, string>; body?: string } = {}) =>
       new Promise<{ status: number; headers: Record<string, string | string[] | undefined> }>((resolve, reject) => {
         const u = new URL(base + path);
         const req = request(
@@ -117,7 +129,7 @@ describe('BridgeServer HTTP handler', () => {
           (res) => { res.on('data', () => {}); res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers })); },
         );
         req.on('error', reject);
-        req.end();
+        req.end(opts.body);
       });
 
     it('answers a preflight OPTIONS with 204 and reflects an allowlisted origin', async () => {
@@ -134,6 +146,15 @@ describe('BridgeServer HTTP handler', () => {
       const foreign = await raw('/health', { headers: { origin: 'https://evil.example' } });
       expect(foreign.headers['access-control-allow-origin']).toBeUndefined();
     });
+
+    it('rejects opaque origins on state-changing requests', async () => {
+      const res = await raw('/v1/settings/agent-policy', {
+        method: 'POST',
+        headers: { origin: 'null', 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'cli-grok', agentEnabled: true }),
+      });
+      expect(res.status).toBe(403);
+    });
   });
 
   describe('GET /health', () => {
@@ -144,6 +165,26 @@ describe('BridgeServer HTTP handler', () => {
       expect(body.status).toBe('ok');
       expect(body.service).toBe('conduit-bridge');
       expect(typeof body.version).toBe('string');
+    });
+
+    it('sets browser hardening headers', async () => {
+      const res = await fetch(`${base}/health`);
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('x-frame-options')).toBe('DENY');
+      expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+      expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    });
+  });
+
+  describe('request body limits', () => {
+    it('rejects an oversized declared body before reading it', async () => {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'x'.repeat(1_048_577),
+      });
+      expect(res.status).toBe(413);
+      expect((await res.json()).error.type).toBe('request_too_large');
     });
   });
 
@@ -469,6 +510,252 @@ describe('BridgeServer HTTP handler', () => {
         expect(second.status).toBe(429);
       } finally {
         await srv.stop();
+      }
+    });
+
+    it('manages and enforces agent policy per provider', async () => {
+      // 1. GET initial agent policies
+      const getRes = await fetch(`${base}/v1/settings/agent-policy`);
+      expect(getRes.status).toBe(200);
+      const initial = await getRes.json();
+      expect(initial.policies['cli-grok']).toMatchObject({
+        provider: 'cli-grok',
+        hasAgentCapability: true,
+        agentEnabled: true,
+      });
+      expect(initial.policies['claude-api']).toMatchObject({
+        provider: 'claude-api',
+        hasAgentCapability: false,
+        agentEnabled: false,
+      });
+
+      // 2. Reject enabling agent mode on non-CLI provider
+      const badApiRes = await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'claude-api', agentEnabled: true }),
+      });
+      expect(badApiRes.status).toBe(400);
+
+      const injectedPolicy = await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'cli-grok',
+          agentEnabled: true,
+          disallowedTools: 'Write"&echo injected&rem "',
+        }),
+      });
+      expect(injectedPolicy.status).toBe(400);
+      expect((await injectedPolicy.json()).error.type).toBe('invalid_request');
+
+      // 3. Disable agent mode and set defaultMode to plan for cli-grok
+      const postRes = await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'cli-grok',
+          agentEnabled: false,
+          defaultMode: 'plan',
+          disallowedTools: 'Write,Edit',
+        }),
+      });
+      expect(postRes.status).toBe(200);
+      const postBody = await postRes.json();
+      expect(postBody.status).toBe('saved');
+      expect(postBody.policy).toMatchObject({
+        agentEnabled: false,
+        defaultMode: 'plan',
+        disallowedTools: 'Write,Edit',
+      });
+
+      // 4. Verify agent mode request is refused with 403 permission_denied
+      const agentAttempt = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hello' }],
+          mode: 'agent',
+          cwd: process.cwd(),
+        }),
+      });
+      expect(agentAttempt.status).toBe(403);
+      const agentErr = await agentAttempt.json();
+      expect(agentErr.error.type).toBe('permission_denied');
+      expect(agentErr.error.message).toContain('disabled for provider');
+
+      // 5. Unspecified mode applies defaultMode from policy (plan)
+      const defaultModeRes = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hello' }],
+        }),
+      });
+      expect(defaultModeRes.status).toBe(200);
+      expect(h.state.lastReq?.mode).toBe('plan');
+
+      // 6. Re-enable agent mode
+      await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'cli-grok',
+          agentEnabled: true,
+          defaultMode: 'chat',
+        }),
+      });
+      const reenabledRes = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hello' }],
+          mode: 'agent',
+          cwd: process.cwd(),
+        }),
+      });
+      expect(reenabledRes.status).toBe(200);
+      expect(h.state.lastReq?.mode).toBe('agent');
+    });
+
+    it('does not bypass agent policy when falling back to another provider', async () => {
+      await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'cli-codex', agentEnabled: false, defaultMode: 'chat' }),
+      });
+      h.state.chatThrows = true;
+      try {
+        const res = await fetch(`${base}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'cli-grok/grok-4.5',
+            fallback_models: ['cli-codex/gpt-test'],
+            messages: [{ role: 'user', content: 'hello' }],
+            mode: 'agent',
+            cwd: process.cwd(),
+          }),
+        });
+        expect(res.status).toBe(503);
+        expect(h.state.lastProvider).toBe('cli-grok');
+      } finally {
+        h.state.chatThrows = false;
+        await fetch(`${base}/v1/settings/agent-policy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: 'cli-codex', agentEnabled: true, defaultMode: 'chat' }),
+        });
+      }
+    });
+  });
+
+  describe('pipeline and tool management endpoints', () => {
+    it('GET /v1/tools returns categorized tool catalogue', async () => {
+      const res = await fetch(`${base}/v1/tools`);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.object).toBe('list');
+      expect(Array.isArray(data.data)).toBe(true);
+      expect(data.data.length).toBeGreaterThanOrEqual(20);
+      const bash = data.data.find((t: any) => t.name === 'Bash');
+      expect(bash).toBeDefined();
+      expect(bash.category).toBe('Shell / Terminal');
+    });
+
+    it('GET /v1/pipelines returns default pipelines', async () => {
+      const res = await fetch(`${base}/v1/pipelines`);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.object).toBe('list');
+      expect(data.data.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('POST and DELETE /v1/pipelines creates and removes custom pipeline', async () => {
+      const createRes = await fetch(`${base}/v1/pipelines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'test-pipe-custom',
+          name: 'Custom Pipeline Endpoint Test',
+          description: 'Testing endpoints',
+          steps: [
+            { id: 's1', name: 'Step 1', model: 'cli-grok/grok-4.5' },
+          ],
+        }),
+      });
+      expect(createRes.status).toBe(200);
+      const createBody = await createRes.json();
+      expect(createBody.status).toBe('saved');
+      expect(createBody.pipeline.name).toBe('Custom Pipeline Endpoint Test');
+
+      const delRes = await fetch(`${base}/v1/pipelines/test-pipe-custom`, {
+        method: 'DELETE',
+      });
+      expect(delRes.status).toBe(200);
+      const delBody = await delRes.json();
+      expect(delBody.status).toBe('deleted');
+    });
+
+    it('POST /v1/pipelines/run executes a pipeline run', async () => {
+      const runRes = await fetch(`${base}/v1/pipelines/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pipelineId: 'tri-vendor-review',
+          prompt: 'Review architecture',
+        }),
+      });
+      expect(runRes.status).toBe(202);
+      const runData = await runRes.json();
+      expect(runData.status).toBe('accepted');
+      expect(runData.run).toBeDefined();
+      expect(runData.run.pipelineId).toBe('tri-vendor-review');
+
+      const detailRes = await fetch(`${base}/v1/pipelines/runs/${encodeURIComponent(runData.run.id)}`);
+      expect(detailRes.status).toBe(200);
+      expect((await detailRes.json()).run.id).toBe(runData.run.id);
+
+      const historyRes = await fetch(`${base}/v1/pipelines/runs`);
+      expect(historyRes.status).toBe(200);
+      const history = await historyRes.json();
+      expect(history.data.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('enforces repository pipeline allowlists', async () => {
+      const res = await fetch(`${base}/v1/pipelines/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pipelineId: 'doc-review',
+          prompt: 'Review documentation',
+          repository: 'elvatis/conduit-bridge',
+          workingDirectory: process.cwd(),
+        }),
+      });
+      expect(res.status).toBe(403);
+      expect((await res.json()).error.type).toBe('permission_denied');
+    });
+
+    it('rejects an unregistered working directory', async () => {
+      const outside = mkdtempSync(join(tmpdir(), 'conduit-unregistered-'));
+      try {
+        const res = await fetch(`${base}/v1/pipelines/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pipelineId: 'tri-vendor-review',
+            prompt: 'Review architecture',
+            workingDirectory: outside,
+          }),
+        });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error.message).toMatch(/outside every registered/i);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
       }
     });
   });

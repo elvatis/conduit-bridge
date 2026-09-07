@@ -6,12 +6,15 @@ import type {
   ProviderAdapter,
 } from '../types.js';
 import { logger } from '../logger.js';
+import { withCliSession, parseCliSessionOutput, type CliSessionLease } from '../session-registry.js';
 import {
-  resolveExecutable,
+  diagnoseCliExecutable,
+  resolveCliExecutable,
   runCli,
   flattenMessages,
   stripPrefix,
   agentCwd,
+  CLI_AUTH_ENV_KEYS,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
@@ -30,6 +33,16 @@ const BIN = 'codex';
 
 const DISCOVERY_TTL_MS = 5 * 60_000;
 const DISCOVERY_RETRY_MS = 60_000;
+
+/**
+ * Codex on Windows defaults tool writes to read-only when user config is
+ * ignored unless a Windows sandbox backend is selected explicitly. The
+ * unelevated backend still enforces the requested read-only/workspace-write
+ * policy; it does not grant danger-full-access.
+ */
+export function codexPlatformSandboxArgs(platform: NodeJS.Platform = process.platform): string[] {
+  return platform === 'win32' ? ['-c', "windows.sandbox='unelevated'"] : [];
+}
 
 /**
  * ChatGPT's own model list for Codex, which is what `codex` itself asks.
@@ -97,6 +110,7 @@ export function parseCodexModels(body: unknown): CatalogEntry[] {
 
 export class CodexCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-codex';
+  private readonly _cfg: BridgeConfig;
 
   private _discovered: ModelDefinition[] | null = null;
   private _attemptedAt = 0;
@@ -130,10 +144,15 @@ export class CodexCliProvider implements ProviderAdapter {
   /** `codex --version` -> "codex-cli 0.152.1"; the endpoint requires it. */
   private async _version(): Promise<string | null> {
     if (this._clientVersion) return this._clientVersion;
-    const binPath = resolveExecutable(BIN);
+    const binPath = this.executable().path;
     if (!binPath) return null;
     try {
-      const result = await runCli({ binPath, args: ['--version'], timeoutMs: 20_000, label: 'cli-codex/version' });
+      const result = await runCli({
+        binPath,
+        args: ['--version'],
+        timeoutMs: 20_000,
+        label: 'cli-codex/version',
+      });
       const match = /(\d+\.\d+\.\d+)/.exec(result.stdout || result.stderr);
       this._clientVersion = match ? match[1] : null;
       return this._clientVersion;
@@ -185,10 +204,19 @@ export class CodexCliProvider implements ProviderAdapter {
     }
   }
 
-  constructor(_cfg: BridgeConfig) {}
+  constructor(cfg: BridgeConfig) { this._cfg = cfg; }
+
+  private executable() {
+    return resolveCliExecutable(this._cfg, 'cli-codex', [BIN]);
+  }
+
+  diagnostics() {
+    return diagnoseCliExecutable(this._cfg, 'cli-codex', [BIN]);
+  }
 
   get credentialSource(): string {
-    return cliSession('codex', [BIN]).source;
+    const path = this.executable().path;
+    return cliSession('codex', path ? [path] : []).source;
   }
 
   ownsModel(modelId: string): boolean {
@@ -196,14 +224,16 @@ export class CodexCliProvider implements ProviderAdapter {
   }
 
   async checkSession(): Promise<boolean> {
-    return cliSession('codex', [BIN]).authenticated;
+    const path = this.executable().path;
+    return cliSession('codex', path ? [path] : []).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const session = cliSession('codex', [BIN]);
+    const executable = this.executable();
+    const session = cliSession('codex', executable.path ? [executable.path] : []);
     if (!session.installed) {
       logger.warn(
-        '[cli-codex] `codex` not found on PATH. Install with: npm i -g @openai/codex && codex login',
+        `[cli-codex] ${executable.error ?? '`codex` not found on PATH. Install with: npm i -g @openai/codex && codex login'}`,
       );
       return false;
     }
@@ -230,16 +260,17 @@ export class CodexCliProvider implements ProviderAdapter {
     logger.info('[cli-codex] local CLI — nothing to disconnect');
   }
 
-  private async _run(req: ChatRequest): Promise<string> {
-    const binPath = resolveExecutable(BIN);
+  private async _run(req: ChatRequest, lease?: CliSessionLease): Promise<{ text: string; sessionId?: string }> {
+    const executable = this.executable();
+    const binPath = executable.path;
     if (!binPath) {
       throw new Error(
-        'codex CLI not found on PATH. Install with: npm i -g @openai/codex && codex login',
+        `codex CLI unavailable: ${executable.error ?? 'not found on PATH'}`,
       );
     }
 
     const model = stripPrefix(req.model, PREFIX);
-    const prompt = flattenMessages(req.messages);
+    const prompt = flattenMessages(lease?.messages ?? req.messages);
     const effort = toOpenAiEffort(req.effort);
     const mode = req.mode ?? 'chat';
 
@@ -247,11 +278,19 @@ export class CodexCliProvider implements ProviderAdapter {
     // Prompt via stdin (`-`) to avoid ARG_MAX / Windows cmd length limits.
     // Sandbox comes from cliPermissionArgs (read-only vs workspace-write).
     // reasoning_effort via -c for GPT-5.x reasoning models.
-    const args = [
+    const args = lease ? [
+      '-c', 'sandbox_mode=read-only', ...codexPlatformSandboxArgs(),
+      'exec', ...(lease.sessionId ? ['resume'] : []), '--ignore-user-config', '--json',
+      '-m', model, '--skip-git-repo-check',
+      ...(effort ? ['-c', `model_reasoning_effort=${effort}`] : []),
+      ...(lease.sessionId ? [lease.sessionId] : []), '-',
+    ] : [
       'exec',
+      '--ignore-user-config',
       '-m', model,
       '--skip-git-repo-check',
       ...cliPermissionArgs('cli-codex', mode),
+      ...codexPlatformSandboxArgs(),
       ...(effort ? ['-c', `model_reasoning_effort=${effort}`] : []),
       '-',
     ];
@@ -262,6 +301,7 @@ export class CodexCliProvider implements ProviderAdapter {
       stdin: prompt,
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: agentCwd(req),
+      envKeys: CLI_AUTH_ENV_KEYS['cli-codex'],
       label: 'cli-codex',
       log: msg => logger.info(msg),
       signal: req.signal,
@@ -276,15 +316,20 @@ export class CodexCliProvider implements ProviderAdapter {
           : result.stderr || '(no output)';
       throw new Error(`codex exited ${result.exitCode}: ${detail}`);
     }
-    return result.stdout || result.stderr;
+    if (lease) {
+      const parsed = parseCliSessionOutput('cli-codex', result.stdout);
+      if (result.exitCode !== 0 || !parsed.text || result.aborted || result.timedOut) throw new Error('Codex session turn did not complete');
+      return parsed;
+    }
+    return { text: result.stdout || result.stderr };
   }
 
   async chat(req: ChatRequest): Promise<string> {
-    return this._run(req);
+    return withCliSession(req, 'cli-codex', this.executable().path ?? '', lease => this._run(req, lease));
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
-    const content = await this._run(req);
+    const content = await this.chat(req);
     if (content) yield content;
   }
 }

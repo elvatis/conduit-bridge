@@ -1,14 +1,19 @@
 // ── Public types for conduit-bridge ──────────────────────────────────────────
 import type { OrchestratorConfig } from './orchestrator.js';
+import type { AgentRateLimits } from './rate-limiter.js';
+export type { PipelineDefinition, PipelineStep, PipelineRun, PipelineRunStepResult } from './pipelines.js';
 
 export type ProviderName =
   | 'claude-api' | 'gemini-api' | 'codex-api'
   | 'openrouter-api' | 'perplexity-api'   // OpenAI-compatible API aggregators
-  | 'lmstudio'                             // local OpenAI-compatible server
+  | 'lmstudio' | 'bitnet'                  // local OpenAI-compatible servers
   | 'cli-grok'                             // local Grok CLI (x.ai/build, binary: grok)
   | 'cli-codex'                            // @openai/codex (binary: codex)
   | 'cli-claude'                           // @anthropic-ai/claude-code (binary: claude)
   | 'cli-gemini';                           // Antigravity CLI (binary: agy)
+
+export type CliProviderName = Extract<ProviderName, `cli-${string}`>;
+export type SecretReference = `vault:v1:${string}`;
 
 export interface ApiKeyConfig {
   'claude-api'?: string;        // Anthropic API key
@@ -18,16 +23,80 @@ export interface ApiKeyConfig {
   'perplexity-api'?: string;    // Perplexity API key (pplx-…)
 }
 
+export type ApiProviderName = keyof ApiKeyConfig;
+export type ApiKeyReferenceConfig = Partial<Record<ApiProviderName, SecretReference>>;
+
+export interface SecurityStorageConfig {
+  /** Name only; the 32-byte base64/hex key stays in the process environment. */
+  vaultKeyEnvironmentVariable?: string;
+  /** Nonsecret namespace used for the OS-protected master key. */
+  vaultKeyId?: string;
+}
+
+export interface CliExecutableDiagnostic {
+  provider: CliProviderName;
+  configured: boolean;
+  requested: string;
+  available: boolean;
+  path?: string;
+  version?: string;
+  error?: string;
+}
+
+export type PlatformRole = 'viewer' | 'operator' | 'reviewer' | 'admin';
+
+export interface PlatformOperatorConfig {
+  /** Stable audit identity; never accepted from an HTTP request body. */
+  id: string;
+  displayName?: string;
+  role: PlatformRole;
+  /** Salted SHA-256 verifier produced by hashPlatformToken; never a raw token. */
+  tokenHash: string;
+  /** Explicit workspace IDs, or ["*"] for every workspace. Omission grants none. */
+  workspaceIds?: string[];
+  enabled?: boolean;
+}
+
+export interface PlatformAuthConfig {
+  operators?: PlatformOperatorConfig[];
+}
+
+export interface PlatformStorageConfig {
+  backend?: 'file' | 'sqlite' | 'prisma' | 'memory';
+  path?: string;
+}
+
+export interface ProviderAgentPolicy {
+  /** Whether agent mode (workspace mutation) is allowed for this provider. */
+  agentEnabled: boolean;
+  /** Default mode when incoming request omits mode: chat | plan | agent */
+  defaultMode?: 'chat' | 'plan' | 'agent';
+  /** Optional custom comma-separated disallowed tools for chat/read-only mode */
+  disallowedTools?: string;
+}
+
 export interface BridgeConfig {
   port: number;
   host: string;
   logLevel: 'silent' | 'info' | 'debug';
   apiKeys: ApiKeyConfig;    // API keys for direct API providers
+  /** Opaque references persisted instead of provider credential values. */
+  apiKeyRefs?: ApiKeyReferenceConfig;
+  /** Optional absolute executable overrides for locally installed CLI providers. */
+  cliExecutables?: Partial<Record<CliProviderName, string>>;
+  securityStorage?: SecurityStorageConfig;
+  platformAuth?: PlatformAuthConfig;
+  platformStorage?: PlatformStorageConfig;
   orchestrator?: OrchestratorConfig; // optional persisted orchestration policy
+  agentPolicies?: Partial<Record<ProviderName, ProviderAgentPolicy>>; // per-provider agent execution policies
+  repositories?: Record<string, RepositoryConfig> | RepositoryConfig[]; // repository-specific governance and pipeline assignments
+  budget?: BudgetConfig;    // pipeline and model spending limit controls
   lmStudioUrl?: string;     // LM Studio server URL (default http://127.0.0.1:1234)
   rateLimit?: { perMinute: number; maxConcurrent: number };
+  /** Persistent per-provider cloud admission ceilings for prompt splitting and task execution. */
+  agentRateLimits?: Partial<Record<ProviderName, AgentRateLimits>>;
 
-  // ── Security (all optional, secure-by-default) ─────────────────────────────
+  // -- Security (all optional, secure-by-default) -----------------------------
   /**
    * CORS allowlist. The request Origin header is reflected back in
    * Access-Control-Allow-Origin ONLY when it appears in this list (the server's
@@ -67,11 +136,15 @@ export interface ChatMessage {
 }
 
 export interface ChatRequest {
+  /** Trusted host-only continuity scope; never copied from a raw HTTP request. Native CLIs retain their own transcripts. */
+  cliSessionKey?: string;
   model: string;
   messages: ChatMessage[];
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  /** Host-supplied constrained JSON output for local inference. */
+  response_format?: { type: 'json_object'; schema?: Record<string, unknown> };
   /**
    * Reasoning / thinking effort. Accepted from either `effort` or OpenAI-style
    * `reasoning_effort` on the HTTP body. Levels: none | minimal | low | medium |
@@ -80,7 +153,7 @@ export interface ChatRequest {
   effort?: string;
   /**
    * Working directory for CLI providers. Ignored by API/LM Studio transports.
-   * Must be an absolute path that exists; otherwise the CLI uses the home directory.
+   * Must be an absolute path that exists; otherwise the CLI uses an empty sandbox.
    * Required when `mode` is `agent`.
    */
   cwd?: string;
@@ -91,6 +164,8 @@ export interface ChatRequest {
    * → agent, `plan: true` → plan.
    */
   mode?: 'chat' | 'plan' | 'agent';
+  /** Optional custom comma-separated disallowed tools for chat mode */
+  disallowedTools?: string;
   /** Aborted when the downstream HTTP client disconnects. */
   signal?: AbortSignal;
 }
@@ -164,4 +239,100 @@ export interface ProviderAdapter {
    * Providers that omit it are always advertised.
    */
   hasCredentials?(): boolean;
+
+  /** Read-only executable/version information for CLI troubleshooting. */
+  diagnostics?(): Promise<CliExecutableDiagnostic>;
 }
+
+// ── Governance, Repositories, Budgets, and Workspaces ──────────────────────
+
+export interface RepositoryConfig {
+  id: string;                    // unique repo key, e.g. "elvatis/conduit-bridge"
+  name: string;                  // human-readable label
+  path: string;                  // absolute workspace path on disk
+  description?: string;
+  assignedGovernancePipeline?: string; // default pipeline ID for this repository
+  enabledPipelines?: string[];   // allowed pipeline IDs for this repository
+  defaultWorkspace?: string;     // default root working directory
+  overrides?: {
+    disallowedTools?: string;
+    agentEnabled?: boolean;
+    requireApproval?: boolean;
+    maxCostPerRunUsd?: number;
+    mandatoryGates?: string[];
+  };
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface GovernanceAuditRecord {
+  auditId: string;
+  timestamp: number;
+  pipelineId: string;
+  pipelineName: string;
+  runId: string;
+  stepId: string;
+  stepName: string;
+  model?: string;
+  repository?: string;
+  operator: string;
+  action: 'approved' | 'rejected';
+  feedback?: string;
+  correlationId?: string;
+}
+
+export interface BudgetConfig {
+  maxCostPerRunUsd: number;      // e.g. 0.50
+  maxTokensPerRun: number;       // e.g. 50000
+  maxDurationMs: number;         // e.g. 120000 ms
+  dailyBudgetUsd: number;        // e.g. 10.00
+  monthlyBudgetUsd: number;      // e.g. 100.00
+  warningThresholdPercent: number; // e.g. 80
+  hardStop: boolean;             // reject execution if budget exceeded (true) or warn only (false)
+  providerLimits?: Partial<Record<ProviderName, number>>; // daily USD ceiling per provider (UTC)
+  modelLimits?: Record<string, number>; // daily USD ceiling per model (UTC)
+}
+
+export interface BudgetUsage {
+  currentDailyCostUsd: number;
+  currentMonthlyCostUsd: number;
+  totalRunsToday: number;
+  totalTokensToday: number;
+  /** Provider invocations, including pipeline steps and retries, distinct from runs. */
+  requestAttemptsToday?: number;
+  providerDailyCostUsd?: Record<string, number>;
+  modelDailyCostUsd?: Record<string, number>;
+  lastResetDay: string;          // YYYY-MM-DD
+  lastResetMonth: string;        // YYYY-MM
+}
+
+/** Optional remote GitHub Projects v2 association for a local workspace. */
+export interface GitHubProjectLink {
+  projectId: string;
+  projectUrl: string;
+  /** Organization or user login owning the project. */
+  org: string;
+  /** Optional owner/repository used by the GitHub Actions tool. */
+  repo?: string;
+}
+
+export interface WorkspaceEntry {
+  id: string;
+  path: string;
+  name: string;
+  lastUsed: number;
+  isDefault?: boolean;
+  exists?: boolean;
+  writable?: boolean;
+  githubProject?: GitHubProjectLink;
+}
+
+export type ToolSecurityRisk = 'low' | 'medium' | 'high' | 'critical';
+
+export type ToolClassification =
+  | 'Read Only'
+  | 'Workspace Modify'
+  | 'System Modify'
+  | 'Network Access'
+  | 'External Service';
+

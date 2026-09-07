@@ -1,0 +1,27 @@
+{
+  "id": "community-write",
+  "name": "Community demo: write and verify",
+  "description": "An agent creates one greeting file in a fresh demo workspace, then a read-only peer verifies it.",
+  "category": "engineering",
+  "steps": [
+    {
+      "id": "write",
+      "name": "Create the greeting",
+      "model": "{{model}}",
+      "mode": "agent",
+      "max_tokens": 256,
+      "effort": "low",
+      "promptTemplate": "This is a tiny community demonstration in a dedicated empty workspace. Create hello.txt in the working directory with exactly this one line: Hello, Conduit community!\nDo not edit any other file. Reply with one short sentence confirming what you wrote."
+    },
+    {
+      "id": "verify",
+      "name": "Read-only verification",
+      "model": "{{peer_model}}",
+      "mode": "chat",
+      "dependsOn": ["write"],
+      "max_tokens": 128,
+      "effort": "low",
+      "promptTemplate": "Read hello.txt from the working directory without editing files. Reply with VERIFIED followed by its exact one-line content if it contains Hello, Conduit community! Otherwise reply MISMATCH and briefly explain. The previous agent reported: {{previous_output}}"
+    }
+  ]
+}

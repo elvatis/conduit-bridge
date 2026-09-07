@@ -54,6 +54,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      id-token: write
+      attestations: write
 
     # The tag is resolved once and read from the environment everywhere. It is
     # never interpolated into a run: block: GitHub substitutes ${{ }} into the
@@ -162,6 +164,25 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Package the tested build subject
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          tar -czf "$RUNNER_TEMP/release/conduit-bridge-${VERSION}.tar.gz" \
+            dist package.json package-lock.json README.md
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ runner.temp }}/release/conduit-bridge-${{ env.VERSION }}.tar.gz
+
+      - name: Upload the attested build subject
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-build-subject
+          path: ${{ runner.temp }}/release/conduit-bridge-${{ env.VERSION }}.tar.gz
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Extract the release notes from CHANGELOG.md
         run: |

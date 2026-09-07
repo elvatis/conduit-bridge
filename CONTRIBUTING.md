@@ -17,7 +17,7 @@ Thanks for your interest in contributing!
 
 ## Releases
 
-See **[docs/RELEASING.md](docs/RELEASING.md)** for the full process (version bump,
+See **[the release guide](docs/operations/releasing.md)** for the full process (version bump,
 changelog, tag, GitHub Release). This package is **not** published to npm.
 
 ## Code Style

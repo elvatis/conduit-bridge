@@ -6,11 +6,32 @@ import {
   parseCliRunMode,
   agentModeCwdError,
   cliPermissionArgs,
+  isAgentModeAllowed,
+  DEFAULT_MUTATING_TOOLS,
+  normalizeDisallowedTools,
 } from '../src/cli-mode.js';
+
+describe('normalizeDisallowedTools', () => {
+  it('accepts and canonicalizes known tool names', () => {
+    expect(normalizeDisallowedTools(' Write,Edit,Write ')).toBe('Write,Edit');
+  });
+
+  it('rejects unknown names and Windows shell syntax', () => {
+    expect(() => normalizeDisallowedTools('UnknownTool')).toThrow(/known tool/i);
+    expect(() => normalizeDisallowedTools('Write"&echo injected&rem "')).toThrow(/unsupported/i);
+    expect(() => normalizeDisallowedTools('Write\nEdit')).toThrow(/unsupported/i);
+  });
+});
 
 describe('parseCliRunMode', () => {
   it('defaults to chat when nothing is set', () => {
     expect(parseCliRunMode({})).toEqual({ ok: true, mode: 'chat' });
+  });
+
+  it('respects a custom defaultMode from provider policy', () => {
+    expect(parseCliRunMode({}, 'plan')).toEqual({ ok: true, mode: 'plan' });
+    expect(parseCliRunMode({}, 'agent')).toEqual({ ok: true, mode: 'agent' });
+    expect(parseCliRunMode({ mode: 'chat' }, 'agent')).toEqual({ ok: true, mode: 'chat' });
   });
 
   it('accepts mode chat, plan, and agent', () => {
@@ -52,6 +73,18 @@ describe('agentModeCwdError', () => {
   });
 });
 
+describe('isAgentModeAllowed', () => {
+  it('allows agent mode by default when policy is omitted or agentEnabled is true', () => {
+    expect(isAgentModeAllowed('cli-claude')).toBe(true);
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: true })).toBe(true);
+  });
+
+  it('refuses agent mode when agentEnabled is explicitly false', () => {
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: false })).toBe(false);
+    expect(isAgentModeAllowed('cli-grok', { agentEnabled: false })).toBe(false);
+  });
+});
+
 describe('cliPermissionArgs', () => {
   it('maps Claude chat to read-only tools, plan to the planner, agent to bypassPermissions', () => {
     expect(cliPermissionArgs('cli-claude', 'chat')).toEqual([
@@ -76,14 +109,16 @@ describe('cliPermissionArgs', () => {
     expect(cliPermissionArgs('cli-gemini', 'agent', { isAgy: false })).toEqual([]);
   });
 
-  it('maps Codex plan/chat to read-only sandbox and agent to workspace-write', () => {
+  it('maps Codex plan/chat to read-only and agent to workspace-write without approval bypasses', () => {
     expect(cliPermissionArgs('cli-codex', 'plan')).toEqual(['--sandbox', 'read-only', '--ephemeral']);
     expect(cliPermissionArgs('cli-codex', 'chat')).toEqual(['--sandbox', 'read-only', '--ephemeral']);
-    expect(cliPermissionArgs('cli-codex', 'agent')).toEqual([
+    const agentArgs = cliPermissionArgs('cli-codex', 'agent');
+    expect(agentArgs).toEqual([
       '--sandbox', 'workspace-write',
-      '--approve-for-me',
       '--ephemeral',
     ]);
+    expect(agentArgs).not.toContain('--approve-for-me');
+    expect(agentArgs).not.toContain('--dangerously-bypass-approvals-and-sandbox');
   });
 
   it('maps Grok chat to read-only tools, plan to plan, agent to no-plan always-approve', () => {
@@ -111,6 +146,15 @@ describe('cliPermissionArgs', () => {
       expect(chat, provider).not.toContain('plan');
       expect(chat, provider).not.toEqual(cliPermissionArgs(provider, 'plan', { isAgy: true }));
     }
+  });
+
+  it('supports custom disallowedTools policy overrides', () => {
+    expect(cliPermissionArgs('cli-claude', 'chat', { disallowedTools: 'Write,Edit' })).toEqual([
+      '--disallowedTools', 'Write,Edit',
+    ]);
+    expect(cliPermissionArgs('cli-grok', 'chat', { disallowedTools: 'Bash' })).toEqual([
+      '--disallowed-tools', 'Bash',
+    ]);
   });
 });
 

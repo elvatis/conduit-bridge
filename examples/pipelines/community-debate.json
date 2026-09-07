@@ -1,0 +1,38 @@
+{
+  "id": "community-debate",
+  "name": "Community demo: short parallel debate",
+  "description": "Two independent perspectives debate documentation order, followed by a concise synthesis.",
+  "category": "review",
+  "steps": [
+    {
+      "id": "quickstart",
+      "name": "Quickstart first",
+      "model": "{{model}}",
+      "mode": "chat",
+      "parallelGroup": "perspectives",
+      "max_tokens": 128,
+      "effort": "low",
+      "promptTemplate": "A community project is arranging its README. Argue that a runnable quickstart should come before the architecture explanation. Give exactly two short sentences, at most 45 words. No tools needed."
+    },
+    {
+      "id": "architecture",
+      "name": "Architecture first",
+      "model": "{{peer_model}}",
+      "mode": "chat",
+      "parallelGroup": "perspectives",
+      "max_tokens": 128,
+      "effort": "low",
+      "promptTemplate": "A community project is arranging its README. Argue that a brief architecture explanation should come before the runnable quickstart. Give exactly two short sentences, at most 45 words. No tools needed."
+    },
+    {
+      "id": "synthesis",
+      "name": "A practical compromise",
+      "model": "{{model}}",
+      "mode": "chat",
+      "dependsOn": ["quickstart", "architecture"],
+      "max_tokens": 192,
+      "effort": "low",
+      "promptTemplate": "These are two independent positions about README order:\n{{prior_steps}}\nRecommend a practical compromise in at most three short sentences, at most 60 words. Mention one merit from each position. No tools needed."
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { BridgeServer } from './server.js';
-import { loadConfig, saveConfig, loadDotEnv, parseConfigValue, bearerAuthorization } from './config.js';
+import { loadConfig, saveConfig, loadDotEnv, parseConfigValue, bearerAuthorization, redactConfigForDisplay } from './config.js';
 import { logger, configureLogger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
 
@@ -84,11 +84,9 @@ switch (cmd) {
     const val = args[2];
     if (!key || !val) {
       const current = loadConfig();
-      const display = { ...current, apiKeys: Object.fromEntries(
-        Object.entries(current.apiKeys ?? {}).map(([name, value]) =>
-          [name, typeof value === 'string' && value.length > 8 ? value.slice(0, 4) + '…' + value.slice(-4) : value]
-        ),
-      )};
+      // Never print credential material, including a shortened prefix/suffix.
+      // The status is enough for an operator to see which providers are set.
+      const display = redactConfigForDisplay(current);
       console.log(JSON.stringify(display, null, 2));
     } else if (key.startsWith('apiKeys.')) {
       const provider = key.split('.')[1];

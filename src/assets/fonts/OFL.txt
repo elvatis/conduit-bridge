@@ -1,0 +1,5 @@
+Fraunces - Copyright The Fraunces Project Authors (github.com/undercasetype/Fraunces)
+Inter - Copyright The Inter Project Authors (github.com/rsms/inter)
+
+Both licensed under the SIL Open Font License, Version 1.1 (OFL-1.1).
+Self-hosted latin subset (woff2) to avoid external runtime dependencies.

@@ -1,11 +1,23 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter, isAbsolute } from 'node:path';
-import type { ChatMessage, ChatRequest } from '../types.js';
+import type {
+  BridgeConfig,
+  ChatMessage,
+  ChatRequest,
+  CliExecutableDiagnostic,
+  CliProviderName,
+} from '../types.js';
 
 export const DEFAULT_CLI_TIMEOUT_MS = 300_000; // 5 min
 export const CLI_GRACE_MS = 5_000;
+export const CLI_AUTH_ENV_KEYS: Record<CliProviderName, string[]> = {
+  'cli-claude': ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY', 'CLAUDE_CONFIG_DIR'],
+  'cli-codex': ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_HOME'],
+  'cli-gemini': ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_USE_VERTEXAI'],
+  'cli-grok': ['XAI_API_KEY', 'GROK_API_KEY'],
+};
 
 /**
  * Largest prompt that may go on argv for a given binary.
@@ -68,8 +80,21 @@ export function agentCwd(req: Pick<ChatRequest, 'cwd'>): string {
   return sandboxCwd();
 }
 
-/** Locate an executable on PATH, honoring PATHEXT (.cmd/.exe/…) on Windows. */
+function usableExecutable(path: string): boolean {
+  try {
+    if (!statSync(path).isFile()) return false;
+    if (process.platform !== 'win32') accessSync(path, constants.X_OK);
+    if (process.platform === 'win32' && path.toLowerCase().endsWith('.ps1')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Locate a command on PATH, or validate an explicit absolute executable path. */
 export function resolveExecutable(name: string): string | null {
+  if (isAbsolute(name)) return usableExecutable(name) ? name : null;
+  if (/[\\/]/.test(name)) return null;
   const dirs = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
   const exts =
     process.platform === 'win32'
@@ -79,25 +104,20 @@ export function resolveExecutable(name: string): string | null {
     for (const ext of exts) {
       for (const cand of [name + ext, name + ext.toLowerCase()]) {
         const full = join(dir, cand);
-        if (existsSync(full)) return full;
+        if (usableExecutable(full)) return full;
       }
     }
   }
   return null;
 }
 
-/** Minimal env for subprocesses — keeps ARG_MAX small and passes auth vars. */
+/** Minimal environment. Provider secrets are included only through extraKeys. */
 export function buildMinimalEnv(extraKeys: string[] = []): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { NO_COLOR: '1', TERM: 'dumb' };
   const keys = [
     'HOME', 'USERPROFILE', 'PATH', 'PATHEXT', 'USER', 'LOGNAME', 'SHELL',
     'TMPDIR', 'TMP', 'TEMP', 'ComSpec', 'SystemRoot', 'APPDATA', 'LOCALAPPDATA',
     'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
-    // Auth for coding CLIs
-    'XAI_API_KEY', 'GROK_API_KEY',
-    'OPENAI_API_KEY', 'CODEX_API_KEY',
-    'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY',
-    'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_USE_VERTEXAI',
     ...extraKeys,
   ];
   for (const k of keys) {
@@ -111,7 +131,98 @@ export function quoteWin(arg: string): string {
   // An empty argument still has to occupy a slot. Emitted bare it disappears in
   // the join, and the flag before it silently swallows the next token instead.
   if (arg === '') return '""';
-  return /[\s"&|<>^()]/.test(arg) ? `"${arg.replace(/"/g, '""')}"` : arg;
+  // A literal quote can terminate the quoted argument and expose shell
+  // metacharacters to cmd.exe. None of the supported CLI flags require one.
+  if (/[\0\r\n"]/.test(arg)) {
+    throw new Error('refusing an argument containing a quote or control character through cmd.exe');
+  }
+  return /[\s&|<>^()%!]/.test(arg) ? `"${arg}"` : arg;
+}
+
+export interface CliExecutableResolution {
+  provider: CliProviderName;
+  configured: boolean;
+  requested: string;
+  path: string | null;
+  error?: string;
+}
+
+/**
+ * Resolve a per-provider override or the provider's normal PATH candidates.
+ * Overrides must be absolute so a changed service cwd cannot select a different
+ * executable. Invalid overrides fail closed instead of falling back to PATH.
+ */
+export function resolveCliExecutable(
+  cfg: Pick<BridgeConfig, 'cliExecutables'>,
+  provider: CliProviderName,
+  fallbacks: string[],
+): CliExecutableResolution {
+  const configured = cfg.cliExecutables?.[provider];
+  if (configured !== undefined) {
+    const requested = configured.trim();
+    if (!requested || !isAbsolute(requested)) {
+      return { provider, configured: true, requested, path: null, error: 'configured executable path must be absolute' };
+    }
+    const path = resolveExecutable(requested);
+    if (!path) {
+      return { provider, configured: true, requested, path: null, error: 'configured executable is missing, not a file, or not executable' };
+    }
+    return { provider, configured: true, requested, path };
+  }
+  for (const name of fallbacks) {
+    const path = resolveExecutable(name);
+    if (path) return { provider, configured: false, requested: fallbacks.join(', '), path };
+  }
+  return {
+    provider,
+    configured: false,
+    requested: fallbacks.join(', '),
+    path: null,
+    error: `none of these commands were found on PATH: ${fallbacks.join(', ')}`,
+  };
+}
+
+/** Read-only version probe used by provider diagnostics. */
+export async function diagnoseCliExecutable(
+  cfg: Pick<BridgeConfig, 'cliExecutables'>,
+  provider: CliProviderName,
+  fallbacks: string[],
+): Promise<CliExecutableDiagnostic> {
+  const resolved = resolveCliExecutable(cfg, provider, fallbacks);
+  if (!resolved.path) {
+    return {
+      provider: resolved.provider,
+      configured: resolved.configured,
+      requested: resolved.requested,
+      available: false,
+      ...(resolved.error ? { error: resolved.error } : {}),
+    };
+  }
+  const base = {
+    provider: resolved.provider,
+    configured: resolved.configured,
+    requested: resolved.requested,
+    path: resolved.path,
+  };
+  try {
+    const result = await runCli({
+      binPath: resolved.path,
+      args: ['--version'],
+      timeoutMs: 10_000,
+      label: `${provider}/version`,
+    });
+    const version = (result.stdout || result.stderr).trim().split(/\r?\n/, 1)[0]?.slice(0, 200);
+    if (result.exitCode !== 0) {
+      return {
+        ...base,
+        available: false,
+        error: version || `version probe exited ${result.exitCode}`,
+      };
+    }
+    return { ...base, available: true, ...(version ? { version } : {}) };
+  } catch (err) {
+    return { ...base, available: false, error: (err as Error).message.slice(0, 300) };
+  }
 }
 
 /**
@@ -137,6 +248,8 @@ export interface RunCliOptions {
   label?: string;
   /** Explicit non-secret environment overrides, for isolated CLI accounts. */
   env?: NodeJS.ProcessEnv;
+  /** Environment names required by this provider; excludes other providers' secrets. */
+  envKeys?: string[];
   signal?: AbortSignal;
 }
 
@@ -174,14 +287,14 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
           process.env.ComSpec ?? 'cmd.exe',
           ['/d', '/s', '/c', '"' + [binPath, ...args].map(quoteWin).join(' ') + '"'],
           {
-            env: { ...buildMinimalEnv(), ...(opts.env ?? {}) },
+            env: { ...buildMinimalEnv(opts.envKeys), ...(opts.env ?? {}) },
             cwd,
             windowsVerbatimArguments: true,
             stdio: ['pipe', 'pipe', 'pipe'],
           },
         )
       : spawn(binPath, args, {
-        env: { ...buildMinimalEnv(), ...(opts.env ?? {}) },
+        env: { ...buildMinimalEnv(opts.envKeys), ...(opts.env ?? {}) },
           cwd,
           stdio: ['pipe', 'pipe', 'pipe'],
         });

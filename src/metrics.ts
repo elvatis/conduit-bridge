@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runtimeDir } from './config.js';
 import { redactSecrets } from './redact.js';
@@ -15,10 +15,11 @@ export interface ModelMetric {
   inputTokens: number;
   outputTokens: number;
   estimatedCostUsd: number;
+  latencySamplesMs: number[];
 }
 
 function emptyMetric(): ModelMetric {
-  return { requests: 0, successes: 0, failures: 0, inFlight: 0, totalLatencyMs: 0, lastLatencyMs: null, lastError: null, lastUsedAt: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
+  return { requests: 0, successes: 0, failures: 0, inFlight: 0, totalLatencyMs: 0, lastLatencyMs: null, lastError: null, lastUsedAt: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, latencySamplesMs: [] };
 }
 
 /** Persistent local request telemetry. It never stores prompt or response content. */
@@ -37,8 +38,9 @@ export class MetricsStore {
 
   private persist(): void {
     mkdirSync(dirname(this.file), { recursive: true });
-    writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.metrics), null, 2), { mode: 0o600 });
-    chmodSync(this.file, 0o600);
+    const temporary = `${this.file}.${process.pid}.tmp`;
+    writeFileSync(temporary, JSON.stringify(Object.fromEntries(this.metrics), null, 2), { mode: 0o600 });
+    renameSync(temporary, this.file);
   }
 
   begin(model: string): (error?: unknown) => void {
@@ -55,6 +57,7 @@ export class MetricsStore {
       const latency = Date.now() - started;
       metric.lastLatencyMs = latency;
       metric.totalLatencyMs += latency;
+      metric.latencySamplesMs = [...metric.latencySamplesMs, latency].slice(-200);
       metric.lastUsedAt = Date.now();
       if (error) {
         metric.failures += 1;
@@ -76,10 +79,20 @@ export class MetricsStore {
     this.persist();
   }
 
-  snapshot(): Record<string, ModelMetric & { averageLatencyMs: number | null }> {
+  snapshot(): Record<string, ModelMetric & { averageLatencyMs: number | null; p50LatencyMs: number | null; p95LatencyMs: number | null; usageSource: 'estimated'; latencySampleCount: number }> {
+    const percentile = (samples: number[], percent: number) => {
+      if (!samples.length) return null;
+      const sorted = [...samples].sort((a, b) => a - b);
+      return sorted[Math.max(0, Math.ceil(percent * sorted.length) - 1)];
+    };
     return Object.fromEntries([...this.metrics.entries()].map(([model, metric]) => [model, {
       ...metric,
-      averageLatencyMs: metric.requests ? Math.round(metric.totalLatencyMs / metric.requests) : null,
+      latencySamplesMs: [...metric.latencySamplesMs],
+      averageLatencyMs: metric.successes + metric.failures ? Math.round(metric.totalLatencyMs / (metric.successes + metric.failures)) : null,
+      p50LatencyMs: percentile(metric.latencySamplesMs, 0.5),
+      p95LatencyMs: percentile(metric.latencySamplesMs, 0.95),
+      latencySampleCount: metric.latencySamplesMs.length,
+      usageSource: 'estimated' as const,
     }]));
   }
 }

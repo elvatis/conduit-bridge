@@ -1,4 +1,10 @@
-> Note (2026-09-06, claude-sonnet-5): `cli-gemini`'s auth probe checked only the legacy `gemini` CLI's `.gemini/oauth_creds.json`. The `agy` (Antigravity CLI) binary it actually shells out to writes its token to `.gemini/antigravity-cli/antigravity-oauth-token` instead, so an authenticated `agy` install still read as logged out: `checkSession`/`ensureConnected` returned false and `/v1/chat/completions` against any `cli-gemini/*` model failed with `provider_unavailable`, even though `agy models` and `agy -p` worked fine run directly. Model discovery (the v0.8.0 fix below) was unaffected since it shells out to `agy` regardless of the reported auth state. Fixed by adding the Antigravity token path to `CRED_FILES.gemini` in `src/providers/cli-auth.ts`. Mutation proved: a regression test asserting the Antigravity-only case is red on the pre-fix code and green with it. Found while updating a stale local deployment (0.5.1, 14 commits behind main) that was still advertising `gemini-2.5-flash/pro` and `gemini-3-flash/pro-preview`, which main had already replaced with runtime discovery; this bug was hiding behind that stale deployment and only surfaced once discovery started working. See PR #114.
+> Note (2026-09-07): Before merging PR #117, fixed four new CodeQL findings, removed credential material from CLI config output, pinned Supply Chain Guard to a commit, and added release build provenance attestation. Focused security tests, build, Secret Scan and AAHP check pass; GitHub checks are rerunning on the updated head.
+
+> Note (2026-09-07): `cli-gemini` now recognizes the Antigravity CLI credential file used by `agy`, with a regression test. This keeps authenticated model discovery and chat execution aligned on the current `main` baseline.
+
+> Note (2026-09-07): Conversations now always persist locally in encrypted SQLite by default, with legacy file import and no conversation TTL. Vault adds SQLite FTS5/tgrep search and recurring local BitNet prompt suggestions. Configured Llama inference autostarts with Conduit. Windows: 547 tests/64 files, build and two real native start-stop cycles pass; see `docs/validation/vault.md`.
+
+> Note (2026-09-07, feat/provider-agent-management): v0.10.0 work includes the Elvatis Conduit dashboard rebrand, named work routing, native BitNet, tgrep, persistent sessions, scoped skills, provider profiles, governed runs, budgets and diagnostics. The prior orchestration and governance platform remains part of this release.
 
 > Note (2026-09-03, claude-opus-5): Cut v0.9.1. Governance only, zero src changes since v0.9.0 - the running v0.9.0 was already functionally current, so this release ships documentation and gate configuration and nothing else. Also pinned CLAUDE.md as a fourth version site, mutation-proved: reverting its version line turns version-sync red. conduit-vscode pins the same file, and it had gone stale there at 0.9.0 against a package.json of 0.10.1, which is the exact defect this pins against. First release cut by .github/workflows/release.yml in this repository; it publishes no asset by design.
 
@@ -12,9 +18,110 @@
 
 # Status
 
-## Current Version: 0.9.1
+## Current Version: 0.10.0
 
-_Updated: 2026-09-02_
+_Updated: 2026-09-07_
+
+## Addendum: planning, CLI sessions, BitNet and code search
+
+- Hosted Windows CI exposed aliased temporary-path output in code search. Search
+  roots and result paths now share canonical workspace coordinates; regression
+  coverage uses a real junction/symlink ancestor and verifies absolute cwd too.
+- Registered eleven executable skills and eleven providers. Added persistent
+  per-provider cloud quotas/cost estimates, validated task splitting/execution,
+  keyword routing, notifications, scoped daily journals and native CLI continuity.
+- Added BitNet's local HTTP adapter and owned native server management, plus
+  tgrep TCP/CLI indexed search with ripgrep fallback and approved index lifecycle.
+- Added authenticated /api/orchestrate, /api/skills, /api/providers/status,
+  /api/bitnet/server and /api/tgrep endpoints; existing policy/accounting applies.
+- Windows 512 tests in 62 files and production build pass. Nine real service
+  scenarios and seven native tgrep cases pass. Claude, Codex and agy each resumed
+  one native session across two turns; a real parallel dependency plan completed.
+- BitNet 2B-4T now runs natively on Windows without Conda. The checked-in build
+  helper applies a narrowly scoped upstream relu2 correction; host-only tokenizer
+  and chat-template settings preserve the supplied, ignored GGUF unchanged.
+  Patch files are pinned to LF; reverse application was verified against a
+  Windows CRLF source checkout to keep the native build reproducible.
+  Four direct/provider checks, eight bridge checks and one full local planning/
+  execution request pass. Sustained generation measured about 31-32 tokens/s.
+- Planning now specifies string task IDs and retains original input in every
+  generated task. Small-model instruction-following limits are documented in
+  docs/BITNET-NATIVE-WINDOWS.md. Gemini API credentials and a loaded LM Studio
+  model remain unavailable. No external webhook was sent.
+- Read docs/ADDENDUM-INTEGRATIONS.md and docs/ADDENDUM-VALIDATION.md. Optional
+  administrator-started loopback inference/search daemons are explicitly requested
+  additions; the gateway port stays unchanged. No merge or release.
+
+## Tools, GitHub Projects and VS Code extension pass
+
+- Added six typed executable tools with host authorization: Perplexity search,
+  workspace filesystem, GitHub Actions, public page fetch, scoped KV memory and
+  bounded subprocess execution. Prompt catalog attachments remain separate.
+- Added remote GitHub Projects v2 queries/item mutations and local workspace
+  associations; service GITHUB_TOKEN is separate from bridge/operator auth.
+- Added accessible settings tooltips and the authenticated /vscode protocol for
+  streaming chat, edit proposals, approved agent runs and usage queries.
+- Windows 470 tests/build pass; genuine Linux 469 pass, one Windows-only DPAPI skip,
+  build pass. Ten live service smoke checks pass, including real Perplexity search,
+  Claude streaming, Codex edit proposals and an approved Codex physical file write.
+- GitHub remote mutations are fixture-tested only: the local service has no
+  GITHUB_TOKEN and returns the expected 503. See docs/INTEGRATIONS-VALIDATION.md.
+- Hosted Windows CI exposed a short-path versus canonical-path fixture mismatch; the subprocess cwd assertion now uses the canonical directory. Runtime behavior is unchanged.
+- The real Windows DPAPI test has a 40-second integration-test allowance for two bounded OS subprocess calls; this replaces an unreliable five-second default on hosted runners.
+- No new package dependencies, ports, database decision, merge or release.
+## PR #117 provider and agent platform
+
+- Implemented portable session Webchat, scoped reviewed memory, versioned skills
+  and prompts, agent attachments, bounded runs, artifacts and evaluations.
+- Added encrypted transactional state with file, SQLite, injected Prisma and
+  volatile memory backends. Database selection stays open. Windows DPAPI,
+  Linux Secret Service and explicit headless keys protect the vault master key.
+- Added scoped operator authentication, revocation-aware queued execution,
+  named provider profiles, isolated credentials, CLI diagnostics and executable
+  selection. Codex Windows workspace-write execution now passes the real test.
+- Final Windows suite: 379 tests in 35 files pass; typecheck and build pass.
+  Linux: full suite/build pass, then final UI delta 18/18 pass; combined coverage
+  378 pass and one Windows-only DPAPI skip. Live Linux Secret Service untested.
+- All 12 real Windows provider matrix cases pass across Claude, Codex, agy/Gemini
+  and Grok: shared conversation, two-iteration loop, physical file write/read.
+  The earlier three Claude approval/debate examples also passed.
+- Browser QA verifies retention across service restart, memory approval, CLI
+  diagnostics, catalog rendering and narrow-screen layout. The service is running.
+- Branch sync is authorized. Review `docs/PLATFORM-GUIDE.md`, implementation status
+  in `docs/PROVIDER-AGENT-ROADMAP.md`, and `docs/PLATFORM-VALIDATION.md` before merge.
+  No version bump, release or merge was performed.
+## Enterprise Multi-Agent Orchestration & Governance Platform (feat/provider-agent-management)
+
+1. **Repository Governance & Pipeline Templates**:
+   - 9 built-in governance templates: Standard Governance, Documentation Generation, Documentation Review, Refactoring Review, Automated PR Review, Release Readiness, Architecture & Design Review, Dependency Risk Assessment, and Supply Chain Security Posture.
+   - Repository-specific pipeline bindings and policy overrides (`requireSecuritySignoff`, `mandatoryGates`).
+   - Live human approval gates (`waiting_approval`) with pause/resume support (`/v1/pipelines/runs/action`).
+   - Immutable audit trail recording each approval and rejection with operator feedback, timestamp, and correlation ID (`/v1/governance/audit`, JSON/Markdown export at `/v1/governance/audit/export`).
+
+2. **Pipeline Budget Controls & Spending Limits**:
+   - `BudgetManager` enforcing daily and monthly USD spend caps, per-run cost ceilings, and token limits.
+   - Real-time threshold calculation (Safe, Warning, Exceeded) with configurable Hard Stop (execution rejection) vs Soft Warning (operator notification).
+   - Live visual budget meters on the dashboard with spend percentages and automatic UTC midnight/monthly rollover.
+
+3. **Automatic Host Tool Discovery & Categorized Catalog**:
+   - Auto-detection of developer binaries on Windows and Linux system PATH (git, node, npm, python, docker, etc.).
+   - Tool classification taxonomy (Read Only, Workspace Modify, System Modify, Network Access, External Service) and security risk ratings (Low, Medium, High, Critical).
+   - Dynamic discovery endpoint (`POST /v1/tools/discover`) and unified catalog (`GET /v1/tools`).
+
+4. **Working Directory & Workspace Management**:
+   - Validated workspace registry with disk existence checks and write-permission verification.
+   - Filesystem directory browser endpoint (`POST /v1/workspaces/browse`) for safe folder traversal.
+   - Quick-select integration into Playground and Pipeline execution runners.
+
+5. **Usage Statistics & Real-Time Visual Analytics**:
+   - Pure vanilla SVG dashboard charts without external CDN dependencies.
+   - Model request volumes and average latencies, token and cost share progress, pipeline run outcomes breakdown, and operational events by severity.
+   - Aggregated analytics endpoint (`GET /v1/analytics/overview`).
+
+6. **Activity Streams & Operational Telemetry**:
+   - End-to-end correlation tracking with `traceId` linking chat requests, pipeline executions, and audit logs.
+   - Filter chips (Info, Success, Warning, Error) and live log search.
+   - Full activity log export in JSON and Markdown formats (`/v1/activity/export`).
 
 ## v0.8.0 - CLI transport, modes, cwd and model discovery
 

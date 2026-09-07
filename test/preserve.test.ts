@@ -410,7 +410,14 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     // Newest first, and every event keeps its original field names.
     expect(body.events[0].id).toBeGreaterThan(body.events[body.events.length - 1].id);
     for (const event of body.events) {
-      expect(Object.keys(event).sort()).toEqual(['id', 'level', 'message', 'scope', 'time']);
+      expect(event).toEqual(expect.objectContaining({
+        id: expect.any(Number), level: expect.any(String), message: expect.any(String),
+        scope: expect.any(String), time: expect.any(Number),
+      }));
+      expect(Object.keys(event).every(key => [
+        'id', 'level', 'message', 'scope', 'time', 'traceId', 'runId', 'stepId',
+        'provider', 'model', 'status', 'attempt', 'durationMs',
+      ].includes(key))).toBe(true);
       const serialised = JSON.stringify(event);
       expect(serialised).not.toContain(h.PROMPT_MARKER);
       expect(serialised).not.toContain(h.REPLY_MARKER);
@@ -425,7 +432,15 @@ describe('regression preservation: pre-login behaviour still holds', () => {
       const frames = socket.messages as Array<{ type: string; event?: Record<string, unknown> }>;
       const activity = frames.find(frame => frame.type === 'activity');
       expect(activity).toBeDefined();
-      expect(Object.keys(activity!.event!).sort()).toEqual(['id', 'level', 'message', 'scope', 'time']);
+      expect(activity!.event!).toEqual(expect.objectContaining({
+        id: expect.any(Number), level: expect.any(String), time: expect.any(Number),
+      }));
+      expect(Object.keys(activity!.event!).every(key => [
+        'id', 'level', 'message', 'scope', 'time', 'traceId', 'runId', 'stepId',
+        'provider', 'model', 'status', 'attempt', 'durationMs',
+      ].includes(key))).toBe(true);
+      expect(JSON.stringify(activity!.event!)).not.toContain(h.PROMPT_MARKER);
+      expect(JSON.stringify(activity!.event!)).not.toContain(h.REPLY_MARKER);
       expect(typeof activity!.event!.scope).toBe('string');
       expect(typeof activity!.event!.message).toBe('string');
     } finally {
@@ -581,13 +596,13 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(DASHBOARD_HTML).toContain(`$('model-search').addEventListener('input'`);
     expect(DASHBOARD_HTML).toContain('id="model-transport-filter"');
     expect(DASHBOARD_HTML).toContain('id="model-provider-filter"');
-    expect(DASHBOARD_HTML).toContain('Models by transport and provider');
+    expect(DASHBOARD_HTML).toContain('data-i18n="h_models">Models</h2>');
     expect(DASHBOARD_HTML).toContain('data-use-model');
     expect(DASHBOARD_HTML).toContain('id="api-provider-list"');
     expect(DASHBOARD_HTML).toContain('id="cli-provider-list"');
     expect(DASHBOARD_HTML).toContain('id="local-provider-list"');
     expect(DASHBOARD_HTML).not.toContain('Open login browser');
-    const dashboardScript = DASHBOARD_HTML.match(/<script>([\s\S]*)<\/script>/i)?.[1] ?? '';
+    const dashboardScript = Array.from(DASHBOARD_HTML.matchAll(/<script>([\s\S]*?)<\/script>/gi), match => match[1]).join('\n');
     expect(dashboardScript.length).toBeGreaterThan(0);
     expect(() => new Function(dashboardScript)).not.toThrow();
     expect(DASHBOARD_HTML).toContain('Supported desktop platforms');
@@ -603,6 +618,29 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     }
   });
 
+  it('serves the same favicon for the dashboard and browser fallback without credentials', async () => {
+    const icon = await fetch(`${base}/favicon.svg`);
+    expect(icon.status).toBe(200);
+    expect(icon.headers.get('content-type')).toContain('image/svg+xml');
+    const svg = await icon.text();
+    expect(svg).toContain('viewBox="0 0 64 64"');
+    expect(svg).toContain('<title>CB</title>');
+    expect(svg).not.toContain('<script');
+    expect(await (await fetch(`${base}/favicon.ico`)).text()).toBe(svg);
+    expect(DASHBOARD_HTML).toContain('rel="icon" type="image/svg+xml" href="/favicon.svg?v=cb"');
+    expect(HELP_HTML).toContain('href="/favicon.svg?v=cb"');
+  });
+
+  it('serves the bundled Elvatis fonts locally', async () => {
+    for (const font of ['inter-400','inter-500','inter-600','fraunces-600']) {
+      const response = await fetch(`${base}/assets/fonts/${font}.woff2`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('font/woff2');
+      const bytes = Buffer.from(await response.arrayBuffer());
+      expect(bytes.subarray(0,4).toString()).toBe('wOF2');
+    }
+  });
+
   it('renders the complete standalone Help page directly', async () => {
     const res = await fetch(`${base}/help`);
     expect(res.status).toBe(200);
@@ -614,6 +652,7 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(text).not.toContain('Xvfb');
     expect(text).toContain('Provider authentication');
     expect(text).toContain('Security');
-    expect(text.endsWith('</main></body></html>')).toBe(true);
+    expect(text).toContain('</main><script>window.__CB_TRANSLATIONS =');
+    expect(text.endsWith('</script></body></html>')).toBe(true);
   });
 });

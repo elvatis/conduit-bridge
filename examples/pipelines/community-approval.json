@@ -1,0 +1,28 @@
+{
+  "id": "community-approval",
+  "name": "Community demo: approval and execution",
+  "description": "Draft a welcoming project sentence, pause for approval, then execute the final writing step.",
+  "category": "review",
+  "steps": [
+    {
+      "id": "draft",
+      "name": "Draft a welcome",
+      "model": "{{model}}",
+      "mode": "chat",
+      "max_tokens": 128,
+      "effort": "low",
+      "promptTemplate": "Write one welcoming sentence for a community project that lets people connect their preferred AI tools. Under 25 words. No tools needed."
+    },
+    {
+      "id": "final",
+      "name": "Approved final response",
+      "model": "{{peer_model}}",
+      "mode": "chat",
+      "dependsOn": ["draft"],
+      "requiresApproval": true,
+      "max_tokens": 128,
+      "effort": "low",
+      "promptTemplate": "The operator approved this draft: {{previous_output}}\nWrite a polished final version beginning with APPROVED:. Under 30 words. No tools needed."
+    }
+  ]
+}
