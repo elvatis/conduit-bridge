@@ -3,28 +3,28 @@
   "project": "pb",
   "last_session": {
     "agent": "codex",
-    "session_id": "cli-1788815299",
-    "timestamp": "2026-09-07T21:08:19Z",
-    "commit": "1e8ff52",
+    "session_id": "cli-1788815440",
+    "timestamp": "2026-09-07T21:10:41Z",
+    "commit": "680a8c5",
     "phase": "documentation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:6358ab2251043e80ee447a1bf07500201710a5acfe246d15f67db350f2c5caf2",
-      "updated": "2026-09-07T21:08:19Z",
-      "lines": 433,
+      "checksum": "sha256:ca2e2a4e12c252b5eb9eaaa1a31e0a9b2ef6ac4424e21c412680ede0699fbd17",
+      "updated": "2026-09-07T21:10:40Z",
+      "lines": 435,
       "summary": "_Updated: 2026-09-07_"
     },
     "NEXT_ACTIONS.md": {
       "checksum": "sha256:3933911b0f295790255da77f0dae18a876f3d468c01bf1233b578be6dcbd0ca2",
-      "updated": "2026-09-07T21:04:46Z",
+      "updated": "2026-09-07T21:09:11Z",
       "lines": 48,
       "summary": "Current version: **v0.10.0**"
     },
     "LOG.md": {
       "checksum": "sha256:b9c68c4fd8a36c22c3bb88a721b03c7efd2d61a15467ee3d0bad668e72d973a3",
-      "updated": "2026-09-07T21:04:46Z",
+      "updated": "2026-09-07T21:09:11Z",
       "lines": 238,
       "summary": "_Reverse chronological._"
     },
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Dependabot #115 handoff update after SDK merge",
+  "quick_context": "Dependabot #113 handoff update after dependency merges",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 6209,
-    "full_read": 11868
+    "manifest_plus_core": 6235,
+    "full_read": 11894
   }
 }
