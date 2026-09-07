@@ -16,6 +16,25 @@
 
 _Updated: 2026-09-07_
 
+## Addendum: planning, CLI sessions, BitNet and code search
+
+- Registered eleven executable skills and eleven providers. Added persistent
+  per-provider cloud quotas/cost estimates, validated task splitting/execution,
+  keyword routing, notifications, scoped daily journals and native CLI continuity.
+- Added BitNet's local HTTP adapter and owned native server management, plus
+  tgrep TCP/CLI indexed search with ripgrep fallback and approved index lifecycle.
+- Added authenticated /api/orchestrate, /api/skills, /api/providers/status,
+  /api/bitnet/server and /api/tgrep endpoints; existing policy/accounting applies.
+- Windows 510 tests in 62 files and production build pass. Nine real service
+  scenarios and seven native tgrep cases pass. Claude, Codex and agy each resumed
+  one native session across two turns; a real parallel dependency plan completed.
+- BitNet inference is fixture-tested only. Gemini API planning lacks a configured
+  credential; LM Studio is reachable but has no loaded model, so the live auto
+  planner correctly falls back to heuristics. No external webhook was sent.
+- Read docs/ADDENDUM-INTEGRATIONS.md and docs/ADDENDUM-VALIDATION.md. Optional
+  administrator-started loopback inference/search daemons are explicitly requested
+  additions; the gateway port stays unchanged. No merge or release.
+
 ## Tools, GitHub Projects and VS Code extension pass
 
 - Added six typed executable tools with host authorization: Perplexity search,

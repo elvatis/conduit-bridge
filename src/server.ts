@@ -25,6 +25,7 @@ import { PlatformApi, type PlatformExecutionContext } from './platform-api.js';
 import type { TransactionalStateStore } from './storage.js';
 import { PlatformContentError } from './platform-content.js';
 import { IntegrationApi } from './integration-api.js';
+import { RateLimiter } from './rate-limiter.js';
 import { createSkillRegistry } from './skills/builtins.js';
 import { SkillError, type SkillExecutionContext } from './skills/index.js';
 import type { GitHubProjectsProvider } from './providers/github-projects.js';
@@ -104,6 +105,7 @@ export class BridgeServer {
     this._integrations = new IntegrationApi({
       cfg: () => this._cfg, workspaces: this._workspaceManager,
       skills: this._registry.skills ?? createSkillRegistry(), githubProjects: options?.githubProjects,
+      providerStatus: () => this._registry.getStatus(),
       toolContext: (operator, workspaceId, signal, approved, reauthorize) => this._skillContext(operator, workspaceId, signal, approved, reauthorize),
       acquire: () => { const limits = this._cfg.rateLimit ?? { perMinute: 60, maxConcurrent: 16 }; const lease = this._limiter.acquire('integrations', limits.perMinute, limits.maxConcurrent); return lease.ok ? lease.release : undefined; },
       event: event => this._broadcast(event),
@@ -510,11 +512,25 @@ export class BridgeServer {
         if (repository && (repository.overrides?.agentEnabled === false || live?.requiresApproval)) throw new SkillError('Repository policy requires its governed pipeline for this mutation', 403);
       }
       const restrictions = new Set(normalizeDisallowedTools(repository?.overrides?.disallowedTools)?.split(',').map(value => value.trim()) ?? []);
-      const required = skill === 'filesystem' ? effect === 'write' ? ['Write', 'Edit'] : ['Read', 'Glob'] : skill === 'browser' ? ['WebFetch'] : skill === 'web-search' ? ['WebSearch'] : effect === 'execute' ? ['Bash', 'Shell'] : [];
+      const required = skill === 'filesystem' ? effect === 'write' ? ['Write', 'Edit'] : ['Read', 'Glob'] : skill === 'code-search' ? ['Read', 'Glob', 'Grep', 'FileSearch'] : skill === 'browser' ? ['WebFetch'] : skill === 'web-search' ? ['WebSearch'] : effect === 'execute' ? ['Bash', 'Shell'] : [];
       if (required.some(tool => restrictions.has(tool))) throw new SkillError('Repository tool policy forbids this operation', 403);
     };
     return {
       operator, workspace, signal, store: this._platform.store, authorize,
+      rateLimiter: new RateLimiter(undefined, this._cfg.agentRateLimits),
+      resolveModel: async (name, explicit) => {
+        reauthorize();
+        let provider = this._registry.lookup(name);
+        if (!explicit && name === 'lmstudio' && !await provider?.checkSession()) provider = this._registry.lookup('bitnet');
+        if (!provider || !await provider.checkSession()) throw new SkillError('Selected model provider is unavailable', 503);
+        if (explicit) {
+          if (this._registry.providerForModel(explicit)?.name !== provider.name) throw new SkillError('Model does not belong to the selected task provider', 400);
+          return explicit;
+        }
+        const model = provider.models.find(model => model.id.endsWith('/auto')) ?? provider.models.find(model => !/embed/i.test(model.id));
+        if (!model) throw new SkillError('Provider has no available chat model', 503);
+        return model.id;
+      },
       githubToken: () => process.env.GITHUB_TOKEN,
       executeModel: request => {
         const current = reauthorize();
@@ -547,7 +563,7 @@ export class BridgeServer {
     const mode = original.mode || 'chat';
     if (mode === 'agent' && (policy?.agentEnabled === false || repository?.overrides?.agentEnabled === false)) throw new PlatformContentError('Agent mode is disabled by provider or repository policy', 403);
     if (mode === 'agent' && workspace.requiresApproval) throw new PlatformContentError('This repository requires governed pipeline execution. Use its assigned pipeline and required gates.', 403);
-    const request = { ...original, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }) };
+    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }) };
     const cwdError = agentModeCwdError(mode, request.cwd); if (cwdError) throw new PlatformContentError(cwdError, 400);
     if (!await provider.checkSession()) throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
     const runId = context.runId || `chat-${randomUUID()}`;
@@ -938,14 +954,14 @@ export class BridgeServer {
       const allProviders: ProviderName[] = [
         'cli-claude', 'cli-gemini', 'cli-codex', 'cli-grok',
         'claude-api', 'gemini-api', 'codex-api', 'openrouter-api', 'perplexity-api',
-        'lmstudio',
+        'lmstudio', 'bitnet',
       ];
       const policies = Object.fromEntries(allProviders.map(name => {
         const isCli = CLI_PROVIDERS.has(name);
         const stored = this._cfg.agentPolicies?.[name];
         return [name, {
           provider: name,
-          loginType: isCli ? 'cli' : (name === 'lmstudio' ? 'local' : 'api-key'),
+          loginType: isCli ? 'cli' : (name === 'lmstudio' || name === 'bitnet' ? 'local' : 'api-key'),
           hasAgentCapability: isCli,
           supportedModes: isCli ? ['chat', 'plan', 'agent'] : ['chat'],
           agentEnabled: stored ? Boolean(stored.agentEnabled) : isCli,
@@ -964,7 +980,7 @@ export class BridgeServer {
       const allProviders = new Set<ProviderName>([
         'cli-claude', 'cli-gemini', 'cli-codex', 'cli-grok',
         'claude-api', 'gemini-api', 'codex-api', 'openrouter-api', 'perplexity-api',
-        'lmstudio',
+        'lmstudio', 'bitnet',
       ]);
       if (!allProviders.has(data?.provider)) {
         json(res, 400, { error: { message: `Unknown provider: ${data?.provider}`, type: 'invalid_request' } });

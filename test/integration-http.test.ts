@@ -9,7 +9,10 @@ const runtime = vi.hoisted(() => ({ directory: '', requests: [] as ChatRequest[]
 vi.mock('../src/config.js', async original => ({ ...await original<typeof import('../src/config.js')>(), runtimeDir: () => runtime.directory }));
 vi.mock('../src/registry.js', () => {
   const provider = { name: 'perplexity-api', models: [{ id: 'api-perplexity/sonar', provider: 'perplexity-api', displayName: 'Sonar fixture', owned_by: 'test' }], checkSession: async () => true, chat: async (request: ChatRequest) => { runtime.requests.push(request); return 'Synthetic search result.'; } };
-  return { ProviderRegistry: class { allModels() { return provider.models; } providerForModel(model: string) { return provider.models.some(item => item.id === model) ? provider : undefined; } refreshApiModels = async () => ({}); } };
+  const codex = { ...provider, name: 'cli-codex', models: [{ id: 'cli-codex/fixture', provider: 'cli-codex', displayName: 'Codex fixture', owned_by: 'test' }] };
+  const bitnet = { ...provider, name: 'bitnet', models: [{ id: 'bitnet/auto', provider: 'bitnet', displayName: 'BitNet fixture', owned_by: 'test' }] };
+  const providers = [provider, codex, bitnet];
+  return { ProviderRegistry: class { allModels() { return providers.flatMap(provider => provider.models); } providerForModel(model: string) { return providers.find(provider => provider.models.some(item => item.id === model)); } lookup(name: string) { return providers.find(provider => provider.name === name); } getStatus = async () => ({ providers: providers.map(provider => ({ name: provider.name, connected: true })) }); refreshApiModels = async () => ({}); } };
 });
 import { BridgeServer } from '../src/server.js';
 import { hashPlatformToken } from '../src/platform-auth.js';
@@ -37,8 +40,29 @@ async function api(path: string, method = 'GET', body?: unknown, actor: keyof ty
   return { status: response.status, data: await response.json() };
 }
 describe('authenticated integration HTTP routes', () => {
-  it('lists six tools, enforces mutation consent and scoped roles, and writes the physical file', async () => {
-    expect((await api('/v1/platform/tools', 'GET', undefined, 'viewer')).data.data).toHaveLength(6);
+  it('wires skill aliases, orchestration preview/execution and provider status under platform authorization', async () => {
+    expect((await api('/api/skills/routing-rules', 'POST', { arguments: { prompt: 'offline coding' } }, 'viewer')).data.result.provider).toBe('bitnet');
+    const preview = await api('/api/orchestrate', 'POST', { prompt: 'implement a function', strategy: 'heuristic', workspaceId: workspace }, 'operator');
+    expect(preview.status).toBe(200); expect(preview.data.tasks[0].agent).toBe('cli-codex'); expect(runtime.requests).toHaveLength(0);
+    const body = { prompt: 'implement a function', strategy: 'heuristic', workspaceId: workspace, execute: true, approved: true };
+    expect((await api('/api/orchestrate', 'POST', body, 'operator')).status).toBe(403);
+    expect((await api('/api/orchestrate', 'POST', { ...body, approved: false })).status).toBe(403);
+    const result = await api('/api/orchestrate', 'POST', body); expect(result.status).toBe(200); expect(result.data.execution.results[0].status).toBe('completed'); expect(runtime.requests).toHaveLength(1);
+    expect(server.budgetManager.getUsage().currentDailyCostUsd).toBeGreaterThan(0);
+    expect((await api('/api/providers/status', 'GET', undefined, 'viewer')).data.providers.some((provider: any) => provider.name === 'bitnet')).toBe(true);
+    expect((await fetch(base + '/api/providers/status')).status).toBe(401);
+  });
+  it('requires explicit admin authorization for native servers and indexing before spawning anything', async () => {
+    for (const path of ['/api/bitnet/server', '/api/tgrep/server', '/api/tgrep/index']) {
+      const body = { action: 'start', approved: true, ...(path.includes('tgrep') ? { workspaceId: workspace } : {}) };
+      expect((await api(path, 'POST', body, 'viewer')).status).toBe(403);
+      expect((await api(path, 'POST', { ...body, approved: false })).status).toBe(403);
+    }
+    expect((await api('/api/bitnet/server', 'POST', { action: 'status' })).data.running).toBe(false);
+    expect((await api('/api/orchestrate', 'POST', { prompt: 'code', strategy: 'heuristic' }, 'admin', { Origin: 'https://foreign.example' })).status).toBe(403);
+  });
+  it('lists eleven tools, enforces mutation consent and scoped roles, and writes the physical file', async () => {
+    expect((await api('/v1/platform/tools', 'GET', undefined, 'viewer')).data.data).toHaveLength(11);
     const body = { workspaceId: workspace, arguments: { action: 'write', path: 'hello.txt', content: 'hello tools' } };
     expect((await api('/v1/platform/tools/filesystem/execute', 'POST', body, 'operator')).status).toBe(403);
     expect((await api('/v1/platform/tools/filesystem/execute', 'POST', { ...body, approved: true }, 'viewer')).status).toBe(403);

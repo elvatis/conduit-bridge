@@ -56,10 +56,16 @@ versioned skills, bounded agent runs, provider profiles and encrypted storage.
 ## Executable skills and GitHub Projects
 
 The bridge includes typed tools for Perplexity web search, workspace files,
-GitHub Actions, public-page fetching, scoped KV memory and bounded subprocesses.
+GitHub Actions, public-page fetching, scoped KV/daily memory, bounded subprocesses,
+indexed code search, notifications, prompt splitting, task execution and routing.
 They use explicit authenticated calls and existing workspace/budget policies;
 prompt skill attachments do not grant execution permissions. Settings include
 keyboard-accessible hover/focus help.
+
+The [additional integrations guide](docs/ADDENDUM-INTEGRATIONS.md) covers the
+`/api/orchestrate` preview/execution API, persistent cloud quotas, native CLI
+session resume, BitNet CPU inference and tgrep/ripgrep code search. BitNet and
+tgrep binaries remain optional local installations; model downloads are explicit.
 
 GitHub Projects v2 supports remote project/item queries, draft and issue/PR item
 creation, custom field updates, membership removal and workspace associations.

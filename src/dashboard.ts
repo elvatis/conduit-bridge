@@ -1669,10 +1669,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   document.addEventListener('input', markDirty);
   document.addEventListener('change', markDirty);
 
-  const family = id => id.startsWith('api-') ? 'api-*' : id.startsWith('cli-') ? 'cli-*' : id.startsWith('lmstudio/') ? 'lmstudio/*' : 'other';
+  const family = id => id.startsWith('api-') ? 'api-*' : id.startsWith('cli-') ? 'cli-*' : (id.startsWith('lmstudio/') || id.startsWith('bitnet/')) ? 'lmstudio/*' : 'other';
   const familyHelp = {'api-*':'Direct APIs','cli-*':'Local coding CLIs','lmstudio/*':'Local models','other':'Other'};
   const familyOrder = ['api-*','cli-*','lmstudio/*','other'];
-  const providerForModel = id => id.startsWith('api-claude/') ? 'claude-api' : id.startsWith('api-gemini/') ? 'gemini-api' : id.startsWith('api-codex/') ? 'codex-api' : id.startsWith('api-openrouter/') ? 'openrouter-api' : id.startsWith('api-perplexity/') ? 'perplexity-api' : id.startsWith('cli-grok/') ? 'cli-grok' : id.startsWith('cli-codex/') ? 'cli-codex' : id.startsWith('cli-claude/') ? 'cli-claude' : id.startsWith('cli-gemini/') ? 'cli-gemini' : 'lmstudio';
+  const providerForModel = id => id.startsWith('api-claude/') ? 'claude-api' : id.startsWith('api-gemini/') ? 'gemini-api' : id.startsWith('api-codex/') ? 'codex-api' : id.startsWith('api-openrouter/') ? 'openrouter-api' : id.startsWith('api-perplexity/') ? 'perplexity-api' : id.startsWith('cli-grok/') ? 'cli-grok' : id.startsWith('cli-codex/') ? 'cli-codex' : id.startsWith('cli-claude/') ? 'cli-claude' : id.startsWith('cli-gemini/') ? 'cli-gemini' : id.startsWith('bitnet/') ? 'bitnet' : 'lmstudio';
 
   function modelOptionGroups(selected) {
     const selectedIds = new Set(Array.isArray(selected) ? selected : [selected]);

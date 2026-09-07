@@ -5,6 +5,7 @@ import { CodexApiProvider } from './providers/codex-api.js';
 import { OpenRouterApiProvider } from './providers/openrouter-api.js';
 import { PerplexityApiProvider } from './providers/perplexity-api.js';
 import { LmStudioProvider } from './providers/lmstudio.js';
+import { BitNetProvider } from './providers/bitnet.js';
 import { GrokCliProvider } from './providers/grok-cli.js';
 import { CodexCliProvider } from './providers/cli-codex.js';
 import { ClaudeCliProvider } from './providers/cli-claude.js';
@@ -43,6 +44,7 @@ export class ProviderRegistry {
 
     // Local providers (no key needed / local subprocess / coding CLIs)
     this._providers.set('lmstudio', new LmStudioProvider(_cfg));
+    this._providers.set('bitnet', new BitNetProvider(_cfg));
     this._providers.set('cli-grok', new GrokCliProvider(_cfg));
     this._providers.set('cli-codex', new CodexCliProvider(_cfg));
     this._providers.set('cli-claude', new ClaudeCliProvider(_cfg));
@@ -111,7 +113,7 @@ export class ProviderRegistry {
 
     for (const [name, p] of this._providers) {
       const connected = await p.checkSession();
-      const loginType = name.startsWith('cli-') ? 'cli' : name === 'lmstudio' ? 'local' : 'api-key';
+      const loginType = name.startsWith('cli-') ? 'cli' : name === 'lmstudio' || name === 'bitnet' ? 'local' : 'api-key';
       providers.push({
         name,
         connected,

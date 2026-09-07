@@ -1,4 +1,5 @@
-import type { ChatRequest } from '../types.js';
+import type { ChatRequest, ProviderName } from '../types.js';
+import type { RateLimiter } from '../rate-limiter.js';
 import type { PlatformOperatorContext } from '../platform-auth.js';
 import type { StateStore } from '../storage.js';
 
@@ -30,6 +31,10 @@ export interface SkillExecutionContext {
   store: StateStore;
   /** Routes model calls through the host's authorization, limits and accounting. */
   executeModel?: (request: ChatRequest) => Promise<string>;
+  /** Resolve only available catalog models; explicit models must belong to the requested provider. */
+  resolveModel?: (provider: ProviderName, model?: string) => Promise<string>;
+  /** Host-owned admission limits shared by every split/execution request. */
+  rateLimiter?: RateLimiter;
   /** Rechecks current host policy; direct embedders must provide this callback. */
   authorize: (effect: SkillEffect, details?: Record<string, unknown>) => void | Promise<void>;
   /** Server-only credential resolver for the fixed GitHub API origin. */

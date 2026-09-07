@@ -11,7 +11,7 @@ import type {
 } from './types.js';
 import { isSecretReference, openSecretVault, secretStorageOptions } from './secrets.js';
 
-const NUMERIC_FIELDS = new Set(['port', 'perMinute', 'maxConcurrent']);
+const NUMERIC_FIELDS = new Set(['port', 'perMinute', 'perHour', 'perDay', 'costPerCall', 'maxConcurrent']);
 
 /** Central runtime directory. Override for a managed desktop installation. */
 export function runtimeDir(): string {

@@ -7,7 +7,7 @@ import type { ChatRequest, ProviderAdapter } from './types.js';
 export const USAGE_ESTIMATE_VERSION = 'bridge-estimate-v1';
 export function estimateTokens(text: string): number { return Math.ceil(text.length / 4); }
 export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const rate = model.startsWith('lmstudio/') ? 0 : /haiku|flash|luna/.test(model) ? 0.000001 : /opus|sol/.test(model) ? 0.000015 : 0.000005;
+  const rate = /^(?:lmstudio|bitnet)\//.test(model) ? 0 : /haiku|flash|luna/.test(model) ? 0.000001 : /opus|sol/.test(model) ? 0.000015 : 0.000005;
   return Number(((inputTokens + outputTokens) * rate).toFixed(8));
 }
 

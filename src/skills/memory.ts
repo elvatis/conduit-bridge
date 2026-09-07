@@ -1,4 +1,8 @@
 import { createHash } from 'node:crypto';
+import { constants, closeSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs';
+import { join } from 'node:path';
+import { runtimeDir } from '../config.js';
+import { redactSecrets } from '../redact.js';
 import { requirePlatformCapability } from '../platform-auth.js';
 import { SkillError, type SkillDefinition, type SkillExecutionContext } from './index.js';
 
@@ -6,6 +10,55 @@ const COLLECTION = 'skills.memory';
 const MAX_VALUE_BYTES = 16 * 1024;
 const MAX_ENTRIES = 100;
 type Scope = 'user' | 'workspace';
+/** One local daily journal record, separate from encrypted key/value memory. */
+export interface DailyMemoryEntry { at: string; scope: string; note: string }
+/** Date-keyed local JSONL journal; note content is redacted and each read remains owner-scoped. */
+export class DailyMemory {
+  constructor(private readonly scope: string, private readonly directory = join(runtimeDir(), 'memory'), private readonly now = () => new Date()) {}
+  private file(date: string): string {
+    mkdirSync(this.directory, { recursive: true, mode: 0o700 });
+    if (lstatSync(this.directory).isSymbolicLink()) throw new SkillError('Memory directory cannot be a link', 403);
+    return join(this.directory, date + '.jsonl');
+  }
+  /** Append at most 4 KiB of redacted text, with a 2 MiB daily file ceiling. */
+  write(note: string): DailyMemoryEntry {
+    if (typeof note !== 'string' || !note.trim() || Buffer.byteLength(note) > 4096) throw new SkillError('Journal note must contain 1 to 4096 bytes');
+    const at = this.now().toISOString();
+    const entry = { at, scope: this.scope, note: redactSecrets(note) };
+    const fd = openSync(this.file(at.slice(0, 10)), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | (constants.O_NOFOLLOW ?? 0), 0o600);
+    try {
+      const info = fstatSync(fd);
+      if (!info.isFile() || info.nlink !== 1 || info.size > 2 * 1024 * 1024 - 8192) throw new SkillError('Daily memory file is invalid or full', 413);
+      writeSync(fd, JSON.stringify(entry) + '\n');
+    } finally { closeSync(fd); }
+    return entry;
+  }
+  /** Read today's entries for this authenticated scope. */
+  readToday(): DailyMemoryEntry[] { return this.search('', 1); }
+  /** Literal, case-insensitive search of up to 31 UTC dates, returning at most 100 recent records. */
+  search(query: string, days = 7): DailyMemoryEntry[] {
+    if (typeof query !== 'string' || query.length > 1000 || !Number.isSafeInteger(days) || days < 1 || days > 31) throw new SkillError('Invalid daily memory search');
+    const entries: DailyMemoryEntry[] = [];
+    for (let i = 0; i < days && entries.length < 100; i++) {
+      const date = new Date(this.now().getTime() - i * 86400000).toISOString().slice(0, 10);
+      let fd: number;
+      try { fd = openSync(this.file(date), constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
+      try {
+        const info = fstatSync(fd);
+        if (!info.isFile() || info.nlink !== 1 || info.size > 2 * 1024 * 1024) throw new SkillError('Invalid daily memory file');
+        const lines = readFileSync(fd, 'utf8').split('\n').filter(Boolean).reverse();
+        for (const line of lines) {
+          let entry: DailyMemoryEntry;
+          try { entry = JSON.parse(line); } catch { continue; }
+          if (entry.scope === this.scope && typeof entry.note === 'string' && entry.note.toLowerCase().includes(query.toLowerCase())) entries.push(entry);
+          if (entries.length === 100) break;
+        }
+      } finally { closeSync(fd); }
+    }
+    return entries;
+  }
+}
 interface MemoryEntry {
   scope: Scope;
   scopeId: string;
@@ -52,16 +105,25 @@ export const memorySkill: SkillDefinition = {
   schema: {
     type: 'object', additionalProperties: false, required: ['action'],
     properties: {
-      action: { type: 'string', enum: ['get', 'set', 'list', 'delete'] },
+      action: { type: 'string', enum: ['get', 'set', 'list', 'delete', 'write', 'readToday', 'search'] },
+      note: { type: 'string', maxLength: 4096 }, query: { type: 'string', maxLength: 1000 }, days: { type: 'integer', minimum: 1, maximum: 31 },
       scope: { type: 'string', enum: ['user', 'workspace'], description: 'Defaults to user; the scope identity always comes from execution context.' },
       key: { type: 'string', maxLength: 100 },
       value: { description: 'JSON value, at most 16 KiB. Required for set.' },
       expectedRevision: { type: 'integer', minimum: 0, description: 'Current revision required when replacing/deleting an existing entry; zero means create only.' },
     },
   },
-  effect: input => input.action === 'get' || input.action === 'list' ? 'read' : 'write',
+  effect: input => ['get', 'list', 'readToday', 'search'].includes(input.action as string) ? 'read' : 'write',
   async execute(input, context) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new SkillError('Memory input must be an object');
+    if (['write', 'readToday', 'search'].includes(input.action as string)) {
+      if (Object.keys(input).some(key => !['action', 'scope', 'note', 'query', 'days'].includes(key))) throw new SkillError('Unknown daily memory input');
+      const selected = scopeFor(input, context, input.action === 'write');
+      const scope = createHash('sha256').update(JSON.stringify(selected)).digest('hex');
+      context.signal.throwIfAborted();
+      const journal = new DailyMemory(scope);
+      return input.action === 'write' ? journal.write(input.note as string) : input.action === 'readToday' ? journal.readToday() : journal.search((input.query ?? '') as string, (input.days ?? 7) as number);
+    }
     if (Object.keys(input).some(key => !['action', 'scope', 'key', 'value', 'expectedRevision'].includes(key))) throw new SkillError('Unknown memory input field');
     if (!['get', 'set', 'list', 'delete'].includes(input.action as string)) throw new SkillError('Select get, set, list or delete');
     const writing = input.action === 'set' || input.action === 'delete';

@@ -2,6 +2,23 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - Addendum integrations
+
+- Adapted elvatis-mcp patterns into typed native bridge modules: persistent
+  rate limits and CLI sessions, prompt splitting, dependency execution, routing,
+  daily memory and local/webhook notifications. No MCP or SSH dependency added.
+- Registered BitNet and added approved native BitNet/tgrep server management.
+  Verified upstream tgrep uses TCP JSON-RPC and automatic port discovery; live
+  testing corrected daemon reindex to use reload rather than a competing CLI build.
+- Scoped retained CLI sessions passed real two-turn Claude, Codex and agy checks.
+  Corrected Codex's Windows-safe sandbox argument after its first native test.
+- Windows full suite: 510/62 pass. Nine real service checks and seven native tgrep
+  checks pass; auto planning also correctly reaches heuristics when Gemini API
+  authentication and loaded local models are absent. BitNet remains fixture-only.
+- README, integration guide, validation report and this handoff describe actual
+  interfaces, ownership and persistence limits. Branch remains
+  feat/provider-agent-management; no merge, release or new package dependency.
+
 ## 2026-09-07 - PR #117 fixes, real pipeline demos and management roadmap
 
 - Appended the Astra product/stability and Daybreak security review to PR #117.

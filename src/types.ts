@@ -1,11 +1,12 @@
 // ── Public types for conduit-bridge ──────────────────────────────────────────
 import type { OrchestratorConfig } from './orchestrator.js';
+import type { AgentRateLimits } from './rate-limiter.js';
 export type { PipelineDefinition, PipelineStep, PipelineRun, PipelineRunStepResult } from './pipelines.js';
 
 export type ProviderName =
   | 'claude-api' | 'gemini-api' | 'codex-api'
   | 'openrouter-api' | 'perplexity-api'   // OpenAI-compatible API aggregators
-  | 'lmstudio'                             // local OpenAI-compatible server
+  | 'lmstudio' | 'bitnet'                  // local OpenAI-compatible servers
   | 'cli-grok'                             // local Grok CLI (x.ai/build, binary: grok)
   | 'cli-codex'                            // @openai/codex (binary: codex)
   | 'cli-claude'                           // @anthropic-ai/claude-code (binary: claude)
@@ -92,6 +93,8 @@ export interface BridgeConfig {
   budget?: BudgetConfig;    // pipeline and model spending limit controls
   lmStudioUrl?: string;     // LM Studio server URL (default http://127.0.0.1:1234)
   rateLimit?: { perMinute: number; maxConcurrent: number };
+  /** Persistent per-provider cloud admission ceilings for prompt splitting and task execution. */
+  agentRateLimits?: Partial<Record<ProviderName, AgentRateLimits>>;
 
   // -- Security (all optional, secure-by-default) -----------------------------
   /**
@@ -133,6 +136,8 @@ export interface ChatMessage {
 }
 
 export interface ChatRequest {
+  /** Trusted host-only continuity scope; never copied from a raw HTTP request. Native CLIs retain their own transcripts. */
+  cliSessionKey?: string;
   model: string;
   messages: ChatMessage[];
   stream?: boolean;

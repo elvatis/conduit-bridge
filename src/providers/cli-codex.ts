@@ -6,6 +6,7 @@ import type {
   ProviderAdapter,
 } from '../types.js';
 import { logger } from '../logger.js';
+import { withCliSession, parseCliSessionOutput, type CliSessionLease } from '../session-registry.js';
 import {
   diagnoseCliExecutable,
   resolveCliExecutable,
@@ -259,7 +260,7 @@ export class CodexCliProvider implements ProviderAdapter {
     logger.info('[cli-codex] local CLI — nothing to disconnect');
   }
 
-  private async _run(req: ChatRequest): Promise<string> {
+  private async _run(req: ChatRequest, lease?: CliSessionLease): Promise<{ text: string; sessionId?: string }> {
     const executable = this.executable();
     const binPath = executable.path;
     if (!binPath) {
@@ -269,7 +270,7 @@ export class CodexCliProvider implements ProviderAdapter {
     }
 
     const model = stripPrefix(req.model, PREFIX);
-    const prompt = flattenMessages(req.messages);
+    const prompt = flattenMessages(lease?.messages ?? req.messages);
     const effort = toOpenAiEffort(req.effort);
     const mode = req.mode ?? 'chat';
 
@@ -277,7 +278,13 @@ export class CodexCliProvider implements ProviderAdapter {
     // Prompt via stdin (`-`) to avoid ARG_MAX / Windows cmd length limits.
     // Sandbox comes from cliPermissionArgs (read-only vs workspace-write).
     // reasoning_effort via -c for GPT-5.x reasoning models.
-    const args = [
+    const args = lease ? [
+      '-c', 'sandbox_mode=read-only', ...codexPlatformSandboxArgs(),
+      'exec', ...(lease.sessionId ? ['resume'] : []), '--ignore-user-config', '--json',
+      '-m', model, '--skip-git-repo-check',
+      ...(effort ? ['-c', `model_reasoning_effort=${effort}`] : []),
+      ...(lease.sessionId ? [lease.sessionId] : []), '-',
+    ] : [
       'exec',
       '--ignore-user-config',
       '-m', model,
@@ -309,15 +316,20 @@ export class CodexCliProvider implements ProviderAdapter {
           : result.stderr || '(no output)';
       throw new Error(`codex exited ${result.exitCode}: ${detail}`);
     }
-    return result.stdout || result.stderr;
+    if (lease) {
+      const parsed = parseCliSessionOutput('cli-codex', result.stdout);
+      if (result.exitCode !== 0 || !parsed.text || result.aborted || result.timedOut) throw new Error('Codex session turn did not complete');
+      return parsed;
+    }
+    return { text: result.stdout || result.stderr };
   }
 
   async chat(req: ChatRequest): Promise<string> {
-    return this._run(req);
+    return withCliSession(req, 'cli-codex', this.executable().path ?? '', lease => this._run(req, lease));
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
-    const content = await this._run(req);
+    const content = await this.chat(req);
     if (content) yield content;
   }
 }

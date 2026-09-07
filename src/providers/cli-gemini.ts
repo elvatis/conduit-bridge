@@ -6,6 +6,7 @@ import type {
   ProviderAdapter,
 } from '../types.js';
 import { logger } from '../logger.js';
+import { withCliSession, parseCliSessionOutput, type CliSessionLease } from '../session-registry.js';
 import {
   diagnoseCliExecutable,
   resolveCliExecutable,
@@ -305,7 +306,7 @@ export class GeminiCliProvider implements ProviderAdapter {
     logger.info('[cli-gemini] local CLI — nothing to disconnect');
   }
 
-  private async _run(req: ChatRequest): Promise<string> {
+  private async _run(req: ChatRequest, lease?: CliSessionLease): Promise<{ text: string; sessionId?: string }> {
     const executable = this.executable();
     const binPath = executable.path;
     if (!binPath) {
@@ -315,7 +316,7 @@ export class GeminiCliProvider implements ProviderAdapter {
     }
 
     const model = stripPrefix(req.model, PREFIX);
-    const prompt = flattenMessages(req.messages);
+    const prompt = flattenMessages(lease?.messages ?? req.messages);
     const isAgy = isAgyBin(binPath);
     const mode = req.mode ?? 'chat';
     const permission = cliPermissionArgs('cli-gemini', mode, { isAgy });
@@ -357,6 +358,7 @@ export class GeminiCliProvider implements ProviderAdapter {
       ? [
           '--input-format', 'stream-json',
           '--output-format', 'stream-json',
+          ...(lease?.sessionId ? ['--conversation', lease.sessionId] : []),
           '--model', model,
           '--add-dir', workspace,
           ...permission,
@@ -366,7 +368,8 @@ export class GeminiCliProvider implements ProviderAdapter {
       : [
           '-p', prompt,
           '-m', model,
-          '-o', 'text',
+          '-o', lease ? 'json' : 'text',
+          ...(lease?.sessionId ? ['--resume', lease.sessionId] : []),
           ...permission,
         ];
 
@@ -407,7 +410,8 @@ export class GeminiCliProvider implements ProviderAdapter {
             : parsed.error || result.stderr || '(no output)';
         throw new Error(`cli-gemini exited ${result.exitCode}: ${detail}`);
       }
-      return parsed.text;
+      if (lease && (result.exitCode !== 0 || result.aborted || result.timedOut || parsed.error)) throw new Error('Gemini session turn did not complete');
+      return { text: parsed.text, ...(lease ? { sessionId: parseCliSessionOutput('cli-gemini', result.stdout).sessionId } : {}) };
     }
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
@@ -419,15 +423,20 @@ export class GeminiCliProvider implements ProviderAdapter {
           : result.stderr || '(no output)';
       throw new Error(`cli-gemini exited ${result.exitCode}: ${detail}`);
     }
-    return result.stdout || result.stderr;
+    if (lease) {
+      const parsedSession = parseCliSessionOutput('cli-gemini', result.stdout);
+      if (result.exitCode !== 0 || !parsedSession.text || result.aborted || result.timedOut) throw new Error('Gemini session turn did not complete');
+      return parsedSession;
+    }
+    return { text: result.stdout || result.stderr };
   }
 
   async chat(req: ChatRequest): Promise<string> {
-    return this._run(req);
+    return withCliSession(req, 'cli-gemini', this.executable().path ?? '', lease => this._run(req, lease));
   }
 
   async *chatStream(req: ChatRequest): AsyncGenerator<string> {
-    const content = await this._run(req);
+    const content = await this.chat(req);
     if (content) yield content;
   }
 }

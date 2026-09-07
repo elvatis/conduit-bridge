@@ -3,7 +3,7 @@ import type { StateStore } from './storage.js';
 import type { ProviderName, SecretReference } from './types.js';
 
 const COLLECTION = 'platform.profiles';
-const PROVIDERS: ProviderName[] = ['claude-api', 'gemini-api', 'codex-api', 'openrouter-api', 'perplexity-api', 'lmstudio', 'cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok'];
+const PROVIDERS: ProviderName[] = ['claude-api', 'gemini-api', 'codex-api', 'openrouter-api', 'perplexity-api', 'lmstudio', 'bitnet', 'cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok'];
 export interface PlatformProviderProfile {
   id: string;
   revision: number;

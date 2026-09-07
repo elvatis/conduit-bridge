@@ -16,6 +16,8 @@ import { redactSecrets } from './redact.js';
 import { buildCodingPipelines } from './platform-presets.js';
 
 export interface PlatformExecutionContext {
+  /** Present only for conversations with explicit retained history. */
+  sessionId?: string;
   runId?: string;
   profile?: PlatformProviderProfile;
   repository?: string;
@@ -279,7 +281,7 @@ export class PlatformApi {
             const stream = body.stream === true;
             const send = (event: unknown) => { if (!res.destroyed) res.write(`data: ${JSON.stringify(event)}\n\n`); };
             if (stream) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
-            const result = await this.content.runTurn(id, input, request => this.execute(request, { operator, workspaceId: session.workspaceId, profile: input.profileId ? this.requireProfile(input.profileId) : undefined, onDelta: stream ? delta => send({ type: 'delta', delta }) : undefined }));
+            const result = await this.content.runTurn(id, input, request => this.execute(request, { operator, sessionId: session.retention === 'retained' ? id : undefined, workspaceId: session.workspaceId, profile: input.profileId ? this.requireProfile(input.profileId) : undefined, onDelta: stream ? delta => send({ type: 'delta', delta }) : undefined }));
             if (stream) { send({ type: 'done', ...result }); res.end(); } else response(res, 200, result);
           } finally { res.off('close', abort); if (this.sessionControllers.get(id) === controller) this.sessionControllers.delete(id); release(); }
         } else throw new PlatformContentError('Unknown session operation', 404);

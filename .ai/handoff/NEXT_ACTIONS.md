@@ -5,12 +5,16 @@ Current version: **v0.9.1**
 _Updated: 2026-09-07_
 
 1. Review PR #117 on `feat/provider-agent-management`, including the provider/agent platform and `docs/PLATFORM-GUIDE.md`. Storage remains selectable: encrypted file default, native SQLite, supplied-client Prisma adapter or volatile memory.
-2. Verify hosted CI on the synced branch before merge. Latest tools/Projects/VS Code validation: Windows 470 tests/build pass; Linux 469 pass and one Windows-only DPAPI skip, build pass. Ten new live integration smoke checks pass. See `docs/INTEGRATIONS-VALIDATION.md`.
+2. Verify hosted CI on the synced branch before merge. Latest addendum validation: Windows 510 tests/62 files and build pass; nine live service scenarios plus seven native tgrep checks pass. See `docs/ADDENDUM-VALIDATION.md`; exact hosted results are linked in PR #117.
 3. Inspect the retained `Four-provider handoff ce0f4121` conversation and completed runs in the running local dashboard. All 12 real Claude, Codex, agy/Gemini and Grok matrix cases passed, including context handoff, bounded loops and physical file verification.
 4. Choose the deployment storage backend when operational requirements are known. Real Prisma deployment, live Linux Secret Service integration and Linux CLI authentication remain explicit environment-specific validation work. Do not treat adapter contract tests as production database evidence.
 5. Implement the documented `/vscode` client in the sibling extension when ready. Configure a service `GITHUB_TOKEN` and designated test project for live GitHub Projects validation; transport/permission tests currently use fixtures. No release, merge or version bump is part of this pass.
-Do not reintroduce `web-*`, Playwright, cookie extraction, VNC components, or
-additional user ports.
+6. For optional live inference validation, install a BitNet-built llama-server and
+   compatible GGUF, load a local LM Studio model, or configure Gemini API credentials.
+   The addendum guide documents native server lifecycle and explicit loopback ports.
+Do not reintroduce `web-*`, Playwright, cookie extraction or VNC components.
+Keep the gateway port unchanged; optional BitNet/tgrep daemon ports are explicit
+administrator-controlled integrations requested in the addendum.
 
 ## Open after the 2026-09-03 governance parity pass
 

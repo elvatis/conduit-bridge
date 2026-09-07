@@ -3,6 +3,10 @@ import { open, readdir, type FileHandle } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { isPathWithin } from '../workspaces.js';
 import { SkillError, type SkillDefinition, type SkillExecutionContext } from './index.js';
+import { CodeSearch, type CodeSearchOptions, type SearchResult } from './code-search.js';
+
+/** Search the authorized workspace using indexed code search or its ripgrep fallback. */
+export async function searchInWorkspace(pattern: string, context: SkillExecutionContext, options?: CodeSearchOptions): Promise<SearchResult[]> { return new CodeSearch(context).search(pattern, options); }
 
 const BLOCKED = new Set(['.git', '.ssh', '.conduit', '.codex', '.agents']);
 
@@ -52,11 +56,13 @@ export const filesystemSkill: SkillDefinition = {
   description: 'Read, write or list workspace files. Refuses links, control directories and credential files.',
   effect: input => input.action === 'write' ? 'write' : 'read',
   schema: { type: 'object', additionalProperties: false, required: ['action', 'path'], properties: {
-    action: { type: 'string', enum: ['read', 'write', 'list'] }, path: { type: 'string', maxLength: 4096 },
+    action: { type: 'string', enum: ['read', 'write', 'list', 'search'] }, path: { type: 'string', maxLength: 4096 },
+    pattern: { type: 'string', maxLength: 2000 }, maxResults: { type: 'integer', minimum: 1, maximum: 200 },
     content: { type: 'string', maxLength: 65536 }, overwrite: { type: 'boolean' },
   } },
   async execute(input, context) {
     context.signal.throwIfAborted();
+    if (input.action === 'search') return searchInWorkspace(input.pattern as string, context, { cwd: input.path as string, maxResults: input.maxResults as number | undefined });
     if (typeof input.path !== 'string') throw new SkillError('Use a relative workspace path');
     const inputPath = input.path;
     const target = resolveSkillPath(context, inputPath, input.action === 'write');

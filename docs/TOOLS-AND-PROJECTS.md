@@ -1,11 +1,14 @@
 # Executable tools and GitHub Projects
 
 The versioned skill catalog stores instructions. The executable tool registry
-adds six explicit actions to the same host: `web-search`, `filesystem`,
-`github-actions`, `browser`, `memory` and `sandbox`. A catalog attachment does not
+adds eleven explicit tools to the same host: `web-search`, `filesystem`,
+`github-actions`, `browser`, `memory`, `sandbox`, `code-search`, `notify`,
+`prompt-splitter`, `split-execute` and `routing-rules`. A catalog attachment does not
 automatically grant tool permissions or execute these actions. Clients use the
 typed registry or the authenticated HTTP endpoints to invoke them.
 See [integration validation](INTEGRATIONS-VALIDATION.md) for measured results.
+The [addendum guide](ADDENDUM-INTEGRATIONS.md) covers the five added tools,
+daily journal actions, planning/execution, CLI continuity, BitNet and indexed search.
 
 ## Tool API
 

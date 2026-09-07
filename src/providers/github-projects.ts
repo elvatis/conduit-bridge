@@ -1,4 +1,6 @@
 import { GitHubApi, GitHubApiError, githubNodeId, githubSegment, type GitHubApiOptions } from '../github-api.js';
+import { CodeSearch, type CodeSearchOptions, type SearchResult } from '../skills/code-search.js';
+import type { SkillExecutionContext } from '../skills/index.js';
 
 /** Cursor pagination returned by GitHub Projects v2. */
 export interface GitHubPage<T> { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } }
@@ -26,6 +28,8 @@ function pagination(input: GitHubPageInput = {}): { first: number; after: string
 
 /** GitHub Projects v2 integration, independent of AI provider routing. */
 export class GitHubProjectsProvider {
+  /** Search local code in the caller's authorized linked workspace without sending code to GitHub. */
+  async searchLocalRepository(pattern: string, context: SkillExecutionContext, options?: CodeSearchOptions): Promise<SearchResult[]> { return new CodeSearch(context).search(pattern, options); }
   private readonly api: GitHubApi;
   constructor(options: GitHubApiOptions = {}) { this.api = new GitHubApi(options); }
 

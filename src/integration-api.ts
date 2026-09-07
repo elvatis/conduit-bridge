@@ -6,6 +6,12 @@ import { GitHubProjectsProvider, type GitHubProjectFieldValue } from './provider
 import { GitHubApiError } from './github-api.js';
 import { SkillError, type SkillExecutionContext, type SkillRegistry } from './skills/index.js';
 import { redactSecrets } from './redact.js';
+import { orchestrate } from './orchestrator.js';
+import type { SplitStrategy } from './skills/prompt-splitter.js';
+import type { NotificationChannel } from './skills/notify.js';
+import { localServers, type LocalServerManager } from './providers/llama-server.js';
+import { CodeSearch } from './skills/code-search.js';
+import { resolveSkillPath } from './skills/filesystem.js';
 
 /** Host bindings for authenticated tools and remote project operations. */
 export interface IntegrationApiDependencies {
@@ -13,6 +19,8 @@ export interface IntegrationApiDependencies {
   workspaces: WorkspaceManager;
   skills: SkillRegistry;
   githubProjects?: GitHubProjectsProvider;
+  providerStatus?: () => Promise<unknown>;
+  servers?: LocalServerManager;
   toolContext(operator: PlatformOperatorContext, workspaceId: string | undefined, signal: AbortSignal, approve: boolean, reauthorize: () => PlatformOperatorContext): SkillExecutionContext;
   acquire(): (() => void) | undefined;
   event(event: Record<string, unknown>): void;
@@ -38,14 +46,15 @@ export class IntegrationApi {
   constructor(private readonly deps: IntegrationApiDependencies) { this.projects = deps.githubProjects ?? new GitHubProjectsProvider(); }
 
   /** Cancel active tool and network operations when the host is stopping. */
-  stop(): void { for (const controller of this.active) controller.abort(); }
+  stop(): void { for (const controller of this.active) controller.abort(); const servers = this.deps.servers ?? localServers; void servers.stop('bitnet').catch(() => {}); void servers.stop('tgrep').catch(() => {}); }
 
   /** Handle only the new route families; all other routes remain with their existing owner. */
   async handle(req: IncomingMessage, res: ServerResponse, readBody: () => Promise<string>): Promise<boolean> {
     const url = new URL(req.url || '/', 'http://localhost');
-    const toolsRoute = url.pathname === '/v1/platform/tools' || url.pathname.startsWith('/v1/platform/tools/');
+    const toolsRoute = url.pathname === '/v1/platform/tools' || url.pathname.startsWith('/v1/platform/tools/') || url.pathname.startsWith('/api/skills/');
     const projectsRoute = url.pathname === '/api/github-projects' || url.pathname.startsWith('/api/github-projects/');
-    if (!toolsRoute && !projectsRoute) return false;
+    const extensionRoute = ['/api/orchestrate', '/api/providers/status', '/api/bitnet/server', '/api/tgrep/index', '/api/tgrep/server'].includes(url.pathname);
+    if (!toolsRoute && !projectsRoute && !extensionRoute) return false;
     const operator = () => {
       const actor = authenticatePlatformOperator(req.headers.authorization, this.deps.cfg(), { isLoopback: ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress || '') });
       if (!actor) throw new SkillError('A valid platform bearer token is required', 401);
@@ -69,8 +78,50 @@ export class IntegrationApi {
       if (method !== 'GET' && method !== 'HEAD') {
         try { body = object(JSON.parse(await readBody())); } catch (error) { if (error instanceof SkillError) throw error; throw new SkillError('Invalid JSON request body'); }
       }
+      if (extensionRoute) {
+        if (url.pathname === '/api/providers/status' && method === 'GET') {
+          if (!this.deps.providerStatus) throw new SkillError('Provider status is unavailable', 503);
+          json(res, 200, await this.deps.providerStatus()); return true;
+        }
+        if (method !== 'POST') throw new SkillError('Unsupported integration method', 405);
+        const workspaceId = body.workspaceId === undefined ? undefined : text(body.workspaceId, 'workspaceId');
+        if (body.approved !== undefined && typeof body.approved !== 'boolean') throw new SkillError('approved must be boolean');
+        const context = this.deps.toolContext(actor, workspaceId, signal, body.approved === true, reauthorize);
+        if (url.pathname === '/api/orchestrate') {
+          if (Object.keys(body).some(key => !['prompt', 'strategy', 'execute', 'channel', 'workspaceId', 'approved'].includes(key)) || (body.execute !== undefined && typeof body.execute !== 'boolean') || (body.channel !== undefined && !['log', 'webhook'].includes(body.channel as string))) throw new SkillError('Invalid orchestration options');
+          if (body.execute) await context.authorize('execute', { skill: 'orchestrate' });
+          json(res, 200, await orchestrate(body.prompt as string, { context, strategy: body.strategy as SplitStrategy | undefined, execute: body.execute === true, channel: body.channel as NotificationChannel | undefined }));
+        } else if (url.pathname === '/api/bitnet/server') {
+          requirePlatformCapability(reauthorize(), 'admin');
+          if (Object.keys(body).some(key => !['action', 'modelPath', 'port', 'threads', 'ctx_size', 'approved'].includes(key)) || !['start', 'stop', 'status'].includes(body.action as string)) throw new SkillError('Invalid BitNet server options');
+          const servers = this.deps.servers ?? localServers;
+          if (body.action !== 'status') await context.authorize('execute', { skill: 'bitnet-server' });
+          if (body.action === 'start') {
+            if (body.modelPath !== undefined && typeof body.modelPath !== 'string') throw new SkillError('modelPath must be a string');
+            await servers.startBitNet({ modelPath: body.modelPath as string | undefined, port: body.port as number | undefined, threads: body.threads as number | undefined, ctx_size: body.ctx_size as number | undefined }, signal);
+          }
+          else if (body.action === 'stop') await servers.stop('bitnet');
+          json(res, 200, servers.status('bitnet'));
+        } else {
+          if (Object.keys(body).some(key => !['action', 'cwd', 'workspaceId', 'approved', 'force'].includes(key)) || (body.cwd !== undefined && typeof body.cwd !== 'string') || (body.force !== undefined && typeof body.force !== 'boolean')) throw new SkillError('Invalid tgrep options');
+          const directory = (body.cwd ?? '.') as string;
+          if (url.pathname === '/api/tgrep/index') {
+            const search = new CodeSearch(context); if (body.force) await search.reindex(directory); else await search.index(directory);
+            json(res, 200, { indexed: true });
+          } else {
+            requirePlatformCapability(reauthorize(), 'admin', workspaceId);
+            if (!['start', 'stop', 'status'].includes(body.action as string)) throw new SkillError('Invalid tgrep server action');
+            const servers = this.deps.servers ?? localServers;
+            if (body.action !== 'status') await context.authorize('execute', { skill: 'tgrep-server' });
+            if (body.action === 'start') await servers.startTgrepServer(resolveSkillPath(context, directory), undefined, signal);
+            if (body.action === 'stop') await servers.stopTgrepServer();
+            json(res, 200, servers.status('tgrep'));
+          }
+        }
+        return true;
+      }
       if (toolsRoute) {
-        const match = /^\/v1\/platform\/tools\/([a-z][a-z0-9-]{0,63})\/execute$/.exec(url.pathname);
+        const match = /^\/v1\/platform\/tools\/([a-z][a-z0-9-]{0,63})\/execute$/.exec(url.pathname) ?? /^\/api\/skills\/([a-z][a-z0-9-]{0,63})$/.exec(url.pathname);
         if (!match || method !== 'POST') throw new SkillError('Unknown tool endpoint', 404);
         if (Object.keys(body).some(key => !['arguments', 'workspaceId', 'approved'].includes(key)) || (body.approved !== undefined && typeof body.approved !== 'boolean')) throw new SkillError('Unknown or invalid tool execution option');
         const workspaceId = body.workspaceId === undefined ? undefined : text(body.workspaceId, 'workspaceId');
@@ -92,7 +143,12 @@ export class IntegrationApi {
         const workspace = this.deps.workspaces.listWorkspaces().find(item => item.id === workspaceId);
         if (!workspace?.githubProject || workspace.githubProject.projectId !== projectId) throw new SkillError('Project is not linked to this workspace', 403);
       };
-      if (!segments.length && method === 'GET') {
+      if (segments.length === 3 && segments[0] === 'workspaces' && segments[2] === 'search' && method === 'GET') {
+        const workspaceId = segments[1];
+        requirePlatformCapability(reauthorize(), 'view', workspaceId);
+        const context = this.deps.toolContext(actor, workspaceId, signal, false, reauthorize);
+        json(res, 200, { results: await this.projects.searchLocalRepository(url.searchParams.get('pattern') ?? '', context, { maxResults: url.searchParams.has('maxResults') ? Number(url.searchParams.get('maxResults')) : undefined }) });
+      } else if (!segments.length && method === 'GET') {
         requirePlatformCapability(reauthorize(), 'admin');
         const owner = text(url.searchParams.get('owner'), 'owner');
         const ownerType = url.searchParams.get('ownerType') || 'organization';
