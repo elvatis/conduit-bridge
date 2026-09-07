@@ -1,15 +1,17 @@
 import { TRANSLATIONS } from './i18n.js';
 import { I18N_SCRIPT } from './ui/i18n.js';
 import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
-import { PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
+import { BRAND_ICON } from './ui/brand.js';
+import { WORKSPACE_STYLE } from './ui/workspace-style.js';
+import { PLATFORM_NEW_CHAT_HTML, PLATFORM_HISTORY_HTML, PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
 
 const SHARED_STYLE = `
   :root {
     color-scheme: dark;
-    --bg: #050b16;
-    --panel: #0a1729;
-    --panel-2: #0d1c33;
-    --panel-3: #112340;
+    --bg: #20201e;
+    --panel: #292927;
+    --panel-2: #30302d;
+    --panel-3: #383834;
     --line: rgba(143,213,236,.18);
     --line-2: rgba(143,213,236,.32);
     --text: #f5faff;
@@ -32,7 +34,7 @@ const SHARED_STYLE = `
     background: var(--bg);
     color: var(--body);
     font: 14.5px/1.5 Inter, system-ui, -apple-system, sans-serif;
-    background-image: radial-gradient(circle at 18% 0%, rgba(34,180,255,.08), transparent 32%), linear-gradient(180deg,#07111f 0%,#050b16 100%);
+    background-image: radial-gradient(circle at 18% 0%, rgba(34,180,255,.08), transparent 32%), linear-gradient(180deg,#07111f 0%,#20201e 100%);
   }
   main {
     min-height: 100vh;
@@ -366,7 +368,7 @@ const SHARED_STYLE = `
 
   /* Tool Multi-Select Component */
   .tool-picker-container {
-    background: #081526;
+    background: #292927;
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 12px 14px;
@@ -390,7 +392,7 @@ const SHARED_STYLE = `
   .tool-picker-actions button {
     font-size: 11.5px;
     padding: 4px 8px;
-    background: #112338;
+    background: #333330;
     border: 1px solid var(--line);
     color: var(--muted);
   }
@@ -404,7 +406,7 @@ const SHARED_STYLE = `
     gap: 6px;
     min-height: 34px;
     padding: 6px 8px;
-    background: #0b1a2e;
+    background: #292927;
     border: 1px solid rgba(143,213,236,.14);
     border-radius: 6px;
     margin-bottom: 10px;
@@ -563,7 +565,7 @@ const SHARED_STYLE = `
     margin-top: 18px;
     border: 1px solid var(--line-2);
     border-radius: 8px;
-    background: #071324;
+    background: #222220;
     padding: 18px;
   }
   .checkpoint-banner {
@@ -716,13 +718,13 @@ const SHARED_STYLE = `
     width: 100%;
     border: 1px solid rgba(143,213,236,.24);
     border-radius: 7px;
-    background: #0b1a2e;
+    background: #292927;
     color: var(--text);
     padding: 10px 12px;
     font: inherit;
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
   }
-  input:hover, select:hover, textarea:hover { border-color: var(--line-2); background: #0e2038; }
+  input:hover, select:hover, textarea:hover { border-color: var(--line-2); background: #30302d; }
   input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(34,180,255,.14); }
   textarea { min-height: 92px; resize: vertical; }
   .play-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -738,7 +740,7 @@ const SHARED_STYLE = `
   .help section { margin-bottom: 16px; }
   main.help { display: block; max-width: 1040px; margin: 0 auto; padding: 32px 20px 56px; }
   li { margin: 7px 0; }
-  pre { overflow-x: auto; background: #111827; border: 1px solid var(--line); padding: 14px; border-radius: 6px; }
+  pre { overflow-x: auto; background: #20201e; border: 1px solid var(--line); padding: 14px; border-radius: 6px; }
   @media (max-width: 760px) {
     main { display: block; }
     .sidebar { position: fixed; z-index: 30; width: min(290px,86vw); transform: translateX(-102%); transition: transform .18s ease; box-shadow: 18px 0 45px rgba(0,0,0,.35); }
@@ -772,28 +774,28 @@ const SHARED_STYLE = `
 
   /* Filter Chips */
   .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
-  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: #0c1c30; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: #292927; color: var(--muted); cursor: pointer; transition: all .12s ease; }
   .filter-chip:hover { border-color: var(--line-2); color: var(--text); }
-  .filter-chip.active { background: var(--blue); color: #050b16; border-color: var(--blue); font-weight: 600; }
+  .filter-chip.active { background: var(--blue); color: #20201e; border-color: var(--blue); font-weight: 600; }
 
   /* Data Table */
   .data-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; margin: 10px 0; }
-  .data-table th { background: #112338; color: var(--blue-soft); padding: 9px 12px; border-bottom: 1px solid var(--line-2); font-weight: 600; }
+  .data-table th { background: #333330; color: var(--blue-soft); padding: 9px 12px; border-bottom: 1px solid var(--line-2); font-weight: 600; }
   .data-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   .data-table tr:hover td { background: rgba(17,35,64,.5); }
 
   /* Budget Meters */
-  .budget-gauge { background: #0b1a2e; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
-  .budget-meter { height: 10px; border-radius: 5px; background: #132438; overflow: hidden; margin: 8px 0; }
+  .budget-gauge { background: #292927; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .budget-meter { height: 10px; border-radius: 5px; background: #333330; overflow: hidden; margin: 8px 0; }
   .budget-fill { height: 100%; border-radius: 5px; transition: width .3s ease; }
   .budget-fill.safe { background: #1fd18a; }
   .budget-fill.warn { background: #f5b83d; }
   .budget-fill.danger { background: #ff6f91; }
 
   /* Directory Browser */
-  .dir-browser { background: #081526; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
+  .dir-browser { background: #292927; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
   .dir-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
-  .dir-item:hover { background: #11243c; border-color: var(--line); }
+  .dir-item:hover { background: #333330; border-color: var(--line); }
   .dir-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; font-family: ui-monospace, monospace; color: var(--blue-soft); }
 
   /* Tool Catalog Grid */
@@ -823,6 +825,7 @@ const SHARED_STYLE = `
     .activity-event:not(.run-history-item) > :last-child { grid-column: 1 / -1; }
     .data-table th, .data-table td { padding: 6px 4px; font-size: 11px; }
   }
+  ${WORKSPACE_STYLE}
 `;
 
 export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
@@ -831,6 +834,8 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-i18n="ui_title">Conduit Bridge - Provider Control Plane</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="theme-color" content="#242422">
   <style>${SHARED_STYLE}</style>
 </head>
 <body>
@@ -838,26 +843,33 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="brand">
-        <div class="brand-info">
-          <div class="brand-mark" data-i18n="ui_community">OPEN SOURCE / COMMUNITY</div>
-          <h1>Conduit Bridge</h1>
-          <small data-i18n="ui_provider_control">Provider control plane</small>
-        </div>
+        <div class="brand-logo" aria-hidden="true">${BRAND_ICON}</div><div class="brand-info"><h1>Conduit</h1></div>
       </div>
       <button class="collapse-btn" id="sidebar-collapse-btn" type="button" title="Toggle sidebar layout" data-i18n-title="ui_toggle_sidebar_layout" aria-label="Toggle sidebar" data-i18n-aria="ui_toggle_sidebar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9-3 3 3 3"/></svg>
       </button>
     </div>
-    <nav class="side-menu" aria-label="Dashboard sections" data-i18n-aria="ui_dashboard_sections" id="side-nav">
-      <div class="nav-group-label" data-nav-group="core" data-i18n="group_core">Core</div>
-      <button class="active" data-section="overview" title="Overview" data-i18n-title="nav_overview">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-        <span class="nav-label" data-i18n="nav_overview">Overview</span>
-      </button>
-      <button data-section="platform" title="Conversation &amp; Agent Workspace" data-i18n-title="h_platform">
+${PLATFORM_NEW_CHAT_HTML}
+<nav class="side-menu" aria-label="Main navigation" data-i18n-aria="ui_main_navigation">      <button class="active" data-section="platform" title="Conversation &amp; Agent Workspace" data-i18n-title="h_platform">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
         <span class="nav-label" data-i18n="nav_platform">Webchat &amp; agents</span>
       </button>
+      <button data-section="models" title="Models" data-i18n-title="nav_models">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+        <span class="nav-label" data-i18n="nav_models">Models</span>
+      </button>
+      <button data-section="workspaces" title="Workspaces &amp; Working Directories" data-i18n-title="ui_workspaces_directories">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span class="nav-label" data-i18n="nav_workspaces">Workspaces</span>
+      </button></nav>
+${PLATFORM_HISTORY_HTML}
+<details class="nav-advanced" id="advanced-nav"><summary title="Tools and administration" data-i18n-title="ui_tools_admin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><path d="M14 17.5h7m-3.5-3.5v7"/></svg><span data-i18n="ui_tools_admin">Tools and administration</span></summary>    <nav class="side-menu" aria-label="Dashboard sections" data-i18n-aria="ui_dashboard_sections" id="side-nav">
+      <div class="nav-group-label" data-nav-group="core" data-i18n="group_core">Core</div>
+      <button data-section="overview" title="Overview" data-i18n-title="nav_overview">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        <span class="nav-label" data-i18n="nav_overview">Overview</span>
+      </button>
+
       <button data-section="playground" title="Playground" data-i18n-title="nav_playground">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg>
         <span class="nav-label" data-i18n="nav_playground">Playground</span>
@@ -892,15 +904,9 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v2"/><path d="M12 16v2"/></svg>
         <span class="nav-label" data-i18n="nav_budgets">Budgets</span>
       </button>
-      <button data-section="workspaces" title="Workspaces &amp; Working Directories" data-i18n-title="ui_workspaces_directories">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        <span class="nav-label" data-i18n="nav_workspaces">Workspaces</span>
-      </button>
+
       <div class="nav-group-label" data-nav-group="analytics" data-i18n="group_analytics">Analytics</div>
-      <button data-section="models" title="Models" data-i18n-title="nav_models">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
-        <span class="nav-label" data-i18n="nav_models">Models</span>
-      </button>
+
       <button data-section="usage" title="Usage Statistics" data-i18n-title="ui_usage_statistics">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
         <span class="nav-label" data-i18n="nav_usage">Usage</span>
@@ -922,20 +928,21 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         <span class="nav-label" data-i18n="nav_activity">Activity</span>
       </button>
-      <button data-section="settings" title="Settings" data-i18n-title="nav_settings">
+
+
+    </nav>    <button class="nav-custom-trigger" id="open-nav-custom-btn" type="button" title="Customize navigation visibility" data-i18n-title="ui_customize_visibility"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="15"/><line x1="12" x2="12" y1="11" y2="3"/><line x1="20" x2="20" y1="21" y2="17"/><line x1="20" x2="20" y1="13" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="15" y2="15"/><line x1="17" x2="23" y1="17" y2="17"/></svg>
+
+      <span data-i18n="ui_customize_nav">Customize Nav</span>
+    </button></details><nav class="side-menu sidebar-bottom" aria-label="Settings and help" data-i18n-aria="ui_settings_help">      <button data-section="settings" title="Settings" data-i18n-title="nav_settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="nav-label" data-i18n="nav_settings">Settings</span>
       </button>
       <button data-section="help" title="Help &amp; Documentation" data-i18n-title="ui_help_documentation">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
         <span class="nav-label" data-i18n="nav_help">Help</span>
-      </button>
-    </nav>
-    <button class="nav-custom-trigger" id="open-nav-custom-btn" type="button" title="Customize navigation visibility" data-i18n-title="ui_customize_visibility"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="15"/><line x1="12" x2="12" y1="11" y2="3"/><line x1="20" x2="20" y1="21" y2="17"/><line x1="20" x2="20" y1="13" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="15" y2="15"/><line x1="17" x2="23" y1="17" y2="17"/></svg>
+      </button></nav>
 
-      <span data-i18n="ui_customize_nav">Customize Nav</span>
-    </button>
-    <div class="side-footer">
+    <div class="side-footer" hidden>
       <span id="side-runtime" data-i18n="ui_loading">Loading...</span>
     </div>
   </aside>
@@ -944,7 +951,7 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
     <nav class="appbar" aria-label="Dashboard controls" data-i18n-aria="ui_dashboard_controls">
       <div style="display: flex; align-items: center; gap: 10px;">
         <button id="menu-toggle" type="button" aria-label="Toggle navigation" data-i18n-aria="ui_toggle_navigation" data-i18n="ui_menu">Menu</button>
-        <span class="appbrand">CONDUIT BRIDGE</span>
+        <span class="appbrand" id="page-title" data-i18n="nav_platform">Chat</span>
       </div>
       <div class="header-actions">
         <button id="lang-toggle" type="button" title="Switch language" data-i18n-title="ui_switch_language" aria-label="Toggle language" data-i18n-aria="ui_toggle_language"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="lang-label">DE</span></button>
@@ -959,7 +966,7 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
     ${PLATFORM_HTML}
 
     <!-- Overview Section -->
-    <div id="overview-section" class="page-section active">
+    <div id="overview-section" class="page-section">
       <header id="overview" class="anchor">
         <div>
           <h1 data-i18n="h_overview">Operational Dashboard</h1>
@@ -1507,6 +1514,19 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   const mainLayout = $('main-layout');
   const collapseBtn = $('sidebar-collapse-btn');
 
+  function setNotice(render, tone = 'info') {
+    $('notice').classList.toggle('error', tone === 'error');
+    $('notice').classList.toggle('notice-visible', tone !== 'quiet');
+    setLocalizedText($('notice'), render);
+  }
+
+  function syncSidebarExpanded() {
+    const mobile = window.matchMedia?.('(max-width: 760px)').matches;
+    const expanded = mobile ? sidebar.classList.contains('open') : !sidebar.classList.contains('collapsed');
+    sidebar.inert = Boolean(mobile && !expanded);
+    collapseBtn.setAttribute('aria-expanded', String(expanded));
+    $('menu-toggle').setAttribute('aria-expanded', String(expanded));
+  }
   function initSidebarCollapse() {
     const isCollapsed = localStorage.getItem('conduit_sidebar_collapsed') === 'true';
     if (isCollapsed) {
@@ -1514,10 +1534,14 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       mainLayout.classList.add('sidebar-collapsed');
     }
     collapseBtn.addEventListener('click', () => {
+      if (window.matchMedia?.('(max-width: 760px)').matches) { sidebar.classList.remove('open'); syncSidebarExpanded(); $('menu-toggle').focus(); return; }
       const collapsed = sidebar.classList.toggle('collapsed');
       mainLayout.classList.toggle('sidebar-collapsed', collapsed);
+      syncSidebarExpanded();
       localStorage.setItem('conduit_sidebar_collapsed', String(collapsed));
     });
+    syncSidebarExpanded();
+    window.addEventListener?.('resize', syncSidebarExpanded);
   }
   initSidebarCollapse();
 
@@ -1585,7 +1609,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   function openNavModal() {
     const visible = getVisibleNavs();
     const container = $('nav-checkboxes-container');
-    setLocalizedHtml(container, () => NAV_SECTIONS.map(s =>
+    setLocalizedHtml(container, () => NAV_SECTIONS.filter(s => !['platform','models','workspaces','settings','help'].includes(s.key)).map(s =>
       '<label class="nav-checkbox-label">' +
         '<input type="checkbox" data-nav-key="' + esc(s.key) + '"' + (visible.has(s.key) ? ' checked' : '') + '> ' +
         esc(t(s.label)) +
@@ -1643,9 +1667,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     help: 'help-section-v2'
   };
 
-  let activeSection = 'overview';
+  let activeSection = 'platform';
   function showSection(name) {
     activeSection = name;
+    const section = NAV_SECTIONS.find(item => item.key === name);
+    if (section) setLocalizedText($('page-title'), () => t(section.label));
     Object.entries(sectionIds).forEach(([key, id]) => {
       const el = $(id);
       if (el) el.classList.toggle('active', key === name);
@@ -1654,15 +1680,19 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       button.classList.toggle('active', button.dataset.section === name);
     });
     sidebar.classList.remove('open');
+    syncSidebarExpanded();
     if (name === 'platform') platformRefresh().catch(error => pfStatus(() => error.message, true));
     scheduleLiveRefresh();
   }
 
   document.querySelectorAll('[data-section]').forEach(button => {
-    button.addEventListener('click', () => showSection(button.dataset.section));
+    button.addEventListener('click', () => { showSection(button.dataset.section); if (button.dataset.section === 'platform') pfTab('chat'); });
   });
 
-  $('menu-toggle').addEventListener('click', () => sidebar.classList.toggle('open'));
+  $('menu-toggle').addEventListener('click', () => { sidebar.classList.toggle('open'); syncSidebarExpanded(); });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && sidebar.classList.contains('open')) { sidebar.classList.remove('open'); syncSidebarExpanded(); $('menu-toggle').focus(); }
+  });
 
   // Auth & API fetch wrapper
   function authToken() {
@@ -1980,11 +2010,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         body: JSON.stringify({ provider, agentEnabled, defaultMode, disallowedTools }),
       });
       if (feedback) setLocalizedText(feedback, () => t('status_saved'));
-      setLocalizedText($('notice'), () => (t('ui_policy_saved_for') + ' ') + provider);
+      setNotice(() => (t('ui_policy_saved_for') + ' ') + provider, 'info');
       await refresh();
     } catch (error) {
       if (feedback) setLocalizedText(feedback, () => error.message);
-      setLocalizedText($('notice'), () => error.message);
+      setNotice(() => error.message, 'error');
     } finally {
       button.disabled = false;
     }
@@ -2083,7 +2113,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       const result = await request('/v1/pipelines/runs/' + encodeURIComponent(runId));
       renderLiveRun(result.run);
       $('pipe-live-status').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (error) { setLocalizedText($('notice'), () => error.message); }
+    } catch (error) { setNotice(() => error.message, 'error'); }
   }
   for (const id of ['pipelines-history', 'pipeline-approvals']) {
     $(id).addEventListener('click', event => {
@@ -2162,7 +2192,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       $('pipe-run-select').value = run.pipelineId;
       $('pipe-run-prompt').value = '';
       $('pipe-run-prompt').focus();
-      setLocalizedText($('notice'), () => t('ui_prepare_run_guidance'));
+      setNotice(() => t('ui_prepare_run_guidance'), 'info');
     });
     $('btn-cancel-run')?.addEventListener('click', async event => {
       const cancelButton = event.currentTarget;
@@ -2174,7 +2204,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         });
         renderLiveRun(result.run);
         scheduleLiveRefresh();
-      } catch (error) { setLocalizedText($('notice'), () => error.message); cancelButton.disabled = false; }
+      } catch (error) { setNotice(() => error.message, 'error'); cancelButton.disabled = false; }
     });
 
     const approveBtn = $('btn-approve-step');
@@ -2936,10 +2966,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         body: JSON.stringify({ provider: form.dataset.keyProvider, key: input.value })
       });
       input.value = '';
-      setLocalizedText($('notice'), () => (t('ui_credential_saved_for') + ' ') + form.dataset.keyProvider);
+      setNotice(() => (t('ui_credential_saved_for') + ' ') + form.dataset.keyProvider, 'info');
       await refresh();
     } catch (error) {
-      setLocalizedText($('notice'), () => error.message);
+      $('notice').classList.add('error');
+      setNotice(() => error.message, 'error');
     } finally {
       button.disabled = false;
     }
@@ -2984,13 +3015,14 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       if (activeSection === 'platform') jobs.push(platformRefresh());
       const outcomes = await Promise.allSettled(jobs);
       const failure = outcomes.find(result => result.status === 'rejected');
-      if (failure) setLocalizedText($('notice'), () => (t('error_live_update') + ' ') + failure.reason.message);
+      if (failure) setNotice(() => (t('error_live_update') + ' ') + failure.reason.message, 'error');
     } finally { finishRefresh(); }
   }
   async function refresh() {
     if (refreshInFlight) { fullRefreshPending = true; return; }
     refreshInFlight = true;
-    setLocalizedText($('notice'), () => t('status_refreshing'));
+    $('notice').classList.remove('error');
+    setNotice(() => t('status_refreshing'), 'quiet');
     try {
       const identity = await request('/v1/platform/me');
       pfState.operator = identity.operator;
@@ -2998,7 +3030,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         setLocalizedText($('side-runtime'), () => (t('ui_workspace_access') + ' ') + identity.operator.role);
         showSection('platform');
         await platformRefresh();
-        setLocalizedText($('notice'), () => (t('ui_workspace_loaded_for') + ' ') + (identity.operator.displayName || identity.operator.operatorId));
+        setNotice(() => (t('ui_workspace_loaded_for') + ' ') + (identity.operator.displayName || identity.operator.operatorId), 'quiet');
         return;
       }
       const [
@@ -3052,20 +3084,22 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       renderWorkspaces(wsData.data || []);
       renderAnalyticsCharts(analyticsData);
       platformSyncModels();
+      if (activeSection === 'platform') await platformRefresh();
 
-      setLocalizedText($('notice'), () => (t('ui_updated') + ' ') + new Date().toLocaleTimeString(currentLang));
+      setNotice(() => (t('ui_updated') + ' ') + new Date().toLocaleTimeString(currentLang), 'quiet');
     } catch (error) {
-      setLocalizedText($('notice'), () => error.message);
+      setNotice(() => error.message, 'error');
     } finally { finishRefresh(); }
   }
 
   $('model-list').addEventListener('click', event => {
     const use = event.target.closest('[data-use-model]');
     if (!use) return;
-    $('play-model').value = use.dataset.useModel;
-    updateEffortOptions();
-    showSection('playground');
-    setLocalizedText($('notice'), () => use.dataset.useModel + (' ' + t('ui_selected_playground')));
+    $('pf-chat-model').value = use.dataset.useModel;
+    showSection('platform');
+    pfTab('chat');
+    pfContextSummary();
+    setNotice(() => use.dataset.useModel + (' ' + t('ui_selected_playground')), 'info');
   });
 
   async function runPlayground() {
@@ -3100,7 +3134,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   $('play-model').addEventListener('change', updateEffortOptions);
   $('play-run').addEventListener('click', runPlayground);
-  $('refresh').addEventListener('click', refresh);
+  $('refresh').addEventListener('click', () => { pfState.models = null; pfState.workspaces = null; return refresh(); });
   $('model-search').addEventListener('input', () => renderModels(models));
   $('model-transport-filter').addEventListener('change', () => renderModels(models));
   $('model-provider-filter').addEventListener('change', () => renderModels(models));
@@ -3208,7 +3242,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       if ($('pipe-run-select')) $('pipe-run-select').value = pipeId;
       if ($('pipe-run-repo')) $('pipe-run-repo').value = repoId;
       if ($('pipe-run-cwd') && repoPath) $('pipe-run-cwd').value = repoPath;
-      setLocalizedText($('notice'), () => (t('ui_loaded_pipeline') + ' ') + pipeId + (' ' + t('ui_for_repository') + ' ') + repoId);
+      setNotice(() => (t('ui_loaded_pipeline') + ' ') + pipeId + (' ' + t('ui_for_repository') + ' ') + repoId, 'info');
     }
   });
 
@@ -3286,7 +3320,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (useBtn) {
       $('play-cwd').value = useBtn.dataset.useWs;
       showSection('playground');
-      setLocalizedText($('notice'), () => (t('ui_selected_workspace') + ' ') + useBtn.dataset.useWs);
+      setNotice(() => (t('ui_selected_workspace') + ' ') + useBtn.dataset.useWs, 'info');
     }
   });
 
@@ -3356,7 +3390,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       } catch {}
     };
     ws.onerror = () => {
-      if (!eventsConnected) setLocalizedText($('notice'), () => t('ui_live_unavailable'));
+      if (!eventsConnected) setNotice(() => t('ui_live_unavailable'), 'quiet');
     };
     ws.onclose = () => {
       eventsConnected = false;
@@ -3366,6 +3400,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   ${PLATFORM_SCRIPT}
   ${SETTING_TOOLTIP_SCRIPT}
+  pfRenderTranscript();
   refresh();
   connectEvents();
   setInterval(refreshLive, 15000);
@@ -3376,7 +3411,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 </body>
 </html>`);
 
-export const HELP_HTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title data-i18n="help_title">Conduit Bridge Help</title><style>${SHARED_STYLE}</style></head>
+export const HELP_HTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><title data-i18n="help_title">Conduit Bridge Help</title><style>${SHARED_STYLE}</style></head>
 <body><main class="help"><header><div><h1 data-i18n="help_title">Conduit Bridge Help</h1><div class="muted" data-i18n="help_subtitle">Installation, provider routing, and operations</div></div><nav class="nav"><button id="lang-toggle" type="button" title="Switch language" data-i18n-title="ui_switch_language" aria-label="Toggle language" data-i18n-aria="ui_toggle_language"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="lang-label">DE</span></button><a class="link" href="/" data-i18n="help_dashboard">Dashboard</a></nav></header>
   <section><h2 data-i18n="help_installation">Requirements and installation</h2><p data-i18n="help_platforms">Conduit Bridge runs on Windows Desktop and Linux Desktop. It requires Node.js 24 or newer.</p><pre>npm install
 npm run build

@@ -9,8 +9,9 @@ function dashboard(lang = 'en') {
   const element = (id: string): any => {
     if (!elements.has(id)) elements.set(id, {
       id, value: '', innerHTML: '', textContent: '', className: '', style: {}, dataset: {},
-      listeners: new Map(), classList: { add() {}, remove() {}, toggle() {} },
+      listeners: new Map(), classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
       addEventListener(event: string, handler: unknown) { this.listeners.set(event, handler); },
+      setAttribute() {},
       querySelectorAll: () => [], querySelector: () => null, scrollIntoView() {},
     });
     return elements.get(id);
@@ -35,6 +36,21 @@ function dashboard(lang = 'en') {
 }
 
 describe('dashboard browser contracts', () => {
+  it('starts in chat and keeps daily navigation outside the closed administration disclosure', () => {
+    const ui = dashboard();
+    expect(ui.run('activeSection')).toBe('platform');
+    const disclosure = DASHBOARD_HTML.match(/<details class="nav-advanced"[\s\S]*?<\/details>/)?.[0] || '';
+    expect(disclosure).not.toMatch(/<details[^>]*\bopen\b/);
+    expect(disclosure).toContain('data-section="pipelines"');
+    for (const section of ['platform','models','workspaces','settings','help']) {
+      expect(disclosure).not.toContain(`data-section="${section}"`);
+      expect(DASHBOARD_HTML.match(new RegExp(`data-section="${section}"`, 'g'))).toHaveLength(1);
+    }
+    for (const id of ['pf-new-chat','pf-sessions','pf-chat-model','pf-chat-input']) {
+      expect(DASHBOARD_HTML.match(new RegExp(`id="${id}"`, 'g'))).toHaveLength(1);
+    }
+  });
+
   it('uses budget usage and hardStop fields, preserving dirty controls on background updates', () => {
     const ui = dashboard();
     ui.run(`renderBudgets({config:{dailyBudgetUsd:10,monthlyBudgetUsd:100,hardStop:false},usage:{currentDailyCostUsd:8.5,currentMonthlyCostUsd:20}})`);

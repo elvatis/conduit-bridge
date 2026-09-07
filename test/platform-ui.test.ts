@@ -56,6 +56,14 @@ function workspace(lang = 'en') {
 }
 
 describe('platform workspace browser behavior', () => {
+  it('shows readable chat model labels while preserving provider routing IDs', () => {
+    const ui = workspace();
+    ui.run(`pfState.models = [{id:'api-openrouter/openai/gpt-6-astra'},{id:'cli-codex/gpt-5.6-sol'}]; platformSyncModels()`);
+    expect(ui.element('pf-chat-model').options.map(option => option.value)).toEqual(['api-openrouter/openai/gpt-6-astra','cli-codex/gpt-5.6-sol']);
+    expect(ui.element('pf-chat-model').options[0].textContent).toBe('GPT-6 Astra · OpenRouter');
+    expect(ui.element('pf-chat-model').options[1].textContent).toBe('GPT-5.6 Sol · Codex');
+  });
+
   it('changes the next model without replacing the transcript and submits explicit versioned context', () => {
     const ui = workspace();
     ui.run(`pfState.session = {id:'s', messages:[{id:'m',role:'user',content:'Existing conversation'}]}; pfRenderTranscript();`);

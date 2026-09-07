@@ -618,6 +618,18 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     }
   });
 
+  it('serves the same favicon for the dashboard and browser fallback without credentials', async () => {
+    const icon = await fetch(`${base}/favicon.svg`);
+    expect(icon.status).toBe(200);
+    expect(icon.headers.get('content-type')).toContain('image/svg+xml');
+    const svg = await icon.text();
+    expect(svg).toContain('viewBox="0 0 64 64"');
+    expect(svg).not.toContain('<script');
+    expect(await (await fetch(`${base}/favicon.ico`)).text()).toBe(svg);
+    expect(DASHBOARD_HTML).toContain('rel="icon" type="image/svg+xml" href="/favicon.svg"');
+    expect(HELP_HTML).toContain('href="/favicon.svg"');
+  });
+
   it('renders the complete standalone Help page directly', async () => {
     const res = await fetch(`${base}/help`);
     expect(res.status).toBe(200);

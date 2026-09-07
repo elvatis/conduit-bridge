@@ -10,6 +10,7 @@ import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
 import { parseCliRunMode, agentModeCwdError, KNOWN_TOOLS, discoverSystemTools, normalizeDisallowedTools } from './cli-mode.js';
 import { DASHBOARD_HTML, HELP_HTML } from './dashboard.js';
+import { BRAND_ICON } from './ui/brand.js';
 import { MetricsStore } from './metrics.js';
 import { MAX_PIPELINE_PROMPT_CHARS, PipelineStore, runPipeline, type PipelineDefinition, type PipelineRun } from './pipelines.js';
 import { saveConfig, resolveSecretReference } from './config.js';
@@ -629,6 +630,12 @@ export class BridgeServer {
     // Always open (no auth) so health checks keep working.
     if (path === '/health' && method === 'GET') {
       json(res, 200, { status: 'ok', service: 'conduit-bridge', version: PKG_VERSION });
+      return;
+    }
+
+    if ((path === '/favicon.svg' || path === '/favicon.ico') && method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
+      res.end(BRAND_ICON);
       return;
     }
 
