@@ -153,7 +153,7 @@ sent during implementation validation.
 ## BitNet
 
 Native Windows inference without Conda is now verified with the official 2B-4T
-GGUF. See [the reproducible build and validation guide](BITNET-NATIVE-WINDOWS.md)
+GGUF. See [the reproducible build and validation guide](../guides/bitnet.md)
 for the required upstream activation patch, tokenizer/template settings and
 actual quality/performance results.
 
@@ -229,4 +229,4 @@ The designs were adapted to bridge contracts after inspecting
 (MIT), and [Microsoft tgrep](https://github.com/microsoft/tgrep) (MIT).
 No upstream module was copied verbatim. tgrep 1.0.4 was exercised as a separate
 portable test binary; no dependency or binary is bundled into this package.
-See [validation evidence](ADDENDUM-VALIDATION.md) for tested paths and limits.
+See [validation evidence](../validation/addendum.md) for tested paths and limits.

@@ -3,7 +3,7 @@
 `chat-2b4t.jinja` reproduces Microsoft's published b1.58 2B-4T chat template.
 `b158-2b-relu2.patch` modifies the pinned llama.cpp BitNet graph to match the
 official 2B model's squared-ReLU activation. This is a local compatibility patch,
-not an upstream release. See `docs/BITNET-NATIVE-WINDOWS.md` for source revisions.
+not an upstream release. See `docs/guides/bitnet.md` for source revisions.
 
 MIT License
 

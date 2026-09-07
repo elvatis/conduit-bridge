@@ -8,7 +8,7 @@ These three short examples exercise actual provider calls through Conduit Bridge
 | Approval checkpoint | A model drafts a welcome sentence; the next model step waits for approval. | The gated step has no output before approval and executes afterward, producing `APPROVED:`. |
 | Parallel debate | Two independent perspectives debate README order; a third step synthesizes them. | Both perspectives complete before synthesis begins, and all three steps return content. |
 
-The [JSON definitions](../examples/pipelines/) use `{{model}}` and `{{peer_model}}` placeholders. The runner substitutes your selected advertised model IDs and registers unique copies. It preserves the normal pipeline prompt placeholders such as `{{previous_output}}` and `{{prior_steps}}`.
+The [JSON definitions](../../examples/pipelines/) use `{{model}}` and `{{peer_model}}` placeholders. The runner substitutes your selected advertised model IDs and registers unique copies. It preserves the normal pipeline prompt placeholders such as `{{previous_output}}` and `{{prior_steps}}`.
 
 ## Start the branch locally
 
@@ -80,7 +80,7 @@ The server validates the pending step and the effective execution policy again. 
 
 Full prompts, step outputs and the frozen definition stay in memory during the service lifetime. Disk history stores bounded summaries. Reloading the browser can recover an approval and its outputs while the same service is running. Restarting the bridge marks running and paused work **interrupted**; inspect its workspace and start a new run. The bridge cannot safely resume exact work after deliberately discarding its prompt and output context.
 
-The [recorded PR 117 validation](PR117-VALIDATION.md) includes a successful real
+The [recorded PR 117 validation](../validation/pr117.md) includes a successful real
 run of all three examples, debate responses, timings and known CLI limitations.
 
 ## If a run fails

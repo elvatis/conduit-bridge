@@ -6,8 +6,8 @@ adds eleven explicit tools to the same host: `web-search`, `filesystem`,
 `prompt-splitter`, `split-execute` and `routing-rules`. A catalog attachment does not
 automatically grant tool permissions or execute these actions. Clients use the
 typed registry or the authenticated HTTP endpoints to invoke them.
-See [integration validation](INTEGRATIONS-VALIDATION.md) for measured results.
-The [addendum guide](ADDENDUM-INTEGRATIONS.md) covers the five added tools,
+See [integration validation](../validation/integrations.md) for measured results.
+The [integration reference](../reference/integrations.md) covers the five added tools,
 daily journal actions, planning/execution, CLI continuity, BitNet and indexed search.
 
 ## Tool API
@@ -115,7 +115,7 @@ Dashboard settings use a typed tooltip registry with keyboard-focusable help,
 hover/focus text and preserved input descriptions. It works with the existing
 server-rendered HTML, without a UI framework dependency.
 
-The [VS Code protocol](vscode-bridge.md) adds `/vscode` for streaming conversations,
+The [VS Code protocol](../reference/vscode-bridge.md) adds `/vscode` for streaming conversations,
 inline-edit proposals, bounded agent sessions and usage queries. The sibling
 extension was inspected as an integration reference; it still needs a client
 implementation for this new protocol.

@@ -1,7 +1,7 @@
 # Provider and agent platform validation
 
 Validation date: 2026-09-07. Branch: `feat/provider-agent-management`.
-This supplements the earlier pipeline corrections in [PR117 validation](PR117-VALIDATION.md).
+This supplements the earlier pipeline corrections in [PR117 validation](pr117.md).
 
 ## Automated coverage
 

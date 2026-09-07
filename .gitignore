@@ -30,3 +30,7 @@ service-account*.json
 # exposed exactly that way from 2026-03-15 to 2026-09-03.
 .claude/settings.local.json
 .claude/*.local.json
+
+# Repository guidance may contain machine- or team-specific instructions.
+# Keep the local CLAUDE.md available to its author without tracking it.
+CLAUDE.md

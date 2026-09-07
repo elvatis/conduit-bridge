@@ -1,8 +1,8 @@
 # Tools, Projects and VS Code validation
 
 Validated on 2026-09-07 on `feat/provider-agent-management`, after the platform
-foundation at `96fd849`. See [Tools and Projects](TOOLS-AND-PROJECTS.md) and the
-[VS Code protocol](vscode-bridge.md) for usage.
+foundation at `96fd849`. See [Tools and Projects](../guides/tools-and-projects.md) and the
+[VS Code protocol](../reference/vscode-bridge.md) for usage.
 
 ## Automated verification
 

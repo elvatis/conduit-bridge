@@ -49,7 +49,7 @@ Bump these together:
 - [ ] README model tables match `src/providers/*` catalogs
 - [ ] README documents new request fields (e.g. `effort`)
 - [ ] SECURITY.md still accurate if auth/CORS/secrets changed
-- [ ] `docs/RELEASING.md` still accurate if process changed
+- [ ] `docs/operations/releasing.md` still accurate if process changed
 - [ ] No em dashes (U+2014) in docs/comments (`aahp.config.json` ban)
 
 ### 3. Changelog

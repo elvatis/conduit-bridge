@@ -2,40 +2,29 @@
 
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 [![supply-chain-guard](https://img.shields.io/badge/supply--chain--guard-enabled-blue)](https://github.com/homeofe/supply-chain-guard)
-[![scanned by supply-chain-guard](https://img.shields.io/badge/scanned%20by-supply--chain--guard-2ea44f?logo=npm&logoColor=white)](https://github.com/homeofe/supply-chain-guard)
 
 **Current version:** 0.9.1
 
-Conduit Bridge is a local OpenAI-compatible gateway for direct provider APIs,
-authenticated coding CLIs, and LM Studio. It runs on Windows Desktop and Linux
-Desktop and exposes one loopback listener at `127.0.0.1:31338`.
+Conduit Bridge is a local, OpenAI-compatible gateway for the AI tools you
+already use. It gives desktop clients one loopback endpoint while keeping API
+keys, authenticated coding CLIs, local models, conversations, and workspace
+access under explicit local control. It runs on Windows Desktop and Linux
+Desktop at `127.0.0.1:31338`.
 
-## Provider model
+## What it does
 
-Authentication is deliberately separated by transport:
+| Need | Conduit Bridge provides |
+| --- | --- |
+| One client endpoint | OpenAI-compatible chat, responses, embeddings, model discovery, metrics, events, and comparison endpoints. |
+| Provider choice | Direct APIs, authenticated coding CLIs, LM Studio, and optional local BitNet inference remain separate and independently configurable. |
+| Productive local work | A dashboard for chat, models, provider health, projects, budgets, pipelines, governance, and diagnostics. |
+| Controlled automation | Bounded agent runs, approval gates, scoped workspaces, versioned skills, provider profiles, and usage estimates. |
+| Private local state | Encrypted retained platform data and credentials, with explicit backup, restore, and storage-backend selection. |
+| Fast code lookup | Optional local `tgrep` indexing with a native ripgrep fallback. No source code is sent to a model to perform a search. |
 
-| Category | Providers | Authentication |
-| --- | --- | --- |
-| API | `claude-api`, `codex-api`, `gemini-api`, `openrouter-api`, `perplexity-api` | Dedicated API key in Settings or a provider environment variable |
-| CLI | `cli-claude`, `cli-codex`, `cli-gemini`, `cli-grok` | The installed CLI's own login |
-| Local | `lmstudio` | Running local LM Studio endpoint |
+## Quick start
 
-CLI authentication never makes the similarly named API provider appear
-configured. If a user has both an authenticated CLI and an API key, both
-providers are visible and usable independently.
-
-Browser-session providers and all `web-*` model routes have been removed.
-They were not reliable enough across provider security checks for a
-community-maintained gateway.
-
-## Requirements
-
-- Node.js 24 or newer
-- Windows Desktop or Linux Desktop
-- Any provider CLIs you want to use, installed and authenticated normally
-- API keys only for the direct API providers you choose
-
-## Install and run
+Install Node.js 24 or newer, then build and start the bridge:
 
 ```bash
 npm install
@@ -43,42 +32,10 @@ npm run build
 node dist/cli.js start
 ```
 
-Open <http://127.0.0.1:31338/>. The dashboard has separate navigation pages for
-API, CLI, and local providers.
+Open [the local dashboard](http://127.0.0.1:31338/) and select a connected
+model. The bridge listens only on loopback by default.
 
-Try the [short pipeline examples](docs/PIPELINE-EXAMPLES.md): an agent file-write
-and peer-verification chain, an approval checkpoint, and a parallel debate.
-The runnable examples include assertions and retain a local results report.
-
-Use the [Platform guide](docs/PLATFORM-GUIDE.md) for Webchat, reviewed memory,
-versioned skills, bounded agent runs, provider profiles and encrypted storage.
-
-## Executable skills and GitHub Projects
-
-The bridge includes typed tools for Perplexity web search, workspace files,
-GitHub Actions, public-page fetching, scoped KV/daily memory, bounded subprocesses,
-indexed code search, notifications, prompt splitting, task execution and routing.
-They use explicit authenticated calls and existing workspace/budget policies;
-prompt skill attachments do not grant execution permissions. Settings include
-keyboard-accessible hover/focus help.
-
-The [additional integrations guide](docs/ADDENDUM-INTEGRATIONS.md) covers the
-`/api/orchestrate` preview/execution API, persistent cloud quotas, native CLI
-session resume, BitNet CPU inference and tgrep/ripgrep code search. BitNet and
-tgrep binaries remain optional local installations; model downloads are explicit.
-The [native BitNet Windows guide](docs/BITNET-NATIVE-WINDOWS.md) includes a tested
-build without Conda, the 2B-4T compatibility patch and real inference results.
-
-GitHub Projects v2 supports remote project/item queries, draft and issue/PR item
-creation, custom field updates, membership removal and workspace associations.
-Set `GITHUB_TOKEN` for this integration. See [Tools and Projects](docs/TOOLS-AND-PROJECTS.md)
-for endpoints, permissions, invocation examples and execution limits.
-
-The dedicated `/vscode` WebSocket protocol supports streaming chat, inline-edit
-proposals, bounded agent sessions and usage queries. See the
-[extension protocol](docs/vscode-bridge.md) for client implementation details.
-
-Check the running bridge:
+Confirm that it is healthy and inspect the model IDs available to your account:
 
 ```bash
 node dist/cli.js status
@@ -86,239 +43,189 @@ curl http://127.0.0.1:31338/health
 curl http://127.0.0.1:31338/v1/models
 ```
 
-## Configure API credentials
+For a fuller first-run walkthrough, including provider setup and a first chat
+request, see [Getting started](docs/guides/getting-started.md).
 
-Use the write-only Settings forms in the dashboard. Credentials may also be
-provided with:
+## Choose a provider
 
-| Provider | Environment variable |
-| --- | --- |
-| `claude-api` | `ANTHROPIC_API_KEY` |
-| `codex-api` | `OPENAI_API_KEY` |
-| `gemini-api` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
-| `openrouter-api` | `OPENROUTER_API_KEY` |
-| `perplexity-api` | `PERPLEXITY_API_KEY` |
+The provider name describes the transport that Conduit uses. A CLI login and an
+API key are intentionally independent: signing in to a coding CLI never
+silently enables the matching paid API.
 
-The bridge reports only the credential source, never the credential value.
-Values stored through Settings use the encrypted credential vault; configuration
-retains references. The runtime directory is `%USERPROFILE%\.conduit` on Windows
-or `~/.conduit` on Linux. See [storage and key setup](docs/PLATFORM-GUIDE.md#encryption-storage-selection-and-backups)
-for desktop protection, headless keys and legacy credential migration.
+| Transport | Providers | Setup |
+| --- | --- | --- |
+| Direct API | `claude-api`, `codex-api`, `gemini-api`, `openrouter-api`, `perplexity-api` | Save a key through Settings or set the documented environment variable. |
+| Coding CLI | `cli-claude`, `cli-codex`, `cli-gemini`, `cli-grok` | Install and authenticate the provider's official CLI as the same desktop user. |
+| Local | `lmstudio`, `bitnet` | Start the local model service. BitNet setup is optional and explicit. |
 
-## CLI providers
+The dashboard lists each transport separately. It also groups model menus with
+CLI models first, so an installed coding CLI remains the natural starting point
+for a new chat.
 
-Authenticate each installed tool using its official login flow:
+See [provider setup and model catalogs](docs/guides/getting-started.md#connect-a-provider)
+for environment-variable names, model discovery, and model overrides.
 
-- `cli-claude` - Claude Code
-- `cli-codex` - Codex CLI
-- `cli-gemini` - the configured Gemini-compatible CLI
-- `cli-grok` - Grok CLI
+## Use it from an OpenAI-compatible client
 
-Conduit invokes these tools non-interactively for requests. Provider accounts,
-subscriptions, usage limits, and terms remain controlled by each provider.
-
-### CLI model catalogs
-
-`cli-gemini` and `cli-grok` learn their catalogs at runtime from `agy models`
-and `grok models`, so a new model release appears on its own. `cli-claude` and
-`cli-codex` cannot - neither binary has a model-listing subcommand - so their
-lists ship as defaults.
-
-Any of the four can be overridden from `~/.conduit/models.json` (or the path in
-`CONDUIT_MODELS_FILE`) with no rebuild:
-
-```json
-{
-  "cli-claude": ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
-  "cli-codex": [{ "id": "gpt-5.6-sol", "displayName": "GPT-5.6 Sol" }]
-}
-```
-
-Add whichever id the vendor ships next; the bridge does not need to know it in
-advance, and the ids above are only the current defaults. To see what a CLI
-offers today:
-
-| CLI | how to list its models |
-| --- | --- |
-| `agy` | `agy models` |
-| `grok` | `grok models` |
-| `codex` | run `codex`, then `/model` - it has no non-interactive listing |
-| `claude` | no listing of any kind; use this file |
-
-`cli-codex` discovers its catalog over HTTP from ChatGPT's own Codex model
-endpoint, which reports the account's real entitlements.
-
-A prefix names the **transport**, not the vendor. `agy` resells Anthropic and
-GPT-OSS models alongside Google's, and those are advertised too - reaching
-Claude Sonnet through an Antigravity subscription is a different quota, auth
-and rate limit than reaching it through an Anthropic one, which is the point:
-
-```
-cli-gemini/claude-sonnet-4-6   Claude Sonnet 4.6 (Thinking) (agy CLI)   owned_by: agy
-cli-claude/claude-sonnet-5     claude-sonnet-5 (Claude Code CLI)        owned_by: claude-code
-```
-
-Ids stay unique because the prefixes differ, and `owned_by` names the CLI that
-answers rather than guessing the model's author from its id - `gpt-oss-120b` is
-OpenAI's open-weight model but is not obtainable from OpenAI, so calling it
-`openai` would advertise a route that does not exist. To restrict a provider
-to one vendor, pin it in `models.json`.
-
-Naming a provider **pins** it: that list is served verbatim and runtime
-discovery is skipped for it - the escape hatch for a CLI that is offline or
-whose `models` output cannot be parsed. Providers the file does not mention are
-unaffected. Edits are picked up on the next `POST /v1/models/refresh`, without
-restarting the bridge. An entry that is malformed, empty, or has no valid model
-ids is ignored in favour of the built-in defaults.
-
-## OpenAI-compatible API
-
-Client base URL:
+Set the client's base URL to:
 
 ```text
 http://127.0.0.1:31338/v1
 ```
 
-Important endpoints:
+Then use a model ID returned by `GET /v1/models`:
 
-```text
-GET  /health
-GET  /v1/status
-GET  /v1/models
-GET  /v1/capabilities
-GET  /v1/metrics
-POST /v1/chat/completions
-POST /v1/responses
-POST /v1/embeddings
-POST /v1/compare
-WS   /v1/events
+```bash
+curl http://127.0.0.1:31338/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "cli-codex/gpt-5.6-sol",
+    "messages": [{"role": "user", "content": "Explain this error in one paragraph."}]
+  }'
 ```
 
-Use the exact model IDs returned by `GET /v1/models`, such as
-`cli-grok/grok-4.6`, `api-perplexity/sonar`, or `lmstudio/auto`.
-
-`POST /v1/chat/completions` accepts optional `cwd` (absolute existing path)
-and `mode` (`chat` | `plan` | `agent`). CLI providers run in `cwd` so editors
-like conduit-vscode can pass the workspace folder.
-
-- `chat` (default): read-only chat proxy. Native plan/read-only flags.
-- `plan`: each CLI's native plan function (Claude `--permission-mode plan`,
-  agy `--mode plan`, Grok `--permission-mode plan`, Codex read-only sandbox).
-- `agent`: workspace write. Requires `cwd`. Aliases: `agentic: true` → agent,
-  `plan: true` → plan.
-
-API and LM Studio transports ignore `cwd` and `mode`.
-
-## Configuration
-
-The default configuration is:
+CLI requests optionally accept an absolute `cwd` and `mode`:
 
 ```json
 {
-  "host": "127.0.0.1",
-  "port": 31338,
-  "logLevel": "info",
-  "apiKeys": {},
-  "allowedOrigins": ["http://localhost", "http://127.0.0.1"],
-  "authToken": "",
-  "rateLimit": { "perMinute": 60, "maxConcurrent": 16 }
+  "model": "cli-claude/claude-sonnet-5",
+  "messages": [{"role": "user", "content": "Review the current test failure."}],
+  "cwd": "C:/work/project",
+  "mode": "plan"
 }
 ```
 
-Keep the listener on loopback. External binds require an authentication token
-and careful network controls.
+`chat` is read-only conversation mode, `plan` uses the provider's planning mode
+where available, and `agent` permits workspace work only when `cwd` is supplied.
+API and local transports ignore `cwd` and `mode`. The detailed endpoint reference
+is in [the integration guide](docs/reference/integrations.md).
 
-## Desktop autostart
+## Common tasks
 
-Windows:
+| Task | Guide |
+| --- | --- |
+| Install, connect a provider, and send a first request | [Getting started](docs/guides/getting-started.md) |
+| Run local BitNet CPU inference | [BitNet on Windows](docs/guides/bitnet.md) |
+| Index and search a workspace with `tgrep` | [tgrep code search](docs/guides/tgrep.md) |
+| Understand files, SQLite, backups, and `CONDUIT_HOME` | [Storage and backups](docs/guides/storage.md) |
+| Run reviewed multi-step workflows | [Pipeline examples](docs/guides/pipelines.md) |
+| Configure platform conversations, memory, skills, and runs | [Platform guide](docs/guides/platform.md) |
+| Enable desktop autostart | [Autostart](docs/guides/autostart.md) |
+| Use executable tools and GitHub Projects | [Tools and Projects](docs/guides/tools-and-projects.md) |
+| Implement the VS Code protocol | [VS Code bridge](docs/reference/vscode-bridge.md) |
 
-```powershell
-npm run build
-powershell -ExecutionPolicy Bypass -File .\scripts\install-autostart.ps1
-```
+The complete documentation map is available at [docs/README.md](docs/README.md).
 
-Linux Desktop:
+## Data, storage, and backups
+
+Conduit does not require a remote database service. On Windows its runtime
+directory is `%USERPROFILE%\\.conduit`; on Linux it is `~/.conduit`. Set
+`CONDUIT_HOME` before starting the bridge to place all runtime data elsewhere.
+
+New retained platform data uses the encrypted file `platform-state.enc` by
+default. SQLite is an opt-in backend and uses `platform.sqlite` in that same
+directory. The active backend is shown in **Settings and diagnostics** and at
+`GET /v1/platform/storage`.
+
+Before switching backends, download an encrypted backup, save the selected
+backend, restart the bridge, and restore the backup. Saving a backend preference
+does not move data automatically. Read [Storage and backups](docs/guides/storage.md)
+before changing that setting.
+
+Credentials saved through Settings go to the protected credential vault; the
+regular configuration stores references rather than the credential values.
+
+## BitNet and local code search
+
+[BitNet](https://github.com/microsoft/BitNet) is an optional family of efficient
+local language models. With the supplied native `llama-server` integration,
+Conduit can run BitNet CPU inference on your own machine and expose it alongside
+other local models. It is useful for lightweight offline classification, short
+planning, and private experiments. It is not a substitute for reviewing model
+output or for a larger model on complex work. The [BitNet guide](docs/guides/bitnet.md)
+covers the model, reproducible Windows build, configuration, start command,
+verification, and limits.
+
+[`tgrep`](https://github.com/microsoft/tgrep) is a separate optional local code
+search tool. It builds a per-workspace trigram index outside the source tree and
+answers regex-style searches quickly. Conduit uses its loopback JSON-RPC daemon
+when available, its CLI when installed, and ripgrep as the final fallback. Read
+the [tgrep guide](docs/guides/tgrep.md) for indexing, daemon management, security
+boundaries, and troubleshooting.
+
+## Pipelines and agent runs
+
+Pipelines let you compose several provider steps with dependencies, limits, and
+approval checkpoints. The included examples demonstrate a controlled file write
+and review, a pause for approval, and a parallel debate:
 
 ```bash
-npm run build
-./scripts/install-autostart.sh
+node scripts/demo-pipelines.mjs \
+  --model <model-id> \
+  --peer-model <model-id> \
+  --allow-write-demo \
+  --approve-demo
 ```
 
-See [docs/AUTOSTART.md](docs/AUTOSTART.md) for verification and uninstall.
+Use model IDs from your own `/v1/models` response. The script creates a fresh
+scratch workspace and retains a local result report for inspection. The
+[pipeline guide](docs/guides/pipelines.md) explains each example, its safeguards,
+and how to inspect a run in the dashboard.
 
-## Development and security checks
+## Configuration
 
-```bash
-npm test
-npm run typecheck
-npm run build
-git diff --check
-npm run scan:secrets
-npm run scan:secrets:history
-npm audit --omit=dev
+The bridge works without a configuration file. Dashboard Settings is the
+preferred place to store API credentials. For managed or headless startup, copy
+the relevant placeholders from [`.env.example`](.env.example) into an ignored
+`.env` file:
+
+```dotenv
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+LM_STUDIO_URL=http://127.0.0.1:1234
+BITNET_URL=http://127.0.0.1:8080
 ```
 
-Prompts, responses, tokens, cookies, and credentials must never be committed or
-written to operational logs. Runtime state belongs below `.conduit`.
+The bridge reads a `.env` in its startup directory, then one in its runtime
+directory. Existing process environment variables always win. Never commit an
+actual key or place one in a URL or command argument.
 
-## Changelog
+For desktop autostart, follow [the autostart guide](docs/guides/autostart.md).
+
+## Release overview
+
+The canonical, complete history is [CHANGELOG.md](CHANGELOG.md). This short
+overview helps choose an upgrade path.
+
+| Version | Highlights |
+| --- | --- |
+| 0.9.1 | Release and documentation gates now run in CI, security scanning is enforced, and release tags are checked before publishing. |
+| 0.9.0 | Model records gained `context_window` and `max_output_tokens` metadata. |
+| 0.8.1 | Model records gained transport-specific `max_prompt_chars` where a CLI imposes one. |
+| 0.8.0 | Windows CLI prompt delivery was fixed; model catalogs gained runtime discovery and local overrides. |
+| 0.7.0 | Chat completions gained explicit `chat`, `plan`, and `agent` modes. |
+| 0.6.0 | CLI chat requests gained an optional workspace `cwd`. |
+| 0.5.2 | Provider transports were separated into API, CLI, and local categories; browser-session providers were removed. |
 
 ### 0.9.1
 
-- Governance only; no runtime change. The AAHP gates that had been reporting
-  SKIP since this repository was created now run in CI: version-sync against
-  three documented sites, doc-links, and the NEXT_ACTIONS freshness check.
-- `aahp check` runs in CI at all, for the first time. It had never run, so
-  forbidden-patterns was failing on main unseen with 51 banned em dash
-  characters across 50 lines. Those are removed.
-- The AAHP gate no longer exempts Dependabot. It stayed a required check while
-  reporting success without looking, which branch protection renders as green.
-- `.github/workflows/release.yml` gates the tag path, which had no gate at all:
-  tags are unprotected and main had no required status checks. It publishes no
-  asset, because this project ships none.
-- Required status checks now exist on main, verified by a throwaway pull request
-  that was correctly blocked.
-- New `CLAUDE.md`; SECURITY.md gained a Supported Versions section.
+The current release strengthens the release path and documentation checks. It
+does not change provider request behavior. See [the 0.9.1 release notes](CHANGELOG.md#091---2026-09-03)
+for the complete Added, Changed, and Fixed entries.
 
-### 0.9.0
+## Develop and verify
 
-`/v1/models` reports `context_window` and `max_output_tokens`, so a client no
-longer needs its own model table. See [CHANGELOG.md](CHANGELOG.md).
+```bash
+npm run typecheck
+npm run build
+npx --no-install aahp check .
+npm run scan:secrets
+```
 
-### 0.8.1
-
-`/v1/models` reports `max_prompt_chars` where the transport bounds the prompt.
-See [CHANGELOG.md](CHANGELOG.md).
-
-### 0.8.0
-
-Unbreaks the CLI providers on Windows (the prompt reached them as its first line
-only), separates `chat` from `plan`, stops `cwd` falling back to the home
-directory, and replaces the hardcoded model catalogs with runtime discovery plus
-an overridable `models.json`. Providers with no credential no longer advertise
-models. See [CHANGELOG.md](CHANGELOG.md).
-
-### 0.7.0
-
-CLI `mode` on chat completions: `chat`, `plan`, or `agent`. Agent requires `cwd`.
-See [CHANGELOG.md](CHANGELOG.md).
-
-### 0.6.0
-
-Optional `cwd` on chat completions for CLI providers. See
-[CHANGELOG.md](CHANGELOG.md).
-
-### 0.5.2
-
-Desktop gateway for independent API, CLI, and local transports. Browser-session
-`web-*` providers and Playwright are removed. Control-plane fixes: CSRF honors
-`allowedOrigins`, dashboard works with `authToken`, CLI connected means
-authenticated, activity redacts secrets, and `CONDUIT_HOME` is shared. See
-[CHANGELOG.md](CHANGELOG.md) for the full list.
-
-### 0.5.1
-
-See [CHANGELOG.md](CHANGELOG.md#051---2026-08-21).
+Use focused Vitest files while working locally. The full suite runs in CI because
+it is intentionally slow on this Windows development machine. Contributor and
+release information is in [CONTRIBUTING.md](CONTRIBUTING.md) and
+[the release guide](docs/operations/releasing.md).
 
 ## License
 

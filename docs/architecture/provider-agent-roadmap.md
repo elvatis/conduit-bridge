@@ -1,7 +1,7 @@
 # Provider and agent platform: implementation status
 
 Updated 2026-09-07. The platform described in the original proposal is now
-implemented in this working branch. See [Platform guide](PLATFORM-GUIDE.md) for
+implemented in this working branch. See [Platform guide](../guides/platform.md) for
 usage, REST examples and storage integration. This status describes code and its
 limits; it does not imply that every proposed feature or provider capability has
 been verified in production.
@@ -31,7 +31,7 @@ through the REST API; there is no dashboard operator management form.
 The production database/ORM choice is **open**. The default is an encrypted file
 snapshot; normal installations need no SQL server or Prisma package. Native
 SQLite is optional. Prisma accepts a generated client supplied by an embedding
-application and an encryption codec. Its [schema contract](../examples/storage/schema.prisma)
+application and an encryption codec. Its [schema contract](../../examples/storage/schema.prisma)
 stores one encrypted snapshot and revision, rather than normalized entity tables.
 Prisma tests use a contract fake, not a real Prisma database deployment.
 
@@ -70,7 +70,7 @@ the vault. `.env` is optional plaintext input, not encrypted credential storage.
 Automated tests cover storage contracts, secrets, role boundaries, profiles,
 catalog versions, memory review, retention/context and actual HTTP lifecycles
 with mocked providers. Live provider smoke tests and loop/file exercises are
-separate checks. Their results are recorded in the [validation report](PLATFORM-VALIDATION.md); partial or
+separate checks. Their results are recorded in the [validation report](../validation/platform.md); partial or
 pending runs are not a blanket compatibility claim.
 
 The sibling `ai.elvatis.com` project was read-only design inspiration for portable

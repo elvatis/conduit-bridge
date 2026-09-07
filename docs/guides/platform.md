@@ -3,8 +3,8 @@
 The platform adds Webchat, Memory, Agents & skills, Runs & artifacts, and
 Storage & diagnostics to the dashboard at
 `http://127.0.0.1:31338/`. It uses the gateway's API, CLI and local model adapters.
-Follow the [README](../README.md) to start the bridge, then select a connected
-model in Webchat. See the [validation report](PLATFORM-VALIDATION.md) for tested
+Follow the [README](../../README.md) to start the bridge, then select a connected
+model in Webchat. See the [validation report](../validation/platform.md) for tested
 behavior, live provider results and remaining limits.
 
 ## Authentication and discovery
@@ -210,7 +210,7 @@ needed. `POST /evaluations` with `{models: [model]}` starts a small `EVAL_OK`
 instruction-following fixture, not a coding-quality benchmark. Administrators
 list presets at `GET /presets?model=...`, install with
 `POST /presets/:id/install` and `{model}`, then use the
-[pipeline API](PIPELINE-EXAMPLES.md).
+[pipeline API](pipelines.md).
 
 ## Provider profiles and operators
 
@@ -286,7 +286,7 @@ external provider logins, vault/key material, repository files and legacy stores
 The package exports `PrismaSnapshotBackend`, `TransactionalStateStore` and
 `BridgeServer` without a forced Prisma dependency. The embedding application
 chooses Prisma version, datasource, generator, migrations and connection adapter.
-Add the [BridgeState model](../examples/storage/schema.prisma) to that schema and
+Add the [BridgeState model](../../examples/storage/schema.prisma) to that schema and
 generate the client. The contract needs `bridgeState.findUnique/create/updateMany`.
 
 This executable embedding factory accepts the caller's initialized generated

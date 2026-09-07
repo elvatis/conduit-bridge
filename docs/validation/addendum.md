@@ -80,7 +80,7 @@ official 2B-4T GGUF. Four direct/provider checks, eight bridge checks and one
 complete local planning/execution request passed. The reproducible helper,
 upstream relu2 correction, model identity, tokenizer/template configuration,
 timings and observed instruction-following limits are documented in
-[BITNET-NATIVE-WINDOWS.md](BITNET-NATIVE-WINDOWS.md).
+[BitNet on Windows](../guides/bitnet.md).
 
 ## Reproduction and limits
 
@@ -94,7 +94,7 @@ npx --no-install aahp check .
 ```
 
 Native setup and API envelopes are documented in
-[ADDENDUM-INTEGRATIONS.md](ADDENDUM-INTEGRATIONS.md). To reproduce the live tests,
+[integration reference](../reference/integrations.md). To reproduce the live tests,
 use an isolated registered workspace, explicit retained conversations for native
 resume, and an installed tgrep executable. The Windows integration harnesses
 retain ignored local JSON evidence and use only synthetic test content.
