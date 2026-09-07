@@ -13,6 +13,8 @@ import { reloadCatalogs } from './model-catalog.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createSkillRegistry } from './skills/builtins.js';
+export { createSkillRegistry } from './skills/builtins.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,6 +26,8 @@ const VERSION = (() => {
 })();
 
 export class ProviderRegistry {
+  /** Executable tools are separate from model adapters and versioned prompt skills. */
+  readonly skills = createSkillRegistry();
   private _providers: Map<ProviderName, ProviderAdapter> = new Map();
   private _startTime = Date.now();
 

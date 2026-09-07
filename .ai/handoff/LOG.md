@@ -130,3 +130,16 @@ Windows 379 tests/build pass; Linux full suite/build plus final UI delta pass.
 All 12 real Windows matrix cases pass; see docs/PLATFORM-VALIDATION.md for evidence
 and explicit Prisma/Linux Secret Service limitations. Service rebuilt and running.
 The user authorized syncing feat/provider-agent-management; no merge or release.
+
+## 2026-09-07: executable tools, GitHub Projects, help and VS Code protocol
+
+Implemented the supplied integration prompt against the existing encrypted state
+and authorization model. Six executable tools, Projects v2 item APIs/workspace
+links, typed accessible tooltips, and a dedicated authenticated /vscode socket
+are covered by 470 Windows tests and 469 Linux passes plus one Windows-only skip.
+All ten live smoke checks pass, including Perplexity search, Claude streaming,
+Codex inline proposal and an approved Codex file write. GitHub service token is
+not configured, so remote mutations use transport fixtures; no remote project
+was changed. No new dependencies, extra listener, release or merge. Protocol,
+usage and measured limitations are documented in docs/TOOLS-AND-PROJECTS.md,
+docs/vscode-bridge.md and docs/INTEGRATIONS-VALIDATION.md.

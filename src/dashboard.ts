@@ -1,3 +1,4 @@
+import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
 import { PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
 
 const SHARED_STYLE = `
@@ -788,6 +789,7 @@ const SHARED_STYLE = `
   .tool-card-head { display: flex; justify-content: space-between; align-items: center; }
 
   ${PLATFORM_STYLE}
+  ${SETTING_TOOLTIP_STYLE}
   #menu-toggle { display: none; }
   .pipeline-run-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 12px; }
   .pipeline-header, .step-result-header, .checkpoint-banner > div, .chart-header { flex-wrap: wrap; gap: 8px; }
@@ -809,7 +811,7 @@ const SHARED_STYLE = `
   }
 `;
 
-export const DASHBOARD_HTML = `<!doctype html>
+export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -3326,6 +3328,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   ${PLATFORM_SCRIPT}
+  ${SETTING_TOOLTIP_SCRIPT}
   refresh();
   connectEvents();
   setInterval(refreshLive, 15000);
@@ -3334,7 +3337,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }, 3000);
 </script>
 </body>
-</html>`;
+</html>`);
 
 export const HELP_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conduit Bridge Help</title><style>${SHARED_STYLE}</style></head>
 <body><main class="help"><header><div><h1>Conduit Bridge Help</h1><div class="muted">Installation, provider routing, and operations</div></div><nav class="nav"><a class="link" href="/">Dashboard</a></nav></header>

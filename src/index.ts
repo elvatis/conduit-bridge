@@ -1,6 +1,6 @@
 // Public API for conduit-bridge (used by conduit-vscode extension)
 export { BridgeServer } from './server.js';
-export { ProviderRegistry } from './registry.js';
+export { ProviderRegistry, createSkillRegistry } from './registry.js';
 export {
   loadConfig,
   saveConfig,
@@ -53,6 +53,8 @@ export type {
   ChatRequest,
   ModelDefinition,
   ProviderAdapter,
+  WorkspaceEntry,
+  GitHubProjectLink,
 } from './types.js';
 export {
   SUPPORTED_DESKTOP_PLATFORMS,
@@ -66,3 +68,20 @@ export { PlatformContentService } from './platform-content.js';
 export { PlatformCatalogService, BUILTIN_SKILLS, BUILTIN_PROMPTS } from './platform-catalog.js';
 export { PlatformRunService } from './platform-runs.js';
 export { PlatformProfileService } from './platform-profiles.js';
+export { SkillRegistry, SkillError, validateSkillInput } from './skills/index.js';
+export type { SkillDefinition, SkillExecutionContext, SkillEffect, SkillSchema } from './skills/index.js';
+export { filesystemSkill, resolveSkillPath } from './skills/filesystem.js';
+export { browserSkill, isPublicWebAddress, publicPageUrl } from './skills/browser.js';
+export { sandboxSkill, commandEnvironment } from './skills/sandbox.js';
+export { memorySkill } from './skills/memory.js';
+export { webSearchSkill } from './skills/web-search.js';
+export { githubActionsSkill } from './skills/github-actions.js';
+export { GitHubApi, GitHubApiError } from './github-api.js';
+export type { GitHubApiOptions } from './github-api.js';
+export { GitHubProjectsProvider } from './providers/github-projects.js';
+export type { GitHubProject, GitHubProjectItem, GitHubPage, GitHubPageInput, GitHubProjectFieldValue } from './providers/github-projects.js';
+export { IntegrationApi } from './integration-api.js';
+export type { IntegrationApiDependencies } from './integration-api.js';
+export * from './vscode-bridge.js';
+export * from './ui/index.js';
+export * from './ui/tooltips.js';

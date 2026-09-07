@@ -16,6 +16,21 @@
 
 _Updated: 2026-09-07_
 
+## Tools, GitHub Projects and VS Code extension pass
+
+- Added six typed executable tools with host authorization: Perplexity search,
+  workspace filesystem, GitHub Actions, public page fetch, scoped KV memory and
+  bounded subprocess execution. Prompt catalog attachments remain separate.
+- Added remote GitHub Projects v2 queries/item mutations and local workspace
+  associations; service GITHUB_TOKEN is separate from bridge/operator auth.
+- Added accessible settings tooltips and the authenticated /vscode protocol for
+  streaming chat, edit proposals, approved agent runs and usage queries.
+- Windows 470 tests/build pass; genuine Linux 469 pass, one Windows-only DPAPI skip,
+  build pass. Ten live service smoke checks pass, including real Perplexity search,
+  Claude streaming, Codex edit proposals and an approved Codex physical file write.
+- GitHub remote mutations are fixture-tested only: the local service has no
+  GITHUB_TOKEN and returns the expected 503. See docs/INTEGRATIONS-VALIDATION.md.
+- No new package dependencies, ports, database decision, merge or release.
 ## PR #117 provider and agent platform
 
 - Implemented portable session Webchat, scoped reviewed memory, versioned skills

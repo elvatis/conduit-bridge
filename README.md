@@ -53,6 +53,23 @@ The runnable examples include assertions and retain a local results report.
 Use the [Platform guide](docs/PLATFORM-GUIDE.md) for Webchat, reviewed memory,
 versioned skills, bounded agent runs, provider profiles and encrypted storage.
 
+## Executable skills and GitHub Projects
+
+The bridge includes typed tools for Perplexity web search, workspace files,
+GitHub Actions, public-page fetching, scoped KV memory and bounded subprocesses.
+They use explicit authenticated calls and existing workspace/budget policies;
+prompt skill attachments do not grant execution permissions. Settings include
+keyboard-accessible hover/focus help.
+
+GitHub Projects v2 supports remote project/item queries, draft and issue/PR item
+creation, custom field updates, membership removal and workspace associations.
+Set `GITHUB_TOKEN` for this integration. See [Tools and Projects](docs/TOOLS-AND-PROJECTS.md)
+for endpoints, permissions, invocation examples and execution limits.
+
+The dedicated `/vscode` WebSocket protocol supports streaming chat, inline-edit
+proposals, bounded agent sessions and usage queries. See the
+[extension protocol](docs/vscode-bridge.md) for client implementation details.
+
 Check the running bridge:
 
 ```bash

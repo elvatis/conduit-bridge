@@ -1,3 +1,5 @@
+import { decorateSettingTooltips } from './ui/index.js';
+
 /** Dependency-free conversation and agent workspace, embedded in the dashboard. */
 export const PLATFORM_STYLE = String.raw`
   .platform-shell { --platform-surface: #0b1a2d; }
@@ -57,7 +59,7 @@ export const PLATFORM_STYLE = String.raw`
   @media (max-width: 540px) { .platform-panel { padding: 12px; } .platform-fields { grid-template-columns: minmax(0,1fr); } .platform-message { padding: 12px; } .platform-transcript { max-height: 56vh; } .platform-toolbar > button { flex: 1 1 auto; } }
 `;
 
-export const PLATFORM_HTML = String.raw`
+export const PLATFORM_HTML = decorateSettingTooltips(String.raw`
     <div id="platform-section" class="wide page-section platform-shell">
       <div class="platform-heading"><div><h2>Conversation & agent workspace</h2><p class="muted">Keep a conversation across models, choose its context, and follow bounded agent runs.</p></div><button id="pf-refresh" type="button">Refresh workspace</button></div>
       <div class="platform-tabs" role="tablist" aria-label="Workspace views">
@@ -121,7 +123,7 @@ export const PLATFORM_HTML = String.raw`
         <section class="platform-panel" style="margin-top:16px"><div class="platform-toolbar"><h3>Provider profiles</h3><button type="button" id="pf-profile-new">New profile</button></div><div id="pf-profiles" class="platform-list"></div><form id="pf-profile-form" style="margin-top:16px"><div class="platform-fields"><label><span>Profile name</span><input id="pf-profile-name" required maxlength="100"></label><label><span>Provider</span><select id="pf-profile-provider"><option value="cli-codex">Codex CLI</option><option value="cli-claude">Claude CLI</option><option value="cli-gemini">Gemini CLI</option><option value="cli-grok">Grok CLI</option><option value="codex-api">OpenAI API</option><option value="claude-api">Anthropic API</option><option value="gemini-api">Gemini API</option><option value="openrouter-api">OpenRouter API</option><option value="perplexity-api">Perplexity API</option><option value="lmstudio">LM Studio</option></select></label><label><span>CLI executable (optional)</span><input id="pf-profile-executable" placeholder="Existing absolute file path"></label><label><span>Default model</span><input id="pf-profile-model" placeholder="Optional model ID"></label><label><span>API key (write only)</span><input id="pf-profile-key" type="password" autocomplete="new-password" placeholder="Leave blank to preserve existing credentials"></label><label><span>Existing stored API key</span><select id="pf-profile-clear"><option value="false">Preserve current key</option><option value="true">Remove current key</option></select></label><label><span>Default effort</span><input id="pf-profile-effort" placeholder="Provider-supported effort"></label><label><span>Maximum concurrent requests</span><input id="pf-profile-concurrency" type="number" min="1" max="16" value="1"></label><label><span>Profile enabled</span><select id="pf-profile-enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label></div><p id="pf-profile-credential-status" class="muted"></p><div class="platform-toolbar"><button type="submit" class="primary">Save profile</button><button type="button" class="danger" id="pf-profile-delete">Delete profile</button></div><p class="muted">API keys are write only. Leaving the key empty preserves its current value. Profiles remain subject to provider execution policies.</p></form></section>
       </section>
     </div>
-`;
+`);
 
 export const PLATFORM_SCRIPT = String.raw`
   const pfState = { tab: 'chat', operator: null, models: null, workspaces: null, sessions: [], session: null, sessionEpoch: 0, memories: [], memory: null, agents: [], skills: [], prompts: [], profiles: [], profile: null, presets: [], presetModel: null, installedPreset: null, runs: [], run: null, runRequestId: null, library: 'agents', entry: null, drafts: new Map(), attachments: new Map(), busy: false, activeSessionId: null, controller: null, editingMessage: null, refreshPromise: null, refreshAgain: false };

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, accessSync, readdirSync, constants, realpathSync } from 'node:fs';
 import { dirname, join, isAbsolute, basename, resolve, relative, sep } from 'node:path';
 import { runtimeDir } from './config.js';
-import type { WorkspaceEntry } from './types.js';
+import type { WorkspaceEntry, GitHubProjectLink } from './types.js';
 
 /** Resolve an existing directory through symlinks/junctions for boundary checks. */
 export function canonicalDirectory(targetPath: string): string | undefined {
@@ -53,12 +53,13 @@ export class WorkspaceManager {
     }
   }
 
-  private save(): void {
+  private save(): boolean {
     try {
       mkdirSync(dirname(this.file), { recursive: true });
       writeFileSync(this.file, JSON.stringify(this.workspaces.slice(0, 30), null, 2), { mode: 0o600 });
       chmodSync(this.file, 0o600);
-    } catch { /* ignore write failure */ }
+      return true;
+    } catch { return false; }
   }
 
   listWorkspaces(): WorkspaceEntry[] {
@@ -161,6 +162,7 @@ export class WorkspaceManager {
       isDefault: isDefault || (this.workspaces.length === 0),
       exists: true,
       writable,
+      ...(existingIndex >= 0 && this.workspaces[existingIndex].githubProject ? { githubProject: structuredClone(this.workspaces[existingIndex].githubProject) } : {}),
     };
 
     if (existingIndex >= 0) {
@@ -180,6 +182,24 @@ export class WorkspaceManager {
       item.lastUsed = Date.now();
       this.save();
     }
+  }
+
+  /** Link or unlink remote project metadata without changing the local root. */
+  setGitHubProject(workspaceId: string, project: GitHubProjectLink | null): WorkspaceEntry {
+    const workspace = this.workspaces.find(item => item.id === workspaceId);
+    if (!workspace) throw new Error('Workspace not found');
+    if (project !== null) {
+      if (!project || typeof project.projectId !== 'string' || !/^[A-Za-z0-9_+=/-]{1,256}$/.test(project.projectId) || typeof project.org !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9-]{0,99}$/.test(project.org)) throw new Error('Invalid GitHub project association');
+      const url = new URL(project.projectUrl);
+      const match = /^\/(orgs|users)\/([A-Za-z0-9-]+)\/projects\/([1-9][0-9]*)\/?$/.exec(url.pathname);
+      if (url.origin !== 'https://github.com' || url.username || url.password || url.search || url.hash || !match || match[2].toLowerCase() !== project.org.toLowerCase()) throw new Error('Project URL must identify the selected owner on github.com');
+      if (project.repo !== undefined && (typeof project.repo !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(project.repo))) throw new Error('Repository must use owner/repository format');
+    }
+    const previous = workspace.githubProject;
+    if (project === null) delete workspace.githubProject;
+    else workspace.githubProject = { projectId: project.projectId, projectUrl: project.projectUrl, org: project.org, ...(project.repo ? { repo: project.repo } : {}) };
+    if (!this.save()) { workspace.githubProject = previous; throw new Error('Could not persist workspace project association'); }
+    return structuredClone(workspace);
   }
 
   removeWorkspace(idOrPath: string): boolean {

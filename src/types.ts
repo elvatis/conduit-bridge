@@ -299,6 +299,16 @@ export interface BudgetUsage {
   lastResetMonth: string;        // YYYY-MM
 }
 
+/** Optional remote GitHub Projects v2 association for a local workspace. */
+export interface GitHubProjectLink {
+  projectId: string;
+  projectUrl: string;
+  /** Organization or user login owning the project. */
+  org: string;
+  /** Optional owner/repository used by the GitHub Actions tool. */
+  repo?: string;
+}
+
 export interface WorkspaceEntry {
   id: string;
   path: string;
@@ -307,6 +317,7 @@ export interface WorkspaceEntry {
   isDefault?: boolean;
   exists?: boolean;
   writable?: boolean;
+  githubProject?: GitHubProjectLink;
 }
 
 export type ToolSecurityRisk = 'low' | 'medium' | 'high' | 'critical';

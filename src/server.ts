@@ -24,7 +24,13 @@ import { executeWithAccounting, openExecution, abortable } from './usage.js';
 import { PlatformApi, type PlatformExecutionContext } from './platform-api.js';
 import type { TransactionalStateStore } from './storage.js';
 import { PlatformContentError } from './platform-content.js';
-import { requirePlatformCapability } from './platform-auth.js';
+import { IntegrationApi } from './integration-api.js';
+import { createSkillRegistry } from './skills/builtins.js';
+import { SkillError, type SkillExecutionContext } from './skills/index.js';
+import type { GitHubProjectsProvider } from './providers/github-projects.js';
+import type { PlatformOperatorContext } from './platform-auth.js';
+import { authenticatePlatformOperator, requirePlatformCapability } from './platform-auth.js';
+import { VscodeBridgeConnection, type VscodeDispatchRequest, type VscodeDispatchResult } from './vscode-bridge.js';
 
 const CLI_PROVIDERS = new Set<ProviderName>(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok']);
 const MAX_REQUEST_BODY_BYTES = 1_048_576;
@@ -56,8 +62,10 @@ export class BridgeServer {
   private _pipelineControllers = new Map<string, AbortController>();
   private _pipelineExecutions = new Map<string, Promise<unknown>>();
   private _eventSockets = new Set<Duplex>();
+  private _vscodeSockets = new Map<Duplex, VscodeBridgeConnection>();
   private _unsubscribeActivity: (() => void) | null = null;
   private _platform: PlatformApi;
+  private _integrations: IntegrationApi;
 
   constructor(cfg: BridgeConfig, options?: {
     pipelineStore?: PipelineStore;
@@ -65,6 +73,7 @@ export class BridgeServer {
     workspaceManager?: WorkspaceManager;
     governanceManager?: GovernanceManager;
     platformStore?: TransactionalStateStore;
+    githubProjects?: GitHubProjectsProvider;
   }) {
     this._cfg = cfg;
     this._registry = new ProviderRegistry(cfg);
@@ -92,6 +101,13 @@ export class BridgeServer {
       saveConfig: cfg => saveConfig(cfg),
       installPipeline: definition => this._pipelineStore.savePipeline(definition as PipelineDefinition),
     }, options?.platformStore);
+    this._integrations = new IntegrationApi({
+      cfg: () => this._cfg, workspaces: this._workspaceManager,
+      skills: this._registry.skills ?? createSkillRegistry(), githubProjects: options?.githubProjects,
+      toolContext: (operator, workspaceId, signal, approved, reauthorize) => this._skillContext(operator, workspaceId, signal, approved, reauthorize),
+      acquire: () => { const limits = this._cfg.rateLimit ?? { perMinute: 60, maxConcurrent: 16 }; const lease = this._limiter.acquire('integrations', limits.perMinute, limits.maxConcurrent); return lease.ok ? lease.release : undefined; },
+      event: event => this._broadcast(event),
+    });
   }
 
   get registry(): ProviderRegistry {
@@ -146,6 +162,9 @@ export class BridgeServer {
 
   async stop(): Promise<void> {
     if (this._server) {
+      this._integrations.stop();
+      for (const connection of this._vscodeSockets.values()) connection.close();
+      this._vscodeSockets.clear();
       await this._platform.stop();
       for (const controller of this._pipelineControllers.values()) controller.abort(new Error('Bridge is stopping'));
       await Promise.allSettled(this._pipelineExecutions.values());
@@ -192,7 +211,7 @@ export class BridgeServer {
     return { ok: false };
   }
 
-  private _handleUpgrade(req: IncomingMessage, socket: Duplex, _head: Buffer): void {
+  private _handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     // A WebSocket upgrade is exempt from the same-origin policy and from CORS,
     // so a foreign page could otherwise subscribe to the event stream and read
     // activity data. A browser always sends Origin on an
@@ -202,25 +221,112 @@ export class BridgeServer {
       socket.destroy();
       return;
     }
-    const socketPath = (req.url ?? '').split('?')[0];
+    const rawPath = req.url ?? '';
+    const socketPath = rawPath.split('?')[0];
+    const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress || '');
+    const vscodeOperator = rawPath === '/vscode'
+      ? authenticatePlatformOperator(req.headers.authorization, this._cfg, { isLoopback: loopback })
+      : null;
     const auth = socketPath === '/v1/events'
       ? this._checkSocketAuth(req)
-      : { ok: false as const, protocol: undefined };
+      : rawPath === '/vscode' && vscodeOperator
+        ? { ok: true as const, protocol: undefined }
+        : { ok: false as const, protocol: undefined };
     if (!auth.ok) {
-      socket.destroy();
+      rejectWebSocketUpgrade(socket, 401, 'Unauthorized');
       return;
     }
     const key = req.headers['sec-websocket-key'];
-    if (typeof key !== 'string' || req.headers.upgrade?.toLowerCase() !== 'websocket') {
-      socket.destroy();
+    const connectionTokens = String(req.headers.connection || '').toLowerCase().split(',').map(value => value.trim());
+    if (req.method !== 'GET' || typeof key !== 'string' || !/^[A-Za-z0-9+/]{22}==$/.test(key)
+      || req.headers.upgrade?.toLowerCase() !== 'websocket' || !connectionTokens.includes('upgrade')
+      || req.headers['sec-websocket-version'] !== '13') {
+      rejectWebSocketUpgrade(socket, 400, 'Bad Request');
       return;
     }
     const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
     const protocolHeader = auth.protocol ? `Sec-WebSocket-Protocol: ${auth.protocol}\r\n` : '';
     socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' + protocolHeader + 'Sec-WebSocket-Accept: ' + accept + '\r\n\r\n');
+    if (rawPath === '/vscode') {
+      const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined;
+      const connection = new VscodeBridgeConnection(socket, {
+        authorization,
+        authorize: () => Boolean(authenticatePlatformOperator(req.headers.authorization, this._cfg, { isLoopback: loopback })),
+        admit: () => {
+          const limits = this._cfg.rateLimit ?? { perMinute: 60, maxConcurrent: 16 };
+          const lease = this._limiter.acquire(`vscode:${req.socket.remoteAddress || 'local'}`, limits.perMinute, limits.maxConcurrent);
+          if (!lease.ok) return lease.reason || 'VS Code request limit reached';
+          lease.release(); return undefined;
+        },
+        dispatch: request => this._dispatchVscode(request),
+      }, head);
+      this._vscodeSockets.set(socket, connection);
+      const remove = () => this._vscodeSockets.delete(socket);
+      socket.once('close', remove); socket.once('error', remove);
+      return;
+    }
     this._eventSockets.add(socket);
     socket.on('close', () => this._eventSockets.delete(socket));
     socket.on('error', () => { this._eventSockets.delete(socket); socket.destroy(); });
+  }
+
+  /** Route extension work back through the authenticated platform HTTP surface. */
+  private async _dispatchVscode(request: VscodeDispatchRequest): Promise<VscodeDispatchResult> {
+    if (!request.path.startsWith('/v1/platform/') || request.path.includes('?') || request.path.includes('#')) {
+      throw new Error('Invalid internal VS Code route');
+    }
+    const address = this._server?.address();
+    if (!address || typeof address === 'string') throw new Error('Bridge HTTP server is unavailable');
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (request.authorization) headers.Authorization = request.authorization;
+    let body: string | undefined;
+    if (request.body !== undefined) {
+      body = JSON.stringify(request.body);
+      if (Buffer.byteLength(body) > MAX_REQUEST_BODY_BYTES) throw new Error('VS Code request body is too large');
+      headers['Content-Type'] = 'application/json';
+    }
+    const internalHost = address.address === '0.0.0.0' ? '127.0.0.1'
+      : address.address === '::' ? '[::1]'
+        : address.family === 'IPv6' ? `[${address.address}]` : address.address;
+    const response = await fetch(`http://${internalHost}:${address.port}${request.path}`, {
+      method: request.method, headers, body, signal: request.signal, redirect: 'error', cache: 'no-store',
+    });
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/event-stream')) {
+      const reader = response.body?.getReader();
+      if (!reader) return { status: response.status, body: {} };
+      const decoder = new TextDecoder(); let buffered = ''; let total = 0; let completed: unknown = {};
+      for (;;) {
+        const next = await reader.read(); if (next.done) break;
+        total += next.value.byteLength;
+        if (total > MAX_REQUEST_BODY_BYTES) { await reader.cancel(); throw new Error('VS Code stream response is too large'); }
+        buffered += decoder.decode(next.value, { stream: true });
+        const blocks = buffered.split('\n\n'); buffered = blocks.pop() || '';
+        for (const block of blocks) {
+          const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+          if (!data || data === '[DONE]') continue;
+          const event = JSON.parse(data) as Record<string, unknown>;
+          request.onEvent?.(event); if (event.type === 'done') completed = event;
+        }
+      }
+      buffered += decoder.decode();
+      if (buffered.trim()) {
+        const data = buffered.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+        if (data && data !== '[DONE]') { const event = JSON.parse(data) as Record<string, unknown>; request.onEvent?.(event); if (event.type === 'done') completed = event; }
+      }
+      return { status: response.status, body: completed };
+    }
+    const reader = response.body?.getReader(); let total = 0; const chunks: Uint8Array[] = [];
+    if (reader) for (;;) {
+      const next = await reader.read(); if (next.done) break;
+      total += next.value.byteLength;
+      if (total > MAX_REQUEST_BODY_BYTES) { await reader.cancel(); throw new Error('VS Code platform response is too large'); }
+      chunks.push(next.value);
+    }
+    const payload = Buffer.concat(chunks.map(chunk => Buffer.from(chunk)), total).toString('utf8');
+    let parsed: unknown = {};
+    if (payload) { try { parsed = JSON.parse(payload); } catch { parsed = { error: { message: 'Platform returned invalid JSON', type: 'invalid_platform_response' } }; } }
+    return { status: response.status, body: parsed };
   }
 
   /**
@@ -386,6 +492,37 @@ export class BridgeServer {
     return { cwd: resolved.path, workspaceId: selected.id, repository: effectiveRepo?.id, requiresApproval: Boolean(effectiveRepo?.overrides?.requireApproval || effectiveRepo?.overrides?.mandatoryGates?.length), maxCostUsd: effectiveRepo?.overrides?.maxCostPerRunUsd };
   }
 
+  private _skillContext(operator: PlatformOperatorContext, workspaceId: string | undefined, signal: AbortSignal, approved: boolean, reauthorize: () => PlatformOperatorContext): SkillExecutionContext {
+    const selected = workspaceId ? this._platformWorkspace(workspaceId) : undefined;
+    const workspace = selected?.cwd && selected.workspaceId ? { id: selected.workspaceId, root: selected.cwd, repository: selected.repository } : undefined;
+    if (workspaceId && !workspace) throw new SkillError('Registered workspace is unavailable', 403);
+    const authorize: SkillExecutionContext['authorize'] = (effect, details) => {
+      const current = reauthorize();
+      requirePlatformCapability(current, effect === 'read' ? 'view' : 'operate', workspace?.id);
+      const live = workspace ? this._platformWorkspace(workspace.id) : undefined;
+      if (workspace && live?.cwd !== workspace.root) throw new SkillError('Workspace configuration changed during execution', 403);
+      if (workspace && live?.repository !== workspace.repository) throw new SkillError('Repository authorization changed during execution', 403);
+      const repository = live?.repository ? this._governanceManager.getRepository(live.repository) : undefined;
+      const skill = details?.skill;
+      if (effect === 'execute' || skill === 'github-actions') requirePlatformCapability(current, 'admin', workspace?.id);
+      if ((effect === 'execute' || effect === 'write') && skill !== 'memory') {
+        if (!approved) throw new SkillError('This tool changes files or external state; the caller must explicitly approve this invocation', 403);
+        if (repository && (repository.overrides?.agentEnabled === false || live?.requiresApproval)) throw new SkillError('Repository policy requires its governed pipeline for this mutation', 403);
+      }
+      const restrictions = new Set(normalizeDisallowedTools(repository?.overrides?.disallowedTools)?.split(',').map(value => value.trim()) ?? []);
+      const required = skill === 'filesystem' ? effect === 'write' ? ['Write', 'Edit'] : ['Read', 'Glob'] : skill === 'browser' ? ['WebFetch'] : skill === 'web-search' ? ['WebSearch'] : effect === 'execute' ? ['Bash', 'Shell'] : [];
+      if (required.some(tool => restrictions.has(tool))) throw new SkillError('Repository tool policy forbids this operation', 403);
+    };
+    return {
+      operator, workspace, signal, store: this._platform.store, authorize,
+      githubToken: () => process.env.GITHUB_TOKEN,
+      executeModel: request => {
+        const current = reauthorize();
+        return this._platformExecute({ ...request, signal: AbortSignal.any([signal, ...(request.signal ? [request.signal] : [])]) }, { operator: current, workspaceId: workspace?.id, repository: workspace?.repository });
+      },
+    };
+  }
+
   private async _platformExecute(original: ChatRequest, context: PlatformExecutionContext): Promise<string> {
     const workspace = (context.workspaceId && context.workspaceId !== 'default') || original.cwd || original.mode === 'agent'
       ? this._platformWorkspace(context.workspaceId === 'default' ? undefined : context.workspaceId, original.cwd, context.repository) : {};
@@ -495,6 +632,8 @@ export class BridgeServer {
       json(res, 403, { error: { message: 'Cross-site requests are not accepted for this endpoint.', type: 'forbidden' } });
       return;
     }
+
+    if (await this._integrations.handle(req, res, () => readBody(req))) return;
 
     // Scoped platform tokens authorize only the platform routes, not legacy admin APIs.
     if (await this._platform.handle(req, res, () => readBody(req))) return;
@@ -1802,6 +1941,12 @@ function safeEqual(a: string, b: string): boolean {
   const bb = Buffer.from(String(b));
   if (ab.length !== bb.length) return false;
   return timingSafeEqual(ab, bb);
+}
+
+function rejectWebSocketUpgrade(socket: Duplex, status: 400 | 401, reason: 'Bad Request' | 'Unauthorized'): void {
+  try {
+    socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  } catch { socket.destroy(); }
 }
 
 function json(res: ServerResponse, status: number, body: object) {
