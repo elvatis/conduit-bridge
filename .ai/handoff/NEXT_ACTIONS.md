@@ -4,10 +4,11 @@ Current version: **v0.9.1**
 
 _Updated: 2026-09-07_
 
-1. Review and test the enterprise multi-agent governance dashboard, real-time analytics charts, budget controls, and directory browser on `feat/provider-agent-management` at `http://127.0.0.1:31338/`.
-2. Evaluate cross-project integration points between Conduit Bridge and `local-model-tooling` (tool schemas, task presets, prompt templates, and routing guidelines).
-3. Prepare pull request for `feat/provider-agent-management` into `main`.
-4. Plan next version release (v0.10.0 or patch) and changelog updates.
+1. Review the local fixes for existing PR #117 on `feat/provider-agent-management`; see `docs/PR117-VALIDATION.md`. Build and 281 tests pass. Three real Claude Sonnet 5 pipeline demos passed and the local service is running.
+2. Publish the reviewed branch changes to PR #117 and verify hosted CI before merge. The earlier review report is already appended to the PR description; the new fixes and validation documents are still local.
+3. Resolve the local Codex executable mismatch: npm CLI 0.152.1 cannot parse the newer desktop feature configuration, while native 0.153.4 can. Preserve user configuration; consider executable selection and explicit config isolation as follow-ups.
+4. Use `docs/PROVIDER-AGENT-ROADMAP.md` to plan SQLite state storage, protected credential references, session webchat, scoped memory, versioned skills and bounded repair loops. The sibling `ai.elvatis.com` has useful session/memory/prompt interfaces; no new database or retained-chat implementation is included here.
+5. Evaluate cross-project integration with `local-model-tooling`, then plan the next version release after merge. No release or version bump was made in this validation pass.
 
 Do not reintroduce `web-*`, Playwright, cookie extraction, VNC components, or
 additional user ports.
@@ -20,17 +21,13 @@ mutation-proved (18 proofs, each turning its gate red on the exact staleness
 it exists to catch, with the unmodified tree green). What is left needs a
 decision or source work, so it is recorded here rather than assumed.
 
-1. **Required status checks: there are NONE.** `gh api
-   repos/elvatis/conduit-bridge/branches/main/protection/required_status_checks`
-   returns 404, "Required status checks not enabled". CI runs on every pull
-   request and blocks nothing, so every gate added on 2026-09-03 is advisory.
-   The name collision that stood in the way is fixed: `Scan` and `Secret Scan`
-   are now distinct. Needs a repository settings change, so it needs Emre.
-   After setting them, verify with a throwaway pull request carrying one em
-   dash and confirm the merge is actually blocked. A required check that does
-   not block is the same failure this pass was cleaning up.
+1. **Required checks now exist.** Read-only verification on 2026-09-07 found
+   `aahp-verify`, `Test (ubuntu-latest)`, `Test (windows-latest)`, `Secret Scan`,
+   `Scan`, and `Analyze (javascript-typescript)`, with `strict: false`. The old
+   404/no-required-checks statement below is historical. A merge-blocking mutation
+   proof and a decision about strict branch freshness remain follow-ups.
 
-2. **84 em dash characters in 26 `.ts` files**, on 82 lines, 19 of them on
+2. **79 em dash characters in 25 `.ts` files** at the 2026-09-07 review snapshot, on 77 lines, 19 of them on
    non-comment lines: CLI output, provider error strings, and a note string
    that leaves the process on `/v1/models`. `em-dash.include` deliberately
    does not cover `*.ts` yet, because fixing them changes observable output.

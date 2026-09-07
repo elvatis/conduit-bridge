@@ -2,6 +2,22 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - PR #117 fixes, real pipeline demos and management roadmap
+
+- Appended the Astra product/stability and Daybreak security review to PR #117.
+- Fixed the reviewed pipeline, policy, accounting, workspace, Windows argument,
+  persistence and dashboard issues on the existing local branch.
+- Stopped the scheduled local service, built the branch, and restarted it.
+- Full suite passes: 281 tests in 24 files. Real Claude Sonnet 5 calls passed the
+  write/verify, approval/execute and parallel debate/synthesis examples (seven steps).
+- Live Codex testing exposed a flag conflict (fixed), then a local npm CLI versus
+  desktop config compatibility problem (documented, user config preserved).
+- Added reproducible examples, a demo runner, measured validation and a proposed
+  SQLite/credentials/session/memory/skills/loops roadmap using read-only inspection
+  of the sibling ai.elvatis.com implementation.
+- Corrected stale next actions: PR #117 already exists and six required checks are
+  enabled. No repository settings changes, push, merge, release or version bump.
+
 ## 2026-09-07 - Enterprise governance templates, budget controls, workspace browsing, tool discovery, and visual analytics
 
 - Implemented 9 repository-specific governance pipeline templates (standard-governance, doc-generation, doc-review, refactoring-review, pr-review, release-readiness, architecture-review, dependency-risk, supply-chain-security) with parallel reviews, mandatory approval gates, and repository policy overrides.

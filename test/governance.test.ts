@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -55,6 +55,25 @@ describe('Governance Subsystem', () => {
 
     const byPath = govManager.getRepository(tmpDir);
     expect(byPath?.id).toBe('acme/service-mesh');
+  });
+
+  it('finds the most specific repository for a canonical child path', () => {
+    const root = join(tmpDir, 'repo');
+    const nested = join(root, 'packages', 'api');
+    mkdirSync(nested, { recursive: true });
+    govManager.saveRepository({ id: 'acme/root', name: 'Root', path: root });
+    govManager.saveRepository({ id: 'acme/api', name: 'API', path: nested });
+    expect(govManager.findRepositoryForPath(join(nested, '.'))?.id).toBe('acme/api');
+  });
+
+  it('rejects invalid repository roots and escaping default workspaces', () => {
+    const root = join(tmpDir, 'repo');
+    const outside = join(tmpDir, 'outside');
+    mkdirSync(root);
+    mkdirSync(outside);
+    expect(() => govManager.saveRepository({ id: 'bad..repo', name: 'Bad', path: root })).toThrow(/identifier/i);
+    expect(() => govManager.saveRepository({ id: 'acme/missing', name: 'Missing', path: join(tmpDir, 'missing') })).toThrow(/existing absolute/i);
+    expect(() => govManager.saveRepository({ id: 'acme/escape', name: 'Escape', path: root, defaultWorkspace: outside })).toThrow(/inside/i);
   });
 
   it('records audit events and filters them correctly', () => {
@@ -239,6 +258,20 @@ describe('Workspace Subsystem', () => {
     expect(browse.current).toBe(tmpDir);
     expect(browse.directories.some(d => d.name === 'src')).toBe(true);
     expect(browse.directories.some(d => d.name === 'docs')).toBe(true);
+  });
+
+  it('resolves only canonical directories inside an approved root', () => {
+    const root = join(tmpDir, 'repo');
+    const child = join(root, 'src');
+    const outside = join(tmpDir, 'outside');
+    mkdirSync(child, { recursive: true });
+    mkdirSync(outside);
+    expect(wsManager.resolveWorkingDirectory(child, [root], false)).toMatchObject({ ok: true });
+    expect(wsManager.resolveWorkingDirectory(outside, [root], false)).toMatchObject({ ok: false });
+
+    const escape = join(root, 'linked-outside');
+    symlinkSync(outside, escape, process.platform === 'win32' ? 'junction' : 'dir');
+    expect(wsManager.resolveWorkingDirectory(escape, [root], false)).toMatchObject({ ok: false });
   });
 });
 

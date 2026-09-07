@@ -93,7 +93,7 @@ export interface ChatRequest {
   effort?: string;
   /**
    * Working directory for CLI providers. Ignored by API/LM Studio transports.
-   * Must be an absolute path that exists; otherwise the CLI uses the home directory.
+   * Must be an absolute path that exists; otherwise the CLI uses an empty sandbox.
    * Required when `mode` is `agent`.
    */
   cwd?: string;
@@ -226,8 +226,8 @@ export interface BudgetConfig {
   monthlyBudgetUsd: number;      // e.g. 100.00
   warningThresholdPercent: number; // e.g. 80
   hardStop: boolean;             // reject execution if budget exceeded (true) or warn only (false)
-  providerLimits?: Partial<Record<ProviderName, number>>; // USD ceiling per provider
-  modelLimits?: Record<string, number>; // USD ceiling per model
+  providerLimits?: Partial<Record<ProviderName, number>>; // daily USD ceiling per provider (UTC)
+  modelLimits?: Record<string, number>; // daily USD ceiling per model (UTC)
 }
 
 export interface BudgetUsage {
@@ -235,6 +235,10 @@ export interface BudgetUsage {
   currentMonthlyCostUsd: number;
   totalRunsToday: number;
   totalTokensToday: number;
+  /** Provider invocations, including pipeline steps and retries, distinct from runs. */
+  requestAttemptsToday?: number;
+  providerDailyCostUsd?: Record<string, number>;
+  modelDailyCostUsd?: Record<string, number>;
   lastResetDay: string;          // YYYY-MM-DD
   lastResetMonth: string;        // YYYY-MM
 }

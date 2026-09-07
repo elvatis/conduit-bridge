@@ -8,7 +8,20 @@ import {
   cliPermissionArgs,
   isAgentModeAllowed,
   DEFAULT_MUTATING_TOOLS,
+  normalizeDisallowedTools,
 } from '../src/cli-mode.js';
+
+describe('normalizeDisallowedTools', () => {
+  it('accepts and canonicalizes known tool names', () => {
+    expect(normalizeDisallowedTools(' Write,Edit,Write ')).toBe('Write,Edit');
+  });
+
+  it('rejects unknown names and Windows shell syntax', () => {
+    expect(() => normalizeDisallowedTools('UnknownTool')).toThrow(/known tool/i);
+    expect(() => normalizeDisallowedTools('Write"&echo injected&rem "')).toThrow(/unsupported/i);
+    expect(() => normalizeDisallowedTools('Write\nEdit')).toThrow(/unsupported/i);
+  });
+});
 
 describe('parseCliRunMode', () => {
   it('defaults to chat when nothing is set', () => {
@@ -96,14 +109,16 @@ describe('cliPermissionArgs', () => {
     expect(cliPermissionArgs('cli-gemini', 'agent', { isAgy: false })).toEqual([]);
   });
 
-  it('maps Codex plan/chat to read-only sandbox and agent to workspace-write', () => {
+  it('maps Codex plan/chat to read-only and agent to workspace-write without approval bypasses', () => {
     expect(cliPermissionArgs('cli-codex', 'plan')).toEqual(['--sandbox', 'read-only', '--ephemeral']);
     expect(cliPermissionArgs('cli-codex', 'chat')).toEqual(['--sandbox', 'read-only', '--ephemeral']);
-    expect(cliPermissionArgs('cli-codex', 'agent')).toEqual([
+    const agentArgs = cliPermissionArgs('cli-codex', 'agent');
+    expect(agentArgs).toEqual([
       '--sandbox', 'workspace-write',
-      '--approve-for-me',
       '--ephemeral',
     ]);
+    expect(agentArgs).not.toContain('--approve-for-me');
+    expect(agentArgs).not.toContain('--dangerously-bypass-approvals-and-sandbox');
   });
 
   it('maps Grok chat to read-only tools, plan to plan, agent to no-plan always-approve', () => {

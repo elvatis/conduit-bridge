@@ -1,7 +1,24 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, accessSync, readdirSync, constants } from 'node:fs';
-import { dirname, join, isAbsolute, basename, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, accessSync, readdirSync, constants, realpathSync } from 'node:fs';
+import { dirname, join, isAbsolute, basename, resolve, relative, sep } from 'node:path';
 import { runtimeDir } from './config.js';
 import type { WorkspaceEntry } from './types.js';
+
+/** Resolve an existing directory through symlinks/junctions for boundary checks. */
+export function canonicalDirectory(targetPath: string): string | undefined {
+  if (typeof targetPath !== 'string' || !targetPath.trim() || !isAbsolute(targetPath.trim())) return undefined;
+  try {
+    const canonical = realpathSync.native(resolve(targetPath.trim()));
+    return statSync(canonical).isDirectory() ? canonical : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** True when candidate is the root itself or one of its descendants. */
+export function isPathWithin(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
+}
 
 export class WorkspaceManager {
   private workspaces: WorkspaceEntry[] = [];
@@ -70,6 +87,33 @@ export class WorkspaceManager {
     }).sort((a, b) => b.lastUsed - a.lastUsed);
   }
 
+  getDefaultWorkspace(): WorkspaceEntry | undefined {
+    return this.workspaces.find(w => w.isDefault) ?? this.workspaces[0];
+  }
+
+  /**
+   * Resolve a request working directory and prove that it stays within an
+   * approved root after following symlinks and Windows junctions.
+   */
+  resolveWorkingDirectory(candidate?: string, additionalRoots: string[] = [], includeRegistered = true): {
+    ok: boolean;
+    path?: string;
+    error?: string;
+  } {
+    const requested = candidate?.trim() || this.getDefaultWorkspace()?.path;
+    if (!requested) return { ok: false, error: 'No default workspace is configured' };
+    const canonical = canonicalDirectory(requested);
+    if (!canonical) return { ok: false, error: 'Working directory must be an existing absolute directory' };
+
+    const roots = [...additionalRoots, ...(includeRegistered ? this.workspaces.map(w => w.path) : [])]
+      .map(canonicalDirectory)
+      .filter((root): root is string => Boolean(root));
+    if (!roots.some(root => isPathWithin(root, canonical))) {
+      return { ok: false, error: 'Working directory is outside every registered repository or workspace' };
+    }
+    return { ok: true, path: canonical };
+  }
+
   addOrUpdateWorkspace(wsPath: string, name?: string, isDefault = false): {
     ok: boolean;
     entry?: WorkspaceEntry;
@@ -102,8 +146,8 @@ export class WorkspaceManager {
       writable = false;
     }
 
-    const normPath = resolve(trimmed);
-    const existingIndex = this.workspaces.findIndex(w => resolve(w.path) === normPath);
+    const normPath = canonicalDirectory(trimmed)!;
+    const existingIndex = this.workspaces.findIndex(w => canonicalDirectory(w.path) === normPath);
 
     if (isDefault) {
       this.workspaces.forEach(w => { w.isDefault = false; });
@@ -130,8 +174,8 @@ export class WorkspaceManager {
   }
 
   touchWorkspace(wsPath: string): void {
-    const norm = resolve(wsPath);
-    const item = this.workspaces.find(w => resolve(w.path) === norm);
+    const norm = canonicalDirectory(wsPath);
+    const item = norm ? this.workspaces.find(w => canonicalDirectory(w.path) === norm) : undefined;
     if (item) {
       item.lastUsed = Date.now();
       this.save();
@@ -140,9 +184,8 @@ export class WorkspaceManager {
 
   removeWorkspace(idOrPath: string): boolean {
     const prev = this.workspaces.length;
-    let norm = '';
-    try { norm = resolve(idOrPath); } catch {}
-    this.workspaces = this.workspaces.filter(w => w.id !== idOrPath && (!norm || resolve(w.path) !== norm));
+    const norm = canonicalDirectory(idOrPath);
+    this.workspaces = this.workspaces.filter(w => w.id !== idOrPath && (!norm || canonicalDirectory(w.path) !== norm));
     if (this.workspaces.length !== prev) {
       this.save();
       return true;

@@ -1,14 +1,16 @@
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runtimeDir } from './config.js';
 import type { ProviderRegistry } from './registry.js';
-import type { ProviderAgentPolicy } from './types.js';
+import type { ProviderAgentPolicy, ProviderAdapter, ChatRequest } from './types.js';
 import type { BudgetManager } from './budget.js';
 import type { GovernanceManager } from './governance.js';
+import type { MetricsStore } from './metrics.js';
+import { abortable, executeWithAccounting, estimateTokens, estimateCost } from './usage.js';
+import { redactSecrets } from './redact.js';
 
 export type PipelineStepExecutionType = 'sequential' | 'parallel' | 'fan_out';
-export type PipelineRunStatus = 'running' | 'waiting_approval' | 'completed' | 'failed' | 'rejected';
+export type PipelineRunStatus = 'running' | 'waiting_approval' | 'completed' | 'failed' | 'rejected' | 'cancelled' | 'interrupted';
 export type StepRunStatus = 'pending' | 'running' | 'completed' | 'waiting_approval' | 'failed' | 'rejected';
 
 export interface PipelineStep {
@@ -20,6 +22,8 @@ export interface PipelineStep {
   requiresApproval?: boolean;
   dependsOn?: string[];
   parallelGroup?: string;
+  max_tokens?: number;
+  effort?: string;
 }
 
 export interface PipelineDefinition {
@@ -60,6 +64,64 @@ export interface PipelineRun {
   workingDirectory?: string;
   costUsd?: number;
   tokensConsumed?: number;
+  /** Frozen definition: later edits must not change an in-progress run. */
+  definition?: PipelineDefinition;
+  error?: string;
+  maxCostPerRunUsd?: number;
+  executionMs?: number;
+  contentRetained?: boolean;
+}
+
+export const MAX_PIPELINE_PROMPT_CHARS = 100000;
+export const MAX_PIPELINE_OUTPUT_CHARS = 200000;
+
+/** Durable summaries contain no prompts or model output. Live context stays in memory. */
+export function summarizePipelineRun(value: PipelineRun): PipelineRun {
+  const run = structuredClone(value);
+  run.initialPrompt = '';
+  run.contentRetained = false;
+  delete run.definition;
+  if (run.approvalFeedback) run.approvalFeedback = redactSecrets(run.approvalFeedback);
+  if (run.error) run.error = redactSecrets(run.error).slice(0, 4000);
+  for (const step of Object.values(run.stepResults)) {
+    if (step.error) step.error = redactSecrets(step.error).slice(0, 4000);
+    delete step.content;
+  }
+  return run;
+}
+
+export function validatePipeline(pipeline: PipelineDefinition): void {
+  const safeId = (value: unknown): value is string => typeof value === 'string' && /^[\w-]{1,100}$/.test(value) && !['__proto__', 'constructor', 'prototype'].includes(value);
+  const boundedText = (value: unknown, maximum: number, required = false): value is string => typeof value === 'string' && value.length <= maximum && (!required || !!value.trim()) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
+  if (!pipeline || !safeId(pipeline.id) || !boundedText(pipeline.name, 200, true) || !Array.isArray(pipeline.steps) || !pipeline.steps.length || pipeline.steps.length > 50) throw new Error('Pipeline requires a safe id, bounded name and 1–50 steps');
+  if (!boundedText(pipeline.description, 4000)) throw new Error('Pipeline description must be a string of at most 4000 characters');
+  if (pipeline.repository !== undefined && !boundedText(pipeline.repository, 300, true)) throw new Error('Invalid pipeline repository');
+  if (pipeline.category !== undefined && !['governance', 'engineering', 'review', 'security', 'custom'].includes(pipeline.category)) throw new Error('Unsupported pipeline category');
+  const steps = new Map<string, PipelineStep>();
+  for (const step of pipeline.steps) {
+    if (!step || !safeId(step.id) || !boundedText(step.model, 300, true) || !boundedText(step.name, 200, true) || steps.has(step.id)) throw new Error('Pipeline step IDs must be unique safe identifiers; bounded model and name are required');
+    if (step.promptTemplate !== undefined && !boundedText(step.promptTemplate, MAX_PIPELINE_PROMPT_CHARS)) throw new Error('Pipeline prompt template must be a bounded string');
+    if (step.parallelGroup !== undefined && !safeId(step.parallelGroup)) throw new Error('parallelGroup must be a safe identifier');
+    if (step.requiresApproval !== undefined && typeof step.requiresApproval !== 'boolean') throw new Error('requiresApproval must be a boolean');
+    if (step.mode && !['chat', 'plan', 'agent'].includes(step.mode)) throw new Error('Unsupported step mode');
+    if (step.dependsOn !== undefined && (!Array.isArray(step.dependsOn) || step.dependsOn.length > 50 || !step.dependsOn.every(safeId) || new Set(step.dependsOn).size !== step.dependsOn.length)) throw new Error('dependsOn must contain at most 50 unique safe IDs');
+    if (step.max_tokens !== undefined && (!Number.isInteger(step.max_tokens) || step.max_tokens < 1 || step.max_tokens > 32768)) throw new Error('Step max_tokens must be an integer from 1 to 32768');
+    if (step.effort !== undefined && !['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].includes(step.effort)) throw new Error('Unsupported step effort');
+    steps.set(step.id, step);
+  }
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const visit = (id: string) => {
+    if (visiting.has(id)) throw new Error(`Pipeline dependency cycle at ${id}`);
+    if (visited.has(id)) return;
+    const step = steps.get(id);
+    if (!step) throw new Error(`Unknown pipeline dependency: ${id}`);
+    visiting.add(id);
+    for (const dependency of step.dependsOn || []) visit(dependency);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  for (const id of steps.keys()) visit(id);
 }
 
 export const PRESET_PIPELINES: PipelineDefinition[] = [
@@ -535,34 +597,52 @@ export class PipelineStore {
     if (existsSync(this.runsFile)) {
       try {
         const parsed = JSON.parse(readFileSync(this.runsFile, 'utf8'));
-        if (Array.isArray(parsed)) this.runs = parsed.slice(-50);
+        if (Array.isArray(parsed)) this.runs = parsed.slice(-50).map(summarizePipelineRun);
       } catch { /* ignore corrupt run history */ }
     }
+    let interrupted = false;
+    for (const run of this.runs) {
+      if (run.status === 'running' || run.status === 'waiting_approval') {
+        run.status = 'interrupted';
+        run.error = 'Bridge restarted; private execution context is not persisted. Inspect the workspace before starting a new run';
+        run.completedAt = Date.now();
+        for (const step of Object.values(run.stepResults)) if (step.status === 'running' || step.status === 'waiting_approval') { step.status = 'failed'; step.error = run.error; step.completedAt = run.completedAt; }
+        run.pendingApprovalStepId = undefined;
+        interrupted = true;
+      }
+    }
+    if (interrupted || existsSync(this.runsFile)) this.saveRuns();
+    const reserved = new Set(PRESET_PIPELINES.map(p => p.id));
+    const custom = this.pipelines.filter(p => {
+      try { validatePipeline(p); return !reserved.has(p.id); } catch { return false; }
+    });
+    if (custom.length !== this.pipelines.length) { this.pipelines = custom; this.savePipelines(); }
   }
 
   private savePipelines(): void {
     mkdirSync(dirname(this.pipelinesFile), { recursive: true });
-    writeFileSync(this.pipelinesFile, JSON.stringify(this.pipelines, null, 2), { mode: 0o600 });
-    chmodSync(this.pipelinesFile, 0o600);
+    const temporary = `${this.pipelinesFile}.${process.pid}.tmp`;
+    writeFileSync(temporary, JSON.stringify(this.pipelines, null, 2), { mode: 0o600 });
+    renameSync(temporary, this.pipelinesFile);
   }
 
   private saveRuns(): void {
     mkdirSync(dirname(this.runsFile), { recursive: true });
-    writeFileSync(this.runsFile, JSON.stringify(this.runs.slice(-50), null, 2), { mode: 0o600 });
-    chmodSync(this.runsFile, 0o600);
+    const temporary = `${this.runsFile}.${process.pid}.tmp`;
+    writeFileSync(temporary, JSON.stringify(this.runs.map(summarizePipelineRun), null, 2), { mode: 0o600 });
+    renameSync(temporary, this.runsFile);
   }
 
   listPipelines(categoryFilter?: string, repoFilter?: string): PipelineDefinition[] {
-    const customIds = new Set(this.pipelines.map(p => p.id));
-    const presets = PRESET_PIPELINES.filter(p => !customIds.has(p.id));
-    let all = [...presets, ...this.pipelines];
+    const reserved = new Set(PRESET_PIPELINES.map(p => p.id));
+    let all = [...PRESET_PIPELINES, ...this.pipelines.filter(p => !reserved.has(p.id))];
     if (categoryFilter) {
       all = all.filter(p => p.category === categoryFilter);
     }
     if (repoFilter) {
       all = all.filter(p => !p.repository || p.repository === repoFilter);
     }
-    return all;
+    return structuredClone(all);
   }
 
   getPipeline(id: string): PipelineDefinition | undefined {
@@ -570,8 +650,10 @@ export class PipelineStore {
   }
 
   savePipeline(def: PipelineDefinition): PipelineDefinition {
+    validatePipeline(def);
+    if (PRESET_PIPELINES.some(p => p.id === def.id)) throw new Error('Built-in pipeline IDs are reserved; save a copy with a new ID');
     const index = this.pipelines.findIndex(p => p.id === def.id);
-    const updated = { ...def, isBuiltIn: false };
+    const updated = structuredClone({ ...def, isBuiltIn: false });
     if (index >= 0) {
       this.pipelines[index] = updated;
     } else {
@@ -596,19 +678,28 @@ export class PipelineStore {
     if (repoFilter) {
       list = list.filter(r => r.repository === repoFilter);
     }
-    return list;
+    return structuredClone(list);
   }
 
   getRun(id: string): PipelineRun | undefined {
-    return this.runs.find(r => r.id === id);
+    const run = this.runs.find(r => r.id === id);
+    return run ? structuredClone(run) : undefined;
   }
 
   recordRun(run: PipelineRun): void {
+    run = structuredClone(run);
+    if (run.error) run.error = redactSecrets(run.error);
+    for (const step of Object.values(run.stepResults)) if (step.error) step.error = redactSecrets(step.error);
     const index = this.runs.findIndex(r => r.id === run.id);
     if (index >= 0) {
-      this.runs[index] = run;
+      this.runs[index] = structuredClone(run);
     } else {
-      this.runs.push(run);
+      if (this.runs.length >= 50) {
+        const terminal = this.runs.findIndex(r => !['running', 'waiting_approval'].includes(r.status));
+        if (terminal < 0) throw new Error('Pipeline history capacity reached; finish existing active runs first');
+        this.runs.splice(terminal, 1);
+      }
+      this.runs.push(structuredClone(run));
     }
     this.saveRuns();
   }
@@ -631,7 +722,7 @@ export function interpolatePrompt(
     return priorContent ? `${initialPrompt}\n\nPrior Context:\n${priorContent}` : initialPrompt;
   }
 
-  let rendered = template.replace(/\{\{\s*prompt\s*\}\}/gi, initialPrompt);
+  let rendered = template.replace(/\{\{\s*prompt\s*\}\}/gi, () => initialPrompt);
 
   const completedSteps = Object.values(stepResults).filter(r => r.status === 'completed' && r.content);
   const relevantSteps = dependsOn && dependsOn.length
@@ -646,14 +737,14 @@ export function interpolatePrompt(
     .map(r => `[${r.stepName} - ${r.model}]:\n${r.content}`)
     .join('\n\n');
 
-  rendered = rendered.replace(/\{\{\s*previous_output\s*\}\}/gi, previousOutput);
-  rendered = rendered.replace(/\{\{\s*prior_steps\s*\}\}/gi, priorStepsSummary);
-  rendered = rendered.replace(/\{\{\s*input\s*\}\}/gi, previousOutput || initialPrompt);
+  rendered = rendered.replace(/\{\{\s*previous_output\s*\}\}/gi, () => previousOutput);
+  rendered = rendered.replace(/\{\{\s*prior_steps\s*\}\}/gi, () => priorStepsSummary);
+  rendered = rendered.replace(/\{\{\s*input\s*\}\}/gi, () => previousOutput || initialPrompt);
 
   // Support direct step reference {{step.<id>.output}}
   for (const [stepId, res] of Object.entries(stepResults)) {
     const re = new RegExp(`\\{\\{\\s*step\\.${stepId}\\.output\\s*\\}\\}`, 'gi');
-    rendered = rendered.replace(re, res.content || '');
+    rendered = rendered.replace(re, () => res.content || '');
   }
 
   return rendered;
@@ -662,9 +753,6 @@ export function interpolatePrompt(
 /**
  * Estimate token count from string length (~4 chars per token).
  */
-function estimateTokens(text: string): number {
-  return Math.max(1, Math.ceil(text.length / 4));
-}
 
 /**
  * Execute a pipeline run against registered providers with budget, audit, and parallel review stage support.
@@ -675,7 +763,7 @@ export async function runPipeline(
   registry: ProviderRegistry,
   options: {
     agentPolicies?: Partial<Record<string, ProviderAgentPolicy>>;
-    onEvent?: (level: 'info' | 'success' | 'warning' | 'error', message: string, details?: string) => void;
+    onEvent?: (level: 'info' | 'success' | 'warning' | 'error', message: string, details?: string, metadata?: Record<string, unknown>) => void;
     existingRun?: PipelineRun;
     approvedStepId?: string;
     signal?: AbortSignal;
@@ -684,219 +772,163 @@ export async function runPipeline(
     workingDirectory?: string;
     budgetManager?: BudgetManager;
     governanceManager?: GovernanceManager;
+    metrics?: MetricsStore;
     operator?: string;
+    maxCostPerRunUsd?: number;
+    onRunUpdate?: (run: PipelineRun) => void;
+    resolveExecutionPolicy?: (providerName: string, mode: 'chat' | 'plan' | 'agent') => { allowed: boolean; disallowedTools?: string; reason?: string };
+    executeStep?: (provider: ProviderAdapter, request: ChatRequest) => Promise<string>;
   } = {},
 ): Promise<PipelineRun> {
-  const log = options.onEvent || (() => {});
-  const correlationId = options.correlationId || options.existingRun?.correlationId || `trace-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-  const run: PipelineRun = options.existingRun ?? {
-    id: `pipe-run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  if (options.existingRun) {
+    if (options.existingRun.status !== 'waiting_approval') throw new Error('Only a waiting pipeline can be resumed');
+    if (!options.approvedStepId || options.approvedStepId !== options.existingRun.pendingApprovalStepId) throw new Error('Approved step must match the pending approval checkpoint');
+    if (!options.existingRun.definition) throw new Error('Legacy run lacks an immutable definition; start a new run');
+    pipeline = structuredClone(options.existingRun.definition);
+    initialPrompt = options.existingRun.initialPrompt;
+  }
+  validatePipeline(pipeline);
+  if (!initialPrompt.trim() || initialPrompt.length > MAX_PIPELINE_PROMPT_CHARS) throw new Error(`Pipeline prompt must contain 1–${MAX_PIPELINE_PROMPT_CHARS} characters`);
+  const run: PipelineRun = options.existingRun ? structuredClone(options.existingRun) : {
+    id: `pipe-run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     pipelineId: pipeline.id,
     pipelineName: pipeline.name,
     initialPrompt,
     status: 'running',
     startedAt: Date.now(),
     stepResults: {},
-    correlationId,
+    correlationId: options.correlationId || `trace-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     repository: options.repository,
     workingDirectory: options.workingDirectory,
     tokensConsumed: 0,
     costUsd: 0,
+    definition: structuredClone(pipeline),
+    maxCostPerRunUsd: options.maxCostPerRunUsd,
+    contentRetained: true,
   };
-
-  log('info', `Pipeline '${pipeline.name}' started [${correlationId}]`, `Repository: ${options.repository || 'default'}`);
-
-  // Budget validation before starting execution
-  if (options.budgetManager) {
-    const budgetCheck = options.budgetManager.checkRunBudget();
-    if (!budgetCheck.allowed) {
-      run.status = 'failed';
-      run.completedAt = Date.now();
-      log('error', `Pipeline rejected by budget limit: ${budgetCheck.reason}`);
-      return run;
-    }
-    if (budgetCheck.warning) {
-      log('warning', budgetCheck.warning);
-    }
-  }
-
-  // Initialize missing step result states
-  for (const step of pipeline.steps) {
-    if (!run.stepResults[step.id]) {
-      run.stepResults[step.id] = {
-        stepId: step.id,
-        stepName: step.name,
-        model: step.model,
-        status: 'pending',
-      };
-    }
-  }
-
-  // Identify parallel groups
-  const stepMap = new Map(pipeline.steps.map(s => [s.id, s]));
-
-  for (let i = 0; i < pipeline.steps.length; i++) {
-    const step = pipeline.steps[i];
-    const existing = run.stepResults[step.id];
-
-    // Skip completed steps
-    if (existing && existing.status === 'completed') {
-      continue;
-    }
-
-    // Check if resuming an approved step
-    if (existing && existing.status === 'waiting_approval' && options.approvedStepId === step.id) {
-      existing.status = 'completed';
+  const log = (level: 'info' | 'success' | 'warning' | 'error', message: string, stepId?: string, details?: string) => options.onEvent?.(level, message, details, { runId: run.id, stepId, correlationId: run.correlationId, repository: run.repository });
+  const publish = () => options.onRunUpdate?.(structuredClone(run));
+  const controller = new AbortController();
+  const duration = options.budgetManager?.getConfig().maxDurationMs ?? 120000;
+  const segmentStartedAt = Date.now();
+  const timer = duration > 0 ? setTimeout(() => controller.abort(new Error('Pipeline execution deadline exceeded')), Math.max(1, duration - (run.executionMs || 0))) : undefined;
+  timer?.unref();
+  const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
+  run.status = 'running';
+  run.completedAt = undefined;
+  run.error = undefined;
+  for (const step of pipeline.steps) run.stepResults[step.id] ||= { stepId: step.id, stepName: step.name, model: step.model, status: 'pending' };
+  try {
+    // First persist must succeed before invoking any external provider.
+    publish();
+    if (duration > 0 && (run.executionMs || 0) >= duration) throw new Error('Pipeline execution deadline exceeded');
+    options.budgetManager?.beginRun(run.id, { costUsd: run.costUsd, tokens: run.tokensConsumed, maxCostUsd: run.maxCostPerRunUsd });
+    log('info', `Pipeline '${pipeline.name}' ${options.existingRun ? 'resumed' : 'started'}`);
+    if (options.approvedStepId) {
+      const approved = run.stepResults[options.approvedStepId];
+      if (approved?.status !== 'waiting_approval') throw new Error('Approved step is not waiting for approval');
+      options.governanceManager?.recordAudit({
+        pipelineId: run.pipelineId, pipelineName: run.pipelineName, runId: run.id,
+        stepId: approved.stepId, stepName: approved.stepName, model: approved.model,
+        repository: run.repository, operator: options.operator || 'operator', action: 'approved',
+        feedback: run.approvalFeedback, correlationId: run.correlationId,
+      });
+      // Authorization precedes execution; it is not an execution result.
+      approved.status = 'pending';
       run.pendingApprovalStepId = undefined;
-      if (options.governanceManager) {
-        options.governanceManager.recordAudit({
-          pipelineId: pipeline.id,
-          pipelineName: pipeline.name,
-          runId: run.id,
-          stepId: step.id,
-          stepName: step.name,
-          model: step.model,
-          repository: options.repository,
-          operator: options.operator || 'operator',
-          action: 'approved',
-          feedback: options.existingRun?.approvalFeedback,
-          correlationId,
-        });
-      }
-      log('success', `Approval granted for step '${step.name}' [${correlationId}]`);
-      continue;
+      publish();
     }
-
-    // Check dependencies
-    if (step.dependsOn && step.dependsOn.length) {
-      const depsCompleted = step.dependsOn.every(depId => run.stepResults[depId]?.status === 'completed');
-      if (!depsCompleted) {
-        continue;
-      }
-    }
-
-    // Human checkpoint gate
-    if (step.requiresApproval && existing.status !== 'waiting_approval' && options.approvedStepId !== step.id) {
-      existing.status = 'waiting_approval';
-      run.status = 'waiting_approval';
-      run.pendingApprovalStepId = step.id;
-      log('warning', `Approval checkpoint reached: step '${step.name}' awaits authorization`, `Model: ${step.model}`);
-      return run;
-    }
-
-    // Parallel review group detection: if this step has a parallelGroup, find sibling steps in same group
-    const parallelSiblings = step.parallelGroup
-      ? pipeline.steps.filter(s =>
-          s.id !== step.id &&
-          s.parallelGroup === step.parallelGroup &&
-          run.stepResults[s.id]?.status === 'pending' &&
-          (!s.dependsOn || s.dependsOn.every(d => run.stepResults[d]?.status === 'completed')) &&
-          !s.requiresApproval
-        )
-      : [];
-
-    const stepsToRun = [step, ...parallelSiblings];
-
-    // Execute steps (either single or concurrent parallel group)
-    const runStepAction = async (targetStep: PipelineStep): Promise<boolean> => {
-      const targetRes = run.stepResults[targetStep.id];
-      targetRes.status = 'running';
-      targetRes.startedAt = Date.now();
-      log('info', `Executing step '${targetStep.name}' on ${targetStep.model}`);
-
-      const promptText = interpolatePrompt(targetStep.promptTemplate, initialPrompt, run.stepResults, targetStep.dependsOn);
-      const provider = registry.providerForModel(targetStep.model);
-
-      if (!provider) {
-        targetRes.status = 'failed';
-        targetRes.error = `Provider not found for model: ${targetStep.model}`;
-        targetRes.completedAt = Date.now();
-        log('error', `Step '${targetStep.name}' failed: provider not found for ${targetStep.model}`);
-        return false;
-      }
-
-      const isConnected = await provider.ensureConnected();
-      if (!isConnected) {
-        targetRes.status = 'failed';
-        targetRes.error = `Provider ${provider.name} is not connected`;
-        targetRes.completedAt = Date.now();
-        log('error', `Step '${targetStep.name}' failed: ${provider.name} not connected`);
-        return false;
-      }
-
-      const stepMode = targetStep.mode || 'chat';
-      if (stepMode === 'agent') {
-        const policy = options.agentPolicies?.[provider.name];
-        if (policy && policy.agentEnabled === false) {
-          targetRes.status = 'failed';
-          targetRes.error = `Agent mode disabled for provider ${provider.name} by policy`;
-          targetRes.completedAt = Date.now();
-          log('error', `Step '${targetStep.name}' failed: agent mode disabled for ${provider.name}`);
-          return false;
-        }
-      }
-
+    const runStep = async (step: PipelineStep): Promise<void> => {
+      const result = run.stepResults[step.id];
       try {
-        const startTime = Date.now();
-        const inputTokens = estimateTokens(promptText);
-        const output = await provider.chat({
-          model: targetStep.model,
-          messages: [{ role: 'user', content: promptText }],
-          mode: stepMode,
-          cwd: options.workingDirectory,
-          signal: options.signal,
+        signal.throwIfAborted();
+        result.status = 'running';
+        result.startedAt = Date.now();
+        publish();
+        log('info', `Executing '${step.name}' on ${step.model}`, step.id);
+        const prompt = interpolatePrompt(step.promptTemplate, initialPrompt, run.stepResults, step.dependsOn);
+        if (prompt.length > MAX_PIPELINE_PROMPT_CHARS) throw new Error('Interpolated pipeline prompt exceeds the character limit');
+        const provider = registry.providerForModel(step.model);
+        if (!provider) throw new Error(`Provider not found for model: ${step.model}`);
+        const mode = step.mode || 'chat';
+        const policy = options.agentPolicies?.[provider.name];
+        if (mode === 'agent' && policy?.agentEnabled === false) throw new Error(`Agent mode disabled for provider ${provider.name} by policy`);
+        const resolved = options.resolveExecutionPolicy?.(provider.name, mode);
+        if (resolved && !resolved.allowed) throw new Error(resolved.reason || `Execution forbidden for ${provider.name}`);
+        if (!await abortable(provider.ensureConnected(), signal)) throw new Error(`Provider ${provider.name} is not connected`);
+        signal.throwIfAborted();
+        const output = await executeWithAccounting(provider, {
+          model: step.model, messages: [{ role: 'user', content: prompt }], mode,
+          cwd: run.workingDirectory, signal, disallowedTools: resolved?.disallowedTools ?? policy?.disallowedTools,
+          max_tokens: step.max_tokens, effort: step.effort,
+        }, {
+          budgetManager: options.budgetManager, metrics: options.metrics, runId: run.id,
+          maxOutputChars: MAX_PIPELINE_OUTPUT_CHARS,
+          onWarning: message => log('warning', message, step.id),
+          execute: options.executeStep ? request => options.executeStep!(provider, request) : undefined,
         });
-
-        const outputTokens = estimateTokens(output);
-        const totalTokens = inputTokens + outputTokens;
-        const estCost = totalTokens * 0.000003; // ~$3 per million tokens estimate
-
-        targetRes.content = output;
-        targetRes.status = 'completed';
-        targetRes.latencyMs = Date.now() - startTime;
-        targetRes.completedAt = Date.now();
-
-        run.tokensConsumed = (run.tokensConsumed || 0) + totalTokens;
-        run.costUsd = Math.round(((run.costUsd || 0) + estCost) * 1e6) / 1e6;
-
+        result.content = output;
+        result.status = 'completed';
+        const tokens = estimateTokens(prompt) + estimateTokens(output);
+        run.tokensConsumed = (run.tokensConsumed || 0) + tokens;
+        run.costUsd = Number(((run.costUsd || 0) + estimateCost(step.model, estimateTokens(prompt), estimateTokens(output))).toFixed(8));
+        log('success', `Step '${step.name}' completed`, step.id);
+      } catch (error) {
+        result.status = 'failed';
+        result.error = error instanceof Error ? error.message : String(error);
+        log('error', `Step '${step.name}' failed: ${result.error}`, step.id);
+        // Stop sibling work promptly on a failed parallel branch.
+        controller.abort(error);
+      } finally {
         if (options.budgetManager) {
-          options.budgetManager.recordSpend(estCost, totalTokens);
+          const spend = options.budgetManager.getRunSpend(run.id);
+          run.costUsd = spend.costUsd;
+          run.tokensConsumed = spend.tokens;
         }
-
-        log('success', `Step '${targetStep.name}' completed on ${targetStep.model} (${targetRes.latencyMs} ms)`);
-        return true;
-      } catch (err) {
-        targetRes.status = 'failed';
-        targetRes.error = (err as Error).message;
-        targetRes.completedAt = Date.now();
-        log('error', `Step '${targetStep.name}' failed: ${(err as Error).message}`);
-        return false;
+        result.completedAt = Date.now();
+        result.latencyMs = result.startedAt ? result.completedAt - result.startedAt : 0;
+        publish();
       }
     };
-
-    if (stepsToRun.length > 1) {
-      log('info', `Running ${stepsToRun.length} steps in parallel (Group: ${step.parallelGroup})`);
-      const results = await Promise.all(stepsToRun.map(s => runStepAction(s)));
-      if (results.some(r => !r)) {
-        run.status = 'failed';
+    while (true) {
+      signal.throwIfAborted();
+      const pending = pipeline.steps.filter(s => run.stepResults[s.id].status === 'pending');
+      if (!pending.length) break;
+      const ready = pending.filter(s => (s.dependsOn || []).every(id => run.stepResults[id].status === 'completed'));
+      if (!ready.length) throw new Error('Pipeline cannot progress because a dependency did not complete');
+      const first = ready[0];
+      if (first.requiresApproval && first.id !== options.approvedStepId) {
+        run.stepResults[first.id].status = 'waiting_approval';
+        run.pendingApprovalStepId = first.id;
+        run.status = 'waiting_approval';
+        run.executionMs = (run.executionMs || 0) + Date.now() - segmentStartedAt;
+        log('warning', `Approval checkpoint: '${first.name}' awaits authorization`, first.id);
+        publish();
         return run;
       }
-    } else {
-      const ok = await runStepAction(step);
-      if (!ok) {
-        run.status = 'failed';
-        return run;
+      const group = first.parallelGroup
+        ? ready.filter(s => s.parallelGroup === first.parallelGroup && (!s.requiresApproval || s.id === options.approvedStepId))
+        : [first];
+      // Bounded concurrency preserves parallel groups without launching arbitrary fan-out.
+      for (let offset = 0; offset < group.length; offset += 4) {
+        await Promise.all(group.slice(offset, offset + 4).map(runStep));
+        if (group.some(s => run.stepResults[s.id].status === 'failed')) throw new Error('A pipeline step failed');
       }
     }
-  }
-
-  const allCompleted = pipeline.steps.every(s => run.stepResults[s.id]?.status === 'completed');
-  if (allCompleted) {
     run.status = 'completed';
-    run.completedAt = Date.now();
-    log('success', `Pipeline '${pipeline.name}' completed successfully [${correlationId}]`, `Total tokens: ${run.tokensConsumed}, Cost: $${(run.costUsd || 0).toFixed(4)}`);
+    log('success', `Pipeline '${pipeline.name}' completed`);
+  } catch (error) {
+    run.status = options.signal?.aborted ? 'cancelled' : 'failed';
+    run.error = error instanceof Error ? error.message : String(error);
+    log('error', `Pipeline ${run.status}: ${run.error}`);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (run.status !== 'waiting_approval') {
+      run.executionMs = (run.executionMs || 0) + Date.now() - segmentStartedAt;
+      run.completedAt = Date.now();
+      options.budgetManager?.finishRun(run.id);
+      publish();
+    }
   }
-
   return run;
 }

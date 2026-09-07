@@ -410,7 +410,14 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     // Newest first, and every event keeps its original field names.
     expect(body.events[0].id).toBeGreaterThan(body.events[body.events.length - 1].id);
     for (const event of body.events) {
-      expect(Object.keys(event).sort()).toEqual(['id', 'level', 'message', 'scope', 'time']);
+      expect(event).toEqual(expect.objectContaining({
+        id: expect.any(Number), level: expect.any(String), message: expect.any(String),
+        scope: expect.any(String), time: expect.any(Number),
+      }));
+      expect(Object.keys(event).every(key => [
+        'id', 'level', 'message', 'scope', 'time', 'traceId', 'runId', 'stepId',
+        'provider', 'model', 'status', 'attempt', 'durationMs',
+      ].includes(key))).toBe(true);
       const serialised = JSON.stringify(event);
       expect(serialised).not.toContain(h.PROMPT_MARKER);
       expect(serialised).not.toContain(h.REPLY_MARKER);
@@ -425,7 +432,15 @@ describe('regression preservation: pre-login behaviour still holds', () => {
       const frames = socket.messages as Array<{ type: string; event?: Record<string, unknown> }>;
       const activity = frames.find(frame => frame.type === 'activity');
       expect(activity).toBeDefined();
-      expect(Object.keys(activity!.event!).sort()).toEqual(['id', 'level', 'message', 'scope', 'time']);
+      expect(activity!.event!).toEqual(expect.objectContaining({
+        id: expect.any(Number), level: expect.any(String), time: expect.any(Number),
+      }));
+      expect(Object.keys(activity!.event!).every(key => [
+        'id', 'level', 'message', 'scope', 'time', 'traceId', 'runId', 'stepId',
+        'provider', 'model', 'status', 'attempt', 'durationMs',
+      ].includes(key))).toBe(true);
+      expect(JSON.stringify(activity!.event!)).not.toContain(h.PROMPT_MARKER);
+      expect(JSON.stringify(activity!.event!)).not.toContain(h.REPLY_MARKER);
       expect(typeof activity!.event!.scope).toBe('string');
       expect(typeof activity!.event!.message).toBe('string');
     } finally {

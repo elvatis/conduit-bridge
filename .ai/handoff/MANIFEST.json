@@ -3,29 +3,29 @@
   "project": "pb",
   "last_session": {
     "agent": "cli-tool",
-    "session_id": "cli-1788776296",
-    "timestamp": "2026-09-07T10:18:16Z",
-    "commit": "8b14127",
+    "session_id": "cli-1788779632",
+    "timestamp": "2026-09-07T11:13:52Z",
+    "commit": "ba168da",
     "phase": "idle",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:5af74a31b7186cd415e71cd5f573e4a4b6ab9874f9b2122ae334d1ab3c34e338",
-      "updated": "2026-09-07T10:17:56Z",
-      "lines": 355,
+      "checksum": "sha256:a9d10d60596bba6227ccb3e84ae5407f0a56471d4f2f8357e4749d4ccda2d1c6",
+      "updated": "2026-09-07T11:13:40Z",
+      "lines": 375,
       "summary": "_Updated: 2026-09-07_"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:43803d2312e79e4014505e313152dce132add6803347b143fd78dd0aa5aadda7",
-      "updated": "2026-09-07T10:18:12Z",
-      "lines": 47,
+      "checksum": "sha256:da7973e9e2a4bd1520c48b7319d338d7a223d49b514841bfced105ee3575eb35",
+      "updated": "2026-09-07T11:13:39Z",
+      "lines": 44,
       "summary": "Current version: **v0.9.1**"
     },
     "LOG.md": {
-      "checksum": "sha256:004e4d575d21ae5a4f6731179b7624a25adf55a0e30c5f6243cb8d99c8efd740",
-      "updated": "2026-09-07T10:18:07Z",
-      "lines": 103,
+      "checksum": "sha256:5f3d5b40b5703d51830773d55b0bf21e495857d8679d8ed243fa6c196b15193d",
+      "updated": "2026-09-07T11:13:40Z",
+      "lines": 119,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -74,7 +74,7 @@
   "quick_context": "_Updated: 2026-09-07_ Current version: **v0.9.1** ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 4956,
-    "full_read": 9127
+    "manifest_plus_core": 5255,
+    "full_read": 9620
   }
 }

@@ -1,27 +1,31 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { BridgeConfig, ProviderName } from './types.js';
+import type { BridgeConfig, ProviderName, RepositoryConfig } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
-import { parseCliRunMode, agentModeCwdError, KNOWN_TOOLS, discoverSystemTools } from './cli-mode.js';
+import { parseCliRunMode, agentModeCwdError, KNOWN_TOOLS, discoverSystemTools, normalizeDisallowedTools } from './cli-mode.js';
 import { DASHBOARD_HTML, HELP_HTML } from './dashboard.js';
 import { MetricsStore } from './metrics.js';
-import { PipelineStore, runPipeline, type PipelineDefinition } from './pipelines.js';
+import { MAX_PIPELINE_PROMPT_CHARS, PipelineStore, runPipeline, type PipelineDefinition, type PipelineRun } from './pipelines.js';
 import { saveConfig } from './config.js';
 import { ActivityLog } from './activity.js';
 import { DEFAULT_ORCHESTRATOR, type OrchestratorConfig, type OrchestrationStrategy } from './orchestrator.js';
 import { RequestLimiter } from './limits.js';
 import { RunHistory } from './run-history.js';
-import { BudgetManager } from './budget.js';
+import { BudgetExceededError, BudgetManager } from './budget.js';
 import { WorkspaceManager } from './workspaces.js';
 import { GovernanceManager } from './governance.js';
+import { executeWithAccounting, openExecution } from './usage.js';
 
 const CLI_PROVIDERS = new Set<ProviderName>(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok']);
+const MAX_REQUEST_BODY_BYTES = 1_048_576;
+
+class RequestBodyTooLargeError extends Error {}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,6 +49,8 @@ export class BridgeServer {
   private _budgetManager: BudgetManager;
   private _workspaceManager: WorkspaceManager;
   private _governanceManager: GovernanceManager;
+  private _pipelineControllers = new Map<string, AbortController>();
+  private _pipelineExecutions = new Map<string, Promise<unknown>>();
   private _eventSockets = new Set<Duplex>();
   private _unsubscribeActivity: (() => void) | null = null;
 
@@ -88,8 +94,9 @@ export class BridgeServer {
       this._handleRequest(req, res).catch(err => {
         logger.error(`Unhandled request error: ${err.message}`);
         if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: { message: err.message, type: 'internal_error' } }));
+          const tooLarge = err instanceof RequestBodyTooLargeError;
+          res.writeHead(tooLarge ? 413 : 500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: tooLarge ? 'Request body is too large' : err.message, type: tooLarge ? 'request_too_large' : 'internal_error' } }));
         }
       });
     });
@@ -113,6 +120,10 @@ export class BridgeServer {
 
   async stop(): Promise<void> {
     if (this._server) {
+      for (const controller of this._pipelineControllers.values()) controller.abort(new Error('Bridge is stopping'));
+      await Promise.allSettled(this._pipelineExecutions.values());
+      this._pipelineControllers.clear();
+      this._pipelineExecutions.clear();
       this._unsubscribeActivity?.();
       this._unsubscribeActivity = null;
       for (const socket of this._eventSockets) socket.destroy();
@@ -137,7 +148,7 @@ export class BridgeServer {
     }
   }
 
-  /** WebSocket clients cannot set Authorization; accept a conduit-token.* subprotocol or ?token=. */
+  /** WebSocket clients cannot set Authorization; accept a conduit-token.* subprotocol. */
   private _checkSocketAuth(req: IncomingMessage): { ok: boolean; protocol?: string } {
     if (this._checkAuth(req)) return { ok: true };
     const token = String(this._cfg.authToken ?? '');
@@ -151,9 +162,6 @@ export class BridgeServer {
       }
     }
 
-    const query = (req.url ?? '').split('?')[1] ?? '';
-    const provided = new URLSearchParams(query).get('token') ?? '';
-    if (provided && safeEqual(provided, token)) return { ok: true };
     return { ok: false };
   }
 
@@ -226,7 +234,8 @@ export class BridgeServer {
   /** Reject state-changing requests from origins outside the CORS allowlist. */
   private _isCrossSite(req: IncomingMessage): boolean {
     const origin = req.headers.origin;
-    if (typeof origin === 'string' && origin && origin !== 'null') {
+    if (origin === 'null') return true;
+    if (typeof origin === 'string' && origin) {
       return !this._allowedOrigins().has(origin);
     }
     return String(req.headers['sec-fetch-site'] ?? '').toLowerCase() === 'cross-site';
@@ -243,10 +252,112 @@ export class BridgeServer {
     return true;
   }
 
+  private _launchPipeline(
+    pipeline: PipelineDefinition,
+    initialPrompt: string,
+    options: {
+      repository?: string;
+      workingDirectory: string;
+      correlationId: string;
+      operator: string;
+      overrides?: RepositoryConfig['overrides'];
+      existingRun?: PipelineRun;
+      approvedStepId?: string;
+    },
+  ): PipelineRun {
+    const controller = new AbortController();
+    let latestRun: PipelineRun | undefined;
+    const runCostLimits = [options.existingRun?.maxCostPerRunUsd, options.overrides?.maxCostPerRunUsd]
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0);
+    const execution = runPipeline(pipeline, initialPrompt, this._registry, {
+      agentPolicies: this._cfg.agentPolicies,
+      budgetManager: this._budgetManager,
+      governanceManager: this._governanceManager,
+      metrics: this._metrics,
+      signal: controller.signal,
+      existingRun: options.existingRun,
+      approvedStepId: options.approvedStepId,
+      repository: options.repository,
+      workingDirectory: options.workingDirectory,
+      correlationId: options.correlationId,
+      operator: options.operator,
+      maxCostPerRunUsd: runCostLimits.length ? Math.min(...runCostLimits) : undefined,
+      resolveExecutionPolicy: (providerName, mode) => {
+        const providerPolicy = this._cfg.agentPolicies?.[providerName as ProviderName];
+        if (mode === 'agent' && (providerPolicy?.agentEnabled === false || options.overrides?.agentEnabled === false)) {
+          return { allowed: false, reason: `Agent mode is disabled for provider '${providerName}' by policy` };
+        }
+        try {
+          const disallowedTools = normalizeDisallowedTools(options.overrides?.disallowedTools ?? providerPolicy?.disallowedTools);
+          return { allowed: true, ...(disallowedTools ? { disallowedTools } : {}) };
+        } catch (err) {
+          return { allowed: false, reason: (err as Error).message };
+        }
+      },
+      onRunUpdate: run => {
+        this._pipelineStore.recordRun(run);
+        latestRun = structuredClone(run);
+        this._broadcast({ type: 'pipeline_run', run });
+      },
+      onEvent: (level, message, details, metadata) => {
+        const runId = typeof metadata?.runId === 'string' ? metadata.runId : latestRun?.id;
+        const stepId = typeof metadata?.stepId === 'string' ? metadata.stepId : undefined;
+        const step = pipeline.steps.find(item => item.id === stepId);
+        const provider = step ? this._registry.providerForModel(step.model)?.name : undefined;
+        const status = runId ? this._pipelineStore.getRun(runId)?.status : undefined;
+        this._activity.add(level, 'pipeline', details ? `${message} (${details})` : message, {
+          traceId: options.correlationId,
+          runId,
+          stepId,
+          provider,
+          model: step?.model,
+          status,
+        });
+      },
+    });
+    if (!latestRun) {
+      void execution.catch(error => logger.error(`Pipeline setup failed: ${error instanceof Error ? error.message : String(error)}`));
+      throw new Error('Pipeline did not publish its initial state');
+    }
+    const runId = latestRun.id;
+    this._pipelineControllers.set(runId, controller);
+    const tracked = execution.catch(error => {
+      const stored = this._pipelineStore.getRun(runId);
+      if (!stored || !['running', 'waiting_approval'].includes(stored.status)) return;
+      const failed: PipelineRun = {
+        ...stored,
+        status: controller.signal.aborted ? 'cancelled' : 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        completedAt: Date.now(),
+      };
+      this._pipelineStore.recordRun(failed);
+      this._activity.add('error', 'pipeline', `Pipeline ${failed.status}: ${failed.error}`, {
+        traceId: options.correlationId, runId, status: failed.status,
+      });
+    }).finally(() => {
+      this._pipelineControllers.delete(runId);
+      this._pipelineExecutions.delete(runId);
+    }).catch(error => logger.error(`Pipeline finalization failed: ${error instanceof Error ? error.message : String(error)}`));
+    this._pipelineExecutions.set(runId, tracked);
+    return latestRun;
+  }
+
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? '/';
     const path = url.split('?')[0];
     const method = req.method ?? 'GET';
+
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+
+    const contentLength = Number(req.headers['content-length'] ?? 0);
+    if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BODY_BYTES) {
+      json(res, 413, { error: { message: 'Request body is too large', type: 'request_too_large' } });
+      return;
+    }
 
     // CORS: reflect the request Origin only when it is in the allowlist.
     // Requests with no Origin header (curl, server-side OpenAI clients) are
@@ -359,24 +470,26 @@ export class BridgeServer {
       }
       if (!this._limit(req, res)) return;
       const controller = new AbortController();
+      const accountingRunId = `compare-${randomUUID()}`;
       req.once('aborted', () => controller.abort());
       const models = data.models.filter((model: any) => typeof model === 'string').slice(0, 8);
       const run = async (model: string) => {
         const started = Date.now();
         const provider = this._registry.providerForModel(model);
         if (!provider || !(await provider.ensureConnected())) return { model, ok: false, latencyMs: Date.now() - started, error: 'provider unavailable' };
-        const finish = this._metrics.begin(model);
         try {
-          const content = await provider.chat({ model, messages: [{ role: 'user', content: data.prompt }], effort: data.effort, max_tokens: typeof data.max_tokens === 'number' ? Math.min(Math.max(1, data.max_tokens), 4096) : 256, signal: controller.signal });
-          finish();
-          this._metrics.recordUsage(model, estimateTokens([{ content: data.prompt }]), estimateTokens([{ content }]), estimateCost(model, estimateTokens([{ content: data.prompt }]), estimateTokens([{ content }])));
+          const content = await executeWithAccounting(provider, {
+            model, messages: [{ role: 'user', content: data.prompt }], effort: data.effort,
+            max_tokens: typeof data.max_tokens === 'number' ? Math.min(Math.max(1, data.max_tokens), 4096) : 256,
+            signal: controller.signal,
+          }, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
           return { model, ok: true, latencyMs: Date.now() - started, content };
         } catch (err) {
-          finish(err);
           return { model, ok: false, latencyMs: Date.now() - started, error: (err as Error).message.slice(0, 240) };
         }
       };
       const results = await Promise.all(models.map(run));
+      this._budgetManager.finishRun(accountingRunId);
       json(res, 200, { object: 'conduit.comparison', prompt_hash: createHash('sha256').update(data.prompt).digest('hex').slice(0, 16), results });
       return;
     }
@@ -403,6 +516,7 @@ export class BridgeServer {
       const roles = this._orchestrator.roles.filter(r => r.model);
       if (!roles.length) { json(res, 400, { error: { message: 'Configure at least one role model', type: 'invalid_request' } }); return; }
       if (!this._limit(req, res)) return;
+      const accountingRunId = `orchestrator-${randomUUID()}`;
       this._activity.add('info', 'orchestrator', 'Run started with ' + this._orchestrator.strategy + ' strategy');
       const runRole = async (role: { name: string; model: string }, prompt: string) => {
         const candidates = [role.model, ...this._orchestrator.fallbackModels].filter((model, i, all) => model && all.indexOf(model) === i);
@@ -412,7 +526,9 @@ export class BridgeServer {
             const provider = this._registry.providerForModel(model);
             if (!provider || !(await provider.ensureConnected())) throw new Error('model is unavailable');
             this._activity.add('info', 'orchestrator', role.name + ' started on ' + model);
-            const content = await provider.chat({ model, messages: [{ role: 'user', content: prompt }], effort: data.effort });
+            const content = await executeWithAccounting(provider, {
+              model, messages: [{ role: 'user', content: prompt }], effort: data.effort,
+            }, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
             this._activity.add('success', 'orchestrator', role.name + ' completed on ' + model);
             return { role: role.name, model, content };
           } catch (err) {
@@ -445,7 +561,10 @@ export class BridgeServer {
         json(res, 200, { id: run.id, strategy: this._orchestrator.strategy, results: ordered, completed_at: run.completedAt });
       } catch (err) {
         this._activity.add('error', 'orchestrator', 'Run failed: ' + (err as Error).message);
-        json(res, 503, { error: { message: (err as Error).message, type: 'orchestrator_error' } });
+        const budget = err instanceof BudgetExceededError;
+        json(res, budget ? 402 : 503, { error: { message: (err as Error).message, type: budget ? 'budget_exceeded' : 'orchestrator_error' } });
+      } finally {
+        this._budgetManager.finishRun(accountingRunId);
       }
       return;
     }
@@ -464,6 +583,7 @@ export class BridgeServer {
         }
       }
       const requested = typeof data?.provider === 'string' ? [data.provider] : cliProviders;
+      const accountingRunId = `cli-test-${randomUUID()}`;
       const results = [];
       for (const providerName of requested) {
         const provider = this._registry.lookup(providerName);
@@ -475,7 +595,9 @@ export class BridgeServer {
         const started = Date.now();
         try {
           if (!model || !(await provider.ensureConnected())) throw new Error('provider is not connected');
-          const content = await provider.chat({ model, messages: [{ role: 'user', content: 'Reply with exactly: pong' }], max_tokens: 16 });
+          const content = await executeWithAccounting(provider, {
+            model, messages: [{ role: 'user', content: 'Reply with exactly: pong' }], max_tokens: 16,
+          }, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
           const ok = content.trim().toLowerCase().includes('pong');
           results.push({ provider: providerName, model, ok, latencyMs: Date.now() - started, output: content.slice(0, 160) });
           this._activity.add(ok ? 'success' : 'warning', 'cli-test', providerName + (ok ? ' passed ping-pong' : ' returned an unexpected response'));
@@ -484,6 +606,7 @@ export class BridgeServer {
           this._activity.add('error', 'cli-test', providerName + ' failed: ' + (err as Error).message.slice(0, 200));
         }
       }
+      this._budgetManager.finishRun(accountingRunId);
       json(res, 200, { object: 'conduit.cli_test', results });
       return;
     }
@@ -494,6 +617,7 @@ export class BridgeServer {
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
       const input = typeof data?.input === 'string' ? data.input : Array.isArray(data?.input) ? data.input : '';
       if (!data?.model || !input) { json(res, 400, { error: { message: 'model and input required', type: 'invalid_request' } }); return; }
+      if (!this._limit(req, res)) return;
       const messages = typeof input === 'string' ? [{ role: 'user' as const, content: input }] : input;
       const controller = new AbortController();
       const abort = () => controller.abort();
@@ -502,10 +626,14 @@ export class BridgeServer {
       const provider = this._registry.providerForModel(data.model);
       if (!provider || !(await provider.ensureConnected())) { json(res, 503, { error: { message: 'Response provider is unavailable', type: 'provider_unavailable' } }); return; }
       try {
-        const content = await provider.chat({ model: data.model, messages, effort: data.reasoning?.effort || data.reasoning_effort, max_tokens: data.max_output_tokens, signal: controller.signal });
+        const content = await executeWithAccounting(provider, {
+          model: data.model, messages, effort: data.reasoning?.effort || data.reasoning_effort,
+          max_tokens: data.max_output_tokens, signal: controller.signal,
+        }, { budgetManager: this._budgetManager, metrics: this._metrics });
         json(res, 200, { id: 'resp-' + Date.now(), object: 'response', model: data.model, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: content }] }], status: 'completed' });
       } catch (err) {
-        json(res, 503, { error: { message: (err as Error).message, type: 'provider_error' } });
+        const budget = err instanceof BudgetExceededError;
+        json(res, budget ? 402 : 503, { error: { message: (err as Error).message, type: budget ? 'budget_exceeded' : 'provider_error' } });
       }
       return;
     }
@@ -515,6 +643,7 @@ export class BridgeServer {
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
       if (!data?.model || (!data.input && data.input !== '')) { json(res, 400, { error: { message: 'model and input required', type: 'invalid_request' } }); return; }
+      if (!this._limit(req, res)) return;
       const provider = this._registry.providerForModel(data.model);
       if (!provider || !/^api-(codex|openrouter)\//.test(data.model) || !('embeddings' in provider) || !(await provider.ensureConnected())) { json(res, 501, { error: { message: 'Embeddings require a connected codex-api or openrouter-api provider', type: 'not_implemented' } }); return; }
       try {
@@ -606,7 +735,13 @@ export class BridgeServer {
       }
       const validModes = isCli ? ['chat', 'plan', 'agent'] : ['chat'];
       const defaultMode = validModes.includes(data.defaultMode) ? data.defaultMode : 'chat';
-      const disallowedTools = typeof data.disallowedTools === 'string' ? data.disallowedTools.trim() : undefined;
+      let disallowedTools: string | undefined;
+      try {
+        disallowedTools = normalizeDisallowedTools(data.disallowedTools);
+      } catch (err) {
+        json(res, 400, { error: { message: (err as Error).message, type: 'invalid_request' } });
+        return;
+      }
 
       this._cfg.agentPolicies = this._cfg.agentPolicies || {};
       this._cfg.agentPolicies[provider] = {
@@ -648,11 +783,46 @@ export class BridgeServer {
         json(res, 400, { error: { message: 'id, name, and path are required', type: 'invalid_request' } });
         return;
       }
-      const saved = this._governanceManager.saveRepository(data);
-      this._cfg.repositories = this._governanceManager.listRepositories();
-      saveConfig({ repositories: this._cfg.repositories });
-      this._activity.add('success', 'governance', `Saved repository: ${saved.name} (${saved.id})`);
-      json(res, 200, { status: 'saved', repository: saved });
+      if (data.enabledPipelines !== undefined && (!Array.isArray(data.enabledPipelines) || data.enabledPipelines.some((id: unknown) => typeof id !== 'string' || !/^[\w-]{1,100}$/.test(id)))) {
+        json(res, 400, { error: { message: 'enabledPipelines must contain safe pipeline IDs', type: 'invalid_request' } });
+        return;
+      }
+      const overrides = data.overrides;
+      if (overrides !== undefined && (!overrides || typeof overrides !== 'object' || Array.isArray(overrides))) {
+        json(res, 400, { error: { message: 'overrides must be an object', type: 'invalid_request' } });
+        return;
+      }
+      try {
+        const disallowedTools = overrides?.disallowedTools === undefined ? undefined : normalizeDisallowedTools(overrides.disallowedTools);
+        if (overrides?.agentEnabled !== undefined && typeof overrides.agentEnabled !== 'boolean') throw new Error('agentEnabled must be a boolean');
+        if (overrides?.requireApproval !== undefined && typeof overrides.requireApproval !== 'boolean') throw new Error('requireApproval must be a boolean');
+        if (overrides?.maxCostPerRunUsd !== undefined && (typeof overrides.maxCostPerRunUsd !== 'number' || !Number.isFinite(overrides.maxCostPerRunUsd) || overrides.maxCostPerRunUsd < 0)) throw new Error('maxCostPerRunUsd must be a finite non-negative number');
+        if (overrides?.mandatoryGates !== undefined && (!Array.isArray(overrides.mandatoryGates) || overrides.mandatoryGates.some((id: unknown) => typeof id !== 'string' || !/^[\w-]{1,100}$/.test(id)))) throw new Error('mandatoryGates must contain safe step IDs');
+        if (typeof data.name !== 'string' || !data.name.trim() || data.name.length > 200) throw new Error('Repository name must contain 1–200 characters');
+        if (data.description !== undefined && (typeof data.description !== 'string' || data.description.length > 2000)) throw new Error('Repository description must not exceed 2000 characters');
+        if (data.assignedGovernancePipeline !== undefined && (typeof data.assignedGovernancePipeline !== 'string' || !/^[\w-]{1,100}$/.test(data.assignedGovernancePipeline))) throw new Error('assignedGovernancePipeline must be a safe pipeline ID');
+        if (data.defaultWorkspace !== undefined && typeof data.defaultWorkspace !== 'string') throw new Error('defaultWorkspace must be a path string');
+        const saved = this._governanceManager.saveRepository({
+          id: String(data.id),
+          name: data.name.trim(),
+          path: String(data.path),
+          description: data.description,
+          assignedGovernancePipeline: data.assignedGovernancePipeline,
+          enabledPipelines: data.enabledPipelines ? [...new Set<string>(data.enabledPipelines)] : undefined,
+          defaultWorkspace: data.defaultWorkspace,
+          overrides: overrides ? {
+            ...overrides,
+            ...(disallowedTools ? { disallowedTools } : {}),
+            mandatoryGates: overrides.mandatoryGates ? [...new Set<string>(overrides.mandatoryGates)] : undefined,
+          } : undefined,
+        });
+        this._cfg.repositories = this._governanceManager.listRepositories();
+        saveConfig({ repositories: this._cfg.repositories });
+        this._activity.add('success', 'governance', `Saved repository: ${saved.name} (${saved.id})`);
+        json(res, 200, { status: 'saved', repository: saved });
+      } catch (err) {
+        json(res, 400, { error: { message: (err as Error).message, type: 'invalid_request' } });
+      }
       return;
     }
 
@@ -794,13 +964,14 @@ export class BridgeServer {
           `Generated: ${new Date().toISOString()}`,
           `Total Events: ${events.length}`,
           '',
-          '| Time | Level | Scope | Message |',
-          '| :--- | :--- | :--- | :--- |',
+          '| Time | Level | Scope | Message | Trace | Run | Step | Provider | Model | Status | Attempt | Duration (ms) |',
+          '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | ---: | ---: |',
         ];
         for (const ev of events) {
           const time = new Date(ev.time).toISOString();
           const cleanMsg = ev.message.replace(/\|/g, '\\|');
-          lines.push(`| ${time} | ${ev.level.toUpperCase()} | ${ev.scope} | ${cleanMsg} |`);
+          const cell = (value: unknown) => typeof value === 'string' ? value.replace(/\|/g, '\\|') : (value ?? '-');
+          lines.push(`| ${time} | ${ev.level.toUpperCase()} | ${cell(ev.scope)} | ${cleanMsg} | ${cell(ev.traceId)} | ${cell(ev.runId)} | ${cell(ev.stepId)} | ${cell(ev.provider)} | ${cell(ev.model)} | ${cell(ev.status)} | ${cell(ev.attempt)} | ${cell(ev.durationMs)} |`);
         }
         res.writeHead(200, {
           'Content-Type': 'text/markdown; charset=utf-8',
@@ -828,6 +999,8 @@ export class BridgeServer {
       let totalRequests = 0;
       let totalSuccesses = 0;
       let totalErrors = 0;
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
       let totalTokens = 0;
       let totalCostUsd = 0;
       let totalLatencyMs = 0;
@@ -838,11 +1011,14 @@ export class BridgeServer {
         totalRequests += m.requests;
         totalSuccesses += m.successes;
         totalErrors += m.failures;
+        totalInputTokens += m.inputTokens;
+        totalOutputTokens += m.outputTokens;
         totalTokens += (m.inputTokens + m.outputTokens);
         totalCostUsd += m.estimatedCostUsd;
-        if (avgLat > 0) {
-          totalLatencyMs += avgLat * m.requests;
-          latencyCount += m.requests;
+        const completedRequests = m.successes + m.failures;
+        if (avgLat > 0 && completedRequests > 0) {
+          totalLatencyMs += avgLat * completedRequests;
+          latencyCount += completedRequests;
         }
         const providerName = modelId.split('/')[0] || 'unknown';
         return {
@@ -856,6 +1032,8 @@ export class BridgeServer {
           tokens: m.inputTokens + m.outputTokens,
           costUsd: m.estimatedCostUsd,
           avgLatencyMs: avgLat,
+          p50LatencyMs: m.p50LatencyMs,
+          p95LatencyMs: m.p95LatencyMs,
         };
       });
 
@@ -865,8 +1043,11 @@ export class BridgeServer {
         totalRuns: pipelineRuns.length,
         completed: pipelineRuns.filter(r => r.status === 'completed').length,
         failed: pipelineRuns.filter(r => r.status === 'failed').length,
+        running: pipelineRuns.filter(r => r.status === 'running').length,
         waitingApproval: pipelineRuns.filter(r => r.status === 'waiting_approval').length,
         rejected: pipelineRuns.filter(r => r.status === 'rejected').length,
+        cancelled: pipelineRuns.filter(r => r.status === 'cancelled').length,
+        interrupted: pipelineRuns.filter(r => r.status === 'interrupted').length,
       };
 
       const activityBreakdown = {
@@ -884,6 +1065,8 @@ export class BridgeServer {
           requests: totalRequests,
           successes: totalSuccesses,
           errors: totalErrors,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
           tokens: totalTokens,
           costUsd: Math.round(totalCostUsd * 1e6) / 1e6,
           avgLatencyMs,
@@ -933,14 +1116,20 @@ export class BridgeServer {
           requiresApproval: Boolean(s.requiresApproval),
           dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn.map(String) : undefined,
           parallelGroup: typeof s.parallelGroup === 'string' ? s.parallelGroup : undefined,
+          max_tokens: s.max_tokens,
+          effort: s.effort,
         })),
         isBuiltIn: false,
         category: typeof data.category === 'string' ? data.category : 'custom',
         repository: typeof data.repository === 'string' ? data.repository : undefined,
       };
-      const saved = this._pipelineStore.savePipeline(pipeline);
-      this._activity.add('success', 'pipeline', `Saved pipeline: ${saved.name}`);
-      json(res, 200, { status: 'saved', pipeline: saved });
+      try {
+        const saved = this._pipelineStore.savePipeline(pipeline);
+        this._activity.add('success', 'pipeline', `Saved pipeline: ${saved.name}`);
+        json(res, 200, { status: 'saved', pipeline: saved });
+      } catch (err) {
+        json(res, 400, { error: { message: (err as Error).message, type: 'invalid_request' } });
+      }
       return;
     }
 
@@ -961,13 +1150,19 @@ export class BridgeServer {
     }
 
     if (path === '/v1/pipelines/run' && method === 'POST') {
+      if (!this._limit(req, res)) return;
+      const activeLimit = this._cfg.rateLimit?.maxConcurrent ?? 16;
+      if (this._pipelineExecutions.size >= activeLimit) {
+        json(res, 429, { error: { message: 'Too many pipeline runs are already executing', type: 'rate_limit_error' } });
+        return;
+      }
       const body = await readBody(req);
       let data: any;
       try { data = JSON.parse(body); } catch {
         json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
         return;
       }
-      const pipelineId = data?.pipelineId;
+      const pipelineId = typeof data?.pipelineId === 'string' ? data.pipelineId : '';
       const prompt = typeof data?.prompt === 'string' ? data.prompt.trim() : '';
       if (!pipelineId) {
         json(res, 400, { error: { message: 'pipelineId is required', type: 'invalid_request' } });
@@ -977,34 +1172,97 @@ export class BridgeServer {
         json(res, 400, { error: { message: 'prompt is required', type: 'invalid_request' } });
         return;
       }
+      if (prompt.length > MAX_PIPELINE_PROMPT_CHARS) {
+        json(res, 400, { error: { message: `prompt must not exceed ${MAX_PIPELINE_PROMPT_CHARS} characters`, type: 'invalid_request' } });
+        return;
+      }
       const pipeline = this._pipelineStore.getPipeline(pipelineId);
       if (!pipeline) {
         json(res, 404, { error: { message: `Pipeline not found: ${pipelineId}`, type: 'not_found' } });
         return;
       }
 
+      const explicitRepo = typeof data?.repository === 'string' && data.repository.trim()
+        ? this._governanceManager.getRepository(data.repository)
+        : undefined;
+      const pipelineRepo = pipeline.repository ? this._governanceManager.getRepository(pipeline.repository) : undefined;
+      if ((data?.repository && !explicitRepo) || (pipeline.repository && !pipelineRepo)) {
+        json(res, 404, { error: { message: 'Requested pipeline repository is not registered', type: 'not_found' } });
+        return;
+      }
+      if (explicitRepo && pipelineRepo && explicitRepo.id !== pipelineRepo.id) {
+        json(res, 403, { error: { message: 'Pipeline is assigned to a different repository', type: 'permission_denied' } });
+        return;
+      }
+      const requestedWorkingDirectory = typeof data?.workingDirectory === 'string' ? data.workingDirectory : undefined;
+      const inferredRepo = requestedWorkingDirectory ? this._governanceManager.findRepositoryForPath(requestedWorkingDirectory) : undefined;
+      const repository = explicitRepo ?? pipelineRepo ?? inferredRepo;
+      if (repository?.enabledPipelines !== undefined && !Array.isArray(repository.enabledPipelines)) {
+        json(res, 400, { error: { message: `Repository '${repository.id}' has an invalid pipeline allowlist`, type: 'invalid_request' } });
+        return;
+      }
+      if (repository?.enabledPipelines && !repository.enabledPipelines.includes(pipeline.id)) {
+        json(res, 403, { error: { message: `Pipeline '${pipeline.id}' is not enabled for repository '${repository.id}'`, type: 'permission_denied' } });
+        return;
+      }
+      const working = this._workspaceManager.resolveWorkingDirectory(
+        requestedWorkingDirectory ?? repository?.defaultWorkspace ?? repository?.path,
+        repository ? [repository.path, ...(repository.defaultWorkspace ? [repository.defaultWorkspace] : [])] : [],
+        !repository,
+      );
+      if (!working.ok || !working.path) {
+        json(res, 400, { error: { message: working.error, type: 'invalid_request' } });
+        return;
+      }
+      const operator = typeof data?.operator === 'string' && /^[A-Za-z0-9._@ -]{1,100}$/.test(data.operator.trim()) ? data.operator.trim() : 'operator';
+      const effectivePipeline = structuredClone(pipeline);
+      if (repository?.overrides?.mandatoryGates !== undefined && !Array.isArray(repository.overrides.mandatoryGates)) {
+        json(res, 400, { error: { message: `Repository '${repository.id}' has invalid mandatoryGates`, type: 'invalid_request' } });
+        return;
+      }
+      const mandatoryGates = repository?.overrides?.mandatoryGates ?? [];
+      if (mandatoryGates.some(id => !effectivePipeline.steps.some(step => step.id === id))) {
+        json(res, 400, { error: { message: 'Repository mandatoryGates references an unknown pipeline step', type: 'invalid_request' } });
+        return;
+      }
+      for (const step of effectivePipeline.steps) {
+        if (mandatoryGates.includes(step.id) || (repository?.overrides?.requireApproval && step.mode === 'agent')) step.requiresApproval = true;
+      }
+      if (repository?.overrides?.requireApproval && !effectivePipeline.steps.some(step => step.requiresApproval)) {
+        effectivePipeline.steps[effectivePipeline.steps.length - 1].requiresApproval = true;
+      }
+      const correlationId = randomUUID();
+      res.setHeader('X-Correlation-ID', correlationId);
       try {
-        const runResult = await runPipeline(pipeline, prompt, this._registry, {
-          agentPolicies: this._cfg.agentPolicies,
-          onEvent: (level, msg) => this._activity.add(level, 'pipeline', msg),
-          budgetManager: this._budgetManager,
-          governanceManager: this._governanceManager,
-          repository: typeof data?.repository === 'string' ? data.repository : undefined,
-          workingDirectory: typeof data?.workingDirectory === 'string' ? data.workingDirectory : undefined,
-          correlationId: typeof data?.correlationId === 'string' ? data.correlationId : undefined,
-          operator: typeof data?.operator === 'string' ? data.operator : 'operator',
+        const accepted = this._launchPipeline(effectivePipeline, prompt, {
+          repository: repository?.id,
+          workingDirectory: working.path,
+          correlationId,
+          operator,
+          overrides: repository?.overrides,
         });
-        this._pipelineStore.recordRun(runResult);
-        json(res, 200, { status: runResult.status, run: runResult });
-      } catch (err: any) {
-        this._activity.add('error', 'pipeline', `Execution error: ${err.message}`);
-        json(res, 500, { error: { message: err.message, type: 'pipeline_execution_error' } });
+        json(res, 202, { status: 'accepted', run: accepted });
+      } catch (err) {
+        this._activity.add('error', 'pipeline', `Execution setup error: ${(err as Error).message}`, { traceId: correlationId, status: 'failed' });
+        json(res, 400, { error: { message: (err as Error).message, type: 'pipeline_execution_error' } });
       }
       return;
     }
 
     if (path === '/v1/pipelines/runs' && method === 'GET') {
       json(res, 200, { object: 'list', data: this._pipelineStore.listRuns() });
+      return;
+    }
+
+    const pipelineRunDetail = path.match(/^\/v1\/pipelines\/runs\/([^/]+)$/);
+    if (pipelineRunDetail && method === 'GET') {
+      const runId = decodeURIComponent(pipelineRunDetail[1]);
+      const run = this._pipelineStore.getRun(runId);
+      if (!run) {
+        json(res, 404, { error: { message: `Pipeline run not found: ${runId}`, type: 'not_found' } });
+        return;
+      }
+      json(res, 200, { run });
       return;
     }
 
@@ -1015,25 +1273,58 @@ export class BridgeServer {
         json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
         return;
       }
-      const { runId, action, stepId, feedback } = data || {};
-      if (!runId || !action) {
-        json(res, 400, { error: { message: 'runId and action (approve | reject) required', type: 'invalid_request' } });
+      const { runId, action, stepId } = data || {};
+      const feedback = typeof data?.feedback === 'string' ? data.feedback.slice(0, 2000) : undefined;
+      if (typeof runId !== 'string' || !runId || typeof action !== 'string' || !action) {
+        json(res, 400, { error: { message: 'runId and action (approve | reject | cancel) required', type: 'invalid_request' } });
         return;
       }
-      const run = this._pipelineStore.getRun(runId);
-      if (!run) {
+      if (!['approve', 'reject', 'cancel'].includes(action)) {
+        json(res, 400, { error: { message: `Unknown action: ${action}`, type: 'invalid_request' } });
+        return;
+      }
+      const storedRun = this._pipelineStore.getRun(runId);
+      if (!storedRun) {
         json(res, 404, { error: { message: `Pipeline run not found: ${runId}`, type: 'not_found' } });
+        return;
+      }
+      const run = structuredClone(storedRun);
+      if (action === 'cancel') {
+        if (!['running', 'waiting_approval'].includes(run.status)) {
+          json(res, 400, { error: { message: `Run cannot be cancelled from status '${run.status}'`, type: 'invalid_state' } });
+          return;
+        }
+        this._pipelineControllers.get(run.id)?.abort(new Error('Cancelled by operator'));
+        const cancelled: PipelineRun = { ...run, status: 'cancelled', error: 'Cancelled by operator', completedAt: Date.now() };
+        for (const result of Object.values(cancelled.stepResults)) {
+          if (result.status === 'running' || result.status === 'waiting_approval') {
+            result.status = 'failed';
+            result.error = cancelled.error;
+            result.completedAt = cancelled.completedAt;
+          }
+        }
+        this._pipelineStore.recordRun(cancelled);
+        this._budgetManager.finishRun(cancelled.id);
+        this._activity.add('warning', 'pipeline', `Run ${run.id} cancelled by operator`, {
+          traceId: run.correlationId, runId: run.id, status: 'cancelled',
+        });
+        json(res, 200, { status: cancelled.status, run: cancelled });
         return;
       }
       if (run.status !== 'waiting_approval') {
         json(res, 400, { error: { message: `Run is not waiting for approval (current status: ${run.status})`, type: 'invalid_state' } });
         return;
       }
-      const pipeline = this._pipelineStore.getPipeline(run.pipelineId);
-      if (!pipeline) {
-        json(res, 404, { error: { message: `Associated pipeline not found: ${run.pipelineId}`, type: 'not_found' } });
+      if (!run.definition) {
+        json(res, 409, { error: { message: 'Legacy run cannot be resumed safely; start a new run', type: 'invalid_state' } });
         return;
       }
+      const targetStepId = stepId || run.pendingApprovalStepId;
+      if (!targetStepId || targetStepId !== run.pendingApprovalStepId) {
+        json(res, 400, { error: { message: 'stepId must match the pending approval checkpoint', type: 'invalid_request' } });
+        return;
+      }
+      const operator = typeof data?.operator === 'string' && /^[A-Za-z0-9._@ -]{1,100}$/.test(data.operator.trim()) ? data.operator.trim() : 'operator';
 
       if (action === 'reject') {
         run.status = 'rejected';
@@ -1050,39 +1341,56 @@ export class BridgeServer {
             stepId: run.pendingApprovalStepId,
             stepName: run.stepResults[run.pendingApprovalStepId]?.stepName || run.pendingApprovalStepId,
             action: 'rejected',
-            operator: typeof data?.operator === 'string' ? data.operator : 'operator',
+            operator,
             feedback: run.approvalFeedback,
             runId: run.id,
             correlationId: run.correlationId,
           });
         }
+        run.completedAt = Date.now();
+        run.pendingApprovalStepId = undefined;
         this._pipelineStore.recordRun(run);
-        this._activity.add('warning', 'pipeline', `Run ${runId} rejected by operator`);
+        this._budgetManager.finishRun(run.id);
+        this._activity.add('warning', 'pipeline', `Run ${runId} rejected by operator`, {
+          traceId: run.correlationId, runId: run.id, stepId: targetStepId, status: 'rejected',
+        });
         json(res, 200, { status: 'rejected', run });
         return;
       }
 
       if (action === 'approve') {
-        const targetStepId = stepId || run.pendingApprovalStepId;
-        this._activity.add('info', 'pipeline', `Step ${targetStepId} approved, resuming run ${runId}`);
+        const activeLimit = this._cfg.rateLimit?.maxConcurrent ?? 16;
+        if (this._pipelineExecutions.size >= activeLimit) {
+          json(res, 429, { error: { message: 'Too many pipeline runs are already executing', type: 'rate_limit_error' } });
+          return;
+        }
+        this._activity.add('info', 'pipeline', `Step ${targetStepId} approved, resuming run ${runId}`, {
+          traceId: run.correlationId, runId: run.id, stepId: targetStepId, status: 'running',
+        });
         try {
-          const updatedRun = await runPipeline(pipeline, run.initialPrompt, this._registry, {
-            agentPolicies: this._cfg.agentPolicies,
+          const repository = run.repository ? this._governanceManager.getRepository(run.repository) : undefined;
+          if (run.repository && !repository) throw new Error('Run repository is no longer registered');
+          const working = this._workspaceManager.resolveWorkingDirectory(
+            run.workingDirectory,
+            repository ? [repository.path, ...(repository.defaultWorkspace ? [repository.defaultWorkspace] : [])] : [],
+            !repository,
+          );
+          if (!working.ok || !working.path) throw new Error(working.error);
+          const updatedRun = this._launchPipeline(run.definition, run.initialPrompt, {
+            repository: run.repository,
+            workingDirectory: working.path,
+            correlationId: run.correlationId || randomUUID(),
+            operator,
+            overrides: repository?.overrides,
             existingRun: run,
             approvedStepId: targetStepId,
-            onEvent: (level, msg) => this._activity.add(level, 'pipeline', msg),
-            budgetManager: this._budgetManager,
-            governanceManager: this._governanceManager,
-            repository: run.repository,
-            workingDirectory: run.workingDirectory,
-            correlationId: run.correlationId,
-            operator: typeof data?.operator === 'string' ? data.operator : 'operator',
           });
-          this._pipelineStore.recordRun(updatedRun);
-          json(res, 200, { status: updatedRun.status, run: updatedRun });
-        } catch (err: any) {
-          this._activity.add('error', 'pipeline', `Resume error: ${err.message}`);
-          json(res, 500, { error: { message: err.message, type: 'pipeline_execution_error' } });
+          json(res, 202, { status: 'accepted', run: updatedRun });
+        } catch (err) {
+          this._activity.add('error', 'pipeline', `Resume error: ${(err as Error).message}`, {
+            traceId: run.correlationId, runId: run.id, stepId: targetStepId, status: 'failed',
+          });
+          json(res, 400, { error: { message: (err as Error).message, type: 'pipeline_execution_error' } });
         }
         return;
       }
@@ -1102,6 +1410,10 @@ export class BridgeServer {
 
     // ── POST /v1/chat/completions ────────────────────────────────────────────
     if (path === '/v1/chat/completions' && method === 'POST') {
+      const traceId = randomUUID();
+      const accountingRunId = `chat-${traceId}`;
+      const requestStartedAt = Date.now();
+      res.setHeader('X-Correlation-ID', traceId);
       const body = await readBody(req);
       let req_data: any;
       try {
@@ -1114,7 +1426,9 @@ export class BridgeServer {
       const { model, messages, stream = false, temperature, max_tokens } = req_data;
       const requestAbort = new AbortController();
       const abortRequest = () => {
-        if (!res.writableEnded) this._activity.add('warning', 'request', 'Client disconnected, cancelling ' + model);
+        if (!res.writableEnded) this._activity.add('warning', 'request', 'Client disconnected, cancelling ' + model, {
+          traceId, model: typeof model === 'string' ? model : undefined, status: 'cancelled', durationMs: Date.now() - requestStartedAt,
+        });
         requestAbort.abort();
       };
       req.once('aborted', abortRequest);
@@ -1135,30 +1449,40 @@ export class BridgeServer {
         return;
       }
 
-      const providerPolicy = this._cfg.agentPolicies?.[provider.name];
-      const defaultMode = providerPolicy?.defaultMode || 'chat';
-      const parsedMode = parseCliRunMode(req_data, defaultMode);
-      if (!parsedMode.ok) {
-        json(res, 400, { error: { message: parsedMode.error, type: 'invalid_request' } });
-        return;
-      }
-      if (parsedMode.mode === 'agent') {
-        const agentAllowed = providerPolicy ? providerPolicy.agentEnabled !== false : true;
-        if (!agentAllowed) {
-          this._activity.add('warning', provider.name, 'Agent mode rejected by provider policy');
-          json(res, 403, {
-            error: {
-              message: `Agent mode is disabled for provider '${provider.name}' in bridge settings`,
-              type: 'permission_denied',
-            },
-          });
-          return;
-        }
-      }
       const cwd = typeof req_data.cwd === 'string' ? req_data.cwd : undefined;
-      const cwdError = agentModeCwdError(parsedMode.mode, cwd);
-      if (cwdError) {
-        json(res, 400, { error: { message: cwdError, type: 'invalid_request' } });
+      const requestForProvider = (candidateProvider: NonNullable<typeof provider>, candidateModel: string) => {
+        const policy = this._cfg.agentPolicies?.[candidateProvider.name];
+        const parsed = parseCliRunMode(req_data, policy?.defaultMode || 'chat');
+        if (!parsed.ok) return { ok: false as const, status: 400, message: parsed.error, type: 'invalid_request' };
+        if (parsed.mode === 'agent' && policy?.agentEnabled === false) {
+          return {
+            ok: false as const,
+            status: 403,
+            message: `Agent mode is disabled for provider '${candidateProvider.name}' in bridge settings`,
+            type: 'permission_denied',
+          };
+        }
+        const candidateCwdError = agentModeCwdError(parsed.mode, cwd);
+        if (candidateCwdError) return { ok: false as const, status: 400, message: candidateCwdError, type: 'invalid_request' };
+        return {
+          ok: true as const,
+          request: {
+            model: candidateModel,
+            messages,
+            temperature,
+            max_tokens,
+            effort,
+            cwd,
+            mode: parsed.mode,
+            disallowedTools: policy?.disallowedTools,
+            signal: requestAbort.signal,
+          },
+        };
+      };
+      const initialRequest = requestForProvider(provider, selectedModel);
+      if (!initialRequest.ok) {
+        this._activity.add('warning', provider.name, initialRequest.message, { traceId, provider: provider.name, model: selectedModel, status: 'rejected' });
+        json(res, initialRequest.status, { error: { message: initialRequest.message, type: initialRequest.type } });
         return;
       }
 
@@ -1171,60 +1495,81 @@ export class BridgeServer {
         if (connected) break;
         const fallback = this._registry.providerForModel(candidate);
         if (!fallback) continue;
+        const fallbackRequest = requestForProvider(fallback, candidate);
+        if (!fallbackRequest.ok) {
+          this._activity.add('warning', fallback.name, `Fallback skipped by policy: ${fallbackRequest.message}`, {
+            traceId, provider: fallback.name, model: candidate, status: 'rejected', attempt: candidates.indexOf(candidate) + 1,
+          });
+          continue;
+        }
         const fallbackConnected = candidates.indexOf(candidate) < candidates.length - 1 ? await fallback.checkSession() : await fallback.ensureConnected();
         if (fallbackConnected) {
           selectedModel = candidate;
           provider = fallback;
           connected = true;
-          this._activity.add('warning', 'router', 'Fallback selected: ' + candidate);
+          this._activity.add('warning', 'router', 'Fallback selected: ' + candidate, {
+            traceId, provider: fallback.name, model: candidate, status: 'running', attempt: candidates.indexOf(candidate) + 1,
+          });
         }
       }
       if (!connected) {
-        this._activity.add('warning', provider.name, 'Request blocked because provider is not connected');
+        this._activity.add('warning', provider.name, 'Request blocked because provider is not connected', {
+          traceId, provider: provider.name, model: selectedModel, status: 'failed', durationMs: Date.now() - requestStartedAt,
+        });
         json(res, 503, { error: { message: `${provider.name} is not connected. Configure its API credential or authenticate the local CLI.`, type: 'provider_unavailable' } });
         return;
       }
 
-      const chatReq = {
-        model: selectedModel,
-        messages,
-        temperature,
-        max_tokens,
-        effort,
-        cwd,
-        mode: parsedMode.mode,
-        disallowedTools: providerPolicy?.disallowedTools,
-        signal: requestAbort.signal,
-      };
-      const finishMetric = this._metrics.begin(selectedModel);
+      const selectedRequest = requestForProvider(provider, selectedModel);
+      if (!selectedRequest.ok) {
+        json(res, selectedRequest.status, { error: { message: selectedRequest.message, type: selectedRequest.type } });
+        return;
+      }
+      const chatReq = selectedRequest.request;
 
       if (stream) {
-        let streamIterator: AsyncGenerator<string> = provider.chatStream(chatReq);
+        let accounting;
+        try {
+          accounting = openExecution(provider, chatReq, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
+        } catch (error) {
+          this._budgetManager.finishRun(accountingRunId);
+          const budget = error instanceof BudgetExceededError;
+          json(res, budget ? 402 : 400, { error: { message: (error as Error).message, type: budget ? 'budget_exceeded' : 'invalid_request' } });
+          return;
+        }
+        let streamIterator: AsyncGenerator<string> = provider.chatStream(accounting.request);
         let firstChunk: IteratorResult<string> = { done: true, value: undefined };
         try {
           firstChunk = await streamIterator.next();
         } catch (primaryError) {
-          finishMetric(primaryError);
+          accounting.finish('', primaryError);
           let recovered = false;
           for (const candidate of candidates.slice(1)) {
             const fallback = this._registry.providerForModel(candidate);
             if (!fallback || !(await fallback.checkSession())) continue;
-            const fallbackFinish = this._metrics.begin(candidate);
+            const fallbackRequest = requestForProvider(fallback, candidate);
+            if (!fallbackRequest.ok) continue;
+            let fallbackAccounting;
             try {
-              streamIterator = fallback.chatStream({ ...chatReq, model: candidate });
+              fallbackAccounting = openExecution(fallback, fallbackRequest.request, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
+              streamIterator = fallback.chatStream(fallbackAccounting.request);
               firstChunk = await streamIterator.next();
-              fallbackFinish();
+              accounting = fallbackAccounting;
               selectedModel = candidate;
               provider = fallback;
               recovered = true;
-              this._activity.add('warning', 'router', 'Streaming primary failed, fallback selected: ' + candidate);
+              this._activity.add('warning', 'router', 'Streaming primary failed, fallback selected: ' + candidate, {
+                traceId, provider: fallback.name, model: candidate, status: 'running', attempt: candidates.indexOf(candidate) + 1,
+              });
               break;
             } catch (fallbackError) {
-              fallbackFinish(fallbackError);
+              fallbackAccounting?.finish('', fallbackError);
             }
           }
           if (!recovered) {
-            json(res, 503, { error: { message: (primaryError as Error).message, type: 'provider_error' } });
+            this._budgetManager.finishRun(accountingRunId);
+            const budget = primaryError instanceof BudgetExceededError;
+            json(res, budget ? 402 : 503, { error: { message: (primaryError as Error).message, type: budget ? 'budget_exceeded' : 'provider_error' } });
             return;
           }
         }
@@ -1236,10 +1581,21 @@ export class BridgeServer {
 
         const id = `chatcmpl-${Date.now()}`;
         let streamedText = firstChunk.done ? '' : (firstChunk.value ?? '');
+        let streamFailed = false;
         try {
+          if (streamedText.length > accounting.maxOutputChars) {
+            streamedText = streamedText.slice(0, accounting.maxOutputChars);
+            requestAbort.abort(new Error('Provider output exceeds the configured character limit'));
+            throw new Error(`Provider output exceeds ${accounting.maxOutputChars} character limit`);
+          }
           if (!firstChunk.done && firstChunk.value) res.write(`data: ${JSON.stringify({ id, object: 'chat.completion.chunk', model: selectedModel, choices: [{ index: 0, delta: { content: firstChunk.value }, finish_reason: null }] })}\n\n`);
           for await (const chunk of streamIterator) {
             streamedText += chunk;
+            if (streamedText.length > accounting.maxOutputChars) {
+              streamedText = streamedText.slice(0, accounting.maxOutputChars);
+              requestAbort.abort(new Error('Provider output exceeds the configured character limit'));
+              throw new Error(`Provider output exceeds ${accounting.maxOutputChars} character limit`);
+            }
             // Include provider metadata if available (thinking status, tokens, timing)
             const meta = 'currentMeta' in provider ? (provider as any).currentMeta : undefined;
             const data = JSON.stringify({
@@ -1258,55 +1614,55 @@ export class BridgeServer {
           });
           res.write(`data: ${doneData}\n\n`);
           res.write('data: [DONE]\n\n');
-          const inputTokens = estimateTokens(messages);
-          const outputTokens = estimateTokens([{ content: streamedText }]);
-          const cost = estimateCost(selectedModel, inputTokens, outputTokens);
-          this._metrics.recordUsage(selectedModel, inputTokens, outputTokens, cost);
-          this._budgetManager.recordSpend(cost, inputTokens + outputTokens);
+          accounting.finish(streamedText);
         } catch (err) {
-          finishMetric(err);
-          this._activity.add('error', provider.name, 'Streaming request failed through ' + model + ': ' + (err as Error).message.replace(/\s+/g, ' ').slice(0, 240));
+          streamFailed = true;
+          accounting.finish(streamedText, err);
+          this._activity.add('error', provider.name, 'Streaming request failed through ' + model + ': ' + (err as Error).message.replace(/\s+/g, ' ').slice(0, 240), {
+            traceId, provider: provider.name, model: selectedModel, status: 'failed', durationMs: Date.now() - requestStartedAt,
+          });
           const errData = JSON.stringify({ error: (err as Error).message });
           res.write(`data: ${errData}\n\n`);
         }
-        if (!res.writableEnded) {
-          finishMetric();
-        }
+        if (!streamFailed && !requestAbort.signal.aborted) this._activity.add('success', provider.name, 'Completed streaming request through ' + selectedModel, {
+          traceId, provider: provider.name, model: selectedModel, status: 'completed', durationMs: Date.now() - requestStartedAt,
+        });
+        this._budgetManager.finishRun(accountingRunId);
         res.end();
       } else {
         try {
           let content = '';
           try {
-            content = await provider.chat(chatReq);
+            content = await executeWithAccounting(provider, chatReq, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
           } catch (primaryError) {
-            finishMetric(primaryError);
             let recovered = false;
             for (const candidate of candidates.slice(1)) {
               const fallback = this._registry.providerForModel(candidate);
               if (!fallback || !(await fallback.checkSession())) continue;
-              const fallbackFinish = this._metrics.begin(candidate);
+              const fallbackRequest = requestForProvider(fallback, candidate);
+              if (!fallbackRequest.ok) continue;
               try {
-                content = await fallback.chat({ ...chatReq, model: candidate });
-                fallbackFinish();
+                content = await executeWithAccounting(fallback, fallbackRequest.request, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
                 selectedModel = candidate;
                 provider = fallback;
                 recovered = true;
-                this._activity.add('warning', 'router', 'Primary request failed, fallback completed through ' + candidate);
+                this._activity.add('warning', 'router', 'Primary request failed, fallback completed through ' + candidate, {
+                  traceId, provider: fallback.name, model: candidate, status: 'completed', attempt: candidates.indexOf(candidate) + 1,
+                });
                 break;
               } catch (fallbackError) {
-                fallbackFinish(fallbackError);
-                this._activity.add('warning', 'router', 'Fallback failed through ' + candidate);
+                this._activity.add('warning', 'router', 'Fallback failed through ' + candidate, {
+                  traceId, provider: fallback.name, model: candidate, status: 'failed', attempt: candidates.indexOf(candidate) + 1,
+                });
               }
             }
             if (!recovered) throw primaryError;
           }
           const inputTokens = estimateTokens(messages);
           const outputTokens = estimateTokens([{ content }]);
-          const cost = estimateCost(selectedModel, inputTokens, outputTokens);
-          this._metrics.recordUsage(selectedModel, inputTokens, outputTokens, cost);
-          this._budgetManager.recordSpend(cost, inputTokens + outputTokens);
-          finishMetric();
-          this._activity.add('success', provider.name, 'Completed request through ' + selectedModel);
+          this._activity.add('success', provider.name, 'Completed request through ' + selectedModel, {
+            traceId, provider: provider.name, model: selectedModel, status: 'completed', durationMs: Date.now() - requestStartedAt,
+          });
           json(res, 200, {
             id: `chatcmpl-${Date.now()}`,
             object: 'chat.completion',
@@ -1319,10 +1675,13 @@ export class BridgeServer {
             usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
           });
         } catch (err) {
-          finishMetric(err);
-          this._activity.add('error', provider.name, 'Request failed through ' + selectedModel + ': ' + (err as Error).message.replace(/\s+/g, ' ').slice(0, 240));
-          json(res, 503, { error: { message: (err as Error).message, type: 'provider_error' } });
+          this._activity.add('error', provider.name, 'Request failed through ' + selectedModel + ': ' + (err as Error).message.replace(/\s+/g, ' ').slice(0, 240), {
+            traceId, provider: provider.name, model: selectedModel, status: 'failed', durationMs: Date.now() - requestStartedAt,
+          });
+          const budget = err instanceof BudgetExceededError;
+          json(res, budget ? 402 : 503, { error: { message: (err as Error).message, type: budget ? 'budget_exceeded' : 'provider_error' } });
         }
+        this._budgetManager.finishRun(accountingRunId);
       }
       return;
     }
@@ -1367,7 +1726,16 @@ function websocketFrame(payload: string): Buffer {
 async function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', chunk => { data += chunk; });
+    let bytes = 0;
+    req.on('data', chunk => {
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > MAX_REQUEST_BODY_BYTES) {
+        reject(new RequestBodyTooLargeError());
+        req.destroy();
+        return;
+      }
+      data += chunk;
+    });
     req.on('end', () => resolve(data));
     req.on('error', reject);
   });
@@ -1375,9 +1743,4 @@ async function readBody(req: IncomingMessage): Promise<string> {
 
 function estimateTokens(messages: Array<{ content: string }>): number {
   return Math.max(1, Math.ceil(messages.reduce((n, message) => n + message.content.length, 0) / 4));
-}
-
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const rate = model.includes('haiku') || model.includes('flash') || model.includes('luna') ? 0.000001 : model.includes('opus') || model.includes('sol') ? 0.000015 : 0.000005;
-  return Number(((inputTokens + outputTokens) * rate).toFixed(8));
 }

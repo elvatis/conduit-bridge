@@ -14,6 +14,21 @@ const MODES = new Set<CliRunMode>(['chat', 'plan', 'agent']);
 export const DEFAULT_MUTATING_TOOLS = 'Write,Edit,NotebookEdit,Bash';
 const MUTATING_TOOLS = DEFAULT_MUTATING_TOOLS;
 
+/** Parse a persisted tool policy without allowing it to become CLI syntax. */
+export function normalizeDisallowedTools(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string') throw new Error('disallowedTools must be a comma-separated string');
+  if (value.length > 1_024 || /[\0\r\n"&|<>^%!()]/.test(value)) {
+    throw new Error('disallowedTools contains unsupported characters');
+  }
+  const known = new Set(KNOWN_TOOLS.map(tool => tool.name));
+  const names = value.split(',').map(name => name.trim()).filter(Boolean);
+  if (!names.length || names.some(name => !known.has(name))) {
+    throw new Error('disallowedTools must contain only known tool names');
+  }
+  return [...new Set(names)].join(',');
+}
+
 export type ToolCategory =
   | 'File Operations'
   | 'Shell / Terminal'
@@ -391,7 +406,7 @@ export function cliPermissionArgs(
   mode: CliRunMode,
   opts: { isAgy?: boolean; disallowedTools?: string } = {},
 ): string[] {
-  const mutatingTools = (opts.disallowedTools && opts.disallowedTools.trim()) || MUTATING_TOOLS;
+  const mutatingTools = normalizeDisallowedTools(opts.disallowedTools) || MUTATING_TOOLS;
   switch (provider) {
     case 'cli-claude':
       if (mode === 'agent') return ['--permission-mode', 'bypassPermissions'];
@@ -413,8 +428,11 @@ export function cliPermissionArgs(
       return [];
     }
     case 'cli-codex':
+      // Keep agent writes confined to the selected workspace. `--approve-for-me`
+      // is mutually exclusive with an explicit sandbox in current Codex builds
+      // and would also delegate approval decisions outside the bridge policy.
       return mode === 'agent'
-        ? ['--sandbox', 'workspace-write', '--approve-for-me', '--ephemeral']
+        ? ['--sandbox', 'workspace-write', '--ephemeral']
         : ['--sandbox', 'read-only', '--ephemeral'];
     case 'cli-grok':
       if (mode === 'agent') return ['--no-plan', '--always-approve'];

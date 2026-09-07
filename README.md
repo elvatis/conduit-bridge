@@ -46,6 +46,10 @@ node dist/cli.js start
 Open <http://127.0.0.1:31338/>. The dashboard has separate navigation pages for
 API, CLI, and local providers.
 
+Try the [short pipeline examples](docs/PIPELINE-EXAMPLES.md): an agent file-write
+and peer-verification chain, an approval checkpoint, and a parallel debate.
+The runnable examples include assertions and retain a local results report.
+
 Check the running bridge:
 
 ```bash

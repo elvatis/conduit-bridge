@@ -111,7 +111,12 @@ export function quoteWin(arg: string): string {
   // An empty argument still has to occupy a slot. Emitted bare it disappears in
   // the join, and the flag before it silently swallows the next token instead.
   if (arg === '') return '""';
-  return /[\s"&|<>^()]/.test(arg) ? `"${arg.replace(/"/g, '""')}"` : arg;
+  // A literal quote can terminate the quoted argument and expose shell
+  // metacharacters to cmd.exe. None of the supported CLI flags require one.
+  if (/[\0\r\n"]/.test(arg)) {
+    throw new Error('refusing an argument containing a quote or control character through cmd.exe');
+  }
+  return /[\s&|<>^()%!]/.test(arg) ? `"${arg}"` : arg;
 }
 
 /**

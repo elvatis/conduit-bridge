@@ -16,6 +16,26 @@
 
 _Updated: 2026-09-07_
 
+## PR #117 correction and validation pass
+
+- Local branch fixes cover Windows CLI argument injection, effective provider and
+  repository policy enforcement, workspace boundaries, shared budget accounting,
+  asynchronous pipeline concurrency, actual approval execution, DAG validation,
+  cancellation, deadlines and output limits.
+- Pipeline disk history now retains summaries only. Browser reload recovers live
+  context in the same service; service restart interrupts running and paused work.
+- Dashboard analytics schemas, responsive forms, approval/run recovery and activity
+  metadata are corrected. `.env.example` now accurately separates API keys from CLI login.
+- Final full suite: 281 tests across 24 files. Typecheck/build pass. Three real
+  Claude Sonnet 5 demos executed seven steps successfully, including file creation,
+  read-only verification, explicit approval and a concurrent debate with synthesis.
+- Service rebuilt and running locally. Codex inference remains limited by the
+  installed npm CLI's incompatible desktop feature configuration; see
+  `docs/PR117-VALIDATION.md` for measured evidence and limits.
+- The original review was appended to PR #117. Fixes remain local for review and
+  publishing. `docs/PROVIDER-AGENT-ROADMAP.md` proposes storage/session/memory/skills
+  follow-ups; those features are not implemented by this pass.
+
 ## Enterprise Multi-Agent Orchestration & Governance Platform (feat/provider-agent-management)
 
 1. **Repository Governance & Pipeline Templates**:

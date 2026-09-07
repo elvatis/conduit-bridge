@@ -11,6 +11,7 @@ const SHARED_STYLE = `
     --body: #c7d4e8;
     --muted: #8fa0bd;
     --blue: #22b4ff;
+    --accent: var(--blue);
     --blue-soft: #b9eaff;
     --copper: #ff8a3d;
     --ok: #1fd18a;
@@ -20,7 +21,7 @@ const SHARED_STYLE = `
     --bad: #ff6f91;
     --bad-bg: rgba(255,111,145,.14);
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; min-width: 0; }
   body {
     margin: 0;
     background: var(--bg);
@@ -734,7 +735,7 @@ const SHARED_STYLE = `
   }
 
   /* Visual Analytics Charts */
-  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin: 16px 0 24px; }
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; margin: 16px 0 24px; }
   .chart-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
   .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .chart-header h3 { margin: 0; font-size: 14px; color: var(--blue-soft); }
@@ -779,12 +780,30 @@ const SHARED_STYLE = `
   .dir-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; font-family: ui-monospace, monospace; color: var(--blue-soft); }
 
   /* Tool Catalog Grid */
-  .tool-catalog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; }
+  .tool-catalog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-top: 12px; }
   .tool-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
   .tool-card:hover { border-color: var(--line-2); }
   .tool-card-head { display: flex; justify-content: space-between; align-items: center; }
 
   #menu-toggle { display: none; }
+  .pipeline-run-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 12px; }
+  .pipeline-header, .step-result-header, .checkpoint-banner > div, .chart-header { flex-wrap: wrap; gap: 8px; }
+  .activity-event, .pipeline-card, .step-result-content, .tool-card, .dir-browser { overflow-wrap: anywhere; }
+  .chart-values { padding-left: 20px; font-size: 12px; overflow-wrap: anywhere; }
+  .run-history-item { grid-template-columns: minmax(0,1fr) auto; }
+  .data-table { table-layout: fixed; overflow-wrap: anywhere; }
+  .data-table td > div { flex-wrap: wrap; }
+  @media (max-width: 1100px) {
+    .pipeline-run-fields { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+  @media (max-width: 800px) {
+    .pipeline-run-fields, .page-section [style*="grid-template-columns"], .modal-dialog [style*="grid-template-columns"] { grid-template-columns: minmax(0,1fr) !important; }
+    .grid { grid-template-columns: minmax(0,1fr); }
+    .pipeline-header, .step-result-header { align-items: stretch; }
+    .activity-event:not(.run-history-item) { grid-template-columns: 66px minmax(0,1fr); }
+    .activity-event:not(.run-history-item) > :last-child { grid-column: 1 / -1; }
+    .data-table th, .data-table td { padding: 6px 4px; font-size: 11px; }
+  }
 `;
 
 export const DASHBOARD_HTML = `<!doctype html>
@@ -1021,14 +1040,14 @@ export const DASHBOARD_HTML = `<!doctype html>
         <div class="pipeline-run-box">
           <h3>Trigger Pipeline Execution</h3>
           <p class="muted">Launch an end-to-end multi-agent workflow with repository binding and budget controls.</p>
-          <div style="display: grid; grid-template-columns: minmax(200px, 1.4fr) minmax(160px, 1fr) minmax(160px, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 12px;">
+          <div class="pipeline-run-fields">
             <label><span>Select Pipeline</span><select id="pipe-run-select"></select></label>
             <label><span>Repository Target</span><select id="pipe-run-repo"><option value="">Default / Global</option></select></label>
             <label><span>Working Directory</span><select id="pipe-run-cwd"><option value="">Default Workspace</option></select></label>
             <button id="pipe-run-btn" class="primary" type="button" style="height: 42px;">Execute Pipeline</button>
           </div>
           <label><span>Initial Prompt / Task Description</span><textarea id="pipe-run-prompt" placeholder="Describe the goal or codebase problem to solve across the pipeline steps...">Refactor the authentication middleware to support token rotation and write comprehensive unit tests.</textarea></label>
-          <div id="pipe-live-status"></div>
+          <div id="pipe-live-status" aria-live="polite" aria-atomic="false"></div>
         </div>
 
         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 24px; flex-wrap: wrap; gap: 10px;">
@@ -1044,6 +1063,8 @@ export const DASHBOARD_HTML = `<!doctype html>
         </div>
         <div id="pipelines-list">Loading pipelines...</div>
 
+        <h3 style="margin-top: 24px;">Approval Inbox</h3>
+        <div id="pipeline-approvals" class="activity-list">No approvals pending.</div>
         <h3 style="margin-top: 24px;">Execution History</h3>
         <div id="pipelines-history" class="activity-list">No runs recorded yet.</div>
       </section>
@@ -1575,7 +1596,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     help: 'help-section-v2'
   };
 
+  let activeSection = 'overview';
   function showSection(name) {
+    activeSection = name;
     Object.entries(sectionIds).forEach(([key, id]) => {
       const el = $(id);
       if (el) el.classList.toggle('active', key === name);
@@ -1584,6 +1607,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       button.classList.toggle('active', button.dataset.section === name);
     });
     sidebar.classList.remove('open');
+    scheduleLiveRefresh();
   }
 
   document.querySelectorAll('[data-section]').forEach(button => {
@@ -1623,6 +1647,14 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   let cachedSystemTools = [], cachedAnalytics = {}, currentDirBrowsePath = '';
   let currentPipeCategory = 'all', currentToolFilter = 'all', currentActivityLevel = 'all';
   let activityFilterQuery = '', allActivityEvents = [];
+  // Keep edits in memory until saved. Background updates must never discard a draft.
+  const dirtySections = new Set();
+  function markDirty(event) {
+    const section = event.target.closest('.page-section');
+    if (section) dirtySections.add(section.id);
+  }
+  document.addEventListener('input', markDirty);
+  document.addEventListener('change', markDirty);
 
   const family = id => id.startsWith('api-') ? 'api-*' : id.startsWith('cli-') ? 'cli-*' : id.startsWith('lmstudio/') ? 'lmstudio/*' : 'other';
   const familyHelp = {'api-*':'Direct APIs','cli-*':'Local coding CLIs','lmstudio/*':'Local models','other':'Other'};
@@ -1773,6 +1805,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   function updateToolPickerUi(providerName, newSet) {
+    dirtySections.add('agent-controls-section');
     const picker = document.querySelector('[data-picker-for="' + providerName + '"]');
     if (!picker) return;
     const csv = Array.from(newSet).sort().join(',');
@@ -1800,6 +1833,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   function renderAgentPolicies(data) {
+    if (dirtySections.has('agent-controls-section')) return;
     const list = $('agent-policy-list');
     if (!list) return;
     const policies = data?.policies || {};
@@ -1831,7 +1865,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     list.querySelectorAll('form[data-policy-provider]').forEach(form => form.addEventListener('submit', saveAgentPolicy));
 
     // Handle tool clicks and quick action buttons
-    list.addEventListener('click', event => {
+    list.onclick = event => {
       const delBtn = event.target.closest('[data-remove-tool]');
       if (delBtn) {
         const provider = delBtn.dataset.forProvider;
@@ -1877,7 +1911,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         }
         updateToolPickerUi(provider, set);
       }
-    });
+    };
   }
 
   async function saveAgentPolicy(event) {
@@ -1946,8 +1980,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           '<span class="step-badge">' + (idx + 1) + '</span>' +
           '<strong>' + esc(step.name) + '</strong>' +
           '<span class="step-meta">[' + esc(step.model) + ' · ' + esc(step.mode || 'chat') + ']</span>' +
+          '<span class="step-meta">' + (step.dependsOn?.length ? 'After: ' + step.dependsOn.map(esc).join(', ') : 'Start step') + '</span>' +
           (isCheckpoint ? '<span class="checkpoint-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Approval Gate</span>' : '') +
-        '</div>' + (idx < pipe.steps.length - 1 ? '<span class="pipeline-arrow">&rarr;</span>' : '');
+        '</div>';
       }).join('');
 
       return '<div class="pipeline-card" data-pipe-id="' + esc(pipe.id) + '">' +
@@ -1967,6 +2002,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   function renderPipelineRuns(runs) {
+    cachedRuns = runs || [];
+    const approvals = $('pipeline-approvals');
+    if (approvals) approvals.innerHTML = cachedRuns.filter(run => run.status === 'waiting_approval').map(run =>
+      '<div class="activity-event warning run-history-item"><span><strong>' + esc(run.pipelineName) + '</strong><br>Step: ' + esc(run.pendingApprovalStepId || 'pending') + '</span><button type="button" data-view-run="' + esc(run.id) + '">Review approval</button></div>'
+    ).join('') || '<span class="muted">No approvals pending.</span>';
+    const selected = cachedRuns.find(run => run.id === selectedRunId);
+    if (selected) renderLiveRun(selected);
     const container = $('pipelines-history');
     if (!container) return;
     if (!runs || !runs.length) {
@@ -1976,20 +2018,39 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     container.innerHTML = runs.map(run => {
       const statusClass = run.status === 'completed' ? 'success' : (run.status === 'waiting_approval' ? 'warning' : (run.status === 'running' ? 'info' : 'error'));
-      return '<div class="activity-event ' + statusClass + '">' +
-        '<time>' + new Date(run.startedAt).toLocaleTimeString() + '</time>' +
-        '<span class="scope">' + esc(run.pipelineId) + '</span>' +
+      return '<div class="activity-event run-history-item ' + statusClass + '">' +
         '<span>' +
+          '<time>' + new Date(run.startedAt).toLocaleString() + '</time><br>' +
           '<strong class="level">' + esc(run.status.toUpperCase()) + '</strong> · ' +
-          esc(run.pipelineName) + ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' +
-        '</span>' +
+          esc(run.pipelineName) + (run.initialPrompt ? ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' : ' · Saved summary; prompt and output are not retained') +
+        '</span><button type="button" data-view-run="' + esc(run.id) + '">View run</button>' +
       '</div>';
     }).join('');
   }
 
-  let activePipelineRun = null;
+  let cachedRuns = [], activePipelineRun = null;
+  let selectedRunId = sessionStorage.getItem('conduit-selected-run') || '';
+  async function openRun(runId) {
+    try {
+      const result = await request('/v1/pipelines/runs/' + encodeURIComponent(runId));
+      renderLiveRun(result.run);
+      $('pipe-live-status').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) { $('notice').textContent = error.message; }
+  }
+  for (const id of ['pipelines-history', 'pipeline-approvals']) {
+    $(id).addEventListener('click', event => {
+      const button = event.target.closest('[data-view-run]');
+      if (button) openRun(button.dataset.viewRun);
+    });
+  }
   function renderLiveRun(run) {
+    if (run && activePipelineRun && JSON.stringify(run) === JSON.stringify(activePipelineRun)) return;
+    const feedbackDraft = run?.id === activePipelineRun?.id ? $('checkpoint-feedback')?.value || '' : '';
     activePipelineRun = run;
+    if (run) {
+      selectedRunId = run.id;
+      sessionStorage.setItem('conduit-selected-run', run.id);
+    }
     const box = $('pipe-live-status');
     if (!box) return;
     if (!run) { box.innerHTML = ''; return; }
@@ -2035,13 +2096,36 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     }).join('');
 
     box.innerHTML = '<div style="margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;">' +
-      '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">' +
+      '<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px;">' +
         '<strong>Run Status: ' + esc(run.pipelineName) + '</strong>' +
         statusBadge +
       '</div>' +
+      '<div class="muted">Run ' + esc(run.id) + (run.error ? ' · ' + esc(run.error) : '') + '</div>' +
+      (!run.initialPrompt ? '<p class="muted">Saved summary: prompts and model output are kept only while the service is running.</p>' : '') +
+      (run.status === 'interrupted' ? '<p>Inspect the workspace before starting again. This run cannot resume after the service restarts.</p><button type="button" id="btn-prepare-run">Prepare a new run</button>' : '') +
+      (['running', 'waiting_approval'].includes(run.status) ? '<button type="button" class="danger" id="btn-cancel-run">Cancel run</button>' : '') +
       checkpointAlert +
       '<div style="display: grid; gap: 8px;">' + stepsDetail + '</div>' +
     '</div>';
+    if ($('checkpoint-feedback')) $('checkpoint-feedback').value = feedbackDraft;
+    $('btn-prepare-run')?.addEventListener('click', () => {
+      $('pipe-run-select').value = run.pipelineId;
+      $('pipe-run-prompt').value = '';
+      $('pipe-run-prompt').focus();
+      $('notice').textContent = 'Review the repository and working directory, then enter a fresh prompt to start a new run.';
+    });
+    $('btn-cancel-run')?.addEventListener('click', async event => {
+      const cancelButton = event.currentTarget;
+      cancelButton.disabled = true;
+      try {
+        const result = await request('/v1/pipelines/runs/action', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ runId: run.id, action: 'cancel' })
+        });
+        renderLiveRun(result.run);
+        scheduleLiveRefresh();
+      } catch (error) { $('notice').textContent = error.message; cancelButton.disabled = false; }
+    });
 
     const approveBtn = $('btn-approve-step');
     if (approveBtn) {
@@ -2058,6 +2142,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           await refresh();
         } catch (err) {
           alert('Approval error: ' + err.message);
+          approveBtn.disabled = false;
         }
       });
     }
@@ -2077,6 +2162,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           await refresh();
         } catch (err) {
           alert('Rejection error: ' + err.message);
+          rejectBtn.disabled = false;
         }
       });
     }
@@ -2240,7 +2326,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       filtered = filtered.filter(e =>
         (e.message && e.message.toLowerCase().includes(q)) ||
         (e.scope && e.scope.toLowerCase().includes(q)) ||
-        (e.traceId && e.traceId.toLowerCase().includes(q))
+        ['traceId', 'runId', 'stepId', 'provider', 'model', 'status'].some(key => String(e[key] || '').toLowerCase().includes(q))
       );
     }
 
@@ -2256,7 +2342,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         '<span>' +
           '<strong class="level">' + esc(event.level) + '</strong> · ' +
           esc(event.message) +
-          (event.traceId ? ' <code class="trace-pill" title="Correlation ID">trace:' + esc(event.traceId.slice(0, 8)) + '</code>' : '') +
+          ['traceId', 'runId', 'stepId', 'provider', 'model', 'status', 'attempt', 'durationMs'].filter(key => event[key] !== undefined).map(key => ' <code class="trace-pill">' + key + ':' + esc(event[key]) + '</code>').join('') +
         '</span>' +
       '</div>'
     ).join('');
@@ -2406,13 +2492,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   function renderBudgets(budgets) {
     cachedBudgets = budgets || {};
     const cfg = cachedBudgets.config || cachedBudgets;
-    const spend = cachedBudgets.spend || {};
-    const dailySpent = spend.dailySpendUsd || cachedBudgets.dailySpendUsd || 0;
-    const dailyLimit = cfg.dailyBudgetUsd || cachedBudgets.dailyLimitUsd || 10;
+    const spend = cachedBudgets.usage || {};
+    const dailySpent = spend.currentDailyCostUsd ?? 0;
+    const dailyLimit = cfg.dailyBudgetUsd ?? 10;
     const dailyPct = Math.min(100, Math.round((dailySpent / (dailyLimit || 1)) * 100));
-    const dailyWarn = cfg.warningThresholdPercent || cachedBudgets.warningThresholdPercent || 80;
+    const dailyWarn = cfg.warningThresholdPercent ?? 80;
     const dailyClass = dailyPct >= 100 ? 'bad' : (dailyPct >= dailyWarn ? 'warn' : 'ok');
-    const dailyFillClass = dailyPct >= 100 ? 'danger' : (dailyPct >= dailyWarn ? 'warning' : 'safe');
+    const dailyFillClass = dailyPct >= 100 ? 'danger' : (dailyPct >= dailyWarn ? 'warn' : 'safe');
 
     if ($('daily-budget-text')) {
       $('daily-budget-text').textContent = '$' + dailySpent.toFixed(2) + ' / $' + dailyLimit.toFixed(2) + ' (' + dailyPct + '%)';
@@ -2423,11 +2509,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       $('daily-budget-fill').style.width = dailyPct + '%';
     }
 
-    const monthlySpent = spend.monthlySpendUsd || cachedBudgets.monthlySpendUsd || 0;
-    const monthlyLimit = cfg.monthlyBudgetUsd || cachedBudgets.monthlyLimitUsd || 100;
+    const monthlySpent = spend.currentMonthlyCostUsd ?? 0;
+    const monthlyLimit = cfg.monthlyBudgetUsd ?? 100;
     const monthlyPct = Math.min(100, Math.round((monthlySpent / (monthlyLimit || 1)) * 100));
     const monthlyClass = monthlyPct >= 100 ? 'bad' : (monthlyPct >= dailyWarn ? 'warn' : 'ok');
-    const monthlyFillClass = monthlyPct >= 100 ? 'danger' : (monthlyPct >= dailyWarn ? 'warning' : 'safe');
+    const monthlyFillClass = monthlyPct >= 100 ? 'danger' : (monthlyPct >= dailyWarn ? 'warn' : 'safe');
 
     if ($('monthly-budget-text')) {
       $('monthly-budget-text').textContent = '$' + monthlySpent.toFixed(2) + ' / $' + monthlyLimit.toFixed(2) + ' (' + monthlyPct + '%)';
@@ -2438,13 +2524,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       $('monthly-budget-fill').style.width = monthlyPct + '%';
     }
 
-    if (document.activeElement?.form?.id !== 'budget-config-form') {
+    if (!dirtySections.has('budgets-section')) {
       if ($('cfg-daily-budget')) $('cfg-daily-budget').value = cfg.dailyBudgetUsd ?? 10;
       if ($('cfg-monthly-budget')) $('cfg-monthly-budget').value = cfg.monthlyBudgetUsd ?? 100;
       if ($('cfg-max-cost-run')) $('cfg-max-cost-run').value = cfg.maxCostPerRunUsd ?? 0.50;
       if ($('cfg-max-tokens-run')) $('cfg-max-tokens-run').value = cfg.maxTokensPerRun ?? 100000;
       if ($('cfg-warn-threshold')) $('cfg-warn-threshold').value = cfg.warningThresholdPercent ?? 80;
-      if ($('cfg-hard-stop')) $('cfg-hard-stop').value = String(cfg.hardStopEnabled !== false);
+      if ($('cfg-hard-stop')) $('cfg-hard-stop').value = String(cfg.hardStop !== false);
     }
   }
 
@@ -2539,10 +2625,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   function renderAnalyticsCharts(data) {
     cachedAnalytics = data || {};
-    const modelsData = cachedAnalytics.modelBreakdown || [];
+    const modelsData = cachedAnalytics.models || [];
     const pipelineData = cachedAnalytics.pipelines || {};
     const activityData = cachedAnalytics.activity || {};
-    const tokenData = cachedAnalytics.tokenAndCost || {};
+    const tokenData = cachedAnalytics.totals || {};
 
     const reqContainer = $('chart-requests-container');
     if (reqContainer) {
@@ -2561,20 +2647,20 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           return '<g>' +
             '<text x="10" y="' + (y + 16) + '" fill="var(--text)" font-size="11" font-family="monospace">' + esc(shortModel.slice(0, 18)) + '</text>' +
             '<rect x="140" y="' + y + '" width="' + barWidth + '" height="' + barHeight + '" rx="4" fill="var(--accent)" opacity="0.85"/>' +
-            '<text x="' + (146 + barWidth) + '" y="' + (y + 16) + '" fill="var(--muted)" font-size="11">' + m.requests + ' req (' + (m.averageLatencyMs ?? 0) + 'ms)</text>' +
+            '<text x="' + (146 + barWidth) + '" y="' + (y + 16) + '" fill="var(--muted)" font-size="11">' + m.requests + ' req (' + (m.avgLatencyMs ?? 0) + 'ms)</text>' +
           '</g>';
         }).join('');
 
-        reqContainer.innerHTML = '<svg viewBox="0 0 460 ' + totalHeight + '" width="100%" height="' + totalHeight + '" style="display: block;">' + barsSvg + '</svg>';
+        reqContainer.innerHTML = '<svg aria-hidden="true" viewBox="0 0 460 ' + totalHeight + '" width="100%" height="' + totalHeight + '" style="display: block;">' + barsSvg + '</svg><ul class="chart-values">' + topModels.map(m => '<li>' + esc(m.model) + ': ' + esc(m.requests) + ' requests; average latency ' + esc(m.avgLatencyMs ?? 0) + ' ms</li>').join('') + '</ul>';
       }
     }
 
     const costContainer = $('chart-cost-container');
     if (costContainer) {
-      const inTok = tokenData.totalInputTokens || 0;
-      const outTok = tokenData.totalOutputTokens || 0;
+      const inTok = modelsData.reduce((sum, model) => sum + (model.inputTokens || 0), 0);
+      const outTok = modelsData.reduce((sum, model) => sum + (model.outputTokens || 0), 0);
       const totalTok = inTok + outTok;
-      const estCost = tokenData.estimatedCostUsd || 0;
+      const estCost = tokenData.costUsd || 0;
 
       if (totalTok === 0 && estCost === 0) {
         costContainer.innerHTML = '<div class="muted" style="padding: 30px; text-align: center;">No token consumption recorded yet.</div>';
@@ -2594,7 +2680,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           '<div style="margin-top: 16px; text-align: center;">' +
             '<span class="muted" style="font-size: 12px;">Estimated Total Cost</span>' +
             '<div style="font-size: 24px; font-weight: 700; color: var(--ok); margin-top: 2px;">$' + estCost.toFixed(6) + '</div>' +
-            '<span class="muted" style="font-size: 11px;">Tracked across direct API completions</span>' +
+            '<span class="muted" style="font-size: 11px;">Reported usage across completions and pipeline steps; provider estimates may be incomplete</span>' +
           '</div>' +
         '</div>';
       }
@@ -2609,7 +2695,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         const completed = pipelineData.completed || 0;
         const waiting = pipelineData.waitingApproval || 0;
         const running = pipelineData.running || 0;
-        const failed = pipelineData.failed || 0;
+        const failed = (pipelineData.failed || 0) + (pipelineData.rejected || 0) + (pipelineData.cancelled || 0);
 
         pipeContainer.innerHTML = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0;">' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--ok);">' +
@@ -2626,7 +2712,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--bad);">' +
             '<div style="font-size: 20px; font-weight: 700; color: var(--bad);">' + failed + '</div>' +
-            '<div class="muted" style="font-size: 12px;">Failed / Rejected</div>' +
+            '<div class="muted" style="font-size: 12px;">Failed / Rejected / Cancelled</div>' +
           '</div>' +
         '</div>';
       }
@@ -2670,6 +2756,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   function renderOrchestrator(data) {
+    if (dirtySections.has('orchestrator-section')) return;
     $('orch-enabled').value = String(Boolean(data.enabled));
     $('orch-strategy').value = data.strategy || 'sequential';
     $('orch-roles').innerHTML = (data.roles || []).map((role, i) =>
@@ -2689,6 +2776,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: $('orch-enabled').value === 'true', strategy: $('orch-strategy').value, roles, fallbackModels })
     });
+    dirtySections.delete('orchestrator-section');
     renderOrchestrator(data);
     $('orch-note').textContent = 'Configuration saved';
   }
@@ -2777,6 +2865,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   function renderSettings(data) {
+    if (dirtySections.has('settings-section')) return;
     $('settings-keys').innerHTML = '<div class="setting-list">' + Object.entries(data.apiKeys || {}).map(([provider, info]) =>
       '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(info.source || (info.configured ? 'Configured' : 'Not detected')) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" placeholder="' + (info.configured ? 'Replace stored API key' : 'Paste API key') + '"><button type="submit">Save API key</button></form></div>'
     ).join('') + '</div><p class="muted">Keys are write-only and independent from CLI authentication.</p>';
@@ -2807,7 +2896,49 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   // Master Refresh
+  let refreshInFlight = false, fullRefreshPending = false, liveRefreshTimer = null;
+  function finishRefresh() {
+    refreshInFlight = false;
+    if (fullRefreshPending) {
+      fullRefreshPending = false;
+      refresh();
+    }
+  }
+  function scheduleLiveRefresh() {
+    if (liveRefreshTimer !== null) return;
+    liveRefreshTimer = setTimeout(() => {
+      liveRefreshTimer = null;
+      refreshLive();
+    }, 1000);
+  }
+  async function refreshLive() {
+    if (refreshInFlight || document.hidden) return;
+    refreshInFlight = true;
+    try {
+      // Only active-page data changes with activity; catalogs and settings do not.
+      const jobs = [];
+      if (activeSection === 'pipelines' || activePipelineRun?.status === 'running') {
+        jobs.push(request('/v1/pipelines/runs').then(data => renderPipelineRuns(data.data || [])));
+      }
+      if (activeSection === 'usage' || activeSection === 'overview') {
+        jobs.push(request('/v1/analytics/overview').then(renderAnalyticsCharts));
+        jobs.push(request('/v1/metrics').then(data => {
+          renderMetrics(data); renderUsage(data);
+          const rows = Object.values(data.models || {});
+          $('summary-requests').textContent = rows.reduce((sum, model) => sum + model.requests, 0);
+          $('summary-active').textContent = rows.reduce((sum, model) => sum + model.inFlight, 0);
+        }));
+      }
+      if (activeSection === 'activity') jobs.push(request('/v1/activity').then(renderActivity));
+      if (activeSection === 'budgets') jobs.push(request('/v1/budgets').then(renderBudgets));
+      const outcomes = await Promise.allSettled(jobs);
+      const failure = outcomes.find(result => result.status === 'rejected');
+      if (failure) $('notice').textContent = 'Live update failed: ' + failure.reason.message;
+    } finally { finishRefresh(); }
+  }
   async function refresh() {
+    if (refreshInFlight) { fullRefreshPending = true; return; }
+    refreshInFlight = true;
     $('notice').textContent = 'Refreshing...';
     try {
       const [
@@ -2864,7 +2995,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       $('notice').textContent = 'Updated ' + new Date().toLocaleTimeString();
     } catch (error) {
       $('notice').textContent = error.message;
-    }
+    } finally { finishRefresh(); }
   }
 
   $('model-list').addEventListener('click', event => {
@@ -3034,15 +3165,16 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          dailyBudgetUsd: parseFloat($('cfg-daily-budget').value) || 10,
-          monthlyBudgetUsd: parseFloat($('cfg-monthly-budget').value) || 100,
-          maxCostPerRunUsd: parseFloat($('cfg-max-cost-run').value) || 0.50,
-          maxTokensPerRun: parseInt($('cfg-max-tokens-run').value, 10) || 100000,
-          warningThresholdPercent: parseInt($('cfg-warn-threshold').value, 10) || 80,
-          hardStopEnabled: $('cfg-hard-stop').value === 'true'
+          dailyBudgetUsd: Number($('cfg-daily-budget').value),
+          monthlyBudgetUsd: Number($('cfg-monthly-budget').value),
+          maxCostPerRunUsd: Number($('cfg-max-cost-run').value),
+          maxTokensPerRun: Number($('cfg-max-tokens-run').value),
+          warningThresholdPercent: Number($('cfg-warn-threshold').value),
+          hardStop: $('cfg-hard-stop').value === 'true'
         })
       });
       if (note) note.textContent = 'Limits saved';
+      dirtySections.delete('budgets-section');
       await refresh();
     } catch (err) {
       if (note) note.textContent = err.message;
@@ -3159,7 +3291,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     ws.onmessage = event => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'activity') refresh();
+        if (data.type === 'activity') scheduleLiveRefresh();
       } catch {}
     };
     ws.onerror = () => {
@@ -3173,7 +3305,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   refresh();
   connectEvents();
-  setInterval(refresh, 15000);
+  setInterval(refreshLive, 15000);
+  setInterval(() => {
+    if (activePipelineRun?.status === 'running') scheduleLiveRefresh();
+  }, 3000);
 </script>
 </body>
 </html>`;

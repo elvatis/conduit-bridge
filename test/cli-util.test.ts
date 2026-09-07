@@ -68,6 +68,12 @@ describe('runCli cancellation', () => {
       .toBe('--tools "" --model x');
   });
 
+  it('quoteWin rejects quote breakout and contains shell metacharacters', () => {
+    expect(() => quoteWin('Write"&echo injected&rem "')).toThrow(/refusing/i);
+    expect(quoteWin('folder & tools')).toBe('"folder & tools"');
+    expect(quoteWin('%TEMP%')).toBe('"%TEMP%"');
+  });
+
   it('argvLimitFor scales the bound to the transport, not to Windows', () => {
     const win = process.platform === 'win32';
     // A .cmd shim goes through cmd.exe, whose whole command line caps at 8191.
