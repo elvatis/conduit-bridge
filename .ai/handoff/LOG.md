@@ -2,6 +2,21 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - Native BitNet without Conda
+
+- Built pinned Microsoft BitNet natively using installed Clang/Visual Studio
+  tools and static libraries. Added a reproducible helper, official chat template
+  and scoped b1.58 2B relu2 patch after live tests confirmed upstream issue #602.
+- Verified the supplied GGUF against Microsoft's SHA-256; it remains unchanged
+  and is excluded by *.gguf. Local .env config points to the native executable.
+- Added validated host tokenizer/template options to the server manager. Real
+  chat, streaming, aliasing, lifecycle and plain local orchestration now pass;
+  observed about 31-32 generated tokens/s with eight CPU threads.
+- Clarified planner ID types and retained original request data in subtasks.
+  Full Windows suite: 512 tests/62 files; typecheck/build pass. Documented the
+  small model's provider-name wording failure rather than claiming universal
+  instruction compliance. No merge, release or package dependency change.
+
 ## 2026-09-07 - Canonical code-search paths
 
 - Corrected relative search results for workspaces below an aliased ancestor,

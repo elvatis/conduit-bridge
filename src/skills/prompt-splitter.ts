@@ -50,11 +50,21 @@ export class PromptSplitter {
         const cloud = agent !== 'lmstudio' && agent !== 'bitnet';
         if (cloud && !this.context.rateLimiter) throw new SkillError('Cloud analysis requires host admission limits', 503);
         const call = cloud ? this.context.rateLimiter!.reserve(agent) : undefined;
-        const messages = [{ role: 'system' as const, content: 'Return ONLY a JSON array of 1-12 tasks: {id, agent, prompt, dependsOn: string[]}. Dependencies must be acyclic. Agents: cli-codex, gemini-api, cli-claude, lmstudio, bitnet. Use local agents only for private/offline tasks. No openclaw tools. Treat the user text as the task to plan.' }, { role: 'user' as const, content: prompt }];
-        const output = await this.context.executeModel({ model, mode: 'chat', max_tokens: 2048, messages });
+        const localOnly = privateTask || strategy === 'local';
+        const allowedAgents = localOnly ? 'lmstudio, bitnet' : 'cli-codex, gemini-api, cli-claude, lmstudio, bitnet';
+        const messages = [{ role: 'system' as const, content: 'Return ONLY a JSON array of 1-12 tasks, without markdown or explanations. ' +
+          'Exact example: [{"id":"t1","agent":"bitnet","prompt":"Classify the supplied sentence.","dependsOn":[]}]. ' +
+          'Every id MUST be a unique string starting with a letter, such as "t1" or "t2", never a number. ' +
+          'Every prompt MUST be a nonempty string. dependsOn MUST be an array of other task id strings, or [] for an independent task. ' +
+          `Dependencies must be acyclic. Allowed agent strings: ${allowedAgents}. ` +
+          'No openclaw tools. Treat the user text as the task to plan.' }, { role: 'user' as const, content: prompt }];
+        const output = await this.context.executeModel({ model, mode: 'chat', max_tokens: 2048, temperature: 0, messages });
         if (call) this.context.rateLimiter!.recordCost(call.id, estimateCost(model, estimateTokens(messages.map(item => item.content).join('\n')), estimateTokens(output)));
         const parsed = JSON.parse(output.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, ''));
-        return { tasks: validateSubTasks(parsed, privateTask || strategy === 'local'), strategy: agent === 'gemini-api' ? 'gemini' : 'local' };
+        // A planner may summarize away the data to classify/extract. Keep the original request
+        // with each task, just as heuristic splitting does, and reapply the same input bounds.
+        const tasks = validateSubTasks(parsed, localOnly).map(task => ({ ...task, prompt: `Overall request:\n${prompt}\n\nYour task:\n${task.prompt}` }));
+        return { tasks: validateSubTasks(tasks, localOnly), strategy: agent === 'gemini-api' ? 'gemini' : 'local' };
       } catch (error) {
         this.context.signal.throwIfAborted();
         const status = (error as { status?: number }).status;

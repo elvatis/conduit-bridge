@@ -4,7 +4,7 @@ Date: 2026-09-07. Branch: `feat/provider-agent-management`.
 
 ## Automated verification
 
-- Windows: **510 passing tests in 62 files**, with a production build and strict
+- Windows: **512 passing tests in 62 files**, with a production build and strict
   TypeScript checking. The complete suite includes the prior 470 tests.
 - New regression coverage checks atomic quota reservations and persistence,
   all three rolling windows, session ownership/history/expiry and native resume
@@ -73,6 +73,15 @@ The binary was used in an ignored temporary tooling directory and is not bundled
 or added as a package dependency. Upstream [release](https://github.com/microsoft/tgrep/releases/tag/v1.0.4)
 and [protocol/CLI documentation](https://github.com/microsoft/tgrep).
 
+## Subsequent real BitNet validation
+
+Native Windows inference is now verified without Conda, using the supplied
+official 2B-4T GGUF. Four direct/provider checks, eight bridge checks and one
+complete local planning/execution request passed. The reproducible helper,
+upstream relu2 correction, model identity, tokenizer/template configuration,
+timings and observed instruction-following limits are documented in
+[BITNET-NATIVE-WINDOWS.md](BITNET-NATIVE-WINDOWS.md).
+
 ## Reproduction and limits
 
 ```sh
@@ -90,9 +99,9 @@ use an isolated registered workspace, explicit retained conversations for native
 resume, and an installed tgrep executable. The Windows integration harnesses
 retain ignored local JSON evidence and use only synthetic test content.
 
-- No BitNet binary/GGUF is installed here. BitNet HTTP/stream behavior and
-  lifecycle are fixture-tested, including PID ownership, occupied ports and
-  cancellation; actual BitNet CPU inference is not claimed.
+- BitNet 2B-4T CPU inference, streaming, lifecycle and simple local planning are
+  now live-tested with the documented patched build. Other BitNet models and
+  embeddings remain untested.
 - Gemini API and LM Studio model-assisted planning are fixture-tested. The local
   service lacks Gemini API authentication and an actively loaded local model.
 - No external webhook notification was sent. Delivery uses mocked HTTPS tests;

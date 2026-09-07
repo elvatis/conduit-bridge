@@ -111,6 +111,20 @@ export class LocalServerManager {
     if (!model || !isAbsolute(model) || !/\.gguf$/i.test(model) || !lstatSync(model).isFile() || lstatSync(model).isSymbolicLink()) throw new SkillError('Configure an absolute regular GGUF model path');
     const port = config.port ?? 8080, threads = config.threads ?? 2, ctx = config.ctx_size ?? 2048;
     if (!Number.isSafeInteger(port) || port < 1024 || port > 65535 || !Number.isSafeInteger(threads) || threads < 1 || threads > 256 || !Number.isSafeInteger(ctx) || ctx < 512 || ctx > 131072) throw new SkillError('Invalid BitNet server configuration');
+    const compatibilityArgs: string[] = [];
+    // Host-controlled model compatibility settings; never accept arbitrary argv from HTTP callers.
+    const tokenizerPre = process.env.BITNET_TOKENIZER_PRE;
+    if (tokenizerPre) {
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(tokenizerPre)) throw new SkillError('Invalid BitNet tokenizer preset');
+      compatibilityArgs.push('--override-kv', `tokenizer.ggml.pre=str:${tokenizerPre}`);
+    }
+    const chatTemplate = process.env.BITNET_CHAT_TEMPLATE_PATH;
+    if (chatTemplate) {
+      if (!isAbsolute(chatTemplate) || !/\.jinja2?$/i.test(chatTemplate) || !existsSync(chatTemplate)) throw new SkillError('Configure an absolute BitNet Jinja template path');
+      const entry = lstatSync(chatTemplate);
+      if (!entry.isFile() || entry.isSymbolicLink() || entry.size > 65536) throw new SkillError('BitNet template must be a regular file of at most 64 KiB');
+      compatibilityArgs.push('--chat-template-file', realpathSync.native(chatTemplate));
+    }
     signal?.throwIfAborted();
     // A pre-existing service must not satisfy readiness for a child that fails to bind.
     await new Promise<void>((resolve, reject) => {
@@ -118,7 +132,7 @@ export class LocalServerManager {
       probe.listen(port, '127.0.0.1', () => probe.close(() => resolve()));
     });
     signal?.throwIfAborted();
-    this.launch('bitnet', process.env.BITNET_SERVER_BINARY || 'llama-server', ['-m', realpathSync.native(model), '-c', String(ctx), '-t', String(threads), '-ngl', '0', '--host', '127.0.0.1', '--port', String(port), '-cb'], this.directory, undefined, port);
+    this.launch('bitnet', process.env.BITNET_SERVER_BINARY || 'llama-server', ['-m', realpathSync.native(model), '-c', String(ctx), '-t', String(threads), '-ngl', '0', '--host', '127.0.0.1', '--port', String(port), '-cb', ...compatibilityArgs], this.directory, undefined, port);
     await this.ready('bitnet', async () => { try { const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(1000) }); await response.body?.cancel(); return response.ok; } catch { return false; } }, signal);
     return this.status('bitnet');
   }

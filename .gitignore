@@ -3,6 +3,9 @@ dist/
 *.js.map
 .ai/logs/
 
+# Local inference models are large runtime assets.
+*.gguf
+
 # Secrets / local environment. Never commit API keys.
 .env
 .env.*

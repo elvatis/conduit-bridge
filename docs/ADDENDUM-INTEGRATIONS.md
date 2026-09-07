@@ -152,6 +152,11 @@ sent during implementation validation.
 
 ## BitNet
 
+Native Windows inference without Conda is now verified with the official 2B-4T
+GGUF. See [the reproducible build and validation guide](BITNET-NATIVE-WINDOWS.md)
+for the required upstream activation patch, tokenizer/template settings and
+actual quality/performance results.
+
 `BitNetProvider` shares the local OpenAI-compatible transport with LM Studio.
 Set `BITNET_URL` (default `http://127.0.0.1:8080`). The catalog contains
 `bitnet/auto`, `bitnet/2B-4T`, `bitnet/embedding-0.6B` and

@@ -11,9 +11,24 @@ let root: string; let port: number; let child: EventEmitter & { pid: number; exi
 beforeEach(async () => {
   root = mkdtempSync(join(tmpdir(), 'conduit-lifecycle-')); writeFileSync(join(root, 'fixture.gguf'), 'synthetic fixture, not an inference model');
   vi.stubEnv('BITNET_SERVER_BINARY', process.execPath); vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  vi.stubEnv('BITNET_TOKENIZER_PRE', ''); vi.stubEnv('BITNET_CHAT_TEMPLATE_PATH', '');
   const reservation = createServer(); await new Promise<void>(resolve => reservation.listen(0, '127.0.0.1', resolve)); port = (reservation.address() as { port: number }).port; await new Promise<void>(resolve => reservation.close(() => resolve()));
   child = Object.assign(new EventEmitter(), { pid: 123456, exitCode: null as number | null, killed: false, kill: vi.fn(() => { child.killed = true; child.exitCode = 0; child.emit('exit', 0); return true; }) });
   vi.mocked(spawn).mockReset().mockReturnValue(child as any);
+});
+it('passes bounded host tokenizer/template settings and rejects malformed overrides before spawning', async () => {
+  const template = join(root, 'chat template.jinja'); writeFileSync(template, '{{ messages[0].content }}');
+  vi.stubEnv('BITNET_TOKENIZER_PRE', 'llama-bpe'); vi.stubEnv('BITNET_CHAT_TEMPLATE_PATH', template);
+  const manager = new LocalServerManager(root); await manager.startBitNet({ modelPath: join(root, 'fixture.gguf'), port });
+  const args = vi.mocked(spawn).mock.calls[0][1]!;
+  expect(args).toEqual(expect.arrayContaining(['--override-kv', 'tokenizer.ggml.pre=str:llama-bpe', '--chat-template-file']));
+  expect(args[args.indexOf('--chat-template-file') + 1]).toMatch(/chat template\.jinja$/);
+  await manager.stop('bitnet'); vi.mocked(spawn).mockClear();
+  vi.stubEnv('BITNET_TOKENIZER_PRE', 'llama-bpe,other=str:value');
+  await expect(manager.startBitNet({ modelPath: join(root, 'fixture.gguf'), port })).rejects.toThrow('preset');
+  vi.stubEnv('BITNET_TOKENIZER_PRE', 'llama-bpe'); writeFileSync(template, 'x'.repeat(65537));
+  await expect(manager.startBitNet({ modelPath: join(root, 'fixture.gguf'), port })).rejects.toThrow('64 KiB');
+  expect(spawn).not.toHaveBeenCalled();
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); rmSync(root, { recursive: true, force: true }); });
 it('launches fixed CPU/loopback argv, persists ownership and removes only its owned PID on stop', async () => {

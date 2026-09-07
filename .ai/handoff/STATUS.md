@@ -28,12 +28,18 @@ _Updated: 2026-09-07_
   tgrep TCP/CLI indexed search with ripgrep fallback and approved index lifecycle.
 - Added authenticated /api/orchestrate, /api/skills, /api/providers/status,
   /api/bitnet/server and /api/tgrep endpoints; existing policy/accounting applies.
-- Windows 510 tests in 62 files and production build pass. Nine real service
+- Windows 512 tests in 62 files and production build pass. Nine real service
   scenarios and seven native tgrep cases pass. Claude, Codex and agy each resumed
   one native session across two turns; a real parallel dependency plan completed.
-- BitNet inference is fixture-tested only. Gemini API planning lacks a configured
-  credential; LM Studio is reachable but has no loaded model, so the live auto
-  planner correctly falls back to heuristics. No external webhook was sent.
+- BitNet 2B-4T now runs natively on Windows without Conda. The checked-in build
+  helper applies a narrowly scoped upstream relu2 correction; host-only tokenizer
+  and chat-template settings preserve the supplied, ignored GGUF unchanged.
+  Four direct/provider checks, eight bridge checks and one full local planning/
+  execution request pass. Sustained generation measured about 31-32 tokens/s.
+- Planning now specifies string task IDs and retains original input in every
+  generated task. Small-model instruction-following limits are documented in
+  docs/BITNET-NATIVE-WINDOWS.md. Gemini API credentials and a loaded LM Studio
+  model remain unavailable. No external webhook was sent.
 - Read docs/ADDENDUM-INTEGRATIONS.md and docs/ADDENDUM-VALIDATION.md. Optional
   administrator-started loopback inference/search daemons are explicitly requested
   additions; the gateway port stays unchanged. No merge or release.

@@ -66,6 +66,8 @@ The [additional integrations guide](docs/ADDENDUM-INTEGRATIONS.md) covers the
 `/api/orchestrate` preview/execution API, persistent cloud quotas, native CLI
 session resume, BitNet CPU inference and tgrep/ripgrep code search. BitNet and
 tgrep binaries remain optional local installations; model downloads are explicit.
+The [native BitNet Windows guide](docs/BITNET-NATIVE-WINDOWS.md) includes a tested
+build without Conda, the 2B-4T compatibility patch and real inference results.
 
 GitHub Projects v2 supports remote project/item queries, draft and issue/PR item
 creation, custom field updates, membership removal and workspace associations.
