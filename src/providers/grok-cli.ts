@@ -213,7 +213,7 @@ export class GrokCliProvider implements ProviderAdapter {
       '--prompt-file', promptFile,
       '--model', model,
       '--output-format', 'plain',
-      ...cliPermissionArgs('cli-grok', mode),
+      ...cliPermissionArgs('cli-grok', mode, { disallowedTools: req.disallowedTools }),
       ...(effort ? ['--reasoning-effort', effort] : []),
     ];
 

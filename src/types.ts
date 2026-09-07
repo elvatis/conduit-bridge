@@ -1,5 +1,6 @@
 // ── Public types for conduit-bridge ──────────────────────────────────────────
 import type { OrchestratorConfig } from './orchestrator.js';
+export type { PipelineDefinition, PipelineStep, PipelineRun, PipelineRunStepResult } from './pipelines.js';
 
 export type ProviderName =
   | 'claude-api' | 'gemini-api' | 'codex-api'
@@ -18,16 +19,28 @@ export interface ApiKeyConfig {
   'perplexity-api'?: string;    // Perplexity API key (pplx-…)
 }
 
+export interface ProviderAgentPolicy {
+  /** Whether agent mode (workspace mutation) is allowed for this provider. */
+  agentEnabled: boolean;
+  /** Default mode when incoming request omits mode: chat | plan | agent */
+  defaultMode?: 'chat' | 'plan' | 'agent';
+  /** Optional custom comma-separated disallowed tools for chat/read-only mode */
+  disallowedTools?: string;
+}
+
 export interface BridgeConfig {
   port: number;
   host: string;
   logLevel: 'silent' | 'info' | 'debug';
   apiKeys: ApiKeyConfig;    // API keys for direct API providers
   orchestrator?: OrchestratorConfig; // optional persisted orchestration policy
+  agentPolicies?: Partial<Record<ProviderName, ProviderAgentPolicy>>; // per-provider agent execution policies
+  repositories?: Record<string, RepositoryConfig> | RepositoryConfig[]; // repository-specific governance and pipeline assignments
+  budget?: BudgetConfig;    // pipeline and model spending limit controls
   lmStudioUrl?: string;     // LM Studio server URL (default http://127.0.0.1:1234)
   rateLimit?: { perMinute: number; maxConcurrent: number };
 
-  // ── Security (all optional, secure-by-default) ─────────────────────────────
+  // -- Security (all optional, secure-by-default) -----------------------------
   /**
    * CORS allowlist. The request Origin header is reflected back in
    * Access-Control-Allow-Origin ONLY when it appears in this list (the server's
@@ -91,6 +104,8 @@ export interface ChatRequest {
    * → agent, `plan: true` → plan.
    */
   mode?: 'chat' | 'plan' | 'agent';
+  /** Optional custom comma-separated disallowed tools for chat mode */
+  disallowedTools?: string;
   /** Aborted when the downstream HTTP client disconnects. */
   signal?: AbortSignal;
 }
@@ -165,3 +180,81 @@ export interface ProviderAdapter {
    */
   hasCredentials?(): boolean;
 }
+
+// ── Governance, Repositories, Budgets, and Workspaces ──────────────────────
+
+export interface RepositoryConfig {
+  id: string;                    // unique repo key, e.g. "elvatis/conduit-bridge"
+  name: string;                  // human-readable label
+  path: string;                  // absolute workspace path on disk
+  description?: string;
+  assignedGovernancePipeline?: string; // default pipeline ID for this repository
+  enabledPipelines?: string[];   // allowed pipeline IDs for this repository
+  defaultWorkspace?: string;     // default root working directory
+  overrides?: {
+    disallowedTools?: string;
+    agentEnabled?: boolean;
+    requireApproval?: boolean;
+    maxCostPerRunUsd?: number;
+    mandatoryGates?: string[];
+  };
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface GovernanceAuditRecord {
+  auditId: string;
+  timestamp: number;
+  pipelineId: string;
+  pipelineName: string;
+  runId: string;
+  stepId: string;
+  stepName: string;
+  model?: string;
+  repository?: string;
+  operator: string;
+  action: 'approved' | 'rejected';
+  feedback?: string;
+  correlationId?: string;
+}
+
+export interface BudgetConfig {
+  maxCostPerRunUsd: number;      // e.g. 0.50
+  maxTokensPerRun: number;       // e.g. 50000
+  maxDurationMs: number;         // e.g. 120000 ms
+  dailyBudgetUsd: number;        // e.g. 10.00
+  monthlyBudgetUsd: number;      // e.g. 100.00
+  warningThresholdPercent: number; // e.g. 80
+  hardStop: boolean;             // reject execution if budget exceeded (true) or warn only (false)
+  providerLimits?: Partial<Record<ProviderName, number>>; // USD ceiling per provider
+  modelLimits?: Record<string, number>; // USD ceiling per model
+}
+
+export interface BudgetUsage {
+  currentDailyCostUsd: number;
+  currentMonthlyCostUsd: number;
+  totalRunsToday: number;
+  totalTokensToday: number;
+  lastResetDay: string;          // YYYY-MM-DD
+  lastResetMonth: string;        // YYYY-MM
+}
+
+export interface WorkspaceEntry {
+  id: string;
+  path: string;
+  name: string;
+  lastUsed: number;
+  isDefault?: boolean;
+  exists?: boolean;
+  writable?: boolean;
+}
+
+export type ToolSecurityRisk = 'low' | 'medium' | 'high' | 'critical';
+
+export type ToolClassification =
+  | 'Read Only'
+  | 'Workspace Modify'
+  | 'System Modify'
+  | 'Network Access'
+  | 'External Service';
+

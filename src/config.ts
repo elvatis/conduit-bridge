@@ -44,6 +44,7 @@ const DEFAULTS: BridgeConfig = {
   host: '127.0.0.1',
   logLevel: 'info',
   apiKeys: {},
+  agentPolicies: {},
   // Secure defaults: only localhost origins are allowed for CORS, no auth
   // token (opt-in).
   allowedOrigins: ['http://localhost', 'http://127.0.0.1'],

@@ -1,3 +1,5 @@
+> Note (2026-09-07, feat/provider-agent-management): Delivered enterprise-grade multi-agent orchestration and governance platform for Conduit Bridge (v0.9.1). Features 9 repository governance templates, approval gates with audit logging and export, budget meters with daily/monthly spend limits and hard stops, host tool discovery on system PATH, validated workspace registry with filesystem browser, real-time SVG charts for model volume/spend/outcomes/events, and correlation tracking (traceId). All 225 tests passing.
+
 > Note (2026-09-03, claude-opus-5): Cut v0.9.1. Governance only, zero src changes since v0.9.0 - the running v0.9.0 was already functionally current, so this release ships documentation and gate configuration and nothing else. Also pinned CLAUDE.md as a fourth version site, mutation-proved: reverting its version line turns version-sync red. conduit-vscode pins the same file, and it had gone stale there at 0.9.0 against a package.json of 0.10.1, which is the exact defect this pins against. First release cut by .github/workflows/release.yml in this repository; it publishes no asset by design.
 
 > Note (2026-09-03, claude-opus-5): Added .github/workflows/release.yml. A tag push bypasses branch protection entirely here: tags are unprotected (rulesets is empty) and main has NO required status checks at all, so a tag could be cut at any commit in any state with nothing looking at it. The workflow refuses a tag that does not match package.json and package-lock.json, is not an ancestor of origin/main, or has no matching CHANGELOG.md section, then runs aahp verify/check/doctor plus typecheck, tests and build before publishing the GitHub Release with notes from the changelog. It publishes NO asset on purpose: this project is not on npm and ships no artifact, all 14 releases carry zero assets by design per docs/RELEASING.md, and porting conduit-vscode asset assertion would fail on every release forever. Lightweight tags (v0.2.5, v0.3.0, v0.4.0) fall back to the tag name for the title instead of failing. OPERATIONAL: GitHub loads the workflow from the TAGGED COMMIT, so the first tag cut before this file exists runs nothing, silently.
@@ -12,7 +14,40 @@
 
 ## Current Version: 0.9.1
 
-_Updated: 2026-09-02_
+_Updated: 2026-09-07_
+
+## Enterprise Multi-Agent Orchestration & Governance Platform (feat/provider-agent-management)
+
+1. **Repository Governance & Pipeline Templates**:
+   - 9 built-in governance templates: Standard Governance, Documentation Generation, Documentation Review, Refactoring Review, Automated PR Review, Release Readiness, Architecture & Design Review, Dependency Risk Assessment, and Supply Chain Security Posture.
+   - Repository-specific pipeline bindings and policy overrides (`requireSecuritySignoff`, `mandatoryGates`).
+   - Live human approval gates (`waiting_approval`) with pause/resume support (`/v1/pipelines/runs/action`).
+   - Immutable audit trail recording each approval and rejection with operator feedback, timestamp, and correlation ID (`/v1/governance/audit`, JSON/Markdown export at `/v1/governance/audit/export`).
+
+2. **Pipeline Budget Controls & Spending Limits**:
+   - `BudgetManager` enforcing daily and monthly USD spend caps, per-run cost ceilings, and token limits.
+   - Real-time threshold calculation (Safe, Warning, Exceeded) with configurable Hard Stop (execution rejection) vs Soft Warning (operator notification).
+   - Live visual budget meters on the dashboard with spend percentages and automatic UTC midnight/monthly rollover.
+
+3. **Automatic Host Tool Discovery & Categorized Catalog**:
+   - Auto-detection of developer binaries on Windows and Linux system PATH (git, node, npm, python, docker, etc.).
+   - Tool classification taxonomy (Read Only, Workspace Modify, System Modify, Network Access, External Service) and security risk ratings (Low, Medium, High, Critical).
+   - Dynamic discovery endpoint (`POST /v1/tools/discover`) and unified catalog (`GET /v1/tools`).
+
+4. **Working Directory & Workspace Management**:
+   - Validated workspace registry with disk existence checks and write-permission verification.
+   - Filesystem directory browser endpoint (`POST /v1/workspaces/browse`) for safe folder traversal.
+   - Quick-select integration into Playground and Pipeline execution runners.
+
+5. **Usage Statistics & Real-Time Visual Analytics**:
+   - Pure vanilla SVG dashboard charts without external CDN dependencies.
+   - Model request volumes and average latencies, token and cost share progress, pipeline run outcomes breakdown, and operational events by severity.
+   - Aggregated analytics endpoint (`GET /v1/analytics/overview`).
+
+6. **Activity Streams & Operational Telemetry**:
+   - End-to-end correlation tracking with `traceId` linking chat requests, pipeline executions, and audit logs.
+   - Filter chips (Info, Success, Warning, Error) and live log search.
+   - Full activity log export in JSON and Markdown formats (`/v1/activity/export`).
 
 ## v0.8.0 - CLI transport, modes, cwd and model discovery
 

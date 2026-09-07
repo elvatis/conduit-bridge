@@ -6,11 +6,19 @@ import {
   parseCliRunMode,
   agentModeCwdError,
   cliPermissionArgs,
+  isAgentModeAllowed,
+  DEFAULT_MUTATING_TOOLS,
 } from '../src/cli-mode.js';
 
 describe('parseCliRunMode', () => {
   it('defaults to chat when nothing is set', () => {
     expect(parseCliRunMode({})).toEqual({ ok: true, mode: 'chat' });
+  });
+
+  it('respects a custom defaultMode from provider policy', () => {
+    expect(parseCliRunMode({}, 'plan')).toEqual({ ok: true, mode: 'plan' });
+    expect(parseCliRunMode({}, 'agent')).toEqual({ ok: true, mode: 'agent' });
+    expect(parseCliRunMode({ mode: 'chat' }, 'agent')).toEqual({ ok: true, mode: 'chat' });
   });
 
   it('accepts mode chat, plan, and agent', () => {
@@ -49,6 +57,18 @@ describe('agentModeCwdError', () => {
     expect(agentModeCwdError('agent', 'relative/path')).toMatch(/cwd/i);
     expect(agentModeCwdError('agent', join(homedir(), 'does-not-exist-agent-cwd-xyz'))).toMatch(/cwd/i);
     expect(agentModeCwdError('agent', process.cwd())).toBeUndefined();
+  });
+});
+
+describe('isAgentModeAllowed', () => {
+  it('allows agent mode by default when policy is omitted or agentEnabled is true', () => {
+    expect(isAgentModeAllowed('cli-claude')).toBe(true);
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: true })).toBe(true);
+  });
+
+  it('refuses agent mode when agentEnabled is explicitly false', () => {
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: false })).toBe(false);
+    expect(isAgentModeAllowed('cli-grok', { agentEnabled: false })).toBe(false);
   });
 });
 
@@ -111,6 +131,15 @@ describe('cliPermissionArgs', () => {
       expect(chat, provider).not.toContain('plan');
       expect(chat, provider).not.toEqual(cliPermissionArgs(provider, 'plan', { isAgy: true }));
     }
+  });
+
+  it('supports custom disallowedTools policy overrides', () => {
+    expect(cliPermissionArgs('cli-claude', 'chat', { disallowedTools: 'Write,Edit' })).toEqual([
+      '--disallowedTools', 'Write,Edit',
+    ]);
+    expect(cliPermissionArgs('cli-grok', 'chat', { disallowedTools: 'Bash' })).toEqual([
+      '--disallowed-tools', 'Bash',
+    ]);
   });
 });
 

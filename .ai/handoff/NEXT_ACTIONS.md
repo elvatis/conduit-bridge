@@ -2,9 +2,12 @@
 
 Current version: **v0.9.1**
 
-_Updated: 2026-09-02_
+_Updated: 2026-09-07_
 
-1. After v0.9.1 is tagged, no follow-up unless a regression is reported.
+1. Review and test the enterprise multi-agent governance dashboard, real-time analytics charts, budget controls, and directory browser on `feat/provider-agent-management` at `http://127.0.0.1:31338/`.
+2. Evaluate cross-project integration points between Conduit Bridge and `local-model-tooling` (tool schemas, task presets, prompt templates, and routing guidelines).
+3. Prepare pull request for `feat/provider-agent-management` into `main`.
+4. Plan next version release (v0.10.0 or patch) and changelog updates.
 
 Do not reintroduce `web-*`, Playwright, cookie extraction, VNC components, or
 additional user ports.

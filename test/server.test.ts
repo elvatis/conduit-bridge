@@ -471,5 +471,169 @@ describe('BridgeServer HTTP handler', () => {
         await srv.stop();
       }
     });
+
+    it('manages and enforces agent policy per provider', async () => {
+      // 1. GET initial agent policies
+      const getRes = await fetch(`${base}/v1/settings/agent-policy`);
+      expect(getRes.status).toBe(200);
+      const initial = await getRes.json();
+      expect(initial.policies['cli-grok']).toMatchObject({
+        provider: 'cli-grok',
+        hasAgentCapability: true,
+        agentEnabled: true,
+      });
+      expect(initial.policies['claude-api']).toMatchObject({
+        provider: 'claude-api',
+        hasAgentCapability: false,
+        agentEnabled: false,
+      });
+
+      // 2. Reject enabling agent mode on non-CLI provider
+      const badApiRes = await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'claude-api', agentEnabled: true }),
+      });
+      expect(badApiRes.status).toBe(400);
+
+      // 3. Disable agent mode and set defaultMode to plan for cli-grok
+      const postRes = await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'cli-grok',
+          agentEnabled: false,
+          defaultMode: 'plan',
+          disallowedTools: 'Write,Edit',
+        }),
+      });
+      expect(postRes.status).toBe(200);
+      const postBody = await postRes.json();
+      expect(postBody.status).toBe('saved');
+      expect(postBody.policy).toMatchObject({
+        agentEnabled: false,
+        defaultMode: 'plan',
+        disallowedTools: 'Write,Edit',
+      });
+
+      // 4. Verify agent mode request is refused with 403 permission_denied
+      const agentAttempt = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hello' }],
+          mode: 'agent',
+          cwd: process.cwd(),
+        }),
+      });
+      expect(agentAttempt.status).toBe(403);
+      const agentErr = await agentAttempt.json();
+      expect(agentErr.error.type).toBe('permission_denied');
+      expect(agentErr.error.message).toContain('disabled for provider');
+
+      // 5. Unspecified mode applies defaultMode from policy (plan)
+      const defaultModeRes = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hello' }],
+        }),
+      });
+      expect(defaultModeRes.status).toBe(200);
+      expect(h.state.lastReq?.mode).toBe('plan');
+
+      // 6. Re-enable agent mode
+      await fetch(`${base}/v1/settings/agent-policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'cli-grok',
+          agentEnabled: true,
+          defaultMode: 'chat',
+        }),
+      });
+      const reenabledRes = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hello' }],
+          mode: 'agent',
+          cwd: process.cwd(),
+        }),
+      });
+      expect(reenabledRes.status).toBe(200);
+      expect(h.state.lastReq?.mode).toBe('agent');
+    });
+  });
+
+  describe('pipeline and tool management endpoints', () => {
+    it('GET /v1/tools returns categorized tool catalogue', async () => {
+      const res = await fetch(`${base}/v1/tools`);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.object).toBe('list');
+      expect(Array.isArray(data.data)).toBe(true);
+      expect(data.data.length).toBeGreaterThanOrEqual(20);
+      const bash = data.data.find((t: any) => t.name === 'Bash');
+      expect(bash).toBeDefined();
+      expect(bash.category).toBe('Shell / Terminal');
+    });
+
+    it('GET /v1/pipelines returns default pipelines', async () => {
+      const res = await fetch(`${base}/v1/pipelines`);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.object).toBe('list');
+      expect(data.data.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('POST and DELETE /v1/pipelines creates and removes custom pipeline', async () => {
+      const createRes = await fetch(`${base}/v1/pipelines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'test-pipe-custom',
+          name: 'Custom Pipeline Endpoint Test',
+          description: 'Testing endpoints',
+          steps: [
+            { id: 's1', name: 'Step 1', model: 'cli-grok/grok-4.5' },
+          ],
+        }),
+      });
+      expect(createRes.status).toBe(200);
+      const createBody = await createRes.json();
+      expect(createBody.status).toBe('saved');
+      expect(createBody.pipeline.name).toBe('Custom Pipeline Endpoint Test');
+
+      const delRes = await fetch(`${base}/v1/pipelines/test-pipe-custom`, {
+        method: 'DELETE',
+      });
+      expect(delRes.status).toBe(200);
+      const delBody = await delRes.json();
+      expect(delBody.status).toBe('deleted');
+    });
+
+    it('POST /v1/pipelines/run executes a pipeline run', async () => {
+      const runRes = await fetch(`${base}/v1/pipelines/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pipelineId: 'tri-vendor-review',
+          prompt: 'Review architecture',
+        }),
+      });
+      expect(runRes.status).toBe(200);
+      const runData = await runRes.json();
+      expect(runData.run).toBeDefined();
+      expect(runData.run.pipelineId).toBe('tri-vendor-review');
+
+      const historyRes = await fetch(`${base}/v1/pipelines/runs`);
+      expect(historyRes.status).toBe(200);
+      const history = await historyRes.json();
+      expect(history.data.length).toBeGreaterThanOrEqual(1);
+    });
   });
 });

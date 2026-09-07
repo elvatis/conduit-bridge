@@ -8,14 +8,18 @@ import type { BridgeConfig, ProviderName } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
-import { parseCliRunMode, agentModeCwdError } from './cli-mode.js';
+import { parseCliRunMode, agentModeCwdError, KNOWN_TOOLS, discoverSystemTools } from './cli-mode.js';
 import { DASHBOARD_HTML, HELP_HTML } from './dashboard.js';
 import { MetricsStore } from './metrics.js';
+import { PipelineStore, runPipeline, type PipelineDefinition } from './pipelines.js';
 import { saveConfig } from './config.js';
 import { ActivityLog } from './activity.js';
 import { DEFAULT_ORCHESTRATOR, type OrchestratorConfig, type OrchestrationStrategy } from './orchestrator.js';
 import { RequestLimiter } from './limits.js';
 import { RunHistory } from './run-history.js';
+import { BudgetManager } from './budget.js';
+import { WorkspaceManager } from './workspaces.js';
+import { GovernanceManager } from './governance.js';
 
 const CLI_PROVIDERS = new Set<ProviderName>(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok']);
 
@@ -37,17 +41,46 @@ export class BridgeServer {
   private _orchestrator: OrchestratorConfig = structuredClone(DEFAULT_ORCHESTRATOR);
   private _limiter = new RequestLimiter();
   private _runHistory = new RunHistory();
+  private _pipelineStore: PipelineStore;
+  private _budgetManager: BudgetManager;
+  private _workspaceManager: WorkspaceManager;
+  private _governanceManager: GovernanceManager;
   private _eventSockets = new Set<Duplex>();
   private _unsubscribeActivity: (() => void) | null = null;
 
-  constructor(cfg: BridgeConfig) {
+  constructor(cfg: BridgeConfig, options?: {
+    pipelineStore?: PipelineStore;
+    budgetManager?: BudgetManager;
+    workspaceManager?: WorkspaceManager;
+    governanceManager?: GovernanceManager;
+  }) {
     this._cfg = cfg;
     this._registry = new ProviderRegistry(cfg);
     this._orchestrator = structuredClone(cfg.orchestrator ?? DEFAULT_ORCHESTRATOR);
+    this._pipelineStore = options?.pipelineStore ?? new PipelineStore();
+    this._budgetManager = options?.budgetManager ?? new BudgetManager(cfg.budget);
+    this._workspaceManager = options?.workspaceManager ?? new WorkspaceManager();
+    this._governanceManager = options?.governanceManager ?? new GovernanceManager();
   }
 
   get registry(): ProviderRegistry {
     return this._registry;
+  }
+
+  get pipelineStore(): PipelineStore {
+    return this._pipelineStore;
+  }
+
+  get budgetManager(): BudgetManager {
+    return this._budgetManager;
+  }
+
+  get workspaceManager(): WorkspaceManager {
+    return this._workspaceManager;
+  }
+
+  get governanceManager(): GovernanceManager {
+    return this._governanceManager;
   }
 
   async start(): Promise<void> {
@@ -528,6 +561,536 @@ export class BridgeServer {
       return;
     }
 
+    if (path === '/v1/settings/agent-policy' && method === 'GET') {
+      const allProviders: ProviderName[] = [
+        'cli-claude', 'cli-gemini', 'cli-codex', 'cli-grok',
+        'claude-api', 'gemini-api', 'codex-api', 'openrouter-api', 'perplexity-api',
+        'lmstudio',
+      ];
+      const policies = Object.fromEntries(allProviders.map(name => {
+        const isCli = CLI_PROVIDERS.has(name);
+        const stored = this._cfg.agentPolicies?.[name];
+        return [name, {
+          provider: name,
+          loginType: isCli ? 'cli' : (name === 'lmstudio' ? 'local' : 'api-key'),
+          hasAgentCapability: isCli,
+          supportedModes: isCli ? ['chat', 'plan', 'agent'] : ['chat'],
+          agentEnabled: stored ? Boolean(stored.agentEnabled) : isCli,
+          defaultMode: stored?.defaultMode || 'chat',
+          disallowedTools: stored?.disallowedTools || (isCli ? 'Write,Edit,NotebookEdit,Bash' : ''),
+        }];
+      }));
+      json(res, 200, { object: 'conduit.agent_policies', policies });
+      return;
+    }
+
+    if (path === '/v1/settings/agent-policy' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any;
+      try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
+      const allProviders = new Set<ProviderName>([
+        'cli-claude', 'cli-gemini', 'cli-codex', 'cli-grok',
+        'claude-api', 'gemini-api', 'codex-api', 'openrouter-api', 'perplexity-api',
+        'lmstudio',
+      ]);
+      if (!allProviders.has(data?.provider)) {
+        json(res, 400, { error: { message: `Unknown provider: ${data?.provider}`, type: 'invalid_request' } });
+        return;
+      }
+      const provider = data.provider as ProviderName;
+      const isCli = CLI_PROVIDERS.has(provider);
+      const agentEnabled = typeof data.agentEnabled === 'boolean' ? data.agentEnabled : (isCli ? true : false);
+      if (!isCli && agentEnabled) {
+        json(res, 400, { error: { message: `Provider '${provider}' does not support agent execution`, type: 'invalid_request' } });
+        return;
+      }
+      const validModes = isCli ? ['chat', 'plan', 'agent'] : ['chat'];
+      const defaultMode = validModes.includes(data.defaultMode) ? data.defaultMode : 'chat';
+      const disallowedTools = typeof data.disallowedTools === 'string' ? data.disallowedTools.trim() : undefined;
+
+      this._cfg.agentPolicies = this._cfg.agentPolicies || {};
+      this._cfg.agentPolicies[provider] = {
+        agentEnabled,
+        defaultMode,
+        ...(disallowedTools ? { disallowedTools } : {}),
+      };
+      saveConfig({ agentPolicies: { ...this._cfg.agentPolicies } });
+      this._activity.add('success', 'settings', `${provider} agent policy updated (agent: ${agentEnabled ? 'enabled' : 'disabled'}, default: ${defaultMode})`);
+      json(res, 200, { status: 'saved', provider, policy: this._cfg.agentPolicies[provider] });
+      return;
+    }
+
+    if (path === '/v1/tools' && method === 'GET') {
+      const systemTools = discoverSystemTools();
+      json(res, 200, { object: 'list', data: KNOWN_TOOLS, system_tools: systemTools });
+      return;
+    }
+
+    if (path === '/v1/tools/discover' && method === 'POST') {
+      const systemTools = discoverSystemTools(true);
+      json(res, 200, { object: 'list', data: systemTools });
+      return;
+    }
+
+    if (path === '/v1/repositories' && method === 'GET') {
+      json(res, 200, { object: 'list', data: this._governanceManager.listRepositories() });
+      return;
+    }
+
+    if (path === '/v1/repositories' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any;
+      try { data = JSON.parse(body); } catch {
+        json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
+        return;
+      }
+      if (!data?.id || !data?.name || !data?.path) {
+        json(res, 400, { error: { message: 'id, name, and path are required', type: 'invalid_request' } });
+        return;
+      }
+      const saved = this._governanceManager.saveRepository(data);
+      this._cfg.repositories = this._governanceManager.listRepositories();
+      saveConfig({ repositories: this._cfg.repositories });
+      this._activity.add('success', 'governance', `Saved repository: ${saved.name} (${saved.id})`);
+      json(res, 200, { status: 'saved', repository: saved });
+      return;
+    }
+
+    if (path.startsWith('/v1/repositories/') && method === 'DELETE') {
+      const repoId = decodeURIComponent(path.slice('/v1/repositories/'.length));
+      if (!repoId) {
+        json(res, 400, { error: { message: 'Repository id is required', type: 'invalid_request' } });
+        return;
+      }
+      const deleted = this._governanceManager.deleteRepository(repoId);
+      if (!deleted) {
+        json(res, 404, { error: { message: `Repository not found: ${repoId}`, type: 'not_found' } });
+        return;
+      }
+      this._cfg.repositories = this._governanceManager.listRepositories();
+      saveConfig({ repositories: this._cfg.repositories });
+      this._activity.add('info', 'governance', `Deleted repository: ${repoId}`);
+      json(res, 200, { status: 'deleted', id: repoId });
+      return;
+    }
+
+    if (path === '/v1/governance/audit' && method === 'GET') {
+      const queryParams = new URL(req.url ?? '/', 'http://localhost').searchParams;
+      const repo = queryParams.get('repository') || undefined;
+      const action = queryParams.get('action') || undefined;
+      const limitStr = queryParams.get('limit');
+      const limit = limitStr ? parseInt(limitStr, 10) : 50;
+      const trail = this._governanceManager.listAuditTrail({ repository: repo, action, limit });
+      json(res, 200, { object: 'list', data: trail });
+      return;
+    }
+
+    if (path === '/v1/governance/audit/export' && method === 'GET') {
+      const queryParams = new URL(req.url ?? '/', 'http://localhost').searchParams;
+      const format = queryParams.get('format') === 'markdown' ? 'markdown' : 'json';
+      const output = this._governanceManager.exportAuditTrail(format);
+      if (format === 'markdown') {
+        res.writeHead(200, {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="conduit-governance-audit.md"',
+        });
+        res.end(output);
+      } else {
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="conduit-governance-audit.json"',
+        });
+        res.end(output);
+      }
+      return;
+    }
+
+    if (path === '/v1/budgets' && method === 'GET') {
+      json(res, 200, {
+        object: 'conduit.budget',
+        config: this._budgetManager.getConfig(),
+        usage: this._budgetManager.getUsage(),
+        status: this._budgetManager.getStatus(),
+      });
+      return;
+    }
+
+    if (path === '/v1/budgets' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any;
+      try { data = JSON.parse(body); } catch {
+        json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
+        return;
+      }
+      const updated = this._budgetManager.updateConfig(data);
+      this._cfg.budget = updated;
+      saveConfig({ budget: updated });
+      this._activity.add('success', 'budget', `Budget settings updated (daily: $${updated.dailyBudgetUsd}, monthly: $${updated.monthlyBudgetUsd})`);
+      json(res, 200, { status: 'updated', config: updated, status_summary: this._budgetManager.getStatus() });
+      return;
+    }
+
+    if (path === '/v1/workspaces' && method === 'GET') {
+      json(res, 200, { object: 'list', data: this._workspaceManager.listWorkspaces() });
+      return;
+    }
+
+    if (path === '/v1/workspaces' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any;
+      try { data = JSON.parse(body); } catch {
+        json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
+        return;
+      }
+      if (!data?.path || typeof data.path !== 'string') {
+        json(res, 400, { error: { message: 'Path is required', type: 'invalid_request' } });
+        return;
+      }
+      const result = this._workspaceManager.addOrUpdateWorkspace(data.path, data.name, Boolean(data.isDefault));
+      if (!result.ok || !result.entry) {
+        json(res, 400, { error: { message: result.error || 'Failed to add workspace', type: 'invalid_request' } });
+        return;
+      }
+      this._activity.add('success', 'workspace', `Workspace registered: ${result.entry.name} (${result.entry.path})`);
+      json(res, 200, { status: 'saved', workspace: result.entry });
+      return;
+    }
+
+    if (path === '/v1/workspaces/browse' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any = {};
+      if (body) {
+        try { data = JSON.parse(body); } catch { /* allow empty */ }
+      }
+      const browse = this._workspaceManager.browseDirectory(data?.directory || data?.path);
+      json(res, 200, browse);
+      return;
+    }
+
+    if (path.startsWith('/v1/workspaces/') && method === 'DELETE') {
+      const wsId = decodeURIComponent(path.slice('/v1/workspaces/'.length));
+      if (!wsId) {
+        json(res, 400, { error: { message: 'Workspace id is required', type: 'invalid_request' } });
+        return;
+      }
+      const removed = this._workspaceManager.removeWorkspace(wsId);
+      if (!removed) {
+        json(res, 404, { error: { message: `Workspace not found: ${wsId}`, type: 'not_found' } });
+        return;
+      }
+      this._activity.add('info', 'workspace', `Workspace removed: ${wsId}`);
+      json(res, 200, { status: 'deleted', id: wsId });
+      return;
+    }
+
+    if (path === '/v1/activity/export' && method === 'GET') {
+      const queryParams = new URL(req.url ?? '/', 'http://localhost').searchParams;
+      const format = queryParams.get('format') === 'markdown' ? 'markdown' : 'json';
+      const events = this._activity.snapshot(200);
+      if (format === 'markdown') {
+        const lines = [
+          '# Conduit Bridge Activity Log',
+          '',
+          `Generated: ${new Date().toISOString()}`,
+          `Total Events: ${events.length}`,
+          '',
+          '| Time | Level | Scope | Message |',
+          '| :--- | :--- | :--- | :--- |',
+        ];
+        for (const ev of events) {
+          const time = new Date(ev.time).toISOString();
+          const cleanMsg = ev.message.replace(/\|/g, '\\|');
+          lines.push(`| ${time} | ${ev.level.toUpperCase()} | ${ev.scope} | ${cleanMsg} |`);
+        }
+        res.writeHead(200, {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="conduit-activity.md"',
+        });
+        res.end(lines.join('\n'));
+      } else {
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="conduit-activity.json"',
+        });
+        res.end(JSON.stringify(events, null, 2));
+      }
+      return;
+    }
+
+    if (path === '/v1/analytics/overview' && method === 'GET') {
+      const metricsSnap = this._metrics.snapshot();
+      const budgetStatus = this._budgetManager.getStatus();
+      const pipelineRuns = this._pipelineStore.listRuns();
+      const events = this._activity.snapshot(200);
+      const repositories = this._governanceManager.listRepositories();
+      const auditTrail = this._governanceManager.listAuditTrail();
+
+      let totalRequests = 0;
+      let totalSuccesses = 0;
+      let totalErrors = 0;
+      let totalTokens = 0;
+      let totalCostUsd = 0;
+      let totalLatencyMs = 0;
+      let latencyCount = 0;
+
+      const modelStats = Object.entries(metricsSnap).map(([modelId, m]) => {
+        const avgLat = m.averageLatencyMs ?? 0;
+        totalRequests += m.requests;
+        totalSuccesses += m.successes;
+        totalErrors += m.failures;
+        totalTokens += (m.inputTokens + m.outputTokens);
+        totalCostUsd += m.estimatedCostUsd;
+        if (avgLat > 0) {
+          totalLatencyMs += avgLat * m.requests;
+          latencyCount += m.requests;
+        }
+        const providerName = modelId.split('/')[0] || 'unknown';
+        return {
+          model: modelId,
+          provider: providerName,
+          requests: m.requests,
+          successes: m.successes,
+          errors: m.failures,
+          inputTokens: m.inputTokens,
+          outputTokens: m.outputTokens,
+          tokens: m.inputTokens + m.outputTokens,
+          costUsd: m.estimatedCostUsd,
+          avgLatencyMs: avgLat,
+        };
+      });
+
+      const avgLatencyMs = latencyCount > 0 ? Math.round(totalLatencyMs / latencyCount) : 0;
+
+      const pipelineStats = {
+        totalRuns: pipelineRuns.length,
+        completed: pipelineRuns.filter(r => r.status === 'completed').length,
+        failed: pipelineRuns.filter(r => r.status === 'failed').length,
+        waitingApproval: pipelineRuns.filter(r => r.status === 'waiting_approval').length,
+        rejected: pipelineRuns.filter(r => r.status === 'rejected').length,
+      };
+
+      const activityBreakdown = {
+        total: events.length,
+        info: events.filter(e => e.level === 'info').length,
+        success: events.filter(e => e.level === 'success').length,
+        warning: events.filter(e => e.level === 'warning').length,
+        error: events.filter(e => e.level === 'error').length,
+      };
+
+      json(res, 200, {
+        object: 'conduit.analytics_overview',
+        generatedAt: Date.now(),
+        totals: {
+          requests: totalRequests,
+          successes: totalSuccesses,
+          errors: totalErrors,
+          tokens: totalTokens,
+          costUsd: Math.round(totalCostUsd * 1e6) / 1e6,
+          avgLatencyMs,
+        },
+        models: modelStats.sort((a, b) => b.requests - a.requests),
+        pipelines: pipelineStats,
+        budget: budgetStatus,
+        activity: activityBreakdown,
+        governance: {
+          repositoriesCount: repositories.length,
+          auditRecordsCount: auditTrail.length,
+          recentAudits: auditTrail.slice(0, 10),
+        },
+      });
+      return;
+    }
+
+    if (path === '/v1/pipelines' && method === 'GET') {
+      json(res, 200, { object: 'list', data: this._pipelineStore.listPipelines() });
+      return;
+    }
+
+    if (path === '/v1/pipelines' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any;
+      try { data = JSON.parse(body); } catch {
+        json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
+        return;
+      }
+      if (!data?.name || !Array.isArray(data?.steps) || data.steps.length === 0) {
+        json(res, 400, { error: { message: 'Pipeline requires a name and at least one step', type: 'invalid_request' } });
+        return;
+      }
+      const id = typeof data.id === 'string' && data.id.trim()
+        ? data.id.trim()
+        : `pipe-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const pipeline: PipelineDefinition = {
+        id,
+        name: String(data.name).trim(),
+        description: String(data.description || '').trim(),
+        steps: data.steps.map((s: any, idx: number) => ({
+          id: String(s.id || `step-${idx + 1}`),
+          name: String(s.name || `Step ${idx + 1}`),
+          model: String(s.model || 'cli-claude/claude-sonnet-5'),
+          mode: ['chat', 'plan', 'agent'].includes(s.mode) ? s.mode : 'chat',
+          promptTemplate: typeof s.promptTemplate === 'string' ? s.promptTemplate : undefined,
+          requiresApproval: Boolean(s.requiresApproval),
+          dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn.map(String) : undefined,
+          parallelGroup: typeof s.parallelGroup === 'string' ? s.parallelGroup : undefined,
+        })),
+        isBuiltIn: false,
+        category: typeof data.category === 'string' ? data.category : 'custom',
+        repository: typeof data.repository === 'string' ? data.repository : undefined,
+      };
+      const saved = this._pipelineStore.savePipeline(pipeline);
+      this._activity.add('success', 'pipeline', `Saved pipeline: ${saved.name}`);
+      json(res, 200, { status: 'saved', pipeline: saved });
+      return;
+    }
+
+    if (path.startsWith('/v1/pipelines/') && method === 'DELETE') {
+      const pipelineId = path.slice('/v1/pipelines/'.length);
+      if (!pipelineId) {
+        json(res, 400, { error: { message: 'Pipeline id required', type: 'invalid_request' } });
+        return;
+      }
+      const deleted = this._pipelineStore.deletePipeline(pipelineId);
+      if (!deleted) {
+        json(res, 404, { error: { message: `Pipeline not found: ${pipelineId}`, type: 'not_found' } });
+        return;
+      }
+      this._activity.add('info', 'pipeline', `Deleted pipeline: ${pipelineId}`);
+      json(res, 200, { status: 'deleted', id: pipelineId });
+      return;
+    }
+
+    if (path === '/v1/pipelines/run' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any;
+      try { data = JSON.parse(body); } catch {
+        json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
+        return;
+      }
+      const pipelineId = data?.pipelineId;
+      const prompt = typeof data?.prompt === 'string' ? data.prompt.trim() : '';
+      if (!pipelineId) {
+        json(res, 400, { error: { message: 'pipelineId is required', type: 'invalid_request' } });
+        return;
+      }
+      if (!prompt) {
+        json(res, 400, { error: { message: 'prompt is required', type: 'invalid_request' } });
+        return;
+      }
+      const pipeline = this._pipelineStore.getPipeline(pipelineId);
+      if (!pipeline) {
+        json(res, 404, { error: { message: `Pipeline not found: ${pipelineId}`, type: 'not_found' } });
+        return;
+      }
+
+      try {
+        const runResult = await runPipeline(pipeline, prompt, this._registry, {
+          agentPolicies: this._cfg.agentPolicies,
+          onEvent: (level, msg) => this._activity.add(level, 'pipeline', msg),
+          budgetManager: this._budgetManager,
+          governanceManager: this._governanceManager,
+          repository: typeof data?.repository === 'string' ? data.repository : undefined,
+          workingDirectory: typeof data?.workingDirectory === 'string' ? data.workingDirectory : undefined,
+          correlationId: typeof data?.correlationId === 'string' ? data.correlationId : undefined,
+          operator: typeof data?.operator === 'string' ? data.operator : 'operator',
+        });
+        this._pipelineStore.recordRun(runResult);
+        json(res, 200, { status: runResult.status, run: runResult });
+      } catch (err: any) {
+        this._activity.add('error', 'pipeline', `Execution error: ${err.message}`);
+        json(res, 500, { error: { message: err.message, type: 'pipeline_execution_error' } });
+      }
+      return;
+    }
+
+    if (path === '/v1/pipelines/runs' && method === 'GET') {
+      json(res, 200, { object: 'list', data: this._pipelineStore.listRuns() });
+      return;
+    }
+
+    if (path === '/v1/pipelines/runs/action' && method === 'POST') {
+      const body = await readBody(req);
+      let data: any;
+      try { data = JSON.parse(body); } catch {
+        json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } });
+        return;
+      }
+      const { runId, action, stepId, feedback } = data || {};
+      if (!runId || !action) {
+        json(res, 400, { error: { message: 'runId and action (approve | reject) required', type: 'invalid_request' } });
+        return;
+      }
+      const run = this._pipelineStore.getRun(runId);
+      if (!run) {
+        json(res, 404, { error: { message: `Pipeline run not found: ${runId}`, type: 'not_found' } });
+        return;
+      }
+      if (run.status !== 'waiting_approval') {
+        json(res, 400, { error: { message: `Run is not waiting for approval (current status: ${run.status})`, type: 'invalid_state' } });
+        return;
+      }
+      const pipeline = this._pipelineStore.getPipeline(run.pipelineId);
+      if (!pipeline) {
+        json(res, 404, { error: { message: `Associated pipeline not found: ${run.pipelineId}`, type: 'not_found' } });
+        return;
+      }
+
+      if (action === 'reject') {
+        run.status = 'rejected';
+        run.approvalFeedback = feedback || 'Rejected by operator';
+        if (run.pendingApprovalStepId && run.stepResults[run.pendingApprovalStepId]) {
+          run.stepResults[run.pendingApprovalStepId].status = 'rejected';
+          run.stepResults[run.pendingApprovalStepId].error = run.approvalFeedback;
+        }
+        if (run.pendingApprovalStepId) {
+          this._governanceManager.recordAudit({
+            repository: run.repository,
+            pipelineId: run.pipelineId,
+            pipelineName: run.pipelineName,
+            stepId: run.pendingApprovalStepId,
+            stepName: run.stepResults[run.pendingApprovalStepId]?.stepName || run.pendingApprovalStepId,
+            action: 'rejected',
+            operator: typeof data?.operator === 'string' ? data.operator : 'operator',
+            feedback: run.approvalFeedback,
+            runId: run.id,
+            correlationId: run.correlationId,
+          });
+        }
+        this._pipelineStore.recordRun(run);
+        this._activity.add('warning', 'pipeline', `Run ${runId} rejected by operator`);
+        json(res, 200, { status: 'rejected', run });
+        return;
+      }
+
+      if (action === 'approve') {
+        const targetStepId = stepId || run.pendingApprovalStepId;
+        this._activity.add('info', 'pipeline', `Step ${targetStepId} approved, resuming run ${runId}`);
+        try {
+          const updatedRun = await runPipeline(pipeline, run.initialPrompt, this._registry, {
+            agentPolicies: this._cfg.agentPolicies,
+            existingRun: run,
+            approvedStepId: targetStepId,
+            onEvent: (level, msg) => this._activity.add(level, 'pipeline', msg),
+            budgetManager: this._budgetManager,
+            governanceManager: this._governanceManager,
+            repository: run.repository,
+            workingDirectory: run.workingDirectory,
+            correlationId: run.correlationId,
+            operator: typeof data?.operator === 'string' ? data.operator : 'operator',
+          });
+          this._pipelineStore.recordRun(updatedRun);
+          json(res, 200, { status: updatedRun.status, run: updatedRun });
+        } catch (err: any) {
+          this._activity.add('error', 'pipeline', `Resume error: ${err.message}`);
+          json(res, 500, { error: { message: err.message, type: 'pipeline_execution_error' } });
+        }
+        return;
+      }
+
+      json(res, 400, { error: { message: `Unknown action: ${action}`, type: 'invalid_request' } });
+      return;
+    }
+
     if (path === '/v1/capabilities' && method === 'GET') {
       const providers = this._registry.allModels().reduce<Record<string, ReturnType<typeof effortCapabilities>>>((out, model) => {
         out[model.provider] ??= effortCapabilities(model.provider);
@@ -564,10 +1127,33 @@ export class BridgeServer {
         json(res, 400, { error: { message: 'model and messages required', type: 'invalid_request' } });
         return;
       }
-      const parsedMode = parseCliRunMode(req_data);
+
+      let selectedModel = model;
+      let provider = this._registry.providerForModel(selectedModel);
+      if (!provider) {
+        json(res, 404, { error: { message: `Unknown model: ${model}`, type: 'invalid_request' } });
+        return;
+      }
+
+      const providerPolicy = this._cfg.agentPolicies?.[provider.name];
+      const defaultMode = providerPolicy?.defaultMode || 'chat';
+      const parsedMode = parseCliRunMode(req_data, defaultMode);
       if (!parsedMode.ok) {
         json(res, 400, { error: { message: parsedMode.error, type: 'invalid_request' } });
         return;
+      }
+      if (parsedMode.mode === 'agent') {
+        const agentAllowed = providerPolicy ? providerPolicy.agentEnabled !== false : true;
+        if (!agentAllowed) {
+          this._activity.add('warning', provider.name, 'Agent mode rejected by provider policy');
+          json(res, 403, {
+            error: {
+              message: `Agent mode is disabled for provider '${provider.name}' in bridge settings`,
+              type: 'permission_denied',
+            },
+          });
+          return;
+        }
       }
       const cwd = typeof req_data.cwd === 'string' ? req_data.cwd : undefined;
       const cwdError = agentModeCwdError(parsedMode.mode, cwd);
@@ -577,13 +1163,6 @@ export class BridgeServer {
       }
 
       if (!this._limit(req, res)) return;
-
-      let selectedModel = model;
-      let provider = this._registry.providerForModel(selectedModel);
-      if (!provider) {
-        json(res, 404, { error: { message: `Unknown model: ${model}`, type: 'invalid_request' } });
-        return;
-      }
 
       // Resolve the selected API credential or local CLI/process state.
       const candidates = [model, ...(Array.isArray(req_data.fallback_models) ? req_data.fallback_models : []), ...this._orchestrator.fallbackModels];
@@ -606,7 +1185,17 @@ export class BridgeServer {
         return;
       }
 
-      const chatReq = { model: selectedModel, messages, temperature, max_tokens, effort, cwd, mode: parsedMode.mode, signal: requestAbort.signal };
+      const chatReq = {
+        model: selectedModel,
+        messages,
+        temperature,
+        max_tokens,
+        effort,
+        cwd,
+        mode: parsedMode.mode,
+        disallowedTools: providerPolicy?.disallowedTools,
+        signal: requestAbort.signal,
+      };
       const finishMetric = this._metrics.begin(selectedModel);
 
       if (stream) {
@@ -671,7 +1260,9 @@ export class BridgeServer {
           res.write('data: [DONE]\n\n');
           const inputTokens = estimateTokens(messages);
           const outputTokens = estimateTokens([{ content: streamedText }]);
-          this._metrics.recordUsage(selectedModel, inputTokens, outputTokens, estimateCost(selectedModel, inputTokens, outputTokens));
+          const cost = estimateCost(selectedModel, inputTokens, outputTokens);
+          this._metrics.recordUsage(selectedModel, inputTokens, outputTokens, cost);
+          this._budgetManager.recordSpend(cost, inputTokens + outputTokens);
         } catch (err) {
           finishMetric(err);
           this._activity.add('error', provider.name, 'Streaming request failed through ' + model + ': ' + (err as Error).message.replace(/\s+/g, ' ').slice(0, 240));
@@ -711,7 +1302,9 @@ export class BridgeServer {
           }
           const inputTokens = estimateTokens(messages);
           const outputTokens = estimateTokens([{ content }]);
-          this._metrics.recordUsage(selectedModel, inputTokens, outputTokens, estimateCost(selectedModel, inputTokens, outputTokens));
+          const cost = estimateCost(selectedModel, inputTokens, outputTokens);
+          this._metrics.recordUsage(selectedModel, inputTokens, outputTokens, cost);
+          this._budgetManager.recordSpend(cost, inputTokens + outputTokens);
           finishMetric();
           this._activity.add('success', provider.name, 'Completed request through ' + selectedModel);
           json(res, 200, {

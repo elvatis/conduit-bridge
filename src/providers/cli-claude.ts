@@ -124,7 +124,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
       '-p',
       '--output-format', 'text',
       '--model', model,
-      ...cliPermissionArgs('cli-claude', mode),
+      ...cliPermissionArgs('cli-claude', mode, { disallowedTools: req.disallowedTools }),
       ...(effort ? ['--effort', effort] : []),
     ];
 

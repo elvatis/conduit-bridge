@@ -2,6 +2,27 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - Enterprise governance templates, budget controls, workspace browsing, tool discovery, and visual analytics
+
+- Implemented 9 repository-specific governance pipeline templates (standard-governance, doc-generation, doc-review, refactoring-review, pr-review, release-readiness, architecture-review, dependency-risk, supply-chain-security) with parallel reviews, mandatory approval gates, and repository policy overrides.
+- Added BudgetManager (`src/budget.ts`) enforcing daily and monthly USD limits, per-run cost and token caps, safe/warning/exceeded thresholds, hard stops vs soft warnings, and persistence.
+- Added WorkspaceManager (`src/workspaces.ts`) validating directory existence, write permissions, path normalization, and safe filesystem browsing.
+- Added automatic system tool discovery on host PATH (`src/cli-mode.ts`) detecting git, node, npm, python, docker, and developer tools with security risk levels (low/medium/high/critical) and classification tags.
+- Added endpoints: `GET|POST /v1/budgets`, `GET|POST|DELETE /v1/repositories`, `GET /v1/governance/audit`, `GET /v1/governance/audit/export`, `GET|POST|DELETE /v1/workspaces`, `POST /v1/workspaces/browse`, `POST /v1/tools/discover`, `GET /v1/activity/export`, `GET /v1/analytics/overview`.
+- Upgraded dashboard with pure SVG analytics charts (model request volume/latencies, spend share, pipeline run outcomes, event severity), budget gauges, repository manager modal, directory browser, and log search with traceId correlation pills.
+- Added comprehensive unit and integration suite in `test/governance.test.ts` (17 tests). All 225 suite tests passing.
+
+## 2026-09-07 - Provider agent controls, collapsible dashboard UI, tool picker, and multi-step agent pipelines
+
+- Added per-provider agent policies (`agentEnabled`, `defaultMode`, `disallowedTools`) with persistence in `agentPolicies` within BridgeConfig.
+- Added `GET /v1/settings/agent-policy` and `POST /v1/settings/agent-policy` endpoints to inspect and govern agent execution per provider.
+- Added 403 `permission_denied` protection on `POST /v1/chat/completions` when agent mode is disabled by policy.
+- Added `GET /v1/tools` returning categorized catalog of 23 known tools across 7 categories (File Operations, Shell / Terminal, Web Access, MCP Tools, Workspace Editing, Notebook Operations, Custom Provider Tools).
+- Implemented multi-step agent pipelines in `src/pipelines.ts` with template interpolation (`{{prompt}}`, `{{previous_output}}`, `{{prior_steps}}`), built-in presets (`tri-vendor-review`, `code-gen-test`, `debate-consensus`), dependency execution, and human approval checkpoint support (`waiting_approval` with pause/resume).
+- Added pipeline endpoints: `GET /v1/pipelines`, `POST /v1/pipelines`, `DELETE /v1/pipelines/:id`, `POST /v1/pipelines/run`, `GET /v1/pipelines/runs`, `POST /v1/pipelines/runs/action`.
+- Upgraded dashboard with icon-based navigation, collapsible sidebar (expanded vs collapsed mode with localStorage persistence), structured searchable tool picker replacing free-text inputs, customizable navigation visibility with workspace presets (All, Developer, Simple/Chat, Ops/Governance), and interactive pipeline builder and execution runner.
+- Targeted tests (78 tests across pipelines, server, cli-mode, preserve) all passing. Zero em dashes introduced.
+
 ## 2026-09-02 - v0.8.0
 
 - CLI transport, modes, cwd and model discovery (#103). GitHub Release only.
