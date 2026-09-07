@@ -11,25 +11,25 @@ async function fixture(now: () => number = Date.now) {
 const turn = (input: string, extra: Partial<ContextInput> = {}): ContextInput => ({ input, provider: 'cli-claude', model: 'cli-claude/model-a', maxOutputTokens: 64, ...extra });
 
 describe('platform conversations', () => {
-  it('keeps ephemeral transcripts entirely outside durable storage', async () => {
+  it('retains every conversation and reloads it from storage by default', async () => {
     const { backend, store, service } = await fixture();
     const commit = vi.spyOn(backend, 'commit');
     const session = await service.createSession();
     await service.runTurn(session.id, turn('private question'), async () => 'private answer');
     expect(service.getSession(session.id)?.messages).toHaveLength(2);
-    expect(store.list('platform.sessions')).toEqual([]);
-    expect(commit).not.toHaveBeenCalled();
-    expect(new PlatformContentService(store).getSession(session.id)).toBeUndefined();
+    expect(store.list('platform.sessions')).toHaveLength(1);
+    expect(commit).toHaveBeenCalled();
+    expect(new PlatformContentService(store).getSession(session.id)?.messages).toHaveLength(2);
   });
 
-  it('moves retention atomically and reloads retained transcripts', async () => {
+  it('normalizes legacy ephemeral choices without deleting the transcript', async () => {
     const { store, service } = await fixture();
     const session = await service.createSession();
     await service.runTurn(session.id, turn('question'), async () => 'answer');
-    const retained = await service.updateSession(session.id, { retention: 'retained', expectedRevision: 2 });
+    const retained = await service.updateSession(session.id, { retention: 'retained', expectedRevision: 3 });
     expect(new PlatformContentService(store).getSession(session.id)?.messages).toHaveLength(2);
     await service.updateSession(session.id, { retention: 'ephemeral', expectedRevision: retained.revision });
-    expect(store.read('platform.sessions', session.id)).toBeUndefined();
+    expect(store.read('platform.sessions', session.id)).toMatchObject({ retention: 'retained' });
     expect(service.getSession(session.id)?.messages[1].content).toBe('answer');
   });
 
@@ -37,8 +37,8 @@ describe('platform conversations', () => {
     const { service } = await fixture();
     const session = await service.createSession({ userId: 'alice', workspaceId: 'project', agentId: 'old-agent', profileId: 'old-profile' });
     await service.runTurn(session.id, turn('question'), async () => 'answer');
-    const updated = await service.updateSession(session.id, { provider: 'cli-codex', model: 'cli-codex/next', profileId: 'next-profile', agentId: 'next-agent', expectedRevision: 2 });
-    expect(updated).toMatchObject({ userId: 'alice', workspaceId: 'project', provider: 'cli-codex', model: 'cli-codex/next', profileId: 'next-profile', agentId: 'next-agent', revision: 3 });
+    const updated = await service.updateSession(session.id, { provider: 'cli-codex', model: 'cli-codex/next', profileId: 'next-profile', agentId: 'next-agent', expectedRevision: 3 });
+    expect(updated).toMatchObject({ userId: 'alice', workspaceId: 'project', provider: 'cli-codex', model: 'cli-codex/next', profileId: 'next-profile', agentId: 'next-agent', revision: 4 });
     expect(updated.messages).toHaveLength(2);
     const cleared = await service.updateSession(session.id, { agentId: null, profileId: null });
     expect(cleared.agentId).toBeUndefined(); expect(cleared.profileId).toBeUndefined();
@@ -66,19 +66,41 @@ describe('platform conversations', () => {
     expect(execute).toHaveBeenCalledTimes(1);
     expect(service.cancelTurn(session.id)).toBe(true);
     await expect(pending).rejects.toThrow('cancelled');
-    expect(service.getSession(session.id)?.messages).toEqual([]);
+    expect(service.getSession(session.id)?.messages).toEqual([expect.objectContaining({ content: 'first', status: 'interrupted' })]);
     await service.runTurn(session.id, turn('retry'), async () => 'done');
   });
 
-  it('does not persist half a turn after provider or storage failure', async () => {
+  it('saves failed user requests and refuses dispatch when their durable commit fails', async () => {
     const { service, backend } = await fixture();
     const session = await service.createSession({ retention: 'retained' });
     await expect(service.runTurn(session.id, turn('first'), async () => { throw new Error('provider failed'); })).rejects.toThrow('provider failed');
     vi.spyOn(backend, 'commit').mockRejectedValueOnce(new Error('disk full'));
-    await expect(service.runTurn(session.id, turn('second'), async () => 'answer')).rejects.toThrow('disk full');
-    expect(service.getSession(session.id)?.messages).toEqual([]);
+    const execute = vi.fn(async () => 'answer');
+    await expect(service.runTurn(session.id, turn('second'), execute)).rejects.toThrow('disk full');
+    expect(execute).not.toHaveBeenCalled();
+    expect(service.getSession(session.id)?.messages).toEqual([expect.objectContaining({ content: 'first', status: 'failed' })]);
     await service.runTurn(session.id, turn('third'), async () => 'answer');
-    expect(service.getSession(session.id)?.messages).toHaveLength(2);
+    expect(service.getSession(session.id)?.messages).toHaveLength(3);
+  });
+
+  it('saves interrupted streamed output and excludes it from the next provider context', async () => {
+    const { service, store } = await fixture(); const session = await service.createSession();
+    await expect(service.runTurn(session.id, turn('Keep my request'), async (_request, _context, onDelta) => {
+      expect(store.read<any>('platform.sessions', session.id).messages[0]).toMatchObject({ content: 'Keep my request', status: 'pending' });
+      onDelta('Partial response'); throw new Error('disconnected');
+    })).rejects.toThrow('disconnected');
+    const reloaded = new PlatformContentService(store);
+    expect(reloaded.getSession(session.id)?.messages).toEqual([expect.objectContaining({ status: 'failed', content: 'Keep my request' }), expect.objectContaining({ status: 'interrupted', content: 'Partial response' })]);
+    expect(reloaded.prepareContext(session.id, turn('Next')).messages.map(m => m.content)).toEqual(['Next']);
+  });
+
+  it('migrates expired legacy conversations and pending messages without erasing text', async () => {
+    const { store, service } = await fixture(() => 999999); const session = await service.createSession();
+    await store.transaction(tx => tx.put('platform.sessions', session.id, { ...session, retention: 'ephemeral', expiresAt: 1, messages: [{ id: 'pending-message', role: 'user', content: 'Survive restart', provider: 'bitnet', model: 'bitnet/auto', createdAt: 1, status: 'pending' }] }));
+    await service.initialize();
+    expect(service.getSession(session.id)).toMatchObject({ retention: 'retained', messages: [expect.objectContaining({ content: 'Survive restart', status: 'interrupted' })] });
+    expect(store.read<any>('platform.sessions', session.id).expiresAt).toBeUndefined();
+    await service.purgeExpired(); expect(service.getSession(session.id)).toBeDefined();
   });
 
   it('reports omitted whole turns and rejects oversized selected instructions', async () => {
@@ -98,7 +120,7 @@ describe('platform conversations', () => {
     const { service } = await fixture();
     const session = await service.createSession();
     const first = await service.runTurn(session.id, turn('old question'), async () => 'old answer');
-    const summarized = await service.setSummary(session.id, { content: 'Agreed on a small design', throughMessageId: first.assistantMessage.id, expectedRevision: 2 });
+    const summarized = await service.setSummary(session.id, { content: 'Agreed on a small design', throughMessageId: first.assistantMessage.id, expectedRevision: 3 });
     const context = service.prepareContext(session.id, turn('next'));
     expect(context.summaryUsed).toBe(true);
     expect(context.messages[0].content).toContain('Agreed on a small design');
@@ -143,18 +165,18 @@ describe('platform conversations', () => {
     expect(() => service.prepareContext(session.id, turn('question', { systemPrompt: 'x'.repeat(30000), contextTokens: 1000 }))).toThrow('exceed');
   });
 
-  it('expires and purges retained and ephemeral sessions plus memories', async () => {
+  it('never expires conversations while preserving memory TTL', async () => {
     let now = 1000;
     const { service, store } = await fixture(() => now);
     const ephemeral = await service.createSession({ ttlMs: 1000 });
     const retained = await service.createSession({ ttlMs: 1000, retention: 'retained' });
     const memory = await service.createMemory({ title: 'Temporary', content: 'Expires', scope: 'user', scopeId: 'local-user', ttlMs: 1000 });
     now = 2001;
-    expect(service.getSession(ephemeral.id)).toBeUndefined();
-    expect(service.getSession(retained.id)).toBeUndefined();
+    expect(service.getSession(ephemeral.id)).toMatchObject({ retention: 'retained' });
+    expect(service.getSession(retained.id)).toMatchObject({ retention: 'retained' });
     expect(service.getMemory(memory.id)).toBeUndefined();
-    expect(await service.purgeExpired()).toEqual({ sessions: 2, memories: 1 });
-    expect(store.list('platform.sessions')).toEqual([]);
+    expect(await service.purgeExpired()).toEqual({ sessions: 0, memories: 1 });
+    expect(store.list('platform.sessions')).toHaveLength(2);
   });
 });
 

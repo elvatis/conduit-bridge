@@ -34,7 +34,7 @@ describe('setting tooltip registry and components', () => {
     expect(html).toContain('tabindex="0"');
     expect(html).toContain('aria-describedby="help-retention"');
     expect(html).toContain('role="tooltip"');
-    expect(html).toContain('title="Ephemeral text');
+    expect(html).toContain('title="Conversations are always saved');
     expect(html).not.toContain('<button');
   });
 

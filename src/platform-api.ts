@@ -5,8 +5,9 @@ import { existsSync, statSync } from 'node:fs';
 import type { BridgeConfig, ChatRequest, ModelDefinition, ProviderName, WorkspaceEntry, SecretReference } from './types.js';
 import { runtimeDir, saveConfig, secureStorageStatus } from './config.js';
 import { createContentCipher, openSecretVault, type ContentCipher } from './secrets.js';
-import { FileSnapshotBackend, MemorySnapshotBackend, SqliteSnapshotBackend, TransactionalStateStore, type SnapshotCodec } from './storage.js';
+import { FileSnapshotBackend, SqliteSnapshotBackend, TransactionalStateStore, type SnapshotCodec } from './storage.js';
 import { PlatformContentService, PlatformContentError, type ContextInput, type PlatformSession, type PlatformMemory } from './platform-content.js';
+import { PlatformVaultService, VAULT_SUGGESTION_SCHEMA } from './platform-vault.js';
 import { PlatformCatalogService } from './platform-catalog.js';
 import { PlatformProfileService, type PlatformProviderProfile } from './platform-profiles.js';
 import { PlatformRunService, type PlatformRun, type PlatformRunInput } from './platform-runs.js';
@@ -72,6 +73,7 @@ export class PlatformApi {
   readonly catalog: PlatformCatalogService;
   readonly profiles: PlatformProfileService;
   readonly runs: PlatformRunService;
+  readonly vault: PlatformVaultService;
   private readonly codec: SnapshotCodec;
   private initError?: Error;
   private started?: Promise<void>;
@@ -83,13 +85,33 @@ export class PlatformApi {
     this.codec = { seal: (text, context) => cipherForUse().seal(text, context), open: (text, context) => cipherForUse().open(text, context) };
     const config = deps.cfg().platformStorage;
     if (store) this.store = store;
-    else if (config?.backend === 'memory') this.store = new TransactionalStateStore(new MemorySnapshotBackend());
-    else if (config?.backend === 'sqlite') this.store = new TransactionalStateStore(new SqliteSnapshotBackend(config.path || join(runtimeDir(), 'platform.sqlite'), this.codec));
+    else if (config?.backend === 'memory') throw new Error('Conversations require durable storage; choose sqlite or file');
+    else if (!config?.backend || config.backend === 'sqlite') this.store = new TransactionalStateStore(new SqliteSnapshotBackend(config?.path || join(runtimeDir(), 'platform.sqlite'), this.codec, !config?.path ? join(runtimeDir(), 'platform-state.enc') : undefined));
     else if (config?.backend === 'prisma') throw new Error('Prisma storage requires an injected PrismaSnapshotBackend/TransactionalStateStore; see examples/storage');
     else this.store = new TransactionalStateStore(new FileSnapshotBackend(config?.path || join(runtimeDir(), 'platform-state.enc'), this.codec));
     this.content = new PlatformContentService(this.store);
     this.catalog = new PlatformCatalogService(this.store);
     this.profiles = new PlatformProfileService(this.store);
+    this.vault = new PlatformVaultService(this.store, {
+      directory: join(runtimeDir(), 'vault-search'),
+      sessions: (ownerId, version) => {
+        const operator = operatorForOwner(ownerId, deps.cfg());
+        if (authorizationVersion(operator, deps.cfg()) !== version) throw new PlatformContentError('Vault scan authorization has changed', 403);
+        requirePlatformCapability(operator, 'operate');
+        return this.visibleSessions(operator).filter(s => s.userId === ownerId);
+      },
+      analyze: async (ownerId, version, prompt, signal) => {
+        const operator = operatorForOwner(ownerId, deps.cfg());
+        if (authorizationVersion(operator, deps.cfg()) !== version) throw new PlatformContentError('Vault scan authorization has changed', 403);
+        requirePlatformCapability(operator, 'operate');
+        const endpoint = new URL(process.env.BITNET_URL || 'http://127.0.0.1:8080');
+        if (!['127.0.0.1', '[::1]', 'localhost'].includes(endpoint.hostname) || !['http:', 'https:'].includes(endpoint.protocol)) throw new PlatformContentError('Vault analysis requires BitNet on this device', 403);
+        if (deps.providerForModel('bitnet/auto') !== 'bitnet') throw new PlatformContentError('Local BitNet is unavailable', 503);
+        const release = deps.acquire(); if (!release) throw new PlatformContentError('Execution capacity unavailable', 429);
+        try { return await this.execute({ model: 'bitnet/auto', mode: 'chat', messages: [{ role: 'user', content: prompt }], max_tokens: 384, temperature: 0.2, response_format: { type: 'json_object', schema: VAULT_SUGGESTION_SCHEMA }, signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]) }, { operator }); }
+        finally { release(); }
+      },
+    });
     this.runs = new PlatformRunService(this.store, {
       concurrency: 4, acquire: () => deps.acquire(), begin: run => deps.begin(run), finish: run => deps.finish(run), spend: id => deps.spend(id),
       execute: (request, { run }) => {
@@ -102,11 +124,14 @@ export class PlatformApi {
     });
   }
   start(): Promise<void> {
-    return this.started ??= this.runs.start().catch(error => { this.initError = error; });
+    return this.started ??= (async () => { await this.content.initialize(); await this.runs.start(); await this.vault.settings('local-admin', authorizationVersion(operatorForOwner('local-admin', this.deps.cfg()), this.deps.cfg())); this.vault.start(); })().catch(error => { this.initError = error; });
   }
   async stop(): Promise<void> {
     for (const controller of this.sessionControllers.values()) controller.abort(new Error('Bridge is stopping'));
-    await this.runs.stop(); await this.store.close();
+    await this.content.stop(); await this.vault.stop(); await this.runs.stop(); await this.store.close();
+  }
+  private visibleSessions(operator: PlatformOperatorContext): PlatformSession[] {
+    return this.content.listSessions().filter(s => (operator.role === 'admin' || s.userId === operator.operatorId) && platformCapabilityAllowed(operator, 'view', globalWorkspace(s.workspaceId)));
   }
   private authorizeSession(operator: PlatformOperatorContext, id: string, capability: PlatformCapability): PlatformSession {
     const session = this.content.getSession(id);
@@ -194,14 +219,14 @@ export class PlatformApi {
       const body = ['POST', 'PUT', 'PATCH'].includes(method) ? record(JSON.parse(await readBody() || '{}')) : {};
       if (resource === 'storage') {
         requirePlatformCapability(operator, 'admin');
-        if (method === 'GET' && !id) response(res, 200, { storage: { backend: this.store.backend.kind, revision: this.store.revision, encrypted: this.store.backend.kind !== 'memory', ready: !this.initError, error: this.initError ? redactSecrets(this.initError.message) : undefined, availableBackends: [{ id: 'file', available: true }, { id: 'sqlite', available: true }, { id: 'prisma', available: false, reason: 'Provide a generated client through PrismaSnapshotBackend in the embedding application' }, { id: 'memory', available: true }], credentials: secureStorageStatus(), migration: 'Use encrypted backup/restore with the selected backend after restarting. No silent database switch.' } });
+        if (method === 'GET' && !id) response(res, 200, { storage: { backend: this.store.backend.kind, revision: this.store.revision, encrypted: this.store.backend.kind !== 'memory', ready: !this.initError, error: this.initError ? redactSecrets(this.initError.message) : undefined, availableBackends: [{ id: 'file', available: true }, { id: 'sqlite', available: true }, { id: 'prisma', available: false, reason: 'Provide a generated client through PrismaSnapshotBackend in the embedding application' }], credentials: secureStorageStatus(), migration: 'Use encrypted backup/restore with the selected backend after restarting. No silent database switch.' } });
         else if (method === 'GET' && id === 'backup') response(res, 200, await this.store.backup(this.codec));
         else if (method === 'POST' && id === 'restore') {
-          if (this.runs.list().some(r => ['running', 'queued', 'waiting_approval'].includes(r.status)) || this.sessionControllers.size) throw new PlatformContentError('Stop active work before restoring a backup', 409);
+          if (this.runs.list().some(r => ['running', 'queued', 'waiting_approval'].includes(r.status)) || this.sessionControllers.size || this.vault.busy) throw new PlatformContentError('Stop active work before restoring a backup', 409);
           await this.store.restore(body as { format: string; data: string }, this.codec); response(res, 200, { restored: true });
         } else if (method === 'POST' && id === 'config') {
-          if (!['file', 'sqlite', 'memory'].includes(body.backend)) throw new PlatformContentError('Choose file, sqlite or memory; Prisma clients are supplied by the embedding application');
-          const config = { backend: body.backend as 'file' | 'sqlite' | 'memory' };
+          if (!['file', 'sqlite'].includes(body.backend)) throw new PlatformContentError('Choose file or sqlite; Prisma clients are supplied by the embedding application');
+          const config = { backend: body.backend as 'file' | 'sqlite' };
           (this.deps.saveConfig ?? saveConfig)({ platformStorage: config });
           this.deps.cfg().platformStorage = config;
           response(res, 200, { configured: config.backend, active: this.store.backend.kind, restartRequired: true, migration: 'Export an encrypted backup before restarting, then restore it into the selected adapter.' });
@@ -248,6 +273,31 @@ export class PlatformApi {
         } else throw new PlatformContentError('Unknown operator operation', 404);
         return true;
       }
+      if (resource === 'vault') {
+        const version = authorizationVersion(operator, this.deps.cfg());
+        if (id === 'search' && method === 'GET') {
+          const controller = new AbortController(); const abort = () => controller.abort(); res.once('close', abort);
+          try { response(res, 200, await this.vault.search(this.visibleSessions(operator), url.searchParams.get('query') || '', url.searchParams.get('mode') || 'text', Number(url.searchParams.get('limit') || 50), controller.signal)); }
+          finally { res.off('close', abort); }
+        } else if ((!id || id === 'settings') && method === 'GET') {
+          const sessions = this.visibleSessions(operator);
+          const settings = await this.vault.settings(operator.operatorId, version);
+          const { authorizationVersion: _version, ...publicSettings } = settings;
+          response(res, 200, { settings: publicSettings, sessions: sessions.length, messages: sessions.reduce((n, s) => n + s.messages.length, 0), suggestions: this.vault.suggestions(operator.operatorId, sessions) });
+        } else if (id === 'settings' && method === 'PATCH') {
+          requirePlatformCapability(operator, 'operate');
+          const { authorizationVersion: _version, ...settings } = await this.vault.configure(operator.operatorId, version, { enabled: body.enabled, intervalMinutes: body.intervalMinutes });
+          response(res, 200, { settings });
+        } else if (id === 'scan' && method === 'POST') {
+          requirePlatformCapability(operator, 'operate');
+          if (this.vault.busy) throw new PlatformContentError('A vault scan is already running', 409);
+          void this.vault.scan(operator.operatorId, version).catch(() => {});
+          response(res, 202, { started: true });
+        } else if (id === 'suggestions' && action && method === 'DELETE') {
+          requirePlatformCapability(operator, 'operate'); await this.vault.dismiss(operator.operatorId, action); response(res, 200, { dismissed: true });
+        } else throw new PlatformContentError('Unknown vault operation', 404);
+        return true;
+      }
       if (resource === 'sessions') {
         if (!id && method === 'GET') {
           const data = this.content.listSessions().filter(s => (operator.role === 'admin' || s.userId === operator.operatorId) && platformCapabilityAllowed(operator, 'view', globalWorkspace(s.workspaceId))).map(({ messages, ...s }) => ({ ...s, messageCount: messages.length }));
@@ -257,6 +307,7 @@ export class PlatformApi {
           const workspace = body.workspaceId && body.workspaceId !== 'default' ? this.deps.resolveWorkspace(body.workspaceId) : {};
           requirePlatformCapability(operator, 'operate', workspace.workspaceId);
           const session = await this.content.createSession({ title: body.title, retention: body.retention, workspaceId: workspace.workspaceId, userId: operator.operatorId, agentId: body.agentId, model: body.model, profileId: body.profileId, ttlMs: body.ttlMs });
+          await this.vault.settings(operator.operatorId, authorizationVersion(operator, this.deps.cfg()));
           response(res, 201, { session }); return true;
         }
         const session = this.authorizeSession(operator, id, method === 'GET' ? 'view' : 'operate');
@@ -281,7 +332,7 @@ export class PlatformApi {
             const stream = body.stream === true;
             const send = (event: unknown) => { if (!res.destroyed) res.write(`data: ${JSON.stringify(event)}\n\n`); };
             if (stream) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
-            const result = await this.content.runTurn(id, input, request => this.execute(request, { operator, sessionId: session.retention === 'retained' ? id : undefined, workspaceId: session.workspaceId, profile: input.profileId ? this.requireProfile(input.profileId) : undefined, onDelta: stream ? delta => send({ type: 'delta', delta }) : undefined }));
+            const result = await this.content.runTurn(id, input, (request, _context, captureDelta) => { if (stream) send({ type: 'saved', requestId: request.requestId }); return this.execute(request, { operator, sessionId: id, workspaceId: session.workspaceId, profile: input.profileId ? this.requireProfile(input.profileId) : undefined, onDelta: delta => { captureDelta(delta); if (stream) send({ type: 'delta', delta }); } }); });
             if (stream) { send({ type: 'done', ...result }); res.end(); } else response(res, 200, result);
           } finally { res.off('close', abort); if (this.sessionControllers.get(id) === controller) this.sessionControllers.delete(id); release(); }
         } else throw new PlatformContentError('Unknown session operation', 404);

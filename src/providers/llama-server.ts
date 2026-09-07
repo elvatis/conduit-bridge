@@ -62,18 +62,53 @@ export const TGREP_EXCLUSIONS = ['.git', '.ssh', '.conduit', '.codex', '.agents'
 /** BitNet's CPU server configuration; the binary is supplied through BITNET_SERVER_BINARY. */
 export interface BitNetServerConfig { modelPath?: string; port?: number; threads?: number; ctx_size?: number }
 /** Only children owned by this process are stoppable; stale PID files never authorize killing a process. */
-export interface LocalServerStatus { running: boolean; managed: boolean; pid?: number; port?: number; root?: string }
+export interface LocalServerStatus { running: boolean; managed: boolean; pid?: number; port?: number; root?: string; autoStart?: { state: 'disabled' | 'unconfigured' | 'starting' | 'ready' | 'external' | 'failed'; message?: string } }
 interface OwnedServer { child: ChildProcess; root?: string; port?: number; file: string }
 
 /** Lifecycle manager for explicit administrator-started native BitNet and tgrep processes. */
 export class LocalServerManager {
   private readonly owned = new Map<'bitnet' | 'tgrep', OwnedServer>();
+  private autoStart?: LocalServerStatus['autoStart'];
   constructor(private readonly configuredDirectory?: string) {}
   private get directory(): string { return this.configuredDirectory ?? runtimeDir(); }
   /** Report only confirmed live children owned by this bridge process. */
   status(kind: 'bitnet' | 'tgrep'): LocalServerStatus {
     const owned = this.owned.get(kind);
-    return owned && owned.child.exitCode === null && !owned.child.killed ? { running: true, managed: true, pid: owned.child.pid, port: owned.port, root: owned.root } : { running: false, managed: false };
+    const status: LocalServerStatus = owned && owned.child.exitCode === null && !owned.child.killed ? { running: true, managed: true, pid: owned.child.pid, port: owned.port, root: owned.root } : { running: false, managed: false };
+    if (kind === 'bitnet' && this.autoStart) status.autoStart = this.autoStart;
+    return status;
+  }
+  /** Start configured local inference with the bridge; missing optional tools never prevent gateway startup. */
+  async autoStartBitNet(signal?: AbortSignal): Promise<LocalServerStatus> {
+    if (/^(0|false|off)$/i.test(process.env.BITNET_AUTOSTART || '')) { this.autoStart = { state: 'disabled' }; return this.status('bitnet'); }
+    if (this.status('bitnet').running) { this.autoStart = { state: 'ready' }; return this.status('bitnet'); }
+    if (!process.env.BITNET_MODEL_PATH) { this.autoStart = { state: 'unconfigured', message: 'Set BITNET_MODEL_PATH to enable local inference at startup' }; return this.status('bitnet'); }
+    try {
+      const endpoint = new URL(process.env.BITNET_URL || 'http://127.0.0.1:8080');
+      if (!['127.0.0.1', 'localhost'].includes(endpoint.hostname) || endpoint.protocol !== 'http:' || !['', '/'].includes(endpoint.pathname) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new SkillError('Automatic BitNet startup requires a loopback HTTP root URL');
+      signal?.throwIfAborted();
+      let available = false;
+      try { const response = await fetch(new URL('/health', endpoint), { redirect: 'error', signal: AbortSignal.any([AbortSignal.timeout(1000), ...(signal ? [signal] : [])]) }); available = response.ok; await response.body?.cancel(); } catch { signal?.throwIfAborted(); }
+      if (available) { this.autoStart = { state: 'external', message: 'Using the existing local inference server without taking ownership' }; return this.status('bitnet'); }
+      localToolExecutable(process.env.BITNET_SERVER_BINARY || 'llama-server');
+      this.autoStart = { state: 'starting' };
+      this.removeStaleRecord('bitnet');
+      await this.startBitNet({ port: Number(endpoint.port || 80), threads: Number(process.env.BITNET_THREADS || 2), ctx_size: Number(process.env.BITNET_CTX_SIZE || 2048) }, signal);
+      this.autoStart = { state: 'ready' };
+    } catch {
+      this.autoStart = { state: 'failed', message: 'Local inference startup failed; check executable, GGUF, port and compatibility settings' };
+    }
+    return this.status('bitnet');
+  }
+  private removeStaleRecord(kind: 'bitnet' | 'tgrep'): void {
+    const file = join(this.directory, kind + '-server.pid');
+    if (!existsSync(file)) return;
+    const entry = lstatSync(file); if (!entry.isFile() || entry.isSymbolicLink() || entry.size > 4096) return;
+    const value = readFileSync(file, 'utf8'); let record;
+    try { record = JSON.parse(value); } catch { return; }
+    const dead = (pid: unknown) => { if (!Number.isSafeInteger(pid) || (pid as number) < 1) return false; try { process.kill(pid as number, 0); return false; } catch (error) { return (error as NodeJS.ErrnoException).code === 'ESRCH'; } };
+    // A PID file never authorizes killing/adopting another process. Remove only verified dead ownership.
+    if (dead(record.pid) && dead(record.ownerPid) && readFileSync(file, 'utf8') === value) unlinkSync(file);
   }
   private launch(kind: 'bitnet' | 'tgrep', executable: string, args: string[], cwd: string, root?: string, port?: number): OwnedServer {
     if (this.status(kind).running) throw new SkillError('A managed server is already running', 409);

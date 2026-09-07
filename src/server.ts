@@ -1,3 +1,4 @@
+import { LocalServerManager } from './providers/llama-server.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -104,6 +105,7 @@ export class BridgeServer {
       installPipeline: definition => this._pipelineStore.savePipeline(definition as PipelineDefinition),
     }, options?.platformStore);
     this._integrations = new IntegrationApi({
+      servers: this._localServers,
       cfg: () => this._cfg, workspaces: this._workspaceManager,
       skills: this._registry.skills ?? createSkillRegistry(), githubProjects: options?.githubProjects,
       providerStatus: () => this._registry.getStatus(),
@@ -133,6 +135,11 @@ export class BridgeServer {
     return this._governanceManager;
   }
 
+  private readonly _localServers = new LocalServerManager();
+  private _localStartup?: Promise<unknown>;
+  private readonly _localStartupAbort = new AbortController();
+  private _stopping = false;
+
   async start(): Promise<void> {
     await this._platform.start();
     this._server = createServer((req, res) => {
@@ -157,6 +164,11 @@ export class BridgeServer {
       this._server!.on('error', reject);
     });
 
+    this._localStartup = this._localServers.autoStartBitNet(this._localStartupAbort.signal).then(status => {
+      if (status.autoStart?.state === 'ready' || status.autoStart?.state === 'external') this._activity.add('success', 'bitnet', status.autoStart.state === 'ready' ? 'Local inference started with bridge' : 'Existing local inference server is available');
+      else if (status.autoStart?.state === 'failed') this._activity.add('error', 'bitnet', status.autoStart.message || 'Local inference startup failed');
+    });
+
     // Refresh remote API catalogs after the server is up (non-blocking).
     setTimeout(() => {
       this._registry.refreshApiModels().catch(err => logger.warn(`Model catalog refresh error: ${err.message}`));
@@ -165,10 +177,13 @@ export class BridgeServer {
 
   async stop(): Promise<void> {
     if (this._server) {
-      this._integrations.stop();
+      this._stopping = true;
+      this._localStartupAbort.abort(new Error('Bridge is stopping'));
       for (const connection of this._vscodeSockets.values()) connection.close();
       this._vscodeSockets.clear();
       await this._platform.stop();
+      await this._localStartup;
+      await this._integrations.stop();
       for (const controller of this._pipelineControllers.values()) controller.abort(new Error('Bridge is stopping'));
       await Promise.allSettled(this._pipelineExecutions.values());
       this._pipelineControllers.clear();
@@ -599,6 +614,7 @@ export class BridgeServer {
   }
 
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (this._stopping) { res.writeHead(503, { 'Content-Type': 'application/json', Connection: 'close' }); res.end(JSON.stringify({ error: { message: 'Bridge is stopping' } })); return; }
     const url = req.url ?? '/';
     const path = url.split('?')[0];
     const method = req.method ?? 'GET';

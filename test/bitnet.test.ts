@@ -19,6 +19,12 @@ it('filters reasoning across every possible chunk boundary and drops unclosed re
   for (let cut = 1; cut < raw.length; cut++) { const filter = new ThinkTagFilter(); expect(filter.push(raw.slice(0, cut)) + filter.push(raw.slice(cut)) + filter.push('', true)).toBe('beforeafter'); }
   expect(stripThinkTags('visible<think>never finished')).toBe('visible'); expect(stripThinkTags('1 < 2')).toBe('1 < 2');
 });
+it('forwards host-controlled JSON schema to native constrained decoding', async () => {
+  const fetch = vi.fn(async () => Response.json({ choices: [{ message: { content: '{"suggestions":[]}' } }] })); vi.stubGlobal('fetch', fetch);
+  const response_format = { type: 'json_object' as const, schema: { type: 'object', required: ['suggestions'], properties: { suggestions: { type: 'array', maxItems: 1 } } } };
+  await new BitNetProvider(config).chat({ model: 'bitnet/auto', messages: [{ role: 'user', content: 'Analyze the excerpts' }], response_format });
+  expect(JSON.parse(fetch.mock.calls[0][1].body).response_format).toEqual(response_format);
+});
 it('filters reasoning in real SSE decoding and propagates cancellation', async () => {
   const encoder = new TextEncoder(); const pieces = ['<thi', 'nk>secret</thi', 'nk>answer'];
   const response = new Response(new ReadableStream({ start(controller) { for (const content of pieces) controller.enqueue(encoder.encode('data: ' + JSON.stringify({ choices: [{ delta: { content } }] }) + '\n\n')); controller.enqueue(encoder.encode('data: [DONE]\n\n')); controller.close(); } }));

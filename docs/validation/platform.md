@@ -75,8 +75,9 @@ Protected storage uses a Windows DPAPI-wrapped key, Linux Secret Service, or an
 explicit administrator-provided 32-byte key for headless use. Unavailable secure
 storage fails closed. An encrypted backup needs the original key context.
 
-The new platform retains explicitly selected chat and run content in encrypted
-state. Legacy pipeline history still retains metadata summaries only; service
+The platform retains all conversation and run content in encrypted state.
+Conversation expiry and volatile retention have been removed; failed user
+requests and received partial replies are retained with status. Legacy pipeline history still retains metadata summaries only; service
 restart interrupts legacy running and approval-paused executions. The durable
 platform queue also interrupts in-flight runs rather than automatically replaying
 potential side effects. Queued work is reauthorized before execution.

@@ -95,6 +95,22 @@ describe('transactional platform storage', () => {
     expect(readFileSync(path).includes(Buffer.from('PRIVATE_AGENT'))).toBe(false);
   });
 
+  it('imports the encrypted legacy file once into SQLite without replacing newer database content', async () => {
+    const path = file('legacy.enc');
+    const source = new TransactionalStateStore(new FileSnapshotBackend(path, codec)); stores.push(source); await source.ready();
+    await source.transaction(tx => tx.put('messages', 'legacy', { content: 'PRIVATE_OLD_CONVERSATION' }));
+    const bytes = readFileSync(path);
+    const database = path + '.sqlite';
+    const migrated = new TransactionalStateStore(new SqliteSnapshotBackend(database, codec, path)); stores.push(migrated); await migrated.ready();
+    expect(migrated.revision).toBe(source.revision);
+    expect(migrated.read('messages', 'legacy')).toEqual({ content: 'PRIVATE_OLD_CONVERSATION' });
+    await migrated.transaction(tx => tx.put('messages', 'new', { content: 'PRIVATE_NEW_CONVERSATION' }));
+    const reopened = new TransactionalStateStore(new SqliteSnapshotBackend(database, codec, path)); stores.push(reopened); await reopened.ready();
+    expect(reopened.list('messages')).toHaveLength(2);
+    expect(readFileSync(path)).toEqual(bytes);
+    expect(readFileSync(database).includes(Buffer.from('PRIVATE_OLD_CONVERSATION'))).toBe(false);
+  });
+
   it('uses conditional Prisma writes and propagates actual database failures', async () => {
     let row: { id: string; revision: number; payload: string } | null = null;
     const client: PrismaStateClient = { bridgeState: {

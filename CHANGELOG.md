@@ -6,6 +6,49 @@ in the README Changelog section.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-09-07
+
+### Added
+
+- Start configured native Llama/BitNet inference with Conduit, reuse existing
+  loopback servers, and stop owned children on graceful shutdown.
+
+- Local message vault with SQLite FTS5 full-text search, scoped tgrep/ripgrep regex
+  search, and recurring BitNet scans that propose prompts with source links.
+
+- Elvatis dashboard rebranding with the Conduit workspace shell, responsive
+  navigation, English and German labels, searchable model menus and CLI-first
+  ordering.
+- Work routing for GPT-6 Astra, GPT-5.6 Sol/Terra/Luna, Daybreak Blue,
+  GPT-5.5, GPT-5.4-mini, GPT-5.3 Codex Spark, Fable 5.1, Fable 5, Opus 5,
+  Sonnet 5 and Haiku 4.5. Routes carry ordered availability-aware fallbacks.
+- Native BitNet Windows build and runtime guidance without Conda, plus local
+  tgrep indexing and search with ripgrep fallback.
+- Persistent platform sessions, scoped memory, versioned skills, provider
+  profiles, governed runs, approval gates, budgets, artifacts and evaluations.
+
+### Changed
+
+- Always retain platform conversations on the device. SQLite is the encrypted
+  default with one-time legacy-file import. Persist user requests before dispatch
+  and retain failed requests/received partial replies. Conversation TTL no longer
+  deletes history; the memory TTL policy remains independent.
+
+- Model catalogs now seed the named GPT and Claude families while retaining
+  runtime discovery and user overrides through `models.json`.
+- README and operator handoff documentation now describe the dashboard,
+  routing semantics, local services and provider limitations.
+
+### Fixed
+
+- Model recommendations no longer stop at a provider keyword. They select a
+  work class, expose the chosen model and preserve the complete fallback plan.
+
+### Security
+
+- Routing remains subject to provider authorization, local-only detection,
+  workspace policy, rate limits, accounting and budget hard stops.
+
 ## [0.9.1] - 2026-09-03
 
 ### Added
@@ -293,6 +336,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - Initial release
 
 [0.9.1]: https://github.com/elvatis/conduit-bridge/compare/v0.9.0...v0.9.1
+[0.10.0]: https://github.com/elvatis/conduit-bridge/compare/v0.9.1...v0.10.0
 [0.9.0]: https://github.com/elvatis/conduit-bridge/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/elvatis/conduit-bridge/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/elvatis/conduit-bridge/compare/v0.7.0...v0.8.0

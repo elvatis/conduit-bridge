@@ -44,6 +44,7 @@ export interface PlatformMessage {
   createdAt: number;
   nativeSessionId?: string;
   requestId?: string;
+  status?: 'pending' | 'complete' | 'failed' | 'interrupted';
   versions?: Array<{ revision: number; content: string; updatedAt: number }>;
 }
 export interface PlatformSession {
@@ -138,10 +139,10 @@ export interface PlatformTurnResult {
   context: ContextInspection;
 }
 
-/** Provider-neutral conversation state. Retention is explicit and never inferred. */
+/** Provider-neutral conversations are always retained locally until explicit deletion. */
 export class PlatformContentService {
-  private readonly ephemeral = new Map<string, PlatformSession>();
   private readonly locks = new Map<string, AbortController>();
+  private readonly active = new Set<Promise<unknown>>();
   private readonly now: () => number;
   constructor(private readonly store: StateStore, options: { now?: () => number } = {}) { this.now = options.now || Date.now; }
 
@@ -155,48 +156,61 @@ export class PlatformContentService {
     if (this.locks.has(id)) throw new PlatformContentError('This conversation already has an active operation', 409, 'session_busy');
     const controller = new AbortController();
     this.locks.set(id, controller);
-    try { return await operation(controller); } finally { this.locks.delete(id); }
+    const work = operation(controller); this.active.add(work);
+    try { return await work; } finally { this.locks.delete(id); this.active.delete(work); }
+  }
+  async stop(): Promise<void> {
+    for (const controller of this.locks.values()) controller.abort(new Error('Bridge is stopping'));
+    await Promise.allSettled([...this.active]);
   }
   private async persist(session: PlatformSession, previous?: PlatformSession): Promise<void> {
     if (session.messages.length > MAX_MESSAGES || session.messages.reduce((sum, item) => sum + item.content.length, 0) > MAX_SESSION_CHARS) throw new PlatformContentError('Conversation storage limit reached; branch or summarize a new conversation', 413, 'session_limit');
-    if (session.retention === 'retained' || previous?.retention === 'retained') {
-      await this.store.transaction(tx => {
-        const current = tx.read<PlatformSession>(SESSIONS, session.id);
-        if (previous?.retention === 'retained' && current?.revision !== previous.revision) throw new PlatformContentError('Conversation changed in storage', 409, 'revision_conflict');
-        if (!previous && current) throw new PlatformContentError('Session already exists', 409, 'revision_conflict');
-        if (session.retention === 'retained') tx.put(SESSIONS, session.id, structuredClone(session));
-        else tx.delete(SESSIONS, session.id);
-      });
-    }
-    if (session.retention === 'ephemeral') this.ephemeral.set(session.id, structuredClone(session));
-    else this.ephemeral.delete(session.id);
+    session.retention = 'retained'; delete session.expiresAt;
+    await this.store.transaction(tx => {
+      const current = tx.read<PlatformSession>(SESSIONS, session.id);
+      if (previous && current?.revision !== previous.revision) throw new PlatformContentError('Conversation changed in storage', 409, 'revision_conflict');
+      if (!previous && current) throw new PlatformContentError('Session already exists', 409, 'revision_conflict');
+      tx.put(SESSIONS, session.id, structuredClone(session));
+    });
   }
+  async initialize(): Promise<void> {
+    await this.store.ready();
+    const sessions = this.store.list<PlatformSession>(SESSIONS);
+    if (!sessions.some(s => s.retention !== 'retained' || s.expiresAt !== undefined || s.messages.some(m => m.status === 'pending'))) return;
+    await this.store.transaction(tx => {
+      for (const session of tx.list<PlatformSession>(SESSIONS)) {
+        session.retention = 'retained'; delete session.expiresAt;
+        for (const message of session.messages) if (message.status === 'pending') message.status = 'interrupted';
+        session.revision++; tx.put(SESSIONS, session.id, session);
+      }
+    });
+  }
+
   async createSession(input: CreateSessionInput = {}): Promise<PlatformSession> {
-    for (const [sessionId, session] of this.ephemeral) if (!this.alive(session) && !this.locks.has(sessionId)) this.ephemeral.delete(sessionId);
     if (this.listSessions().length >= 500) throw new PlatformContentError('Session limit reached; remove expired or unneeded conversations', 429, 'session_limit');
     if (input.retention !== undefined && !['ephemeral', 'retained'].includes(input.retention)) throw new PlatformContentError('Unknown session retention');
     const now = this.now();
     const session: PlatformSession = {
       id: `session-${randomUUID()}`, title: text(input.title ?? 'New conversation', 'title', 200),
-      retention: input.retention || 'ephemeral', revision: 1,
+      retention: 'retained', revision: 1,
       userId: identifier(input.userId ?? 'local-user', 'userId'), workspaceId: identifier(input.workspaceId ?? 'default', 'workspaceId'),
       agentId: input.agentId === undefined ? undefined : identifier(input.agentId, 'agentId'),
       provider: input.provider === undefined ? undefined : identifier(input.provider, 'provider'),
       model: input.model === undefined ? undefined : identifier(input.model, 'model'),
       profileId: input.profileId === undefined ? undefined : identifier(input.profileId, 'profileId'),
-      createdAt: now, updatedAt: now, expiresAt: expiry(input.ttlMs, now), messages: [],
+      createdAt: now, updatedAt: now, messages: [],
     };
     await this.persist(session);
     return structuredClone(session);
   }
   getSession(id: string): PlatformSession | undefined {
-    const session = this.ephemeral.get(id) || this.store.read<PlatformSession>(SESSIONS, id);
-    return session && this.alive(session) ? structuredClone(session) : undefined;
+    const session = this.store.read<PlatformSession>(SESSIONS, id);
+    return session ? { ...structuredClone(session), retention: 'retained', expiresAt: undefined } : undefined;
   }
   listSessions(filter: { userId?: string; workspaceId?: string } = {}): PlatformSession[] {
-    return [...this.store.list<PlatformSession>(SESSIONS), ...this.ephemeral.values()]
-      .filter(s => this.alive(s) && (!filter.userId || s.userId === filter.userId) && (!filter.workspaceId || s.workspaceId === filter.workspaceId))
-      .sort((a, b) => b.updatedAt - a.updatedAt).map(s => structuredClone(s));
+    return this.store.list<PlatformSession>(SESSIONS)
+      .filter(s => (!filter.userId || s.userId === filter.userId) && (!filter.workspaceId || s.workspaceId === filter.workspaceId))
+      .sort((a, b) => b.updatedAt - a.updatedAt).map(s => ({ ...structuredClone(s), retention: 'retained', expiresAt: undefined }));
   }
   async updateSession(id: string, patch: { title?: string; retention?: SessionRetention; ttlMs?: number; provider?: string; model?: string; profileId?: string | null; agentId?: string | null; expectedRevision?: number }): Promise<PlatformSession> {
     return this.locked(id, async () => {
@@ -210,9 +224,9 @@ export class PlatformContentService {
       if (patch.agentId !== undefined) next.agentId = patch.agentId === null ? undefined : identifier(patch.agentId, 'agentId');
       if (patch.retention !== undefined) {
         if (!['ephemeral', 'retained'].includes(patch.retention)) throw new PlatformContentError('Unknown session retention');
-        next.retention = patch.retention;
+        next.retention = 'retained';
       }
-      if (patch.ttlMs !== undefined) next.expiresAt = expiry(patch.ttlMs, this.now());
+      delete next.expiresAt;
       next.revision++; next.updatedAt = this.now();
       await this.persist(next, previous);
       return next;
@@ -220,10 +234,9 @@ export class PlatformContentService {
   }
   async deleteSession(id: string): Promise<boolean> {
     return this.locked(id, async () => {
-      const session = this.ephemeral.get(id) || this.store.read<PlatformSession>(SESSIONS, id);
+      const session = this.store.read<PlatformSession>(SESSIONS, id);
       if (!session) return false;
-      if (session.retention === 'retained') await this.store.transaction(tx => { tx.delete(SESSIONS, id); });
-      this.ephemeral.delete(id);
+      await this.store.transaction(tx => { tx.delete(SESSIONS, id); });
       return true;
     });
   }
@@ -275,7 +288,7 @@ export class PlatformContentService {
     return this.locked(id, async () => {
       const previous = this.requireSession(id);
       revision(previous.revision, input.expectedRevision);
-      if (!previous.messages.some(m => m.id === input.throughMessageId && m.role === 'assistant')) throw new PlatformContentError('Summary must end at a completed assistant turn');
+      if (!previous.messages.some(m => m.id === input.throughMessageId && m.role === 'assistant' && (!m.status || m.status === 'complete'))) throw new PlatformContentError('Summary must end at a completed assistant turn');
       const next = structuredClone(previous);
       next.summary = { content: text(input.content, 'summary', 12000), throughMessageId: input.throughMessageId, updatedAt: this.now() };
       next.revision++; next.updatedAt = this.now();
@@ -320,7 +333,7 @@ export class PlatformContentService {
     const allowance = contextTokens - maxOutputTokens;
     if (cost([...system, current]) > allowance) throw new PlatformContentError('Input, selected memories and instructions exceed the context allowance; reduce them explicitly', 413, 'context_limit');
     const afterSummary = session.summary ? session.messages.findIndex(m => m.id === session.summary!.throughMessageId) + 1 : 0;
-    const candidates = session.messages.slice(afterSummary);
+    const candidates = session.messages.slice(afterSummary).filter(m => !m.status || m.status === 'complete');
     const groups: PlatformMessage[][] = [];
     for (const message of candidates) {
       if (message.role === 'user' || !groups.length) groups.push([message]);
@@ -337,7 +350,7 @@ export class PlatformContentService {
     return { sessionId: id, sessionRevision: session.revision, messages, selectedMessageIds: [...selectedIds], omittedMessageIds: session.messages.filter(m => !selectedIds.has(m.id)).map(m => m.id), selectedMemoryIds: memories.map(m => m.id), summaryUsed, estimatedInputTokens: cost(messages), contextTokens, maxOutputTokens, estimator: 'characters-divided-by-four-with-message-overhead' };
   }
 
-  async runTurn(id: string, input: ContextInput, execute: (request: PlatformDispatchRequest, context: ContextInspection) => Promise<string | { content: string; nativeSessionId?: string }>): Promise<PlatformTurnResult> {
+  async runTurn(id: string, input: ContextInput, execute: (request: PlatformDispatchRequest, context: ContextInspection, onDelta: (delta: string) => void) => Promise<string | { content: string; nativeSessionId?: string }>): Promise<PlatformTurnResult> {
     return this.locked(id, async controller => {
       const previous = this.requireSession(id);
       if (previous.messages.length + 2 > MAX_MESSAGES || previous.messages.reduce((sum, m) => sum + m.content.length, 0) + input.input.length > MAX_SESSION_CHARS) throw new PlatformContentError('Conversation storage limit reached; start a new conversation', 413, 'session_limit');
@@ -346,15 +359,31 @@ export class PlatformContentService {
       const context = this.prepareContext(id, input);
       const signal = input.signal ? AbortSignal.any([input.signal, controller.signal]) : controller.signal;
       signal.throwIfAborted();
-      const result = await abortable(execute({ provider: input.provider, model: input.model, profileId: input.profileId, sessionId: id, requestId, messages: context.messages, max_tokens: context.maxOutputTokens, effort: input.effort, mode: input.mode || 'chat', cwd: input.cwd, signal }, context), signal);
-      signal.throwIfAborted();
-      if (!this.alive(previous)) throw new PlatformContentError('Conversation expired during execution', 410, 'session_expired');
-      const content = text(typeof result === 'string' ? result : result.content, 'provider response', MAX_MESSAGE_CHARS);
       const now = this.now();
-      const userMessage: PlatformMessage = { id: `message-${randomUUID()}`, role: 'user', content: input.input, provider: input.provider, model: input.model, profileId: input.profileId, createdAt: now, requestId };
-      const assistantMessage: PlatformMessage = { ...userMessage, id: `message-${randomUUID()}`, role: 'assistant', content, nativeSessionId: typeof result === 'string' || result.nativeSessionId === undefined ? undefined : text(result.nativeSessionId, 'nativeSessionId', 300) };
-      const session: PlatformSession = { ...previous, revision: previous.revision + 1, updatedAt: now, provider: input.provider, model: input.model, profileId: input.profileId, agentId: input.agentId ?? previous.agentId, messages: [...previous.messages, userMessage, assistantMessage] };
-      await this.persist(session, previous);
+      const userMessage: PlatformMessage = { id: `message-${randomUUID()}`, role: 'user', content: input.input, provider: input.provider, model: input.model, profileId: input.profileId, createdAt: now, requestId, status: 'pending' };
+      const pending: PlatformSession = { ...previous, revision: previous.revision + 1, updatedAt: now, provider: input.provider, model: input.model, profileId: input.profileId, agentId: input.agentId ?? previous.agentId, messages: [...previous.messages, userMessage] };
+      await this.persist(pending, previous); // Do not dispatch a prompt that cannot be saved.
+      let partial = '';
+      let assistantMessage: PlatformMessage;
+      let session: PlatformSession;
+      try {
+        signal.throwIfAborted();
+        const result = await abortable(execute({ provider: input.provider, model: input.model, profileId: input.profileId, sessionId: id, requestId, messages: context.messages, max_tokens: context.maxOutputTokens, effort: input.effort, mode: input.mode || 'chat', cwd: input.cwd, signal }, context, delta => { partial = (partial + delta).slice(0, MAX_MESSAGE_CHARS); }), signal);
+        signal.throwIfAborted();
+        const content = text(typeof result === 'string' ? result : result.content, 'provider response', MAX_MESSAGE_CHARS);
+        assistantMessage = { ...userMessage, id: `message-${randomUUID()}`, role: 'assistant', status: 'complete', content, createdAt: this.now(), nativeSessionId: typeof result === 'string' || result.nativeSessionId === undefined ? undefined : text(result.nativeSessionId, 'nativeSessionId', 300) };
+        userMessage.status = 'complete';
+        session = { ...pending, revision: pending.revision + 1, updatedAt: this.now(), messages: [...previous.messages, userMessage, assistantMessage] };
+        await this.persist(session, pending);
+      } catch (error) {
+        userMessage.status = signal.aborted ? 'interrupted' : 'failed';
+        const remaining = MAX_SESSION_CHARS - pending.messages.reduce((sum, m) => sum + m.content.length, 0);
+        partial = partial.slice(0, Math.max(0, remaining));
+        const messages = [...previous.messages, userMessage];
+        if (partial.trim()) messages.push({ ...userMessage, id: `message-${randomUUID()}`, role: 'assistant', content: partial, status: 'interrupted', createdAt: this.now() });
+        await this.persist({ ...pending, messages, revision: pending.revision + 1, updatedAt: this.now() }, pending);
+        throw error;
+      }
       return { session: structuredClone(session), userMessage, assistantMessage, context };
     });
   }
@@ -422,9 +451,7 @@ export class PlatformContentService {
   async deleteMemory(id: string): Promise<boolean> { return this.store.transaction(tx => { if (!tx.read(MEMORIES, id)) return false; tx.delete(MEMORIES, id); return true; }); }
   async purgeExpired(): Promise<{ sessions: number; memories: number }> {
     const counts = { sessions: 0, memories: 0 };
-    for (const [id, session] of this.ephemeral) if (!this.alive(session) && !this.locks.has(id)) { this.ephemeral.delete(id); counts.sessions++; }
     await this.store.transaction(tx => {
-      for (const session of tx.list<PlatformSession>(SESSIONS)) if (!this.alive(session) && !this.locks.has(session.id)) { tx.delete(SESSIONS, session.id); counts.sessions++; }
       for (const memory of tx.list<PlatformMemory>(MEMORIES)) if (!this.alive(memory)) { tx.delete(MEMORIES, memory.id); counts.memories++; }
     });
     return counts;

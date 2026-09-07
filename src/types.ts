@@ -143,6 +143,8 @@ export interface ChatRequest {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  /** Host-supplied constrained JSON output for local inference. */
+  response_format?: { type: 'json_object'; schema?: Record<string, unknown> };
   /**
    * Reasoning / thinking effort. Accepted from either `effort` or OpenAI-style
    * `reasoning_effort` on the HTTP body. Levels: none | minimal | low | medium |

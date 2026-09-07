@@ -56,6 +56,21 @@ function workspace(lang = 'en') {
 }
 
 describe('platform workspace browser behavior', () => {
+  it('renders escaped vault results and turns a suggestion into an unsent draft', async () => {
+    const ui = workspace('de');
+    ui.run("pfState.operator = {operatorId:'alice', role:'operator', workspaceIds:['*']}; pfState.models = [{id:'bitnet/auto'}]");
+    ui.element('pf-vault-query').value = 'private'; ui.element('pf-vault-mode').value = 'text';
+    ui.fixtures.set('/v1/platform/vault/search?query=private&mode=text', { engine: 'sqlite-fts5', total: 1, scannedMessages: 4, data: [{ sessionId: 's', messageId: 'm', title: '<script>alert(1)</script>', role: 'user', snippet: '<img src=x onerror=alert(1)>' }] });
+    await ui.run('pfSearchVault()');
+    expect(ui.element('pf-vault-results').innerHTML).toContain('&lt;img');
+    expect(ui.element('pf-vault-results').innerHTML).not.toContain('<script>');
+    ui.run(`pfRenderVault({settings:{enabled:true,intervalMinutes:60,status:'complete',nextScanAt:10000}, messages:4, suggestions:[{id:'suggestion', title:'Test criteria', reason:'Repeated corrections', prompt:'Include measurable criteria.', sources:[{sessionId:'s',messageId:'m'}]}]})`);
+    await ui.run(`pfVaultAction({target:{closest:()=>({dataset:{vaultUse:'suggestion'}})}})`);
+    expect(ui.element('pf-chat-input').value).toBe('Include measurable criteria.');
+    expect(ui.calls.some(call => call.path.endsWith('/messages'))).toBe(false);
+    expect(ui.run('pfState.tab')).toBe('chat');
+  });
+
   it('shows readable chat model labels while preserving provider routing IDs', () => {
     const ui = workspace();
     ui.run(`pfState.models = [{id:'api-openrouter/openai/gpt-6-astra'},{id:'cli-codex/gpt-5.6-sol'}]; platformSyncModels()`);

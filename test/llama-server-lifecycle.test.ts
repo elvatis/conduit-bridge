@@ -11,6 +11,7 @@ let root: string; let port: number; let child: EventEmitter & { pid: number; exi
 beforeEach(async () => {
   root = mkdtempSync(join(tmpdir(), 'conduit-lifecycle-')); writeFileSync(join(root, 'fixture.gguf'), 'synthetic fixture, not an inference model');
   vi.stubEnv('BITNET_SERVER_BINARY', process.execPath); vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')));
+  vi.stubEnv('BITNET_MODEL_PATH', ''); vi.stubEnv('BITNET_AUTOSTART', '');
   vi.stubEnv('BITNET_TOKENIZER_PRE', ''); vi.stubEnv('BITNET_CHAT_TEMPLATE_PATH', '');
   const reservation = createServer(); await new Promise<void>(resolve => reservation.listen(0, '127.0.0.1', resolve)); port = (reservation.address() as { port: number }).port; await new Promise<void>(resolve => reservation.close(() => resolve()));
   child = Object.assign(new EventEmitter(), { pid: 123456, exitCode: null as number | null, killed: false, kill: vi.fn(() => { child.killed = true; child.exitCode = 0; child.emit('exit', 0); return true; }) });
@@ -50,4 +51,36 @@ it('cancels startup and refuses an occupied port before spawning', async () => {
   vi.mocked(spawn).mockClear(); const occupied = createServer(); await new Promise<void>(resolve => occupied.listen(port, '127.0.0.1', resolve));
   try { await expect(new LocalServerManager(root).startBitNet({ modelPath: join(root, 'fixture.gguf'), port })).rejects.toThrow('port'); expect(spawn).not.toHaveBeenCalled(); }
   finally { await new Promise<void>(resolve => occupied.close(() => resolve())); }
+});
+
+
+it('automatically starts an available configured server and respects explicit opt-out', async () => {
+  const manager = new LocalServerManager(root);
+  vi.stubEnv('BITNET_MODEL_PATH', join(root, 'fixture.gguf')); vi.stubEnv('BITNET_URL', `http://127.0.0.1:${port}`);
+  vi.stubEnv('BITNET_THREADS', '3'); vi.stubEnv('BITNET_CTX_SIZE', '4096');
+  vi.mocked(fetch).mockResolvedValueOnce(new Response('{}', { status: 503 }));
+  expect(await manager.autoStartBitNet()).toMatchObject({ running: true, managed: true, autoStart: { state: 'ready' } });
+  expect(vi.mocked(spawn).mock.calls[0][1]).toEqual(expect.arrayContaining(['-t', '3', '-c', '4096']));
+  await manager.stop('bitnet'); vi.mocked(spawn).mockClear();
+  vi.stubEnv('BITNET_AUTOSTART', 'false');
+  expect(await manager.autoStartBitNet()).toMatchObject({ running: false, autoStart: { state: 'disabled' } });
+  expect(spawn).not.toHaveBeenCalled();
+});
+
+it('reuses a healthy external server without claiming ownership or killing it', async () => {
+  const manager = new LocalServerManager(root);
+  vi.stubEnv('BITNET_MODEL_PATH', join(root, 'fixture.gguf')); vi.stubEnv('BITNET_URL', `http://127.0.0.1:${port}`);
+  expect(await manager.autoStartBitNet()).toMatchObject({ managed: false, autoStart: { state: 'external' } });
+  await manager.stop('bitnet'); expect(spawn).not.toHaveBeenCalled(); expect(child.kill).not.toHaveBeenCalled();
+});
+
+it('keeps missing, invalid and remote optional inference from blocking the bridge', async () => {
+  const manager = new LocalServerManager(root);
+  expect(await manager.autoStartBitNet()).toMatchObject({ autoStart: { state: 'unconfigured' } });
+  vi.stubEnv('BITNET_MODEL_PATH', join(root, 'missing.gguf')); vi.stubEnv('BITNET_URL', `http://127.0.0.1:${port}`);
+  vi.mocked(fetch).mockResolvedValueOnce(new Response('{}', { status: 503 }));
+  expect(await manager.autoStartBitNet()).toMatchObject({ autoStart: { state: 'failed' } });
+  vi.stubEnv('BITNET_URL', 'https://remote.example.test'); vi.mocked(fetch).mockClear();
+  expect(await manager.autoStartBitNet()).toMatchObject({ autoStart: { state: 'failed' } });
+  expect(fetch).not.toHaveBeenCalled(); expect(spawn).not.toHaveBeenCalled();
 });

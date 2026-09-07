@@ -3,7 +3,7 @@
 [![AAHP Verify](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml/badge.svg)](https://github.com/elvatis/conduit-bridge/actions/workflows/aahp-verify.yml)
 [![supply-chain-guard](https://img.shields.io/badge/supply--chain--guard-enabled-blue)](https://github.com/homeofe/supply-chain-guard)
 
-**Current version:** 0.9.1
+**Current version:** 0.10.0
 
 Conduit Bridge is a local, OpenAI-compatible gateway for the AI tools you
 already use. It gives desktop clients one loopback endpoint while keeping API
@@ -19,7 +19,8 @@ Desktop at `127.0.0.1:31338`.
 | Provider choice | Direct APIs, authenticated coding CLIs, LM Studio, and optional local BitNet inference remain separate and independently configurable. |
 | Productive local work | A dashboard for chat, models, provider health, projects, budgets, pipelines, governance, and diagnostics. |
 | Controlled automation | Bounded agent runs, approval gates, scoped workspaces, versioned skills, provider profiles, and usage estimates. |
-| Private local state | Encrypted retained platform data and credentials, with explicit backup, restore, and storage-backend selection. |
+| Private local state | Every platform conversation stays on this device until explicit deletion. Encrypted SQLite is the default, with backup and restore. |
+| Message vault | Search every conversation message with SQLite full text or tgrep regex. Recurring local BitNet scans propose improved prompts with source links. |
 | Fast code lookup | Optional local `tgrep` indexing with a native ripgrep fallback. No source code is sent to a model to perform a search. |
 
 ## Quick start
@@ -56,7 +57,7 @@ silently enables the matching paid API.
 | --- | --- | --- |
 | Direct API | `claude-api`, `codex-api`, `gemini-api`, `openrouter-api`, `perplexity-api` | Save a key through Settings or set the documented environment variable. |
 | Coding CLI | `cli-claude`, `cli-codex`, `cli-gemini`, `cli-grok` | Install and authenticate the provider's official CLI as the same desktop user. |
-| Local | `lmstudio`, `bitnet` | Start the local model service. BitNet setup is optional and explicit. |
+| Local | `lmstudio`, `bitnet` | LM Studio uses its running local service. Configured BitNet starts with Conduit. |
 
 The dashboard lists each transport separately. It also groups model menus with
 CLI models first, so an installed coding CLI remains the natural starting point
@@ -64,6 +65,46 @@ for a new chat.
 
 See [provider setup and model catalogs](docs/guides/getting-started.md#connect-a-provider)
 for environment-variable names, model discovery, and model overrides.
+
+## Dashboard and work routing
+
+The browser dashboard is branded as **Conduit**, the Elvatis control plane for
+local AI work. It uses a dark navy, cyan and copper visual system, a compact
+sidebar, responsive layouts for narrow screens, and English or German labels.
+The main workspace brings together Webchat, Memory, Assistants, Tasks and
+Administration. Separate sections cover provider health, model catalogs,
+budgets, usage, pipelines, governance, diagnostics and activity. Model pickers
+are searchable and put authenticated CLI models first, followed by local and
+API transports. The complete transport ID stays visible so an operator can
+tell which account or local service will answer.
+
+The routing skill classifies a request before execution and returns a primary
+model plus ordered fallbacks. The route is a recommendation subject to the
+models currently advertised by `/v1/models`, provider policy, credentials and
+budget limits. Private or offline wording always remains local.
+
+| Work | Primary model | Fallback direction |
+| --- | --- | --- |
+| Product and reliability | `api-openrouter/openai/gpt-6-astra` | GPT-5.6 Sol, Fable 5.1, Opus 5 |
+| Architecture and difficult design | `api-openrouter/openai/gpt-6-astra` | Opus 5, Fable 5.1, GPT-5.6 Sol |
+| Implementation and tests | `cli-codex/gpt-5.6-sol` | GPT-6 Astra, Fable 5.1, Fable 5, Terra, Codex Spark |
+| Security and hardening | `cli-codex/gpt-daybreak-blue-latest` | GPT-6 Astra, GPT-5.6 Sol, Fable 5.1 |
+| Independent review, analysis and synthesis | `cli-claude/claude-fable-5-1` | Opus 5, GPT-6 Astra, Fable 5, GPT-5.6 Sol |
+| Documentation and release writing | `cli-claude/claude-fable-5` | Fable 5.1, Sonnet 5, GPT-5.6 Sol |
+| Deep research | `cli-claude/claude-opus-5` | Fable 5, Fable 5.1, Anthropic via OpenRouter |
+| Everyday assistance and complex reasoning | `cli-claude/claude-fable-5` | Fable 5.1, GPT-5.6 Sol, Sonnet 5 |
+| Short answers and triage | `cli-codex/gpt-5.4-mini` | Codex Spark, Haiku 4.5 |
+| Cost-sensitive work | `cli-codex/gpt-5.6-luna` | GPT-5.4-mini, Codex Spark |
+| Private, offline and classification | `bitnet/auto` | `lmstudio/auto` |
+
+The catalog also includes GPT-5.6 Luna for cost-sensitive work and the named
+models GPT-5.5, GPT-5.3 Codex Spark, Fable 5, Opus 5, Sonnet 5 and Haiku 4.5.
+If a primary model is unavailable, the router selects the first advertised
+fallback. Explicit model IDs always take precedence over recommendations.
+
+For the routing API and platform role overrides, see [the platform guide](docs/guides/platform.md).
+The same recommendation is available to an authorized operator through
+`POST /api/skills/routing-rules` with `{ "arguments": { "prompt": "..." } }`.
 
 ## Use it from an OpenAI-compatible client
 
@@ -116,18 +157,54 @@ is in [the integration guide](docs/reference/integrations.md).
 
 The complete documentation map is available at [docs/README.md](docs/README.md).
 
+## Your local message vault
+
+Open **Vault** in the workspace view selector. It searches the complete text of
+all platform conversation messages visible to the current operator, with links
+back to the exact message. SQLite FTS5 handles words and phrases; regex mode uses
+native `tgrep` with a `ripgrep` fallback. Search stays on this device. The full-text
+index lives in memory; regex searches briefly create private local text files
+and remove them when the request finishes.
+
+A configured native Llama server starts automatically with Conduit. Set
+`BITNET_SERVER_BINARY` and `BITNET_MODEL_PATH` to existing local files. Optional
+`BITNET_THREADS` and `BITNET_CTX_SIZE` control CPU threads and context;
+`BITNET_AUTOSTART=false` disables startup. Conduit reuses a healthy local server
+without taking ownership and stops its own child on graceful shutdown. Missing
+tools or models leave the rest of the bridge available.
+
+Recurring scans use **local BitNet only**, initially once per hour while the bridge
+is running. Each scan examines up to six message excerpts and advances through
+the history over subsequent intervals. You can change the interval, disable the
+schedule, or select **Scan now**. Suggestions include evidence links, can be
+dismissed, and become a new unsent chat draft when selected. They never rewrite
+your prompt library automatically. An unavailable BitNet server or invalid model
+output appears as a failed scan; no cloud provider receives the messages.
+
+This is Conduit's own conversation vault, inspired by local note-taking tools
+such as [Obsidian](https://obsidian.md/). It does not import external Obsidian
+folders. See [Vault search and prompt scans](docs/guides/platform.md#vault-search-and-prompt-scans)
+for the API and operating limits.
+
+The Windows validation includes two full bridge/Llama start-stop cycles with
+preserved SQLite messages and prompt suggestions, native tgrep search, and 547
+automated tests. See [the persistence and Vault validation report](docs/validation/vault.md).
+
 ## Data, storage, and backups
 
 Conduit does not require a remote database service. On Windows its runtime
 directory is `%USERPROFILE%\\.conduit`; on Linux it is `~/.conduit`. Set
 `CONDUIT_HOME` before starting the bridge to place all runtime data elsewhere.
 
-New retained platform data uses the encrypted file `platform-state.enc` by
-default. SQLite is an opt-in backend and uses `platform.sqlite` in that same
-directory. The active backend is shown in **Settings and diagnostics** and at
+Platform conversations are always saved locally, including failed requests and
+received partial replies on cancellation. Conversation TTLs no longer delete
+history. The default backend is encrypted SQLite in `platform.sqlite`. On its
+first start, it imports an existing `platform-state.enc` without deleting the
+source file. An explicitly selected encrypted-file backend remains supported.
+The active backend is shown in **Settings and diagnostics** and at
 `GET /v1/platform/storage`.
 
-Before switching backends, download an encrypted backup, save the selected
+For later manual backend switches, download an encrypted backup, save the selected
 backend, restart the bridge, and restore the backup. Saving a backend preference
 does not move data automatically. Read [Storage and backups](docs/guides/storage.md)
 before changing that setting.
@@ -199,6 +276,7 @@ overview helps choose an upgrade path.
 
 | Version | Highlights |
 | --- | --- |
+| 0.10.0 | Elvatis dashboard rebranding, searchable CLI-first model menus, named work routing, native BitNet on Windows without Conda, tgrep search, always-local SQLite conversations, vault search, recurring prompt scans, skills, tools, governed runs, budgets, and provider profiles. |
 | 0.9.1 | Release and documentation gates now run in CI, security scanning is enforced, and release tags are checked before publishing. |
 | 0.9.0 | Model records gained `context_window` and `max_output_tokens` metadata. |
 | 0.8.1 | Model records gained transport-specific `max_prompt_chars` where a CLI imposes one. |
@@ -207,10 +285,24 @@ overview helps choose an upgrade path.
 | 0.6.0 | CLI chat requests gained an optional workspace `cwd`. |
 | 0.5.2 | Provider transports were separated into API, CLI, and local categories; browser-session providers were removed. |
 
+### 0.10.0
+
+The dashboard is now the Elvatis-branded Conduit workspace, with Webchat,
+Memory, Assistants, Tasks and Administration in one responsive shell. Model
+selection is searchable and CLI-first, while the routing skill assigns work to
+the requested GPT, Claude or local model families with availability-aware
+fallbacks. The release also documents native BitNet and local search, durable
+sessions, provider profiles, scoped skills, governed pipelines and usage
+controls.
+
+See [the 0.10.0 release notes](CHANGELOG.md#0100---2026-09-07) for the full
+Added, Changed, Fixed and Security entries.
+
 ### 0.9.1
 
 The current release strengthens the release path and documentation checks. It
-does not change provider request behavior. See [the 0.9.1 release notes](CHANGELOG.md#091---2026-09-03)
+The 0.9.1 release strengthens the release path and documentation checks. See
+[the 0.9.1 release notes](CHANGELOG.md#091---2026-09-03) for complete details.
 for the complete Added, Changed, and Fixed entries.
 
 ## Develop and verify

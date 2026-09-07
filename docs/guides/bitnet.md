@@ -31,8 +31,11 @@ Conduit keeps BitNet separate from LM Studio:
 | BitNet native server | `http://127.0.0.1:8080` | Local CPU inference for the configured GGUF model |
 | BitNet provider | `bitnet/auto` or `bitnet/2B-4T` | The model IDs selected in Conduit requests |
 
-Starting BitNet is always explicit. Restarting the bridge does not automatically
-restart a native model server.
+Once `BITNET_MODEL_PATH` and an available native server are configured, Conduit
+automatically starts local inference after its HTTP listener is up. Startup is
+optional and does not block the rest of the gateway when the model or binary is
+missing. A healthy existing loopback server is reused without taking ownership.
+The bridge stops its own native child during graceful shutdown.
 
 ## Prerequisites
 
@@ -79,6 +82,9 @@ BITNET_MODEL_PATH=C:/models/ggml-model-i2_s.gguf
 BITNET_SERVER_BINARY=C:/work/conduit-bridge/.ai/logs/bitnet-native/BitNet/build-native/bin/llama-server.exe
 BITNET_TOKENIZER_PRE=llama-bpe
 BITNET_CHAT_TEMPLATE_PATH=C:/work/conduit-bridge/scripts/bitnet/chat-2b4t.jinja
+BITNET_THREADS=8
+BITNET_CTX_SIZE=2048
+BITNET_AUTOSTART=true
 ```
 
 Restart Conduit Bridge after editing `.env`. `BITNET_TOKENIZER_PRE` and
@@ -97,7 +103,13 @@ Run these commands with an administrator platform identity when bridge
 authentication is enabled. The `approved: true` field records a deliberate native
 process action.
 
-Start with the tested eight CPU threads and a 2048-token context:
+Autostart uses `BITNET_URL` to select a free loopback port, with two threads and
+2048 context tokens by default. The example above selects the eight threads used
+in local validation. Set `BITNET_AUTOSTART=false` to keep manual lifecycle control.
+`autoStart.state` in the status response explains `ready`, `external`, `disabled`,
+`unconfigured` or `failed` startup. No model is downloaded automatically.
+
+For a manual start when no owned server is already running:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:31338/api/bitnet/server `
@@ -123,7 +135,9 @@ Invoke-RestMethod http://127.0.0.1:31338/api/bitnet/server `
 
 The bridge starts the server only when port 8080 is free. It writes an ownership
 record under the Conduit runtime directory and refuses to adopt or kill a process
-from a stale PID file. Inspect a stale record before removing it.
+from a stale PID file. Autostart removes a stale ownership record only when both
+its recorded owner and child PIDs are confirmed absent. A live external process
+is never terminated or adopted.
 
 ## Send an inference request
 

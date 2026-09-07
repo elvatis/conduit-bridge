@@ -160,6 +160,7 @@ export class LmStudioProvider implements ProviderAdapter {
     if (model) body.model = model; // omit for "auto" so LM Studio uses the loaded model
     if (req.max_tokens) body.max_tokens = req.max_tokens;
     if (req.temperature !== undefined) body.temperature = req.temperature;
+    if (req.response_format) body.response_format = req.response_format;
     return JSON.stringify(body);
   }
 

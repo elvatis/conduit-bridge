@@ -2,30 +2,30 @@
   "aahp_version": "3.0",
   "project": "pb",
   "last_session": {
-    "agent": "cli-tool",
-    "session_id": "cli-1788799635",
-    "timestamp": "2026-09-07T16:47:15Z",
-    "commit": "7e19fc6",
+    "agent": "codex",
+    "session_id": "cli-1788811965",
+    "timestamp": "2026-09-07T20:12:45Z",
+    "commit": "eebea10",
     "phase": "idle",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:cc03dc169e33ab17824473775d3bf6d92a0372876fb2867e5cc12a6b84260c97",
-      "updated": "2026-09-07T16:47:07Z",
-      "lines": 423,
+      "checksum": "sha256:236581e97f9c0bd9ce0bd2888599266d1faa0f369430a5c7be33bf39b59b9ea8",
+      "updated": "2026-09-07T20:12:23Z",
+      "lines": 425,
       "summary": "_Updated: 2026-09-07_"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:8f4700bc93dcc51912471bf8873fdfdab40f1f111f390421689202943e92bd03",
-      "updated": "2026-09-07T16:43:47Z",
+      "checksum": "sha256:3933911b0f295790255da77f0dae18a876f3d468c01bf1233b578be6dcbd0ca2",
+      "updated": "2026-09-07T20:12:23Z",
       "lines": 48,
-      "summary": "Current version: **v0.9.1**"
+      "summary": "Current version: **v0.10.0**"
     },
     "LOG.md": {
-      "checksum": "sha256:e411e22252a912dc0720b2ab741bdeda7b1a55f1ec9165950ae55cb6e500b7db",
-      "updated": "2026-09-07T16:47:07Z",
-      "lines": 201,
+      "checksum": "sha256:db51aa7ead38cc923e705d48d57484e90f24ae7fe6967df2ab3546de1d41a78a",
+      "updated": "2026-09-07T20:12:23Z",
+      "lines": 220,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "_Updated: 2026-09-07_ Current version: **v0.9.1** ",
+  "quick_context": "Durable SQLite vault, recurring BitNet suggestions and verified native startup",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 5996,
-    "full_read": 11250
+    "manifest_plus_core": 6053,
+    "full_read": 11524
   }
 }

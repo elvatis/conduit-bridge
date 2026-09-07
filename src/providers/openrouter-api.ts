@@ -26,6 +26,7 @@ const OPENROUTER_HEADERS: Record<string, string> = {
 // Curated subset of openrouter.ai/api/v1/models (2026-09-01). Any
 // api-openrouter/<provider>/<model> still routes via ownsModel.
 const CATALOG = [
+  'openai/gpt-6-astra',
   'anthropic/claude-fable-5',
   'anthropic/claude-opus-5',
   'anthropic/claude-sonnet-5',

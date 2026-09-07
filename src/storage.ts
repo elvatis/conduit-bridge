@@ -210,11 +210,11 @@ export class FileSnapshotBackend implements SnapshotBackend {
   }
 }
 
-/** Optional native SQLite backend; loaded only when explicitly selected. */
+/** Encrypted local SQLite state, with a one-time import of the legacy file. */
 export class SqliteSnapshotBackend implements SnapshotBackend {
   readonly kind = 'sqlite';
   private database: import('node:sqlite').DatabaseSync;
-  constructor(file: string, private codec: SnapshotCodec) {
+  constructor(file: string, private codec: SnapshotCodec, private legacyFile?: string) {
     mkdirSync(dirname(resolve(file)), { recursive: true, mode: 0o700 });
     const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
     this.database = new DatabaseSync(resolve(file));
@@ -222,7 +222,15 @@ export class SqliteSnapshotBackend implements SnapshotBackend {
     this.database.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS bridge_state (id TEXT PRIMARY KEY, revision INTEGER NOT NULL, payload TEXT NOT NULL)');
   }
   async load(): Promise<StateSnapshot | undefined> {
-    const row = this.database.prepare('SELECT payload FROM bridge_state WHERE id = ?').get('platform') as { payload: string } | undefined;
+    let row = this.database.prepare('SELECT payload FROM bridge_state WHERE id = ?').get('platform') as { payload: string } | undefined;
+    if (!row && this.legacyFile && existsSync(this.legacyFile)) {
+      const legacy = await new FileSnapshotBackend(this.legacyFile, this.codec).load();
+      if (legacy) {
+        // Preserve the source file and revision. Another process may have imported first.
+        this.database.prepare('INSERT OR IGNORE INTO bridge_state (id, revision, payload) VALUES (?, ?, ?)').run('platform', legacy.revision, encode(legacy, this.codec));
+        row = this.database.prepare('SELECT payload FROM bridge_state WHERE id = ?').get('platform') as { payload: string };
+      }
+    }
     return row ? decode(row.payload, this.codec) : undefined;
   }
   async commit(snapshot: StateSnapshot, expectedRevision: number): Promise<void> {

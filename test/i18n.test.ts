@@ -4,6 +4,7 @@ import { TRANSLATIONS } from '../src/i18n.js';
 import { DASHBOARD_HTML, HELP_HTML } from '../src/dashboard.js';
 import { I18N_SCRIPT } from '../src/ui/i18n.js';
 import { TOOLTIP_REGISTRY } from '../src/ui/tooltips.js';
+import { readFileSync } from 'node:fs';
 
 function languageHarness(storedLanguage?: string) {
   const stored = new Map<string,string>(storedLanguage ? [['conduit_lang',storedLanguage]] : []);
@@ -36,6 +37,11 @@ function languageHarness(storedLanguage?: string) {
 }
 
 describe('interface localization', () => {
+  it('keeps browser source and translations valid UTF-8 on Windows', () => {
+    for (const file of ['src/i18n.ts', 'src/platform-ui.ts']) expect(() => new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(file))).not.toThrow();
+    expect(TRANSLATIONS.de.ui_vault_description).toContain('Gespräche');
+    expect(TRANSLATIONS.de.tip_session_retention || TRANSLATIONS.de['tip_session.retention']).not.toContain('Temporäre Texte');
+  });
   it('has matching nonempty catalogs, interpolation parameters, and help for every setting', () => {
     expect(Object.keys(TRANSLATIONS.de).sort()).toEqual(Object.keys(TRANSLATIONS.en).sort());
     for (const key of Object.keys(TRANSLATIONS.en)) {

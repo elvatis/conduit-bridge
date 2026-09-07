@@ -30,6 +30,7 @@ Bump these together:
 |---|---|
 | `package.json` | `"version"` |
 | `README.md` | `**Current version:**` header |
+| `CLAUDE.md` | `Current version` line for repository-local agent instructions |
 | `CHANGELOG.md` | new `## [X.Y.Z] - YYYY-MM-DD` section |
 | `README.md` Changelog | same notes under `### X.Y.Z` |
 | `.ai/handoff/STATUS.md` | short release note (prepend) |
@@ -41,8 +42,8 @@ Bump these together:
 
 - Implementation and tests are on a branch or already on `main`.
 - `npm run typecheck` and `npm test` green locally (or on openclaw/Linux CI).
-- Do **not** run the full suite on this Windows box for hours - targeted tests
-  plus GitHub Actions is enough (estate rule).
+- Run the full suite locally when source, routing or catalog behavior changes;
+  use hosted CI as the second platform check.
 
 ### 2. Documentation pass
 

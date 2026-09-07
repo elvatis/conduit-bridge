@@ -17,8 +17,8 @@ vi.mock('../src/config.js', async original => ({
   },
 }));
 vi.mock('../src/registry.js', () => {
-  const providers = ['cli-claude', 'cli-codex'].map(name => ({
-    name, models: [{ id: `${name}/http-test`, provider: name, displayName: name, owned_by: 'test' }],
+  const providers = ['cli-claude', 'cli-codex', 'bitnet'].map(name => ({
+    name, models: [{ id: name === 'bitnet' ? 'bitnet/auto' : `${name}/http-test`, provider: name, displayName: name, owned_by: 'test' }],
     ensureConnected: async () => true,
     checkSession: async () => true,
     chat: async (request: ChatRequest) => { state.calls.push(request); return state.respond(request); },
@@ -53,6 +53,7 @@ let config: BridgeConfig;
 beforeEach(async () => {
   state.runtime = mkdtempSync(join(tmpdir(), 'conduit-platform-http-'));
   state.calls = [];
+  vi.stubEnv('BITNET_URL', 'http://127.0.0.1:8080');
   state.respond = async () => 'A useful short result.';
   store = new TransactionalStateStore(new MemorySnapshotBackend());
   await store.ready();
@@ -69,6 +70,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await server?.stop();
+  vi.unstubAllEnvs();
   if (state.runtime.startsWith(join(tmpdir(), 'conduit-platform-http-'))) rmSync(state.runtime, { recursive: true, force: true });
 });
 
@@ -102,9 +104,9 @@ function deferred() {
 }
 
 describe('platform HTTP conversations', () => {
-  it('keeps the default transcript ephemeral and switches providers with canonical history', async () => {
+  it('persists the default transcript and switches providers with canonical history', async () => {
     const created = await session();
-    expect(created.retention).toBe('ephemeral');
+    expect(created.retention).toBe('retained');
     state.respond = async () => 'Orion noted.';
     expect((await turn(created.id, 'The design is Orion')).status).toBe(200);
     state.respond = async () => 'Orion';
@@ -113,7 +115,7 @@ describe('platform HTTP conversations', () => {
     expect(state.calls[1].messages.map(m => m.content)).toEqual(['The design is Orion', 'Orion noted.', 'Name?']);
     expect(second.data.session.messages.map((m: any) => m.provider)).toEqual(['cli-claude', 'cli-claude', 'cli-codex', 'cli-codex']);
     expect(second.data.session.model).toBe(modelB);
-    expect(store.list('platform.sessions')).toEqual([]);
+    expect(store.list('platform.sessions')).toHaveLength(1);
     const context = await api(`/v1/platform/sessions/${created.id}/context`, { content: 'Continue', maxOutputTokens: 64 });
     expect(context.status).toBe(200);
     expect(context.data.context.selectedMessageIds).toHaveLength(4);
@@ -159,7 +161,7 @@ describe('platform HTTP conversations', () => {
     expect(context.data.context.summaryUsed).toBe(true);
     const ephemeral = await api(`/v1/platform/sessions/${created.id}`, { retention: 'ephemeral', revision: summary.data.session.revision }, 'admin', 'PATCH');
     expect(ephemeral.status).toBe(200);
-    expect(store.read('platform.sessions', created.id)).toBeUndefined();
+    expect(store.read('platform.sessions', created.id)).toMatchObject({ retention: 'retained' });
   });
 
   it('does not let a rejected concurrent request remove the first cancellation controller', async () => {
@@ -172,7 +174,7 @@ describe('platform HTTP conversations', () => {
     const cancelled = await first;
     expect(cancelled.status).toBe(400);
     expect(state.calls[0].signal?.aborted).toBe(true);
-    expect((await api(`/v1/platform/sessions/${created.id}`)).data.session.messages).toEqual([]);
+    expect((await api(`/v1/platform/sessions/${created.id}`)).data.session.messages).toEqual([expect.objectContaining({ content: 'First', status: 'interrupted' })]);
     gate.resolve('Late output');
     state.respond = async () => 'Retry result';
     expect((await turn(created.id, 'Retry')).status).toBe(200);
@@ -279,5 +281,42 @@ describe('platform HTTP durable runs', () => {
     const run = await untilRun(created.data.run.id, 'completed');
     expect(run.approval.operator).toBe('reviewer'); expect(state.calls).toHaveLength(1);
     expect((await api(`/v1/platform/runs/${run.id}/actions`, { action: 'approve' }, 'reviewer')).status).toBe(409);
+  });
+});
+
+
+describe('platform HTTP vault', () => {
+  it('searches the authorized full transcript and denies volatile storage', async () => {
+    const alice = await session('alice'); const bob = await session('bob');
+    await turn(alice.id, 'SharedNeedle PRIVATE_ALICE', {}, 'alice');
+    await turn(bob.id, 'SharedNeedle PRIVATE_BOB', {}, 'bob');
+    const result = await api('/v1/platform/vault/search?query=SharedNeedle', undefined, 'alice');
+    expect(result.status).toBe(200); expect(result.data.total).toBe(1);
+    expect(result.data.data[0]).toMatchObject({ sessionId: alice.id });
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_BOB');
+    expect((await api('/v1/platform/vault/search?query=SharedNeedle')).data.total).toBe(2);
+    expect((await api('/v1/platform/vault/settings', { intervalMinutes: 5 }, 'viewer', 'PATCH')).status).toBe(403);
+    expect((await api('/v1/platform/vault/scan', {}, 'viewer')).status).toBe(403);
+    expect((await api('/v1/platform/storage/config', { backend: 'memory' })).status).toBe(400);
+  });
+
+  it('routes private analysis only to local BitNet and persists suggestions with owned sources', async () => {
+    const alice = await session('alice'); const bob = await session('bob');
+    await turn(alice.id, 'Please add explicit tests', {}, 'alice');
+    await turn(bob.id, 'PRIVATE_BOB', {}, 'bob');
+    state.calls = [];
+    state.respond = async () => JSON.stringify({ suggestions: [{ title: 'Testing requirements', reason: 'The request needs acceptance criteria.', prompt: 'State the acceptance criteria before implementation.', sources: [0, 1] }] });
+    expect((await api('/v1/platform/vault/scan', {}, 'alice')).status).toBe(202);
+    await vi.waitFor(async () => expect((await api('/v1/platform/vault', undefined, 'alice')).data.settings.status).toBe('complete'));
+    expect(state.calls).toHaveLength(1); expect(state.calls[0].model).toBe('bitnet/auto');
+    expect(JSON.stringify(state.calls)).not.toContain('PRIVATE_BOB');
+    const status = (await api('/v1/platform/vault', undefined, 'alice')).data;
+    expect(status.settings.authorizationVersion).toBeUndefined();
+    expect(status.suggestions).toHaveLength(1); expect(status.suggestions[0].sources[0].sessionId).toBe(alice.id);
+    expect((await api('/v1/platform/vault/suggestions/' + status.suggestions[0].id, {}, 'bob', 'DELETE')).status).toBe(404);
+    vi.stubEnv('BITNET_URL', 'https://remote.example.test');
+    expect((await api('/v1/platform/vault/scan', {}, 'alice')).status).toBe(202);
+    await vi.waitFor(async () => expect((await api('/v1/platform/vault', undefined, 'alice')).data.settings.status).toBe('error'));
+    expect(state.calls).toHaveLength(1);
   });
 });

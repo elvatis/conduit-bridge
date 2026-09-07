@@ -2,6 +2,25 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - Durable vault and native inference startup
+
+- Default encrypted SQLite imports legacy file state without deleting the source.
+  All platform conversations persist until explicit deletion; legacy ephemeral
+  and TTL settings no longer erase history. Save user requests before inference
+  and retain failed/interrupted output with explicit status.
+- Added a bilingual Vault view, full-message SQLite FTS5 and scoped native tgrep
+  regex search. Local hourly BitNet scans keep a durable cursor and propose
+  evidence-linked drafts with constrained JSON output and current authorization.
+- Configured native Llama inference autostarts with the bridge, reuses healthy
+  external servers without ownership and stops its own child on graceful shutdown.
+- Verified migration of six existing conversations/28 messages; later restart
+  preserved seven conversations/34 messages. Two isolated real native start-stop
+  cycles preserved six messages, scan state and a suggestion; tgrep 1.0.4 passed.
+- Browser checks cover German/English, exact source navigation and corrected
+  Windows UTF-8 labels. Full suite: 547 tests/64 files; production build passes.
+  README and the platform/storage/BitNet guides document behavior and limits.
+
+
 ## 2026-09-07 - Native BitNet without Conda
 
 - Pinned native compatibility patches to LF after reproducing a CRLF patch

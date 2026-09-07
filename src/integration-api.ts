@@ -46,7 +46,7 @@ export class IntegrationApi {
   constructor(private readonly deps: IntegrationApiDependencies) { this.projects = deps.githubProjects ?? new GitHubProjectsProvider(); }
 
   /** Cancel active tool and network operations when the host is stopping. */
-  stop(): void { for (const controller of this.active) controller.abort(); const servers = this.deps.servers ?? localServers; void servers.stop('bitnet').catch(() => {}); void servers.stop('tgrep').catch(() => {}); }
+  async stop(): Promise<void> { for (const controller of this.active) controller.abort(); const servers = this.deps.servers ?? localServers; await Promise.allSettled([servers.stop('bitnet'), servers.stop('tgrep')]); }
 
   /** Handle only the new route families; all other routes remain with their existing owner. */
   async handle(req: IncomingMessage, res: ServerResponse, readBody: () => Promise<string>): Promise<boolean> {

@@ -1,4 +1,6 @@
-> Note (2026-09-07, feat/provider-agent-management): Delivered enterprise-grade multi-agent orchestration and governance platform for Conduit Bridge (v0.9.1). Features 9 repository governance templates, approval gates with audit logging and export, budget meters with daily/monthly spend limits and hard stops, host tool discovery on system PATH, validated workspace registry with filesystem browser, real-time SVG charts for model volume/spend/outcomes/events, and correlation tracking (traceId). All 225 tests passing.
+> Note (2026-09-07): Conversations now always persist locally in encrypted SQLite by default, with legacy file import and no conversation TTL. Vault adds SQLite FTS5/tgrep search and recurring local BitNet prompt suggestions. Configured Llama inference autostarts with Conduit. Windows: 547 tests/64 files, build and two real native start-stop cycles pass; see `docs/validation/vault.md`.
+
+> Note (2026-09-07, feat/provider-agent-management): v0.10.0 work includes the Elvatis Conduit dashboard rebrand, named work routing, native BitNet, tgrep, persistent sessions, scoped skills, provider profiles, governed runs, budgets and diagnostics. The prior orchestration and governance platform remains part of this release.
 
 > Note (2026-09-03, claude-opus-5): Cut v0.9.1. Governance only, zero src changes since v0.9.0 - the running v0.9.0 was already functionally current, so this release ships documentation and gate configuration and nothing else. Also pinned CLAUDE.md as a fourth version site, mutation-proved: reverting its version line turns version-sync red. conduit-vscode pins the same file, and it had gone stale there at 0.9.0 against a package.json of 0.10.1, which is the exact defect this pins against. First release cut by .github/workflows/release.yml in this repository; it publishes no asset by design.
 
@@ -12,7 +14,7 @@
 
 # Status
 
-## Current Version: 0.9.1
+## Current Version: 0.10.0
 
 _Updated: 2026-09-07_
 

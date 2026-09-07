@@ -1,6 +1,6 @@
 # Platform guide
 
-The platform adds Webchat, Memory, Agents & skills, Runs & artifacts, and
+The platform adds Webchat, Vault, Memory, Agents & skills, Runs & artifacts, and
 Storage & diagnostics to the dashboard at
 `http://127.0.0.1:31338/`. It uses the gateway's API, CLI and local model adapters.
 Follow the [README](../../README.md) to start the bridge, then select a connected
@@ -64,10 +64,11 @@ if (!models.some(item => item.id === model)) {
 
 ## Conversations, switching and context
 
-New sessions are ephemeral: their transcripts stay in process memory and
-disappear when the bridge stops. Retention is explicit. A successful send commits
-a user/assistant pair; failure or cancellation does not append half a turn. Only
-one turn can be active per session.
+Every session is retained on this device until explicit deletion. User messages
+are committed before provider execution. Failed requests and received partial
+answers remain stored with a status; they are excluded from future model context.
+Conversation TTL no longer deletes history. Only one turn can be active per
+session. Sending a completed turn advances its revision twice: pending and complete.
 
 ```js
 let { session } = await api('/sessions', { title: 'Design discussion', model });
@@ -86,7 +87,7 @@ reply = await api(`/sessions/${session.id}/messages`, {
 });
 session = reply.session;
 ({ session } = await api(`/sessions/${session.id}`, {
-  retention: 'retained', revision: session.revision, ttlMs: 86_400_000,
+  title: 'Design discussion: Orion', revision: session.revision,
 }, 'PATCH'));
 ```
 
@@ -100,7 +101,8 @@ pointing to a completed assistant message, and current `revision`. Future contex
 uses this summary instead of earlier messages; the transcript remains intact.
 
 For streaming, send the message body with `stream: true` and read
-`text/event-stream`. Each `data:` JSON event has type `delta`, `done` or `error`.
+`text/event-stream`. Each `data:` JSON event has type `saved`, `delta`, `done` or `error`.
+`saved` confirms the user request is durably stored before inference.
 Deltas contain `delta`; done includes the completed turn/session. The helper
 above handles ordinary JSON responses only.
 
@@ -114,8 +116,48 @@ above handles ordinary JSON responses only.
 | Branch for an edit | Same request with `messageId` and `content` branches **before** that message; then send edited content to the returned session |
 
 Branch creation does not send `content`. Retry/edit controls branch and send a
-new turn, preserving the original. Returning retention to `ephemeral` removes
-that session from durable storage; retained branches and exports are independent.
+new turn, preserving the original. Legacy requests for `ephemeral` are normalized
+to `retained`; they never remove stored history. Branches and exports are independent.
+
+## Vault search and prompt scans
+
+| Action | Endpoint |
+| --- | --- |
+| Search words or a phrase | `GET /vault/search?query=acceptance%20criteria&mode=text` |
+| Search a regex with native tgrep/ripgrep | `GET /vault/search?query=acceptance.*criteria&mode=regex` |
+| Inspect schedule, counts and suggestions | `GET /vault` |
+| Change recurring scans | `PATCH /vault/settings` with `enabled` and/or `intervalMinutes` |
+| Start a scan in the background | `POST /vault/scan` with `{}`; returns 202 |
+| Dismiss an owned suggestion | `DELETE /vault/suggestions/:id` |
+
+Search covers the full message text in every authorized conversation, including
+failed requests. It returns source session/message IDs, snippets, match counts
+and the actual search engine. An administrator can search all permitted owners;
+non-admins can search only their own conversations. `limit` defaults to 50 and
+accepts 1 to 200. Text mode treats the query as a literal word or phrase; regex
+mode uses a request-scoped temporary projection, with native timeout/output limits.
+The projection is deleted after the request. See [storage](storage.md) for details.
+
+The default scan interval is 60 minutes; configurable intervals are 5 to 10080
+minutes. Schedules persist and resume while the bridge service runs. The local
+administrator is enrolled at startup and an operator is enrolled when creating
+a conversation or opening Vault. Each scan reads up to six excerpts of 650
+characters from that owner's messages, and the cursor moves through the full
+history over successive scans. It starts a new pass after reaching the end.
+The scan is deliberately sampled, not a claim that every long message was fully
+analyzed. Search always uses the complete message text.
+
+Analysis is fixed to `bitnet/auto` on a loopback `BITNET_URL`, with no tool grants,
+no cloud fallback, a 120-second execution limit and shared admission/accounting.
+The server must already be available. Message text is quoted as untrusted data;
+model output uses native JSON-schema decoding and is validated with real source
+references. Authorization is
+checked before inference and again before saving. Credential changes invalidate
+previous schedules until the current operator saves the settings again.
+Suggestions are encrypted with the platform state, deduplicated, and capped at
+100 per owner. Sources that disappear or become inaccessible hide the suggestion.
+Accepting a suggestion in the UI creates an unsent draft; it never edits a prompt
+library entry or sends a message automatically.
 
 ## Reviewed memory
 
@@ -173,8 +215,8 @@ when resolving instructions. Direct `skillRefs` on a message/run also pin
 
 ## Bounded runs, evidence and approvals
 
-Runs retain input and iteration output in the selected store. Unlike ephemeral
-conversations, they are durable unless the memory backend is selected.
+Runs retain input and iteration output in the selected durable store. Volatile
+stores are available only through explicit test/embedding injection.
 `POST /runs` returns HTTP 202 with an ID before completion. Poll it or open
 Runs & artifacts.
 
@@ -265,20 +307,21 @@ protected copy; migration failure preserves existing configuration and reports
 the storage error. Other legacy gateway stores are not automatically migrated
 or encrypted by the platform backend.
 
-The database decision remains open. Storage & diagnostics supports encrypted file, native SQLite
-and volatile memory. SQLite stores the encrypted snapshot in `platform.sqlite`
-without Prisma. Backend selection takes effect after restart:
+Storage & diagnostics supports encrypted file and native SQLite. SQLite is the
+default and stores the encrypted snapshot in `platform.sqlite` without Prisma.
+Its first default startup imports a legacy encrypted file if no database state
+exists. Later manual backend changes take effect after restart:
 
 1. Stop active conversations/runs. Save `GET /storage/backup` to a protected file;
    it returns the complete encrypted `{format, data}` backup object.
-2. Select `POST /storage/config` with `{ "backend": "sqlite" }` (or `file`/`memory`),
+2. Select `POST /storage/config` with `{ "backend": "sqlite" }` (or `file`),
    then restart.
 3. POST the full backup object to `/storage/restore` and verify restored records.
    Restore replaces platform state, so export destination data first. Decryption
    requires matching key configuration.
 
-`GET /storage` reports the active backend/readiness. Memory is deliberately
-volatile, including records otherwise called retained. Backup/restore excludes
+`GET /storage` reports the active backend/readiness. The volatile memory adapter
+is limited to injected test/embedding stores and cannot be selected in production. Backup/restore excludes
 external provider logins, vault/key material, repository files and legacy stores.
 
 ## Embedding with a supplied Prisma client

@@ -10,7 +10,7 @@ evidence.
 | Document | Use it for |
 | --- | --- |
 | [Getting started](guides/getting-started.md) | Installation, provider connection, dashboard, and first OpenAI-compatible request. |
-| [Platform guide](guides/platform.md) | Conversations, memories, skills, profiles, workspaces, and bounded runs. |
+| [Platform guide](guides/platform.md) | Durable conversations, searchable vault, recurring prompt scans, memories, skills, profiles, and bounded runs. |
 | [Storage and backups](guides/storage.md) | Runtime files, encrypted file storage, SQLite, backup/restore, and `CONDUIT_HOME`. |
 | [BitNet on Windows](guides/bitnet.md) | Local BitNet CPU inference, native build, configuration, and lifecycle. |
 | [tgrep code search](guides/tgrep.md) | Local code indexing, daemon operation, ripgrep fallback, and limits. |
@@ -36,6 +36,9 @@ evidence.
 | [Security policy](../SECURITY.md) | Supported versions, credential handling, and disclosure. |
 
 ## Validation evidence
+
+[Vault and persistence validation](validation/vault.md) records native restart,
+SQLite migration, tgrep search and local prompt-scan checks.
 
 These reports record point-in-time results. They are useful for reproduction and
 known limits, but they do not replace current CI or a validation run on your own

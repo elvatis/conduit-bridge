@@ -46,7 +46,7 @@ export const TOOLTIP_REGISTRY = {
   'session.title': { label: 'Conversation title', help: 'A local title used to find this conversation. Changing it does not alter the transcript.' },
   'session.search': { label: 'Conversation search', help: 'Filter the conversation list by title without changing stored messages.' },
   'session.profileId': { label: 'Provider profile', help: 'Use a named credential and execution profile. Its provider must match the selected model.' },
-  'session.retention': { label: 'Conversation retention', help: 'Ephemeral text lasts until the service stops. Retained conversations are saved locally in platform storage.' },
+  'session.retention': { label: 'Conversation retention', help: 'Conversations are always saved locally until explicit deletion. No automatic expiry.' },
   'session.workspaceId': { label: 'Conversation workspace', help: 'Set the workspace scope when creating a conversation. An existing conversation keeps its original scope.' },
   'session.agentId': { label: 'Agent persona', help: 'Attach the selected agent instructions and pinned skill versions without granting extra tool permissions.' },
   'session.contextTokens': { label: 'Context token budget', help: 'Budget for input plus output. Older turns may be omitted; inspect context to see what will be included.' },
