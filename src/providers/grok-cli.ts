@@ -11,11 +11,13 @@ import type {
 } from '../types.js';
 import { logger } from '../logger.js';
 import {
-  resolveExecutable,
+  diagnoseCliExecutable,
+  resolveCliExecutable,
   runCli,
   flattenMessages,
   agentCwd,
   DEFAULT_CLI_TIMEOUT_MS,
+  CLI_AUTH_ENV_KEYS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
 import { cliPermissionArgs } from '../cli-mode.js';
@@ -82,6 +84,7 @@ function toDefinition(id: string): ModelDefinition {
 
 export class GrokCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-grok';
+  private readonly _cfg: BridgeConfig;
 
   private _discovered: ModelDefinition[] | null = null;
   private _attemptedAt = 0;
@@ -95,7 +98,15 @@ export class GrokCliProvider implements ProviderAdapter {
     return catalogFor('cli-grok').map(m => toDefinition(m.id));
   }
 
-  constructor(_cfg: BridgeConfig) {}
+  constructor(cfg: BridgeConfig) { this._cfg = cfg; }
+
+  private executable() {
+    return resolveCliExecutable(this._cfg, 'cli-grok', ['grok']);
+  }
+
+  diagnostics() {
+    return diagnoseCliExecutable(this._cfg, 'cli-grok', ['grok']);
+  }
 
   /**
    * Ask grok which models it serves. Reached by ProviderRegistry.refreshApiModels
@@ -116,7 +127,7 @@ export class GrokCliProvider implements ProviderAdapter {
   private async _discover(): Promise<number> {
     // A pinned catalog is the user's explicit answer; do not overwrite it.
     if (isPinned('cli-grok')) return catalogFor('cli-grok').length;
-    const binPath = resolveExecutable('grok');
+    const binPath = this.executable().path;
     if (!binPath) return this._discovered?.length ?? 0;
     try {
       const result = await runCli({
@@ -124,6 +135,7 @@ export class GrokCliProvider implements ProviderAdapter {
         args: ['models'],
         timeoutMs: DISCOVERY_TIMEOUT_MS,
         label: 'cli-grok/models',
+        envKeys: CLI_AUTH_ENV_KEYS['cli-grok'],
         log: msg => logger.info(msg),
       });
       if (result.exitCode !== 0) {
@@ -146,7 +158,8 @@ export class GrokCliProvider implements ProviderAdapter {
   }
 
   get credentialSource(): string {
-    return cliSession('grok', ['grok']).source;
+    const path = this.executable().path;
+    return cliSession('grok', path ? [path] : []).source;
   }
 
   ownsModel(modelId: string): boolean {
@@ -154,13 +167,15 @@ export class GrokCliProvider implements ProviderAdapter {
   }
 
   async checkSession(): Promise<boolean> {
-    return cliSession('grok', ['grok']).authenticated;
+    const path = this.executable().path;
+    return cliSession('grok', path ? [path] : []).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const session = cliSession('grok', ['grok']);
+    const executable = this.executable();
+    const session = cliSession('grok', executable.path ? [executable.path] : []);
     if (!session.installed) {
-      logger.warn('[cli-grok] `grok` CLI not found on PATH. Install it and run `grok login`.');
+      logger.warn(`[cli-grok] ${executable.error ?? '`grok` CLI not found on PATH. Install it and run `grok login`.'}`);
       return false;
     }
     if (!session.authenticated) {
@@ -191,9 +206,10 @@ export class GrokCliProvider implements ProviderAdapter {
   }
 
   private async _run(req: ChatRequest): Promise<string> {
-    const binPath = resolveExecutable('grok');
+    const executable = this.executable();
+    const binPath = executable.path;
     if (!binPath) {
-      throw new Error('grok CLI not found on PATH. Install the Grok CLI and run `grok login`.');
+      throw new Error(`grok CLI unavailable: ${executable.error ?? 'not found on PATH'}`);
     }
 
     const model = this._toApiModel(req.model);
@@ -223,6 +239,7 @@ export class GrokCliProvider implements ProviderAdapter {
         args,
         timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
         cwd: agentCwd(req),
+        envKeys: CLI_AUTH_ENV_KEYS['cli-grok'],
         label: 'cli-grok',
         log: msg => logger.info(msg),
         signal: req.signal,

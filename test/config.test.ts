@@ -21,8 +21,17 @@ vi.mock('node:os', async (importOriginal) => {
 const TEST_HOME = join(tmpdir(), 'conduit-bridge-test-home');
 const CONFIG_DIR = join(TEST_HOME, '.conduit');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+const TEST_VAULT_KEY = Buffer.alloc(32, 0x31).toString('base64');
+const PREVIOUS_VAULT_KEY = process.env.CONDUIT_VAULT_KEY;
 
-import { loadConfig, saveConfig, parseConfigValue, runtimeDir, bearerAuthorization } from '../src/config.js';
+import {
+  loadConfig,
+  saveConfig,
+  parseConfigValue,
+  runtimeDir,
+  bearerAuthorization,
+  secureStorageStatus,
+} from '../src/config.js';
 
 function cleanHome() {
   rmSync(TEST_HOME, { recursive: true, force: true });
@@ -31,10 +40,13 @@ function cleanHome() {
 describe('config', () => {
   beforeEach(() => {
     cleanHome();
+    process.env.CONDUIT_VAULT_KEY = TEST_VAULT_KEY;
   });
 
   afterAll(() => {
     cleanHome();
+    if (PREVIOUS_VAULT_KEY === undefined) delete process.env.CONDUIT_VAULT_KEY;
+    else process.env.CONDUIT_VAULT_KEY = PREVIOUS_VAULT_KEY;
   });
 
   describe('loadConfig', () => {
@@ -99,10 +111,49 @@ describe('config', () => {
       expect(cfg.port).toBe(7000);
     });
 
-    it('persists nested apiKeys', () => {
+    it('stores API credentials by encrypted vault reference', () => {
       saveConfig({ apiKeys: { 'claude-api': 'sk-test-123' } });
       const cfg = loadConfig();
       expect(cfg.apiKeys['claude-api']).toBe('sk-test-123');
+      const configText = readFileSync(CONFIG_FILE, 'utf8');
+      const vaultText = readFileSync(join(CONFIG_DIR, 'secrets.vault'), 'utf8');
+      expect(configText).not.toContain('sk-test-123');
+      expect(configText).toContain('vault:v1:');
+      expect(vaultText).not.toContain('sk-test-123');
+    });
+
+    it('migrates legacy plaintext only after verified encrypted storage', () => {
+      saveConfig({ port: 4242 });
+      writeFileSync(CONFIG_FILE, JSON.stringify({
+        port: 4242,
+        apiKeys: { 'claude-api': 'legacy-test-value' },
+      }));
+      expect(loadConfig().apiKeys['claude-api']).toBe('legacy-test-value');
+      const migrated = readFileSync(CONFIG_FILE, 'utf8');
+      expect(migrated).not.toContain('legacy-test-value');
+      expect(migrated).toContain('vault:v1:');
+    });
+
+    it('preserves a legacy file exactly when secure migration is unavailable', () => {
+      saveConfig({ port: 4242 });
+      const legacy = JSON.stringify({ apiKeys: { 'claude-api': 'legacy-preserved' } }, null, 2);
+      writeFileSync(CONFIG_FILE, legacy);
+      process.env.CONDUIT_VAULT_KEY = 'invalid';
+      const loaded = loadConfig();
+      expect(loaded.apiKeys['claude-api']).toBe('legacy-preserved');
+      expect(readFileSync(CONFIG_FILE, 'utf8')).toBe(legacy);
+      expect(secureStorageStatus()).toMatchObject({ available: false });
+      process.env.CONDUIT_VAULT_KEY = TEST_VAULT_KEY;
+    });
+
+    it('fails a new credential write instead of persisting plaintext', () => {
+      saveConfig({ port: 4242 });
+      const before = readFileSync(CONFIG_FILE, 'utf8');
+      process.env.CONDUIT_VAULT_KEY = 'invalid';
+      expect(() => saveConfig({ apiKeys: { 'claude-api': 'must-not-persist' } })).toThrow();
+      expect(readFileSync(CONFIG_FILE, 'utf8')).toBe(before);
+      expect(readFileSync(CONFIG_FILE, 'utf8')).not.toContain('must-not-persist');
+      process.env.CONDUIT_VAULT_KEY = TEST_VAULT_KEY;
     });
   });
 

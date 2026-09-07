@@ -4,12 +4,11 @@ Current version: **v0.9.1**
 
 _Updated: 2026-09-07_
 
-1. Review the local fixes for existing PR #117 on `feat/provider-agent-management`; see `docs/PR117-VALIDATION.md`. Build and 281 tests pass. Three real Claude Sonnet 5 pipeline demos passed and the local service is running.
-2. Publish the reviewed branch changes to PR #117 and verify hosted CI before merge. The earlier review report is already appended to the PR description; the new fixes and validation documents are still local.
-3. Resolve the local Codex executable mismatch: npm CLI 0.152.1 cannot parse the newer desktop feature configuration, while native 0.153.4 can. Preserve user configuration; consider executable selection and explicit config isolation as follow-ups.
-4. Use `docs/PROVIDER-AGENT-ROADMAP.md` to plan SQLite state storage, protected credential references, session webchat, scoped memory, versioned skills and bounded repair loops. The sibling `ai.elvatis.com` has useful session/memory/prompt interfaces; no new database or retained-chat implementation is included here.
-5. Evaluate cross-project integration with `local-model-tooling`, then plan the next version release after merge. No release or version bump was made in this validation pass.
-
+1. Review PR #117 on `feat/provider-agent-management`, including the provider/agent platform and `docs/PLATFORM-GUIDE.md`. Storage remains selectable: encrypted file default, native SQLite, supplied-client Prisma adapter or volatile memory.
+2. Verify hosted CI on the synced branch before merge. Local final validation: Windows 379/379 tests and build; Linux full suite/build plus final UI delta pass (378 pass, one Windows-only DPAPI skip). See `docs/PLATFORM-VALIDATION.md`.
+3. Inspect the retained `Four-provider handoff ce0f4121` conversation and completed runs in the running local dashboard. All 12 real Claude, Codex, agy/Gemini and Grok matrix cases passed, including context handoff, bounded loops and physical file verification.
+4. Choose the deployment storage backend when operational requirements are known. Real Prisma deployment, live Linux Secret Service integration and Linux CLI authentication remain explicit environment-specific validation work. Do not treat adapter contract tests as production database evidence.
+5. Evaluate cross-project integration and the next version release after review and merge. No release, merge or version bump is part of this pass.
 Do not reintroduce `web-*`, Playwright, cookie extraction, VNC components, or
 additional user ports.
 

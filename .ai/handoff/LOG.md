@@ -117,3 +117,16 @@ _Reverse chronological._
   completed successfully.
 - Resolved the new CodeQL HTML-filtering alert in the dashboard syntax test by
   matching script tags case-insensitively.
+
+## 2026-09-07: provider and agent platform implementation
+
+Implemented encrypted pluggable state, cross-platform vault keys, canonical
+retained/ephemeral sessions, reviewed scoped memory, pinned skill/prompt catalog,
+agent definitions, durable bounded runs, artifacts/evaluations, scoped operators,
+provider profiles and five installable coding pipelines. The production database
+choice remains open. Fixed loop-step snapshot bookkeeping and Windows Codex
+sandbox selection after real failures, then reran all four providers successfully.
+Windows 379 tests/build pass; Linux full suite/build plus final UI delta pass.
+All 12 real Windows matrix cases pass; see docs/PLATFORM-VALIDATION.md for evidence
+and explicit Prisma/Linux Secret Service limitations. Service rebuilt and running.
+The user authorized syncing feat/provider-agent-management; no merge or release.

@@ -16,26 +16,27 @@
 
 _Updated: 2026-09-07_
 
-## PR #117 correction and validation pass
+## PR #117 provider and agent platform
 
-- Local branch fixes cover Windows CLI argument injection, effective provider and
-  repository policy enforcement, workspace boundaries, shared budget accounting,
-  asynchronous pipeline concurrency, actual approval execution, DAG validation,
-  cancellation, deadlines and output limits.
-- Pipeline disk history now retains summaries only. Browser reload recovers live
-  context in the same service; service restart interrupts running and paused work.
-- Dashboard analytics schemas, responsive forms, approval/run recovery and activity
-  metadata are corrected. `.env.example` now accurately separates API keys from CLI login.
-- Final full suite: 281 tests across 24 files. Typecheck/build pass. Three real
-  Claude Sonnet 5 demos executed seven steps successfully, including file creation,
-  read-only verification, explicit approval and a concurrent debate with synthesis.
-- Service rebuilt and running locally. Codex inference remains limited by the
-  installed npm CLI's incompatible desktop feature configuration; see
-  `docs/PR117-VALIDATION.md` for measured evidence and limits.
-- The original review was appended to PR #117. Fixes remain local for review and
-  publishing. `docs/PROVIDER-AGENT-ROADMAP.md` proposes storage/session/memory/skills
-  follow-ups; those features are not implemented by this pass.
-
+- Implemented portable session Webchat, scoped reviewed memory, versioned skills
+  and prompts, agent attachments, bounded runs, artifacts and evaluations.
+- Added encrypted transactional state with file, SQLite, injected Prisma and
+  volatile memory backends. Database selection stays open. Windows DPAPI,
+  Linux Secret Service and explicit headless keys protect the vault master key.
+- Added scoped operator authentication, revocation-aware queued execution,
+  named provider profiles, isolated credentials, CLI diagnostics and executable
+  selection. Codex Windows workspace-write execution now passes the real test.
+- Final Windows suite: 379 tests in 35 files pass; typecheck and build pass.
+  Linux: full suite/build pass, then final UI delta 18/18 pass; combined coverage
+  378 pass and one Windows-only DPAPI skip. Live Linux Secret Service untested.
+- All 12 real Windows provider matrix cases pass across Claude, Codex, agy/Gemini
+  and Grok: shared conversation, two-iteration loop, physical file write/read.
+  The earlier three Claude approval/debate examples also passed.
+- Browser QA verifies retention across service restart, memory approval, CLI
+  diagnostics, catalog rendering and narrow-screen layout. The service is running.
+- Branch sync is authorized. Review `docs/PLATFORM-GUIDE.md`, implementation status
+  in `docs/PROVIDER-AGENT-ROADMAP.md`, and `docs/PLATFORM-VALIDATION.md` before merge.
+  No version bump, release or merge was performed.
 ## Enterprise Multi-Agent Orchestration & Governance Platform (feat/provider-agent-management)
 
 1. **Repository Governance & Pipeline Templates**:

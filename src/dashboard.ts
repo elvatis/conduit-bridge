@@ -1,3 +1,5 @@
+import { PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
+
 const SHARED_STYLE = `
   :root {
     color-scheme: dark;
@@ -785,6 +787,7 @@ const SHARED_STYLE = `
   .tool-card:hover { border-color: var(--line-2); }
   .tool-card-head { display: flex; justify-content: space-between; align-items: center; }
 
+  ${PLATFORM_STYLE}
   #menu-toggle { display: none; }
   .pipeline-run-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 12px; }
   .pipeline-header, .step-result-header, .checkpoint-banner > div, .chart-header { flex-wrap: wrap; gap: 8px; }
@@ -833,6 +836,10 @@ export const DASHBOARD_HTML = `<!doctype html>
       <button class="active" data-section="overview" title="Overview">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
         <span class="nav-label">Overview</span>
+      </button>
+      <button data-section="platform" title="Conversation & agent workspace">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
+        <span class="nav-label">Webchat & agents</span>
       </button>
       <button data-section="playground" title="Playground">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg>
@@ -927,6 +934,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     </nav>
 
     <p id="notice" role="status"></p>
+    ${PLATFORM_HTML}
 
     <!-- Overview Section -->
     <div id="overview-section" class="page-section active">
@@ -1491,6 +1499,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   // Navigation visibility customization
   const NAV_SECTIONS = [
     { key: 'overview', label: 'Overview' },
+    { key: 'platform', label: 'Webchat & agents' },
     { key: 'playground', label: 'Playground' },
     { key: 'api-providers', label: 'API providers' },
     { key: 'cli-providers', label: 'CLI providers' },
@@ -1512,9 +1521,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   const PRESETS = {
     all: NAV_SECTIONS.map(s => s.key),
-    developer: ['overview', 'playground', 'cli-providers', 'agent-controls', 'pipelines', 'workspaces', 'models', 'integration', 'activity', 'help'],
-    simple: ['overview', 'playground', 'pipelines', 'models', 'help'],
-    governance: ['overview', 'api-providers', 'agent-controls', 'pipelines', 'governance', 'budgets', 'workspaces', 'usage', 'activity', 'settings'],
+    developer: ['overview', 'platform', 'playground', 'cli-providers', 'agent-controls', 'pipelines', 'workspaces', 'models', 'integration', 'activity', 'help'],
+    simple: ['overview', 'platform', 'playground', 'pipelines', 'models', 'help'],
+    governance: ['overview', 'platform', 'api-providers', 'agent-controls', 'pipelines', 'governance', 'budgets', 'workspaces', 'usage', 'activity', 'settings'],
   };
 
   function getVisibleNavs() {
@@ -1577,6 +1586,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   // Navigation section toggles
   const sectionIds = {
     overview: 'overview-section',
+    platform: 'platform-section',
     playground: 'playground-section',
     'api-providers': 'api-providers-section',
     'cli-providers': 'cli-providers-section',
@@ -1607,6 +1617,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       button.classList.toggle('active', button.dataset.section === name);
     });
     sidebar.classList.remove('open');
+    if (name === 'platform') platformRefresh().catch(error => pfStatus(error.message, true));
     scheduleLiveRefresh();
   }
 
@@ -2931,6 +2942,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       }
       if (activeSection === 'activity') jobs.push(request('/v1/activity').then(renderActivity));
       if (activeSection === 'budgets') jobs.push(request('/v1/budgets').then(renderBudgets));
+      if (activeSection === 'platform') jobs.push(platformRefresh());
       const outcomes = await Promise.allSettled(jobs);
       const failure = outcomes.find(result => result.status === 'rejected');
       if (failure) $('notice').textContent = 'Live update failed: ' + failure.reason.message;
@@ -2941,6 +2953,15 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     refreshInFlight = true;
     $('notice').textContent = 'Refreshing...';
     try {
+      const identity = await request('/v1/platform/me');
+      pfState.operator = identity.operator;
+      if (identity.operator?.source === 'operator-token') {
+        $('side-runtime').textContent = 'Workspace access · ' + identity.operator.role;
+        showSection('platform');
+        await platformRefresh();
+        $('notice').textContent = 'Workspace loaded for ' + (identity.operator.displayName || identity.operator.operatorId);
+        return;
+      }
       const [
         status, modelData, capabilityData, metricData, settings, activity,
         orchestrator, agentPolicyData, toolsData, pipelinesData, runsData,
@@ -2991,6 +3012,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       renderBudgets(budgetData);
       renderWorkspaces(wsData.data || []);
       renderAnalyticsCharts(analyticsData);
+      platformSyncModels();
 
       $('notice').textContent = 'Updated ' + new Date().toLocaleTimeString();
     } catch (error) {
@@ -3291,7 +3313,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     ws.onmessage = event => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'activity') scheduleLiveRefresh();
+        if (data.type === 'activity' || data.type === 'platform_run') scheduleLiveRefresh();
       } catch {}
     };
     ws.onerror = () => {
@@ -3303,6 +3325,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     };
   }
 
+  ${PLATFORM_SCRIPT}
   refresh();
   connectEvents();
   setInterval(refreshLive, 15000);

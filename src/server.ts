@@ -4,7 +4,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { BridgeConfig, ProviderName, RepositoryConfig } from './types.js';
+import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
@@ -12,15 +12,19 @@ import { parseCliRunMode, agentModeCwdError, KNOWN_TOOLS, discoverSystemTools, n
 import { DASHBOARD_HTML, HELP_HTML } from './dashboard.js';
 import { MetricsStore } from './metrics.js';
 import { MAX_PIPELINE_PROMPT_CHARS, PipelineStore, runPipeline, type PipelineDefinition, type PipelineRun } from './pipelines.js';
-import { saveConfig } from './config.js';
+import { saveConfig, resolveSecretReference } from './config.js';
 import { ActivityLog } from './activity.js';
 import { DEFAULT_ORCHESTRATOR, type OrchestratorConfig, type OrchestrationStrategy } from './orchestrator.js';
 import { RequestLimiter } from './limits.js';
 import { RunHistory } from './run-history.js';
 import { BudgetExceededError, BudgetManager } from './budget.js';
-import { WorkspaceManager } from './workspaces.js';
+import { WorkspaceManager, canonicalDirectory, isPathWithin } from './workspaces.js';
 import { GovernanceManager } from './governance.js';
-import { executeWithAccounting, openExecution } from './usage.js';
+import { executeWithAccounting, openExecution, abortable } from './usage.js';
+import { PlatformApi, type PlatformExecutionContext } from './platform-api.js';
+import type { TransactionalStateStore } from './storage.js';
+import { PlatformContentError } from './platform-content.js';
+import { requirePlatformCapability } from './platform-auth.js';
 
 const CLI_PROVIDERS = new Set<ProviderName>(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok']);
 const MAX_REQUEST_BODY_BYTES = 1_048_576;
@@ -53,12 +57,14 @@ export class BridgeServer {
   private _pipelineExecutions = new Map<string, Promise<unknown>>();
   private _eventSockets = new Set<Duplex>();
   private _unsubscribeActivity: (() => void) | null = null;
+  private _platform: PlatformApi;
 
   constructor(cfg: BridgeConfig, options?: {
     pipelineStore?: PipelineStore;
     budgetManager?: BudgetManager;
     workspaceManager?: WorkspaceManager;
     governanceManager?: GovernanceManager;
+    platformStore?: TransactionalStateStore;
   }) {
     this._cfg = cfg;
     this._registry = new ProviderRegistry(cfg);
@@ -67,6 +73,25 @@ export class BridgeServer {
     this._budgetManager = options?.budgetManager ?? new BudgetManager(cfg.budget);
     this._workspaceManager = options?.workspaceManager ?? new WorkspaceManager();
     this._governanceManager = options?.governanceManager ?? new GovernanceManager();
+    this._platform = new PlatformApi({
+      cfg: () => this._cfg,
+      models: () => this._registry.allModels(),
+      providerForModel: model => this._registry.providerForModel(model)?.name,
+      workspaces: () => this._workspaceManager.listWorkspaces(),
+      resolveWorkspace: (id, cwd, repository) => this._platformWorkspace(id, cwd, repository),
+      execute: (request, context) => this._platformExecute(request, context),
+      diagnostics: async () => Promise.all(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok'].map(async name => {
+        const provider = this._registry.get(name as ProviderName);
+        return provider?.diagnostics ? provider.diagnostics() : { provider: name, error: 'Diagnostics unavailable' };
+      })),
+      acquire: () => { const limits = this._cfg.rateLimit ?? { perMinute: 60, maxConcurrent: 16 }; const lease = this._limiter.acquire('platform', limits.perMinute, limits.maxConcurrent); return lease.ok ? lease.release : undefined; },
+      begin: run => this._budgetManager.beginRun(run.id, { maxCostUsd: run.input.maxCostUsd }),
+      finish: run => this._budgetManager.finishRun(run.id),
+      spend: id => this._budgetManager.getRunSpend(id),
+      event: event => this._broadcast(event),
+      saveConfig: cfg => saveConfig(cfg),
+      installPipeline: definition => this._pipelineStore.savePipeline(definition as PipelineDefinition),
+    }, options?.platformStore);
   }
 
   get registry(): ProviderRegistry {
@@ -90,6 +115,7 @@ export class BridgeServer {
   }
 
   async start(): Promise<void> {
+    await this._platform.start();
     this._server = createServer((req, res) => {
       this._handleRequest(req, res).catch(err => {
         logger.error(`Unhandled request error: ${err.message}`);
@@ -120,6 +146,7 @@ export class BridgeServer {
 
   async stop(): Promise<void> {
     if (this._server) {
+      await this._platform.stop();
       for (const controller of this._pipelineControllers.values()) controller.abort(new Error('Bridge is stopping'));
       await Promise.allSettled(this._pipelineExecutions.values());
       this._pipelineControllers.clear();
@@ -342,6 +369,81 @@ export class BridgeServer {
     return latestRun;
   }
 
+  private _platformWorkspace(id?: string, cwd?: string, repositoryId?: string): { cwd?: string; workspaceId?: string; repository?: string; requiresApproval?: boolean; maxCostUsd?: number } {
+    const workspaces = this._workspaceManager.listWorkspaces();
+    const workspace = id ? workspaces.find(w => w.id === id) : undefined;
+    if (id && !workspace) throw new PlatformContentError('Workspace is not registered', 400);
+    const repository = repositoryId ? this._governanceManager.getRepository(repositoryId) : undefined;
+    if (repositoryId && !repository) throw new PlatformContentError('Repository is not registered', 400);
+    const requested = cwd || workspace?.path || repository?.defaultWorkspace || repository?.path;
+    const resolved = this._workspaceManager.resolveWorkingDirectory(requested, repository ? [repository.path] : [], !repository);
+    if (!resolved.ok || !resolved.path) throw new PlatformContentError(resolved.error || 'Working directory is unavailable', 403);
+    const selected = workspace || workspaces.filter(w => { const root = canonicalDirectory(w.path); return root && isPathWithin(root, resolved.path!); }).sort((a, b) => b.path.length - a.path.length)[0];
+    if (!selected) throw new PlatformContentError('Register this repository as a workspace before platform execution', 403);
+    const root = canonicalDirectory(selected.path);
+    if (!root || !isPathWithin(root, resolved.path)) throw new PlatformContentError('Working directory is outside the selected workspace', 403);
+    const effectiveRepo = repository || this._governanceManager.findRepositoryForPath(resolved.path);
+    return { cwd: resolved.path, workspaceId: selected.id, repository: effectiveRepo?.id, requiresApproval: Boolean(effectiveRepo?.overrides?.requireApproval || effectiveRepo?.overrides?.mandatoryGates?.length), maxCostUsd: effectiveRepo?.overrides?.maxCostPerRunUsd };
+  }
+
+  private async _platformExecute(original: ChatRequest, context: PlatformExecutionContext): Promise<string> {
+    const workspace = (context.workspaceId && context.workspaceId !== 'default') || original.cwd || original.mode === 'agent'
+      ? this._platformWorkspace(context.workspaceId === 'default' ? undefined : context.workspaceId, original.cwd, context.repository) : {};
+    requirePlatformCapability(context.operator, 'operate', workspace.workspaceId);
+    const repository = workspace.repository ? this._governanceManager.getRepository(workspace.repository) : undefined;
+    let registry = this._registry;
+    if (context.profile) {
+      const profile = context.profile;
+      const profileConfig: BridgeConfig = { ...this._cfg, apiKeys: { ...this._cfg.apiKeys }, cliExecutables: { ...this._cfg.cliExecutables } };
+      if (profile.credentialRef) {
+        const secret = resolveSecretReference(profile.credentialRef, this._cfg.securityStorage);
+        if (!secret) throw new PlatformContentError('Profile credential is unavailable', 503);
+        profileConfig.apiKeys[profile.provider as keyof BridgeConfig['apiKeys']] = secret;
+      }
+      if (profile.cliExecutable) profileConfig.cliExecutables![profile.provider as keyof NonNullable<BridgeConfig['cliExecutables']>] = profile.cliExecutable;
+      registry = new ProviderRegistry(profileConfig);
+    }
+    const provider = registry.providerForModel(original.model);
+    if (!provider) throw new PlatformContentError('Unknown provider/model', 400);
+    if (context.profile && context.profile.provider !== provider.name) throw new PlatformContentError('Profile provider mismatch', 403);
+    const policy = this._cfg.agentPolicies?.[provider.name];
+    const mode = original.mode || 'chat';
+    if (mode === 'agent' && (policy?.agentEnabled === false || repository?.overrides?.agentEnabled === false)) throw new PlatformContentError('Agent mode is disabled by provider or repository policy', 403);
+    if (mode === 'agent' && workspace.requiresApproval) throw new PlatformContentError('This repository requires governed pipeline execution. Use its assigned pipeline and required gates.', 403);
+    const request = { ...original, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }) };
+    const cwdError = agentModeCwdError(mode, request.cwd); if (cwdError) throw new PlatformContentError(cwdError, 400);
+    if (!await provider.checkSession()) throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
+    const runId = context.runId || `chat-${randomUUID()}`;
+    let execution: ReturnType<typeof openExecution> | undefined;
+    let output = '';
+    const started = Date.now();
+    try {
+      this._budgetManager.beginRun(runId, { maxCostUsd: repository?.overrides?.maxCostPerRunUsd });
+      execution = openExecution(provider, request, { budgetManager: this._budgetManager, metrics: this._metrics, runId });
+      if (context.onDelta) {
+        const iterator = provider.chatStream(execution.request);
+        try {
+          for (;;) {
+            const chunk = await abortable(iterator.next(), execution.request.signal);
+            if (chunk.done) break;
+            if (output.length + chunk.value.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+            output += chunk.value; context.onDelta(chunk.value);
+          }
+        } finally { if (execution.request.signal?.aborted) void iterator.return(undefined).catch(() => {}); }
+      } else {
+        output = await abortable(provider.chat(execution.request), execution.request.signal);
+        if (output.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+      }
+      execution.finish(output);
+      this._activity.add('success', 'platform', 'Model request completed', { runId, provider: provider.name, model: original.model, durationMs: Date.now() - started, status: 'completed' });
+      return output;
+    } catch (error) {
+      execution?.finish(output, error);
+      this._activity.add('error', 'platform', 'Model request failed', { runId, provider: provider.name, model: original.model, durationMs: Date.now() - started, status: 'failed' });
+      throw error;
+    } finally { execution?.dispose(); if (!context.runId) this._budgetManager.finishRun(runId); }
+  }
+
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? '/';
     const path = url.split('?')[0];
@@ -393,6 +495,9 @@ export class BridgeServer {
       json(res, 403, { error: { message: 'Cross-site requests are not accepted for this endpoint.', type: 'forbidden' } });
       return;
     }
+
+    // Scoped platform tokens authorize only the platform routes, not legacy admin APIs.
+    if (await this._platform.handle(req, res, () => readBody(req))) return;
 
     // ── Optional bearer-token auth ─────────────────────────────────────────────
     // When BridgeConfig.authToken is set, every endpoint below requires a

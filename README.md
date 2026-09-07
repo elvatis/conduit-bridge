@@ -50,6 +50,9 @@ Try the [short pipeline examples](docs/PIPELINE-EXAMPLES.md): an agent file-writ
 and peer-verification chain, an approval checkpoint, and a parallel debate.
 The runnable examples include assertions and retain a local results report.
 
+Use the [Platform guide](docs/PLATFORM-GUIDE.md) for Webchat, reviewed memory,
+versioned skills, bounded agent runs, provider profiles and encrypted storage.
+
 Check the running bridge:
 
 ```bash
@@ -72,8 +75,10 @@ provided with:
 | `perplexity-api` | `PERPLEXITY_API_KEY` |
 
 The bridge reports only the credential source, never the credential value.
-Values stored through Settings live in `%USERPROFILE%\.conduit\config.json`
-on Windows or `~/.conduit/config.json` on Linux.
+Values stored through Settings use the encrypted credential vault; configuration
+retains references. The runtime directory is `%USERPROFILE%\.conduit` on Windows
+or `~/.conduit` on Linux. See [storage and key setup](docs/PLATFORM-GUIDE.md#encryption-storage-selection-and-backups)
+for desktop protection, headless keys and legacy credential migration.
 
 ## CLI providers
 

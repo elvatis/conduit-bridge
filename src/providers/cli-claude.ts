@@ -7,10 +7,12 @@ import type {
 } from '../types.js';
 import { logger } from '../logger.js';
 import {
-  resolveExecutable,
+  diagnoseCliExecutable,
+  resolveCliExecutable,
   runCli,
   flattenMessages,
   agentCwd,
+  CLI_AUTH_ENV_KEYS,
   DEFAULT_CLI_TIMEOUT_MS,
 } from './cli-util.js';
 import { cliSession } from './cli-auth.js';
@@ -27,6 +29,7 @@ const BIN = 'claude';
 
 export class ClaudeCliProvider implements ProviderAdapter {
   readonly name: ProviderName = 'cli-claude';
+  private readonly _cfg: BridgeConfig;
 
   /**
    * `claude` has no model-listing subcommand, so there is nothing to discover.
@@ -54,10 +57,19 @@ export class ClaudeCliProvider implements ProviderAdapter {
     ];
   }
 
-  constructor(_cfg: BridgeConfig) {}
+  constructor(cfg: BridgeConfig) { this._cfg = cfg; }
+
+  private executable() {
+    return resolveCliExecutable(this._cfg, 'cli-claude', [BIN]);
+  }
+
+  diagnostics() {
+    return diagnoseCliExecutable(this._cfg, 'cli-claude', [BIN]);
+  }
 
   get credentialSource(): string {
-    return cliSession('claude', [BIN]).source;
+    const path = this.executable().path;
+    return cliSession('claude', path ? [path] : []).source;
   }
 
   ownsModel(modelId: string): boolean {
@@ -65,14 +77,16 @@ export class ClaudeCliProvider implements ProviderAdapter {
   }
 
   async checkSession(): Promise<boolean> {
-    return cliSession('claude', [BIN]).authenticated;
+    const path = this.executable().path;
+    return cliSession('claude', path ? [path] : []).authenticated;
   }
 
   async ensureConnected(): Promise<boolean> {
-    const session = cliSession('claude', [BIN]);
+    const executable = this.executable();
+    const session = cliSession('claude', executable.path ? [executable.path] : []);
     if (!session.installed) {
       logger.warn(
-        '[cli-claude] `claude` not found on PATH. Install with: npm i -g @anthropic-ai/claude-code',
+        `[cli-claude] ${executable.error ?? '`claude` not found on PATH. Install with: npm i -g @anthropic-ai/claude-code'}`,
       );
       return false;
     }
@@ -99,10 +113,11 @@ export class ClaudeCliProvider implements ProviderAdapter {
   }
 
   private async _run(req: ChatRequest): Promise<string> {
-    const binPath = resolveExecutable(BIN);
+    const executable = this.executable();
+    const binPath = executable.path;
     if (!binPath) {
       throw new Error(
-        'claude CLI not found on PATH. Install with: npm i -g @anthropic-ai/claude-code',
+        `claude CLI unavailable: ${executable.error ?? 'not found on PATH'}`,
       );
     }
 
@@ -135,6 +150,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
       timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
       cwd: agentCwd(req),
       env: claudeAccountEnv(accountModel.account),
+      envKeys: CLI_AUTH_ENV_KEYS['cli-claude'],
       label: 'cli-claude',
       log: msg => logger.info(msg),
       signal: req.signal,

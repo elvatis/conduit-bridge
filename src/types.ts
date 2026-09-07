@@ -11,12 +11,58 @@ export type ProviderName =
   | 'cli-claude'                           // @anthropic-ai/claude-code (binary: claude)
   | 'cli-gemini';                           // Antigravity CLI (binary: agy)
 
+export type CliProviderName = Extract<ProviderName, `cli-${string}`>;
+export type SecretReference = `vault:v1:${string}`;
+
 export interface ApiKeyConfig {
   'claude-api'?: string;        // Anthropic API key
   'gemini-api'?: string;        // Google AI API key
   'codex-api'?: string;         // OpenAI API key
   'openrouter-api'?: string;    // OpenRouter API key (sk-or-v1-…)
   'perplexity-api'?: string;    // Perplexity API key (pplx-…)
+}
+
+export type ApiProviderName = keyof ApiKeyConfig;
+export type ApiKeyReferenceConfig = Partial<Record<ApiProviderName, SecretReference>>;
+
+export interface SecurityStorageConfig {
+  /** Name only; the 32-byte base64/hex key stays in the process environment. */
+  vaultKeyEnvironmentVariable?: string;
+  /** Nonsecret namespace used for the OS-protected master key. */
+  vaultKeyId?: string;
+}
+
+export interface CliExecutableDiagnostic {
+  provider: CliProviderName;
+  configured: boolean;
+  requested: string;
+  available: boolean;
+  path?: string;
+  version?: string;
+  error?: string;
+}
+
+export type PlatformRole = 'viewer' | 'operator' | 'reviewer' | 'admin';
+
+export interface PlatformOperatorConfig {
+  /** Stable audit identity; never accepted from an HTTP request body. */
+  id: string;
+  displayName?: string;
+  role: PlatformRole;
+  /** Salted SHA-256 verifier produced by hashPlatformToken; never a raw token. */
+  tokenHash: string;
+  /** Explicit workspace IDs, or ["*"] for every workspace. Omission grants none. */
+  workspaceIds?: string[];
+  enabled?: boolean;
+}
+
+export interface PlatformAuthConfig {
+  operators?: PlatformOperatorConfig[];
+}
+
+export interface PlatformStorageConfig {
+  backend?: 'file' | 'sqlite' | 'prisma' | 'memory';
+  path?: string;
 }
 
 export interface ProviderAgentPolicy {
@@ -33,6 +79,13 @@ export interface BridgeConfig {
   host: string;
   logLevel: 'silent' | 'info' | 'debug';
   apiKeys: ApiKeyConfig;    // API keys for direct API providers
+  /** Opaque references persisted instead of provider credential values. */
+  apiKeyRefs?: ApiKeyReferenceConfig;
+  /** Optional absolute executable overrides for locally installed CLI providers. */
+  cliExecutables?: Partial<Record<CliProviderName, string>>;
+  securityStorage?: SecurityStorageConfig;
+  platformAuth?: PlatformAuthConfig;
+  platformStorage?: PlatformStorageConfig;
   orchestrator?: OrchestratorConfig; // optional persisted orchestration policy
   agentPolicies?: Partial<Record<ProviderName, ProviderAgentPolicy>>; // per-provider agent execution policies
   repositories?: Record<string, RepositoryConfig> | RepositoryConfig[]; // repository-specific governance and pipeline assignments
@@ -179,6 +232,9 @@ export interface ProviderAdapter {
    * Providers that omit it are always advertised.
    */
   hasCredentials?(): boolean;
+
+  /** Read-only executable/version information for CLI troubleshooting. */
+  diagnostics?(): Promise<CliExecutableDiagnostic>;
 }
 
 // ── Governance, Repositories, Budgets, and Workspaces ──────────────────────

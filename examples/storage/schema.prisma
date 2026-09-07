@@ -1,0 +1,7 @@
+// Optional Prisma storage adapter contract. Choose your datasource and client generator
+// in the embedding application; the bridge does not require Prisma at runtime.
+model BridgeState {
+  id       String @id
+  revision Int
+  payload  String
+}
