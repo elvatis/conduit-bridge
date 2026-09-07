@@ -197,7 +197,8 @@ export class GovernanceManager {
 
     for (const item of list) {
       const time = new Date(item.timestamp).toISOString();
-      const cell = (value: string | undefined, fallback = '-') => (value || fallback).replace(/\|/g, '\\|');
+      const cell = (value: string | undefined, fallback = '-') =>
+        (value || fallback).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
       lines.push(`| ${time} | ${cell(item.repository, 'default')} | ${cell(item.pipelineName)} | ${cell(item.stepName)} | **${item.action.toUpperCase()}** | ${cell(item.operator)} | ${cell(item.feedback)} | \`${cell(item.runId)}\` |`);
     }
 

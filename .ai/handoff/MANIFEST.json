@@ -3,17 +3,17 @@
   "project": "pb",
   "last_session": {
     "agent": "codex",
-    "session_id": "cli-1788813463",
-    "timestamp": "2026-09-07T20:37:43Z",
-    "commit": "407c371",
+    "session_id": "cli-1788814148",
+    "timestamp": "2026-09-07T20:49:08Z",
+    "commit": "e682289",
     "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:8919adef03c590a5df68c8f1bda3cc95593c50f7595daab83baba641121aa91e",
-      "updated": "2026-09-07T20:37:17Z",
-      "lines": 427,
+      "checksum": "sha256:b06495e0773e2f11c57bdfcf00b4fec68067aa1092747a840b4b6b3e56fa2491",
+      "updated": "2026-09-07T20:48:54Z",
+      "lines": 429,
       "summary": "_Updated: 2026-09-07_"
     },
     "NEXT_ACTIONS.md": {
@@ -23,9 +23,9 @@
       "summary": "Current version: **v0.10.0**"
     },
     "LOG.md": {
-      "checksum": "sha256:c9f031ddd09a343ea7e8aff7bd11ed9917041645206c40219f9bd8a86b649820",
-      "updated": "2026-09-07T20:37:17Z",
-      "lines": 227,
+      "checksum": "sha256:b9c68c4fd8a36c22c3bb88a721b03c7efd2d61a15467ee3d0bad668e72d973a3",
+      "updated": "2026-09-07T20:48:53Z",
+      "lines": 238,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Merge current main baseline with provider management",
+  "quick_context": "GHAS hardening before PR merge",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 6094,
-    "full_read": 11627
+    "manifest_plus_core": 6159,
+    "full_read": 11818
   }
 }

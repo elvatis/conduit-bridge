@@ -1,3 +1,5 @@
+> Note (2026-09-07): Before merging PR #117, fixed four new CodeQL findings, removed credential material from CLI config output, pinned Supply Chain Guard to a commit, and added release build provenance attestation. Focused security tests, build, Secret Scan and AAHP check pass; GitHub checks are rerunning on the updated head.
+
 > Note (2026-09-07): `cli-gemini` now recognizes the Antigravity CLI credential file used by `agy`, with a regression test. This keeps authenticated model discovery and chat execution aligned on the current `main` baseline.
 
 > Note (2026-09-07): Conversations now always persist locally in encrypted SQLite by default, with legacy file import and no conversation TTL. Vault adds SQLite FTS5/tgrep search and recurring local BitNet prompt suggestions. Configured Llama inference autostarts with Conduit. Windows: 547 tests/64 files, build and two real native start-stop cycles pass; see `docs/validation/vault.md`.

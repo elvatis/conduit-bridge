@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loopbackAuthorization } from './loopback-auth.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const EXAMPLES = ['community-write', 'community-approval', 'community-debate'];
@@ -150,7 +151,7 @@ unique demo pipelines/repository/workspace entries and retains them and results
 for inspection. It never changes provider permissions, budgets or credentials.`);
     return;
   }
-  const client = createClient(options.baseUrl, process.env.CONDUIT_AUTH_TOKEN?.trim());
+  const client = createClient(options.baseUrl, loopbackAuthorization().Authorization?.slice('Bearer '.length));
   const catalog = (await client('/v1/models')).data || [];
   for (const model of new Set([options.model, options.peerModel])) {
     if (!catalog.some(entry => entry.id === model)) throw new Error(`Model is not advertised by this bridge: ${model}`);

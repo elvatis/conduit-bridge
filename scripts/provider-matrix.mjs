@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { loadDefinitions, waitForRun, validateCompletedExample } from './demo-pipelines.mjs';
+import { loopbackAuthorization } from './loopback-auth.mjs';
 
 export function matrixOptions(args) {
   const options = { baseUrl: 'http://127.0.0.1:31338', allowAgentWrites: false };
@@ -34,7 +35,7 @@ export async function main(args = process.argv.slice(2)) {
     return;
   }
   const client = async (path, body) => {
-    const response = await fetch(options.baseUrl + path, { method: body === undefined ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json', ...(process.env.CONDUIT_AUTH_TOKEN ? { Authorization: `Bearer ${process.env.CONDUIT_AUTH_TOKEN}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(180000) });
+    const response = await fetch(options.baseUrl + path, { method: body === undefined ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json', ...loopbackAuthorization() }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(180000) });
     const json = await response.json();
     if (!response.ok) throw new Error(`${path}: ${response.status} ${json.error?.message || response.statusText}`);
     return json;

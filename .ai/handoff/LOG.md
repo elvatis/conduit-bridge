@@ -2,6 +2,17 @@
 
 _Reverse chronological._
 
+## 2026-09-07 - GHAS hardening before merge
+
+- Fixed CodeQL findings for incomplete Markdown escaping in governance and
+  activity exports, uppercase script tags in the dashboard test harness, and
+  credential material in the CLI config display. Config output now exposes only
+  provider and bridge-token status and omits secret references and verifiers.
+- Moved the optional matrix/demo bearer lookup into a network-free loopback auth
+  helper, validated control characters, pinned Supply Chain Guard to its reviewed
+  v6 commit, and added a signed build-provenance subject to the release workflow.
+- Relevant security/configuration tests, build, Secret Scan and AAHP check pass.
+
 ## 2026-09-07 - cli-gemini Antigravity credential detection
 
 - Merged the `cli-gemini` authentication probe fix from PR #114. The probe now

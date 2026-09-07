@@ -153,6 +153,16 @@ export function bearerAuthorization(token?: string): Record<string, string> {
   return value ? { Authorization: `Bearer ${value}` } : {};
 }
 
+/** Return a CLI-safe view of configuration without credential material or verifiers. */
+export function redactConfigForDisplay(current: BridgeConfig): Record<string, unknown> {
+  const { apiKeys, apiKeyRefs: _apiKeyRefs, authToken, platformAuth: _platformAuth, ...safe } = current;
+  return {
+    ...safe,
+    apiKeys: Object.fromEntries(Object.keys(apiKeys ?? {}).map(name => [name, 'configured'])),
+    ...(authToken !== undefined ? { authToken: authToken ? 'configured' : '' } : {}),
+  };
+}
+
 const DEFAULTS: BridgeConfig = {
   port: 31338,           // different from OpenClaw's 31337 to avoid conflicts
   host: '127.0.0.1',

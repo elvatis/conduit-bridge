@@ -28,7 +28,7 @@ function dashboard(lang = 'en') {
     setInterval() {}, console, alert: vi.fn(),
     fetch: async (path: string) => { requests.push(path); return { ok: true, status: 200, json: async () => ({ data: [] }) }; },
   });
-  const script = Array.from(DASHBOARD_HTML.matchAll(/<script>([\s\S]*?)<\/script>/g), match => match[1]).join('\n');
+  const script = Array.from(DASHBOARD_HTML.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi), match => match[1]).join('\n');
   // These are startup effects only; test the unmodified function bodies/handlers.
   const source = script.replace(/^  (?:refresh\(\)|connectEvents\(\)|browseDirectory\(''\));$/gm, '');
   new Script(source).runInContext(context);

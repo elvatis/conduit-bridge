@@ -1258,8 +1258,10 @@ export class BridgeServer {
         ];
         for (const ev of events) {
           const time = new Date(ev.time).toISOString();
-          const cleanMsg = ev.message.replace(/\|/g, '\\|');
-          const cell = (value: unknown) => typeof value === 'string' ? value.replace(/\|/g, '\\|') : (value ?? '-');
+          const cleanMsg = ev.message.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+          const cell = (value: unknown) => typeof value === 'string'
+            ? value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
+            : (value ?? '-');
           lines.push(`| ${time} | ${ev.level.toUpperCase()} | ${cell(ev.scope)} | ${cleanMsg} | ${cell(ev.traceId)} | ${cell(ev.runId)} | ${cell(ev.stepId)} | ${cell(ev.provider)} | ${cell(ev.model)} | ${cell(ev.status)} | ${cell(ev.attempt)} | ${cell(ev.durationMs)} |`);
         }
         res.writeHead(200, {

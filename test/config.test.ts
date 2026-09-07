@@ -30,6 +30,7 @@ import {
   parseConfigValue,
   runtimeDir,
   bearerAuthorization,
+  redactConfigForDisplay,
   secureStorageStatus,
 } from '../src/config.js';
 
@@ -178,6 +179,26 @@ describe('config', () => {
 
     it('sends Bearer when a token is configured', () => {
       expect(bearerAuthorization('preserve-tkn')).toEqual({ Authorization: 'Bearer preserve-tkn' });
+    });
+  });
+
+  describe('redactConfigForDisplay', () => {
+    it('removes credentials, secret references, and operator verifiers from CLI output', () => {
+      const display = redactConfigForDisplay(loadConfig({
+        apiKeys: { 'claude-api': 'sk-live-secret' },
+        apiKeyRefs: { 'claude-api': 'vault:v1:secret-ref' },
+        authToken: 'bridge-secret',
+        platformAuth: { operators: [{ id: 'admin', role: 'admin', tokenHash: 'hash-secret' }] },
+      }));
+      const text = JSON.stringify(display);
+      expect(display.apiKeys).toEqual({ 'claude-api': 'configured' });
+      expect(display.authToken).toBe('configured');
+      expect(display).not.toHaveProperty('apiKeyRefs');
+      expect(display).not.toHaveProperty('platformAuth');
+      expect(text).not.toContain('sk-live-secret');
+      expect(text).not.toContain('secret-ref');
+      expect(text).not.toContain('bridge-secret');
+      expect(text).not.toContain('hash-secret');
     });
   });
 

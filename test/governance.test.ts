@@ -124,7 +124,7 @@ describe('Governance Subsystem', () => {
       stepName: 'Implementation',
       action: 'approved',
       operator: 'lead',
-      feedback: 'LGTM',
+      feedback: 'LGTM \\path|safe',
       runId: 'run-1',
     });
 
@@ -138,6 +138,7 @@ describe('Governance Subsystem', () => {
     expect(mdExport).toContain('| Timestamp | Repository | Pipeline | Step | Action | Operator | Feedback | Run ID |');
     expect(mdExport).toContain('elvatis/test');
     expect(mdExport).toContain('**APPROVED**');
+    expect(mdExport).toContain('LGTM \\\\path\\|safe');
   });
 
   it('deletes repository by ID', () => {
