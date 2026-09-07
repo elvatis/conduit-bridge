@@ -51,18 +51,11 @@
       "minOccurrences": 1,
       "boundary": true,
       "note": "'## Current Version:' header. Sibling-repo mentions are v-prefixed by the bare-sibling-version rule, so they cannot satisfy this floor by coincidence."
-    },
-    {
-      "file": "CLAUDE.md",
-      "minOccurrences": 1,
-      "boundary": true,
-      "note": "Current version line in the repository-local agent instructions."
     }
   ],
   "docLinks": {
     "include": [
       "README.md",
-      "CLAUDE.md",
       "CONTRIBUTING.md",
       "docs/*.md",
       "docs/**/*.md",
