@@ -1025,7 +1025,13 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ui_suggest_plan": "Make a plan",
     "ui_prompt_write": "Help me write a clear, friendly text about: ",
     "ui_prompt_understand": "Explain this topic in simple terms, with an example: ",
-    "ui_prompt_plan": "Help me make a practical, step-by-step plan for: "
+    "ui_prompt_plan": "Help me make a practical, step-by-step plan for: ",
+    "ui_select_option": "Select an option",
+    "ui_search_options": "Search options…",
+    "ui_no_matching_options": "No matching options",
+    "ui_cli_models_preferred": "CLI models · preferred",
+    "ui_local_models_group": "Local models",
+    "ui_api_models_group": "API models"
   },
   "de": {
     "nav_overview": "Übersicht",
@@ -2050,6 +2056,12 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ui_suggest_plan": "Einen Plan erstellen",
     "ui_prompt_write": "Helfen Sie mir, einen klaren, freundlichen Text zu schreiben über: ",
     "ui_prompt_understand": "Erklären Sie mir dieses Thema verständlich und mit einem Beispiel: ",
-    "ui_prompt_plan": "Helfen Sie mir, einen praktikablen Schritt-für-Schritt-Plan zu erstellen für: "
+    "ui_prompt_plan": "Helfen Sie mir, einen praktikablen Schritt-für-Schritt-Plan zu erstellen für: ",
+    "ui_select_option": "Option auswählen",
+    "ui_search_options": "Optionen suchen …",
+    "ui_no_matching_options": "Keine passenden Optionen",
+    "ui_cli_models_preferred": "CLI-Modelle · bevorzugt",
+    "ui_local_models_group": "Lokale Modelle",
+    "ui_api_models_group": "API-Modelle"
   }
 };

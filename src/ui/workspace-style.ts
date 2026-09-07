@@ -1,10 +1,15 @@
-/** Quiet chat shell. Existing administration screens retain their own layouts. */
+/** Chat layout using the local Elvatis design system (BDR-001 and BDR-003). */
 export const WORKSPACE_STYLE = String.raw`
-  :root { --bg:#242422; --panel:#292927; --panel-2:#30302d; --panel-3:#383834; --line:#ffffff12; --line-2:#ffffff26; --text:#f1efe9; --body:#d5d3cd; --muted:#a09e97; --blue:#dfd7c5; --blue-soft:#e9e3d6; --copper:#c8a17b; }
-  body { background:var(--bg); font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  @font-face { font-family:Inter; font-style:normal; font-weight:400; font-display:swap; src:url('/assets/fonts/inter-400.woff2') format('woff2'); }
+  @font-face { font-family:Inter; font-style:normal; font-weight:500; font-display:swap; src:url('/assets/fonts/inter-500.woff2') format('woff2'); }
+  @font-face { font-family:Inter; font-style:normal; font-weight:600; font-display:swap; src:url('/assets/fonts/inter-600.woff2') format('woff2'); }
+  @font-face { font-family:Fraunces; font-style:normal; font-weight:600; font-display:swap; src:url('/assets/fonts/fraunces-600.woff2') format('woff2'); }
+  :root { --bg:#050B16; --panel:#0A1729; --panel-2:#0D1C33; --panel-3:#112340; --line:rgba(143,213,236,.14); --line-2:rgba(143,213,236,.28); --text:#F5FAFF; --body:#C7D4E8; --muted:#8FA0BD; --blue:#22B4FF; --blue-soft:#BEEAFF; --copper:#FF8A3D; --font-sans:Inter,system-ui,-apple-system,'Segoe UI',sans-serif; --font-serif:Fraunces,Georgia,serif; }
+  body { background:var(--bg); font:14px/1.6 var(--font-sans); -webkit-font-smoothing:antialiased; }
+  code,pre,kbd { font-family:var(--font-sans); font-variant-numeric:tabular-nums; }
   main { grid-template-columns:256px minmax(0,1fr); }
   main.sidebar-collapsed { grid-template-columns:64px minmax(0,1fr); }
-  .sidebar { background:#1c1c1a; padding:14px 12px 12px; gap:8px; backdrop-filter:none; }
+  .sidebar { background:#07111F; padding:14px 12px 12px; gap:8px; backdrop-filter:none; }
   .sidebar-header { padding:2px 4px 12px; margin:0; border:0; gap:8px; min-height:48px; }
   .brand { flex-direction:row; align-items:center; gap:10px; }
   .brand-logo { width:29px; height:29px; flex:none; }
@@ -17,8 +22,8 @@ export const WORKSPACE_STYLE = String.raw`
   .sidebar.collapsed .collapse-btn svg path:last-child { transform:rotate(180deg); transform-origin:13px 12px; }
   .side-menu { display:flex; flex-direction:column; gap:3px; flex:0 0 auto; }
   .side-menu button { border:0; border-radius:8px; font-size:13px; font-weight:400; padding:9px 11px; gap:11px; min-height:38px; }
-  .side-menu button.active, .sidebar.collapsed .side-menu button.active { border:0; background:#ffffff0d; }
-  .side-menu button.active svg { color:var(--text); }
+  .side-menu button.active, .sidebar.collapsed .side-menu button.active { border:0; background:#22B4FF14; }
+  .side-menu button.active svg { color:var(--blue); }
   .side-menu button:hover svg { transform:none; }
   .sidebar.collapsed .side-menu button { padding:10px; height:40px; }
   .side-menu [hidden], .sidebar [hidden] { display:none !important; }
@@ -60,20 +65,21 @@ export const WORKSPACE_STYLE = String.raw`
   #notice { display:none; }
   #notice.notice-visible { display:block; border:1px solid var(--line-2); background:var(--panel); padding:10px 14px; border-radius:10px; }
   #notice.error { display:block; border:1px solid var(--bad); background:var(--bad-bg); padding:10px 14px; border-radius:10px; }
-  h1,h2,h3 { font-family:inherit; letter-spacing:-.35px; }
+  h1,h2,h3 { font-family:var(--font-serif); font-weight:600; letter-spacing:-.01em; }
+  .sidebar h3,.platform-toolbar h3 { font-family:var(--font-sans); }
   h2 { font-size:23px; }
   button { border-radius:8px; background:var(--panel-2); box-shadow:none; }
-  button.primary { background:var(--blue); border-color:transparent; color:#262520; }
-  button.primary:hover { background:#f0e9d9; }
+  button.primary { background:var(--copper); border-color:transparent; color:#1B0E03; }
+  button.primary:hover { background:#FF9D58; }
   input,select,textarea { background:var(--panel); border-color:var(--line-2); border-radius:8px; }
   input:hover,select:hover,textarea:hover { background:var(--panel-2); }
-  input:focus,select:focus,textarea:focus { border-color:#a7a293; box-shadow:0 0 0 2px #dfd7c512; }
+  input:focus,select:focus,textarea:focus { border-color:var(--blue); box-shadow:0 0 0 3px #22B4FF14; }
   .platform-shell { --platform-surface:var(--panel); }
   .platform-pane { border:0; background:transparent; padding:0; box-shadow:none; }
   .platform-heading { display:none; }
   .platform-tabs { border:0; background:transparent; padding:0; gap:20px; border-bottom:1px solid var(--line); border-radius:0; margin-bottom:22px; }
   .platform-tabs button { flex:0 0 auto; padding:8px 0; border:0; border-radius:0; font-size:12px; color:var(--muted); }
-  .platform-tabs button[aria-selected="true"] { background:transparent; border-bottom:2px solid var(--text); color:var(--text); }
+  .platform-tabs button[aria-selected="true"] { background:transparent; border-bottom:2px solid var(--blue); color:var(--text); }
   .platform-tabs button svg { display:none; }
   #pf-operator { display:none; }
   #pf-status:empty { display:none; }
@@ -81,12 +87,15 @@ export const WORKSPACE_STYLE = String.raw`
   #pf-pane-chat > .platform-split { display:block; }
   .chat-surface { background:transparent; border:0; padding:0; max-width:790px; margin:0 auto; }
   .chat-options { margin:0 0 12px; border:0; padding:0; }
-  .chat-options > summary { font-size:12px; text-align:right; color:var(--muted); }
+  .chat-options > summary { display:flex; align-items:center; gap:8px; width:max-content; margin-left:auto; padding:7px 11px; border:1px solid var(--line); border-radius:8px; background:var(--panel); font-size:12px; color:var(--body); list-style:none; }
+  .chat-options > summary::after { content:''; width:6px; height:6px; border-right:1.5px solid var(--muted); border-bottom:1.5px solid var(--muted); transform:rotate(45deg); margin:-3px 2px 0 8px; }
+  .chat-options[open] > summary::after { transform:rotate(225deg); margin-top:3px; }
+  .chat-options > summary::-webkit-details-marker { display:none; }
   .chat-options[open] { border:1px solid var(--line); padding:14px; background:var(--panel); border-radius:12px; }
   .platform-context { background:transparent; border-color:var(--line); }
   .platform-transcript { min-height:0; max-height:none; padding:8px 0 22px; }
   .platform-transcript .platform-empty { padding:clamp(38px,12vh,120px) 12px 22px; }
-  .platform-transcript .platform-empty h3 { color:var(--text); font-size:clamp(26px,3vw,38px); font-weight:500; letter-spacing:-1.2px; line-height:1.25; margin:0 0 14px; }
+  .platform-transcript .platform-empty h3 { color:var(--text); font-size:clamp(26px,3vw,38px); font-weight:600; letter-spacing:-.01em; line-height:1.25; margin:0 0 14px; }
   .platform-transcript .platform-empty p { font-size:14px; margin:0 auto; max-width:46ch; color:var(--muted); }
   .chat-welcome-icon { width:44px; height:44px; margin:0 auto 23px; }
   .chat-suggestions { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; padding:0 0 27px; }
@@ -99,7 +108,10 @@ export const WORKSPACE_STYLE = String.raw`
   .platform-message-actions { opacity:.55; }
   .platform-message:hover .platform-message-actions, .platform-message:focus-within .platform-message-actions { opacity:1; }
   .platform-message-actions button { background:transparent; border:0; }
-  .platform-composer { border:1px solid var(--line-2); background:#2f2f2c; border-radius:18px; padding:14px 16px 10px; margin:0; box-shadow:0 8px 30px #00000012; }
+  .platform-composer { border:1px solid var(--line-2); background:var(--panel); border-radius:18px; padding:14px 16px 10px; margin:0; box-shadow:0 8px 30px #00000020; }
+  .platform-view-menu { display:flex; align-items:center; gap:10px; margin:0 0 20px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .platform-view-menu label { width:220px; margin:0; }
+  .platform-tabs { display:none; }
   .platform-composer > label { margin:0; }
   .platform-composer > label > .setting-caption { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
   .platform-composer textarea { background:transparent; border:0; box-shadow:none; padding:4px 2px; min-height:94px; resize:vertical; font-size:15px; }

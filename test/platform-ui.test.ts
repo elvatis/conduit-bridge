@@ -59,9 +59,13 @@ describe('platform workspace browser behavior', () => {
   it('shows readable chat model labels while preserving provider routing IDs', () => {
     const ui = workspace();
     ui.run(`pfState.models = [{id:'api-openrouter/openai/gpt-6-astra'},{id:'cli-codex/gpt-5.6-sol'}]; platformSyncModels()`);
-    expect(ui.element('pf-chat-model').options.map(option => option.value)).toEqual(['api-openrouter/openai/gpt-6-astra','cli-codex/gpt-5.6-sol']);
-    expect(ui.element('pf-chat-model').options[0].textContent).toBe('GPT-6 Astra · OpenRouter');
-    expect(ui.element('pf-chat-model').options[1].textContent).toBe('GPT-5.6 Sol · Codex');
+    expect(ui.element('pf-chat-model').options.map(option => option.value)).toEqual(['cli-codex/gpt-5.6-sol','api-openrouter/openai/gpt-6-astra']);
+    expect(ui.element('pf-chat-model').options[0].textContent).toBe('GPT-5.6 Sol · Codex');
+    expect(ui.element('pf-chat-model').options[1].textContent).toBe('GPT-6 Astra · OpenRouter');
+    expect(ui.element('pf-chat-model').value).toBe('cli-codex/gpt-5.6-sol');
+    ui.element('pf-chat-model').value = 'api-openrouter/openai/gpt-6-astra';
+    ui.run('platformSyncModels()');
+    expect(ui.element('pf-chat-model').value).toBe('api-openrouter/openai/gpt-6-astra');
   });
 
   it('changes the next model without replacing the transcript and submits explicit versioned context', () => {
@@ -78,6 +82,18 @@ describe('platform workspace browser behavior', () => {
     expect(changed).toMatchObject({ model: 'cli-gemini/second', skillRefs: [{ id: 'skill-review', version: 3 }], memoryIds: ['memory-1'], contextTokens: 8192, maxOutputTokens: 256, stream: true });
     expect(ui.element('pf-transcript').innerHTML).toContain('Existing conversation');
     expect(ui.run(`pfState.session.id`)).toBe('s');
+  });
+
+  it('prioritizes CLI then local models, distinguishes accounts, and starts a new chat with CLI', () => {
+    const ui = workspace('de');
+    ui.run(`pfState.models = [{id:'api-openrouter/openai/gpt-6-astra'},{id:'lmstudio/local'},{id:'cli-claude/second-account/claude-sonnet-5'},{id:'cli-codex/gpt-5.6-sol'}]; platformSyncModels()`);
+    expect(ui.element('pf-chat-model').options.map(option => option.value)).toEqual(['cli-claude/second-account/claude-sonnet-5','cli-codex/gpt-5.6-sol','lmstudio/local','api-openrouter/openai/gpt-6-astra']);
+    expect(ui.element('pf-chat-model').innerHTML).toContain('CLI-Modelle · bevorzugt');
+    expect(ui.element('pf-chat-model').options[0].textContent).toContain('second-account');
+    ui.element('pf-chat-model').value = 'api-openrouter/openai/gpt-6-astra';
+    ui.run('pfPrepareNewChat()');
+    expect(ui.element('pf-chat-model').value).toMatch(/^cli-/);
+    expect(ui.calls).toHaveLength(0);
   });
 
   it('preserves separate composer drafts while switching server conversations', async () => {

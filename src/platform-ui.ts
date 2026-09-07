@@ -6,12 +6,12 @@ export const PLATFORM_HISTORY_HTML = `<section class="sidebar-history"><h3 data-
 
 /** Dependency-free conversation and agent workspace, embedded in the dashboard. */
 export const PLATFORM_STYLE = String.raw`
-  .platform-shell { --platform-surface: #292927; }
+  .platform-shell { --platform-surface: #0A1729; }
   #side-nav [hidden] { display: none !important; }
   .platform-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
   .platform-heading h2 { margin: 0 0 5px; }
   .platform-heading p { margin: 0; max-width: 68ch; }
-  .platform-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px; border: 1px solid var(--line); background: #222220; border-radius: 10px; margin-bottom: 18px; }
+  .platform-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px; border: 1px solid var(--line); background: #07111F; border-radius: 10px; margin-bottom: 18px; }
   .platform-tabs button { flex: 1 1 auto; border-color: transparent; background: transparent; }
   .platform-tabs button[aria-selected="true"] { background: var(--panel-3); color: var(--blue-soft); border-color: var(--line-2); }
   .platform-pane[hidden], .platform-shell [hidden] { display: none !important; }
@@ -33,8 +33,8 @@ export const PLATFORM_STYLE = String.raw`
   .platform-context[open] > summary { margin-bottom: 14px; }
   .platform-context small { display: block; color: var(--muted); margin: 0 0 12px; }
   .platform-transcript { display: grid; align-content: start; gap: 16px; min-height: 300px; max-height: 62vh; overflow: auto; padding: 12px 3px; scrollbar-width: thin; }
-  .platform-message { border: 1px solid var(--line); padding: 14px 16px; border-radius: 12px; background: #242422; }
-  .platform-message.user { background: #30302d; margin-left: clamp(0px,4%,40px); }
+  .platform-message { border: 1px solid var(--line); padding: 14px 16px; border-radius: 12px; background: #07111F; }
+  .platform-message.user { background: #0D1C33; margin-left: clamp(0px,4%,40px); }
   .platform-message.assistant { border-left: 3px solid var(--blue); margin-right: clamp(0px,4%,40px); }
   .platform-message header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 9px; }
   .platform-message header strong { color: var(--text); }
@@ -52,7 +52,7 @@ export const PLATFORM_STYLE = String.raw`
   .platform-stat { border: 1px solid var(--line); padding: 12px; border-radius: 8px; }
   .platform-stat strong { display: block; color: var(--text); font-size: 20px; }
   .platform-stat span { color: var(--muted); font-size: 12px; }
-  .platform-output { white-space: pre-wrap; overflow-wrap: anywhere; background: #222220; border: 1px solid var(--line); padding: 14px; border-radius: 8px; max-height: 440px; overflow: auto; }
+  .platform-output { white-space: pre-wrap; overflow-wrap: anywhere; background: #07111F; border: 1px solid var(--line); padding: 14px; border-radius: 8px; max-height: 440px; overflow: auto; }
   .platform-artifacts { display: grid; gap: 8px; }
   .platform-artifacts article { border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-wrap: anywhere; }
   .platform-run-step { border-left: 2px solid var(--line-2); margin-left: 8px; padding: 0 0 16px 16px; overflow-wrap: anywhere; }
@@ -66,6 +66,7 @@ export const PLATFORM_STYLE = String.raw`
 export const PLATFORM_HTML = decorateSettingTooltips(String.raw`
     <div id="platform-section" class="wide page-section platform-shell active">
       <div class="platform-heading"><div><h2 data-i18n="h_platform">Conversation &amp; Agent Workspace</h2><p class="muted" data-i18n="ui_platform_description">Keep a conversation across models, choose its context, and follow bounded agent runs.</p></div><button id="pf-refresh" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg><span class="action-label" data-i18n="btn_refresh_workspace">Refresh workspace</span></button></div>
+      <div class="platform-view-menu"><label><span class="visually-hidden" data-i18n="ui_workspace_views">Workspace views</span><select id="pf-view-select"><option value="chat" data-i18n="tab_webchat">Chat</option><option value="memory" data-i18n="tab_memory">Memory</option><option value="library" data-i18n="tab_agents_skills">Assistants</option><option value="runs" data-i18n="tab_runs_artifacts">Tasks</option><option value="system" data-i18n="tab_storage_diagnostics">Administration</option></select></label></div>
       <div class="platform-tabs" role="tablist" aria-label="Workspace views" data-i18n-aria="ui_workspace_views">
         <button type="button" role="tab" id="pf-tab-chat" aria-selected="true" aria-controls="pf-pane-chat" data-pf-tab="chat" data-i18n="tab_webchat">Webchat</button>
         <button type="button" role="tab" id="pf-tab-memory" aria-selected="false" aria-controls="pf-pane-memory" data-pf-tab="memory" data-i18n="tab_memory">Memory</button>
@@ -144,6 +145,7 @@ export const PLATFORM_SCRIPT = String.raw`
     const admin = operator.role === 'admin', operate = admin || operator.role === 'operator', review = admin || operator.role === 'reviewer';
     setLocalizedText($('pf-operator'), () => (operator.displayName || operator.operatorId) + ' · ' + localizedValue(operator.role) + ' · ' + ((operator.workspaceIds || []).includes('*') ? t('ui_all_authorized_workspaces') : (operator.workspaceIds || []).length + (' ' + t('ui_authorized_workspaces'))));
     $('pf-tab-system').hidden = !admin;
+    for (const option of $('pf-view-select').options || []) if (option.value === 'system') option.disabled = !admin;
     for (const id of ['pf-new-chat','pf-save-chat','pf-delete-chat','pf-inspect-context','pf-summary-save','pf-run-start','pf-new-memory','pf-memory-save','pf-evaluation-start']) $(id).disabled = !operate || pfState.busy;
     $('pf-chat-send').disabled = !operate || pfState.busy;
     for (const id of ['pf-new-entry','pf-entry-save']) $(id).disabled = !admin;
@@ -162,10 +164,19 @@ export const PLATFORM_SCRIPT = String.raw`
   async function pfApi(path, body, method) { return request(pfPath(path), body === undefined ? undefined : { method: method || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
   function pfEntity(result, name) { return result?.[name] || result?.data || result; }
   function pfList(result) { return Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : []; }
-  function pfOptions(id, items, firstLabel, valueFn, labelFn) {
+  function pfOptions(id, items, firstLabel, valueFn, labelFn, groupFn) {
     const select = $(id), previous = new Set(pfValues(id));
     const value = valueFn || (item => item.id), label = labelFn || (item => item.name || item.title || item.id);
-    setLocalizedHtml(select, () => (firstLabel !== undefined ? '<option value="">' + esc(typeof firstLabel === 'function' ? firstLabel() : firstLabel) + '</option>' : '') + items.map(item => '<option value="' + esc(value(item)) + '">' + esc(label(item)) + '</option>').join(''));
+    setLocalizedHtml(select, () => {
+      const option = item => '<option value="' + esc(value(item)) + '">' + esc(label(item)) + '</option>';
+      let html = items.map(option).join('');
+      if (groupFn) {
+        const groups = new Map();
+        for (const item of items) { const group = groupFn(item); if (!groups.has(group)) groups.set(group, []); groups.get(group).push(item); }
+        html = Array.from(groups, ([group,values]) => '<optgroup label="' + esc(group) + '">' + values.map(option).join('') + '</optgroup>').join('');
+      }
+      return (firstLabel !== undefined ? '<option value="">' + esc(typeof firstLabel === 'function' ? firstLabel() : firstLabel) + '</option>' : '') + html;
+    });
     for (const option of select.options || []) if (previous.has(option.value)) option.selected = true;
   }
   function pfChoose(id, values) { const chosen = new Set(values || []); for (const option of $(id).options || []) option.selected = chosen.has(option.value); }
@@ -173,11 +184,15 @@ export const PLATFORM_SCRIPT = String.raw`
     const parts = item.id.split('/'), source = parts.shift();
     const providers = { 'api-openrouter': 'OpenRouter', 'api-perplexity': 'Perplexity', 'cli-codex': 'Codex', 'cli-claude': 'Claude Code', 'cli-gemini': 'Gemini', 'cli-grok': 'Grok', lmstudio: 'LM Studio', bitnet: 'BitNet' };
     const name = parts.at(-1) || source;
-    return name.replace(/^gpt-/, 'GPT-').replace(/^claude-/, 'Claude ').replace(/^gemini-/, 'Gemini ').replace(/-(astra|sol|terra|luna)\b/g, (_, value) => ' ' + value[0].toUpperCase() + value.slice(1)) + ' · ' + (providers[source] || source);
+    const account = source.startsWith('cli-') && parts.length > 1 ? ' · ' + parts.slice(0,-1).join('/') : '';
+    return name.replace(/^gpt-/, 'GPT-').replace(/^claude-/, 'Claude ').replace(/^gemini-/, 'Gemini ').replace(/-(astra|sol|terra|luna)\b/g, (_, value) => ' ' + value[0].toUpperCase() + value.slice(1)) + ' · ' + (providers[source] || source) + account;
   }
+  function modelPriority(id) { return id.startsWith('cli-') ? 0 : /^(lmstudio|bitnet)(\/|$)/.test(id) ? 1 : 2; }
+  function preferredModels(items) { return [...items].sort((a,b) => modelPriority(a.id) - modelPriority(b.id) || a.id.localeCompare(b.id)); }
+  function modelChoiceGroup(item) { return t(['ui_cli_models_preferred','ui_local_models_group','ui_api_models_group'][modelPriority(item.id)]); }
   function platformSyncModels() {
-    const available = pfState.models || models, workspaces = pfState.workspaces || cachedWorkspaces;
-    for (const id of ['pf-chat-model', 'pf-entry-model', 'pf-run-model', 'pf-preset-model']) pfOptions(id, available, available.length ? undefined : () => t('ui_no_models_available'), item => item.id, item => id === 'pf-chat-model' ? pfModelLabel(item) : item.id);
+    const available = preferredModels(pfState.models || models), workspaces = pfState.workspaces || cachedWorkspaces;
+    for (const id of ['pf-chat-model', 'pf-entry-model', 'pf-run-model', 'pf-preset-model']) pfOptions(id, available, available.length ? undefined : () => t('ui_no_models_available'), item => item.id, pfModelLabel, modelChoiceGroup);
     for (const role of ['planner','implementer','reviewer','security']) pfOptions('pf-preset-' + role, available, () => t('ui_use_default_model'), item => item.id, item => item.id);
     pfOptions('pf-evaluation-models', available, undefined, item => item.id, item => item.id);
     pfOptions('pf-chat-workspace', workspaces, () => t('ui_no_workspace_scope'));
@@ -191,6 +206,7 @@ export const PLATFORM_SCRIPT = String.raw`
   }
   function pfTab(name) {
     pfState.tab = name;
+    $('pf-view-select').value = name;
     for (const tab of ['chat', 'memory', 'library', 'runs', 'system']) { $('pf-pane-' + tab).hidden = tab !== name; $('pf-tab-' + tab).setAttribute('aria-selected', String(tab === name)); }
     platformRefresh().catch(error => pfStatus(() => error.message, true));
   }
@@ -314,6 +330,7 @@ export const PLATFORM_SCRIPT = String.raw`
     pfState.sessionEpoch++;
     pfState.session = null;
     $('pf-chat-title').value = ''; $('pf-chat-input').value = ''; $('pf-chat-retention').value = 'ephemeral';
+    $('pf-chat-model').value = preferredModels(pfState.models || models)[0]?.id || '';
     $('pf-summary-content').value = ''; setLocalizedText($('pf-context-inspection'), () => '');
     $('pf-chat-workspace').disabled = false; $('pf-chat-workspace').value = '';
     pfChoose('pf-chat-memories', []); pfChoose('pf-chat-skills', []); $('pf-chat-agent').value = '';
@@ -581,6 +598,7 @@ export const PLATFORM_SCRIPT = String.raw`
     };
   }
   for (const tab of ['chat','memory','library','runs','system']) $('pf-tab-' + tab).addEventListener('click', () => pfTab(tab));
+  $('pf-view-select').addEventListener('change', () => pfTab($('pf-view-select').value));
   $('pf-refresh').addEventListener('click', pfHandle(() => { pfState.models = null; pfState.workspaces = null; return platformRefresh(); }));
   $('pf-new-chat').addEventListener('click', () => { showSection('platform'); pfTab('chat'); pfPrepareNewChat(); });
   $('pf-transcript').addEventListener('click', event => { const button = event.target.closest('[data-chat-suggestion]'); if (button) { $('pf-chat-input').value = t('ui_prompt_' + button.dataset.chatSuggestion); $('pf-chat-input').focus(); } });

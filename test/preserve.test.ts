@@ -624,10 +624,21 @@ describe('regression preservation: pre-login behaviour still holds', () => {
     expect(icon.headers.get('content-type')).toContain('image/svg+xml');
     const svg = await icon.text();
     expect(svg).toContain('viewBox="0 0 64 64"');
+    expect(svg).toContain('<title>CB</title>');
     expect(svg).not.toContain('<script');
     expect(await (await fetch(`${base}/favicon.ico`)).text()).toBe(svg);
-    expect(DASHBOARD_HTML).toContain('rel="icon" type="image/svg+xml" href="/favicon.svg"');
-    expect(HELP_HTML).toContain('href="/favicon.svg"');
+    expect(DASHBOARD_HTML).toContain('rel="icon" type="image/svg+xml" href="/favicon.svg?v=cb"');
+    expect(HELP_HTML).toContain('href="/favicon.svg?v=cb"');
+  });
+
+  it('serves the bundled Elvatis fonts locally', async () => {
+    for (const font of ['inter-400','inter-500','inter-600','fraunces-600']) {
+      const response = await fetch(`${base}/assets/fonts/${font}.woff2`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('font/woff2');
+      const bytes = Buffer.from(await response.arrayBuffer());
+      expect(bytes.subarray(0,4).toString()).toBe('wOF2');
+    }
   });
 
   it('renders the complete standalone Help page directly', async () => {

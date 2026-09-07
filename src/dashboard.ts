@@ -3,15 +3,16 @@ import { I18N_SCRIPT } from './ui/i18n.js';
 import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
 import { BRAND_ICON } from './ui/brand.js';
 import { WORKSPACE_STYLE } from './ui/workspace-style.js';
+import { SELECT_STYLE, SELECT_SCRIPT } from './ui/select.js';
 import { PLATFORM_NEW_CHAT_HTML, PLATFORM_HISTORY_HTML, PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
 
 const SHARED_STYLE = `
   :root {
     color-scheme: dark;
-    --bg: #20201e;
-    --panel: #292927;
-    --panel-2: #30302d;
-    --panel-3: #383834;
+    --bg: #050B16;
+    --panel: #0A1729;
+    --panel-2: #0D1C33;
+    --panel-3: #112340;
     --line: rgba(143,213,236,.18);
     --line-2: rgba(143,213,236,.32);
     --text: #f5faff;
@@ -34,7 +35,7 @@ const SHARED_STYLE = `
     background: var(--bg);
     color: var(--body);
     font: 14.5px/1.5 Inter, system-ui, -apple-system, sans-serif;
-    background-image: radial-gradient(circle at 18% 0%, rgba(34,180,255,.08), transparent 32%), linear-gradient(180deg,#07111f 0%,#20201e 100%);
+    background-image: radial-gradient(circle at 18% 0%, rgba(34,180,255,.08), transparent 32%), linear-gradient(180deg,#07111f 0%,#050B16 100%);
   }
   main {
     min-height: 100vh;
@@ -83,7 +84,7 @@ const SHARED_STYLE = `
   }
   .brand-mark {
     color: var(--blue);
-    font: 700 10px ui-monospace,monospace;
+    font: 700 10px var(--font-sans);
     letter-spacing: .16em;
   }
   .brand h1 {
@@ -114,7 +115,7 @@ const SHARED_STYLE = `
     border-color: var(--line);
   }
   .nav-group-label {
-    font: 600 9.5px ui-monospace, monospace;
+    font: 600 9.5px var(--font-sans);
     letter-spacing: .12em;
     color: var(--muted);
     padding: 10px 10px 3px;
@@ -214,7 +215,7 @@ const SHARED_STYLE = `
     margin-top: auto;
     padding: 14px 6px 0;
     color: var(--muted);
-    font: 11px/1.5 ui-monospace,monospace;
+    font: 11px/1.5 var(--font-sans);
     border-top: 1px solid var(--line);
   }
   .sidebar.collapsed .side-footer {
@@ -246,7 +247,7 @@ const SHARED_STYLE = `
   }
   .appbrand {
     color: var(--blue);
-    font: 700 13px ui-monospace, monospace;
+    font: 700 13px var(--font-sans);
     letter-spacing: .08em;
   }
   .header-actions {
@@ -282,7 +283,7 @@ const SHARED_STYLE = `
     box-shadow: 0 4px 16px rgba(0,0,0,.22);
   }
   .transport { min-height: 154px; }
-  .transport strong { color: var(--blue); font-family: ui-monospace, monospace; }
+  .transport strong { color: var(--blue); font-family: var(--font-sans); }
   .transport p { color: var(--muted); margin-bottom: 0; }
   .provider-block {
     margin: 16px 0;
@@ -353,7 +354,7 @@ const SHARED_STYLE = `
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font: 11.5px/1 ui-monospace,monospace;
+    font: 11.5px/1 var(--font-sans);
     padding: 4px 8px;
     border-radius: 999px;
     border: 1px solid transparent;
@@ -368,7 +369,7 @@ const SHARED_STYLE = `
 
   /* Tool Multi-Select Component */
   .tool-picker-container {
-    background: #292927;
+    background: #0A1729;
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 12px 14px;
@@ -392,7 +393,7 @@ const SHARED_STYLE = `
   .tool-picker-actions button {
     font-size: 11.5px;
     padding: 4px 8px;
-    background: #333330;
+    background: #112340;
     border: 1px solid var(--line);
     color: var(--muted);
   }
@@ -406,7 +407,7 @@ const SHARED_STYLE = `
     gap: 6px;
     min-height: 34px;
     padding: 6px 8px;
-    background: #292927;
+    background: #0A1729;
     border: 1px solid rgba(143,213,236,.14);
     border-radius: 6px;
     margin-bottom: 10px;
@@ -543,7 +544,7 @@ const SHARED_STYLE = `
   .pipeline-step-pill .step-meta {
     font-size: 10.5px;
     color: var(--muted);
-    font-family: ui-monospace, monospace;
+    font-family: var(--font-sans);
   }
   .pipeline-arrow {
     color: var(--muted);
@@ -565,7 +566,7 @@ const SHARED_STYLE = `
     margin-top: 18px;
     border: 1px solid var(--line-2);
     border-radius: 8px;
-    background: #222220;
+    background: #07111F;
     padding: 18px;
   }
   .checkpoint-banner {
@@ -611,7 +612,7 @@ const SHARED_STYLE = `
     max-height: 240px;
     overflow-y: auto;
     white-space: pre-wrap;
-    font-family: ui-monospace, monospace;
+    font-family: var(--font-sans);
     color: var(--text);
   }
 
@@ -718,13 +719,13 @@ const SHARED_STYLE = `
     width: 100%;
     border: 1px solid rgba(143,213,236,.24);
     border-radius: 7px;
-    background: #292927;
+    background: #0A1729;
     color: var(--text);
     padding: 10px 12px;
     font: inherit;
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
   }
-  input:hover, select:hover, textarea:hover { border-color: var(--line-2); background: #30302d; }
+  input:hover, select:hover, textarea:hover { border-color: var(--line-2); background: #0D1C33; }
   input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(34,180,255,.14); }
   textarea { min-height: 92px; resize: vertical; }
   .play-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -732,7 +733,7 @@ const SHARED_STYLE = `
   .activity-list { display: grid; gap: 7px; max-height: 460px; overflow: auto; }
   .activity-event { display: grid; grid-template-columns: 76px 86px minmax(0,1fr); gap: 10px; align-items: start; border-top: 1px solid var(--line); padding: 9px 0; font-size: 13px; }
   .activity-event:first-child { border-top: 0; }
-  .activity-event time, .activity-event .scope { color: var(--muted); font: 12px ui-monospace,monospace; }
+  .activity-event time, .activity-event .scope { color: var(--muted); font: 12px var(--font-sans); }
   .activity-event.success .level { color: var(--ok); }
   .activity-event.warning .level { color: var(--warn); }
   .activity-event.error .level { color: var(--bad); }
@@ -740,7 +741,7 @@ const SHARED_STYLE = `
   .help section { margin-bottom: 16px; }
   main.help { display: block; max-width: 1040px; margin: 0 auto; padding: 32px 20px 56px; }
   li { margin: 7px 0; }
-  pre { overflow-x: auto; background: #20201e; border: 1px solid var(--line); padding: 14px; border-radius: 6px; }
+  pre { overflow-x: auto; background: #050B16; border: 1px solid var(--line); padding: 14px; border-radius: 6px; }
   @media (max-width: 760px) {
     main { display: block; }
     .sidebar { position: fixed; z-index: 30; width: min(290px,86vw); transform: translateX(-102%); transition: transform .18s ease; box-shadow: 18px 0 45px rgba(0,0,0,.35); }
@@ -758,14 +759,14 @@ const SHARED_STYLE = `
   .chart-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
   .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .chart-header h3 { margin: 0; font-size: 14px; color: var(--blue-soft); }
-  .chart-badge { font: 600 11px ui-monospace, monospace; padding: 2px 6px; border-radius: 4px; background: rgba(34,180,255,.12); color: var(--blue); }
+  .chart-badge { font: 600 11px var(--font-sans); padding: 2px 6px; border-radius: 4px; background: rgba(34,180,255,.12); color: var(--blue); }
   .svg-chart { width: 100%; height: auto; display: block; }
   .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
   .legend-item { display: inline-flex; align-items: center; gap: 5px; }
   .legend-color { width: 10px; height: 10px; border-radius: 2px; }
 
   /* Risk & Classification Badges */
-  .risk-badge { font: 700 10.5px ui-monospace, monospace; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .risk-badge { font: 700 10.5px var(--font-sans); padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
   .risk-low { background: rgba(31,209,138,.14); color: var(--ok); border: 1px solid rgba(31,209,138,.3); }
   .risk-medium { background: rgba(245,184,61,.14); color: var(--warn); border: 1px solid rgba(245,184,61,.3); }
   .risk-high { background: rgba(255,138,61,.14); color: var(--copper); border: 1px solid rgba(255,138,61,.3); }
@@ -774,29 +775,29 @@ const SHARED_STYLE = `
 
   /* Filter Chips */
   .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
-  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: #292927; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: #0A1729; color: var(--muted); cursor: pointer; transition: all .12s ease; }
   .filter-chip:hover { border-color: var(--line-2); color: var(--text); }
-  .filter-chip.active { background: var(--blue); color: #20201e; border-color: var(--blue); font-weight: 600; }
+  .filter-chip.active { background: var(--blue); color: #050B16; border-color: var(--blue); font-weight: 600; }
 
   /* Data Table */
   .data-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; margin: 10px 0; }
-  .data-table th { background: #333330; color: var(--blue-soft); padding: 9px 12px; border-bottom: 1px solid var(--line-2); font-weight: 600; }
+  .data-table th { background: #112340; color: var(--blue-soft); padding: 9px 12px; border-bottom: 1px solid var(--line-2); font-weight: 600; }
   .data-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   .data-table tr:hover td { background: rgba(17,35,64,.5); }
 
   /* Budget Meters */
-  .budget-gauge { background: #292927; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
-  .budget-meter { height: 10px; border-radius: 5px; background: #333330; overflow: hidden; margin: 8px 0; }
+  .budget-gauge { background: #0A1729; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .budget-meter { height: 10px; border-radius: 5px; background: #112340; overflow: hidden; margin: 8px 0; }
   .budget-fill { height: 100%; border-radius: 5px; transition: width .3s ease; }
   .budget-fill.safe { background: #1fd18a; }
   .budget-fill.warn { background: #f5b83d; }
   .budget-fill.danger { background: #ff6f91; }
 
   /* Directory Browser */
-  .dir-browser { background: #292927; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
+  .dir-browser { background: #0A1729; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
   .dir-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
-  .dir-item:hover { background: #333330; border-color: var(--line); }
-  .dir-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; font-family: ui-monospace, monospace; color: var(--blue-soft); }
+  .dir-item:hover { background: #112340; border-color: var(--line); }
+  .dir-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; font-family: var(--font-sans); color: var(--blue-soft); }
 
   /* Tool Catalog Grid */
   .tool-catalog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-top: 12px; }
@@ -826,6 +827,7 @@ const SHARED_STYLE = `
     .data-table th, .data-table td { padding: 6px 4px; font-size: 11px; }
   }
   ${WORKSPACE_STYLE}
+  ${SELECT_STYLE}
 `;
 
 export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
@@ -834,8 +836,8 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-i18n="ui_title">Conduit Bridge - Provider Control Plane</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <meta name="theme-color" content="#242422">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=cb">
+  <meta name="theme-color" content="#050B16">
   <style>${SHARED_STYLE}</style>
 </head>
 <body>
@@ -1743,7 +1745,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const selectedIds = new Set(Array.isArray(selected) ? selected : [selected]);
     const groups = {};
     models.forEach(model => ((groups[providerForModel(model.id)] ||= []).push(model)));
-    return Object.entries(groups).sort(([a],[b]) => a.localeCompare(b)).map(([provider, grouped]) =>
+    return Object.entries(groups).sort(([a],[b]) => modelPriority(a) - modelPriority(b) || a.localeCompare(b)).map(([provider, grouped]) =>
       '<optgroup label="' + esc(provider) + '">' + grouped.sort((a,b) => a.id.localeCompare(b.id)).map(model => {
         const shortName = model.id.slice(model.id.indexOf('/') + 1);
         const ctx = model.contextWindow ? (Math.round(model.contextWindow / 1000) + t('ui_context_abbr')) : '';
@@ -1781,7 +1783,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   function renderModels(items) {
     const selectedPlayModel = $('play-model').value;
     models = items;
-    setLocalizedHtml($('play-model'), () => modelOptionGroups(selectedPlayModel || items[0]?.id || ''));
+    setLocalizedHtml($('play-model'), () => modelOptionGroups(selectedPlayModel || preferredModels(items)[0]?.id || ''));
     updateEffortOptions();
 
     const query = ($('model-search')?.value || '').trim().toLowerCase();
@@ -2304,7 +2306,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const s = step || {
       id: 'step-' + idx,
       name: (t('ui_step') + ' ') + idx,
-      model: models[0]?.id || 'cli-claude/claude-sonnet-5',
+      model: preferredModels(models)[0]?.id || 'cli-claude/claude-sonnet-5',
       mode: 'chat',
       requiresApproval: false,
       promptTemplate: '{{prompt}}',
@@ -3400,6 +3402,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   ${PLATFORM_SCRIPT}
   ${SETTING_TOOLTIP_SCRIPT}
+  ${SELECT_SCRIPT}
   pfRenderTranscript();
   refresh();
   connectEvents();
@@ -3411,7 +3414,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 </body>
 </html>`);
 
-export const HELP_HTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><title data-i18n="help_title">Conduit Bridge Help</title><style>${SHARED_STYLE}</style></head>
+export const HELP_HTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" type="image/svg+xml" href="/favicon.svg?v=cb"><title data-i18n="help_title">Conduit Bridge Help</title><style>${SHARED_STYLE}</style></head>
 <body><main class="help"><header><div><h1 data-i18n="help_title">Conduit Bridge Help</h1><div class="muted" data-i18n="help_subtitle">Installation, provider routing, and operations</div></div><nav class="nav"><button id="lang-toggle" type="button" title="Switch language" data-i18n-title="ui_switch_language" aria-label="Toggle language" data-i18n-aria="ui_toggle_language"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="lang-label">DE</span></button><a class="link" href="/" data-i18n="help_dashboard">Dashboard</a></nav></header>
   <section><h2 data-i18n="help_installation">Requirements and installation</h2><p data-i18n="help_platforms">Conduit Bridge runs on Windows Desktop and Linux Desktop. It requires Node.js 24 or newer.</p><pre>npm install
 npm run build

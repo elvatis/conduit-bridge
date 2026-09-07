@@ -638,6 +638,12 @@ export class BridgeServer {
       res.end(BRAND_ICON);
       return;
     }
+    const fontName = path.startsWith('/assets/fonts/') ? path.slice('/assets/fonts/'.length) : '';
+    if (method === 'GET' && ['inter-400.woff2','inter-500.woff2','inter-600.woff2','fraunces-600.woff2'].includes(fontName)) {
+      res.writeHead(200, { 'Content-Type': 'font/woff2', 'Cache-Control': 'public, max-age=86400' });
+      res.end(readFileSync(new URL('./assets/fonts/' + fontName, import.meta.url)));
+      return;
+    }
 
     // HTML is public on loopback so the page can collect a bearer token; /v1/* stays gated.
     if ((path === '/' || path === '/dashboard' || path === '/help') && method === 'GET') {
