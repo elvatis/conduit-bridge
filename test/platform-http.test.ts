@@ -347,6 +347,33 @@ describe('platform HTTP durable runs', () => {
 });
 
 
+describe('platform HTTP insights', () => {
+  it('aggregates only owned sessions with local BitNet and enforces read and write roles', async () => {
+    const alice = await session('alice'), bob = await session('bob');
+    await turn(alice.id, 'Preserve the useful decisions.', {}, 'alice'); await turn(bob.id, 'PRIVATE_BOB', {}, 'bob');
+    state.calls = []; state.respond = async request => {
+      const rows = JSON.parse(String(request.messages.at(-1)!.content).split('\n').at(-1)!);
+      return JSON.stringify({ items: [{ kind: 'action', sources: [0], quote: rows[0].text }] });
+    };
+    expect((await api('/v1/platform/insights/refresh', { language: 'de' }, 'viewer')).status).toBe(403);
+    expect((await api('/v1/platform/insights/refresh', { language: 'invalid' }, 'alice')).status).toBe(400);
+    expect((await api('/v1/platform/insights/refresh', { language: 'de', ownerId: 'bob' }, 'alice')).status).toBe(202);
+    await vi.waitFor(async () => expect((await api('/v1/platform/insights', undefined, 'alice')).data.job.status).toBe('complete'));
+    const result = (await api('/v1/platform/insights', undefined, 'alice')).data;
+    expect(result.report).toMatchObject({ sessions: 1, messages: 2 });
+    expect(result.report.items[0].sources[0].sessionId).toBe(alice.id);
+    expect(JSON.stringify(result)).not.toContain('authorizationVersion'); expect(JSON.stringify(result)).not.toContain('digest');
+    expect(state.calls).toHaveLength(2); expect(state.calls[0]).toMatchObject({ model: 'bitnet/auto', mode: 'chat', max_tokens: 512, response_format: { type: 'json_object' } });
+    expect(JSON.stringify(state.calls)).not.toContain('PRIVATE_BOB');
+    expect((await api('/v1/platform/insights', undefined, 'bob')).data.report).toBeUndefined();
+    expect((await api('/v1/platform/insights/cancel', {}, 'viewer')).status).toBe(403);
+    vi.stubEnv('BITNET_URL', 'https://remote.example.test');
+    expect((await api('/v1/platform/insights/refresh', { language: 'en' }, 'alice')).status).toBe(202);
+    await vi.waitFor(async () => expect((await api('/v1/platform/insights', undefined, 'alice')).data.job.status).toBe('error'));
+    expect(state.calls).toHaveLength(2);
+  });
+});
+
 describe('platform HTTP vault', () => {
   it('searches the authorized full transcript and denies volatile storage', async () => {
     const alice = await session('alice'); const bob = await session('bob');

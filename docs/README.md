@@ -11,6 +11,7 @@ evidence.
 | --- | --- |
 | [Getting started](guides/getting-started.md) | Installation, provider connection, dashboard, and first OpenAI-compatible request. |
 | [Execution and repository workspace](guides/execution-workspace.md) | Full-page UI, effort/speed controls, run events, Git/worktrees and repository analytics. |
+| [Session insights](guides/session-insights.md) | Local BitNet summaries of own conversations, source excerpts, progress and limits. |
 | [Platform guide](guides/platform.md) | Durable conversations, searchable vault, recurring prompt scans, memories, skills, profiles, and bounded runs. |
 | [Storage and backups](guides/storage.md) | Runtime files, encrypted file storage, SQLite, backup/restore, and `CONDUIT_HOME`. |
 | [BitNet on Windows](guides/bitnet.md) | Local BitNet CPU inference, native build, configuration, and lifecycle. |
@@ -19,6 +20,14 @@ evidence.
 | [Tools and Projects](guides/tools-and-projects.md) | Executable tools, GitHub Projects, permissions, and limits. |
 | [Autostart](guides/autostart.md) | Windows and Linux desktop autostart. |
 | [Browser migration](guides/browser-migration.md) | Why browser-session providers were removed and how to migrate. |
+
+## Examples
+
+[Worked examples](examples/README.md) cover questions, change reviews, bounded
+plans, session insights and keyboard navigation. Help in the dashboard offers
+matching drafts and the introduction. For larger workflows, continue with the
+[workspace examples](../examples/workspace/README.md) and
+[pipeline examples](guides/pipelines.md).
 
 ## Reference
 
@@ -52,6 +61,7 @@ environment.
 | Report | Scope |
 | --- | --- |
 | [Execution and repository workspace](validation/execution-workspace.md) | Effort/Fast mode, events, Git fixtures, analytics, access controls and responsive UI. |
+| [Session insights and usability](validation/session-insights.md) | Source isolation, local BitNet, examples, keyboard flows and automated accessibility checks. |
 | [Provider and agent platform](validation/platform.md) | Provider matrix, encrypted storage, and dashboard verification. |
 | [Additional integrations](validation/addendum.md) | Native BitNet, tgrep, local routing, tools, and CLI-session checks. |
 | [Tools and GitHub Projects](validation/integrations.md) | Tool and project integration coverage. |

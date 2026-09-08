@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 export const origin = 'http://conduit.test';
 export const stamp = Date.UTC(2026, 8, 8, 12);
 export const modelId = 'cli-codex/gpt-5.6-sol';
-export const sections = ['execution','git-workspace','repository-analytics','platform','models','workspaces','overview','playground','api-providers','cli-providers','local-providers','agent-controls','pipelines','governance','budgets','usage','orchestrator','integration','recommendations','activity','settings','help'];
+export const sections = ['execution','git-workspace','repository-analytics','insights','platform','models','workspaces','overview','playground','api-providers','cli-providers','local-providers','agent-controls','pipelines','governance','budgets','usage','orchestrator','integration','recommendations','activity','settings','help'];
 
 let htmlPromise;
 export function dashboardHtml() {
@@ -27,10 +27,11 @@ export function dataFixture() {
 }
 
 /** Every request is fulfilled locally; unregistered writes fail instead of reaching a provider. */
-export async function installFixture(page, { language = 'en', role = 'admin', sessions = false } = {}) {
+export async function installFixture(page, { language = 'en', role = 'admin', sessions = false, introduction = false } = {}) {
   const data = dataFixture(), requests = [], errors = [], unexpected = [], handlers = new Map();
   const payloads = {
     '/v1/platform/me': {operator:{operatorId:'demo',displayName:'Demo',role,source:'bridge-token'}},
+    '/v1/platform/insights': {ownerId:'demo',availableSessions:sessions?1:0,availableMessages:sessions?1:0,excludedMessages:0,busy:false,stale:false,job:{status:'idle',phase:'reading',completed:0,total:0}},
     '/v1/status': {version:'0.10.0',port:31338,uptime:120,providers:data.models.map(model=>({name:model.provider,connected:true,loginType:model.provider==='lmstudio'?'local':'cli',models:[model.id]}))},
     '/v1/models': {data:data.models}, '/v1/platform/models': {data:data.models},
     '/v1/capabilities': {effort:{}}, '/v1/metrics': {models:{}},
@@ -53,6 +54,7 @@ export async function installFixture(page, { language = 'en', role = 'admin', se
   page.on('pageerror', error=>errors.push(error.message));
   await page.routeWebSocket('**/*', () => {});
   await page.addInitScript(language=>{if(!localStorage.getItem('conduit_lang'))localStorage.setItem('conduit_lang',language);},language);
+  if (!introduction) await page.addInitScript(() => localStorage.setItem('conduit_intro_seen_v1','true'));
   await page.route('**/*',async route=>{
     const request=route.request(), url=new URL(request.url());
     if(url.origin!==origin) { unexpected.push(request.url()); await route.abort(); return; }

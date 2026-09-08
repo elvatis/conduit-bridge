@@ -480,6 +480,11 @@ export const MODERN_STYLE = String.raw`
   .ex-toggle-track { width:2.5rem; height:1.5rem; padding:.1875rem; background:#ffffff24; }
   .ex-toggle-track > span { width:1.125rem; height:1.125rem; box-shadow:0 2px 4px #0004; }
   [aria-checked="true"] .ex-toggle-track > span { transform:translateX(1rem); }
+  /* Input boundaries remain identifiable without relying on a faint fill. */
+  :root { --control-border:#7c889a; }
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),textarea,select[multiple],.select-trigger.select-trigger,.select-popover .select-search,.platform-composer,.ex-composer { border-color:var(--control-border); }
+  input:focus-visible,textarea:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+  .effort-speed-row input[type="checkbox"] { box-shadow:inset 0 0 0 1px var(--control-border); }
   @media(max-width:650px) { .platform-tabs,.platform-library-tabs,.ra-presets { border-radius:22px; } }
   @media(prefers-reduced-transparency:reduce),(prefers-contrast:more) { .sidebar,.header-actions,.select-popover,.effort-popover { backdrop-filter:none; background:var(--panel-2); } }
   @media(prefers-contrast:more) { :root { --line:#ffffff60; --line-2:#ffffff90; --muted:#d7dfeb; } .select-trigger.select-trigger,button.effort-trigger,.header-actions,.select-popover,.effort-popover { border-color:var(--line-2); } }

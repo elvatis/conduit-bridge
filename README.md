@@ -92,6 +92,13 @@ use the arrow keys. The width and language preference survive a browser reload.
 See [Execution and repository workspace](docs/guides/execution-workspace.md)
 for behavior, permissions and current limits.
 
+**Ctrl+K** finds any page. A brief first-visit offer introduces the main actions;
+**Help** reopens it and provides examples that populate unsent drafts. The
+dedicated [examples section](docs/examples/README.md) explains expected results.
+**Insights** uses local BitNet to gather results, decisions, lessons and open
+tasks from your own saved chats, with source excerpts and resumable progress.
+See [coverage and model limits](docs/guides/session-insights.md).
+
 The routing skill classifies a request before execution and returns a primary
 model plus ordered fallbacks. The route is a recommendation subject to the
 models currently advertised by `/v1/models`, provider policy, credentials and

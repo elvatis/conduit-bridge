@@ -1,5 +1,7 @@
 import { REPOSITORY_ANALYTICS_COPY } from './ui/repository-analytics-copy.js';
 import { EXECUTION_COPY } from './ui/execution-copy.js';
+import { INSIGHTS_COPY } from './ui/insights.js';
+import { GETTING_STARTED_COPY } from './ui/getting-started.js';
 
 export type Lang = 'en' | 'de';
 
@@ -21,6 +23,8 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ui_local_administrator": "Local administrator",
 
     ...EXECUTION_COPY.en,
+    ...INSIGHTS_COPY.en,
+    ...GETTING_STARTED_COPY.en,
     ...REPOSITORY_ANALYTICS_COPY.en,
     "gw_nav": "Git workspace",
     "tab_vault": "Vault",
@@ -1110,6 +1114,8 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ui_local_administrator": "Lokaler Administrator",
 
     ...EXECUTION_COPY.de,
+    ...INSIGHTS_COPY.de,
+    ...GETTING_STARTED_COPY.de,
     ...REPOSITORY_ANALYTICS_COPY.de,
     "gw_nav": "Git-Arbeitsbereich",
     "tab_vault": "Archiv",

@@ -7,6 +7,17 @@ preview frame is part of the shipped dashboard.
 
 ## Navigation and controls
 
+**Ctrl+K** or **Command+K** opens page search, including pages hidden by your
+navigation preferences. Type a name, use Up/Down and press Enter; focus moves
+to the destination heading. Escape closes search and restores focus. The
+keyboard-only **Skip to content** link bypasses the navigation.
+
+On the first visit, a short introduction offer appears without opening a modal
+or taking focus. Dismissal is remembered in that browser. Reopen the introduction
+from **Help**, where [worked examples](../examples/README.md) can be added to an
+unsent draft. Existing draft text is retained. Technical reference material
+is available in a separate disclosure below the examples.
+
 Drag the navigation's right edge to change its width. The supported range is
 240 to 480 CSS pixels, with at least 360 pixels reserved for workspace content.
 The browser remembers the chosen width. Double-click the divider to reset it.
@@ -56,6 +67,12 @@ description remain intact; edited steps keep their own text. Language changes
 preserve provider IDs, executable prompts, custom text, selections and drafts.
 
 ## Chats and projects
+
+**Insights** in the main navigation gathers structured results, decisions,
+lessons and open tasks from your own saved conversations using local BitNet.
+Expand the source excerpts and open the original messages to assess an item.
+See [Session insights](session-insights.md) for coverage, permissions,
+cancellation and model limitations.
 
 The collapsible **Chat history** stays beside the workspace pages. Search finds
 chat titles and projects. Use **New project** to create a group, then expand it

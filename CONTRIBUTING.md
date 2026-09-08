@@ -31,6 +31,13 @@ Language checks load the shipped pipeline/tool catalogs, add controls after
 startup and switch languages while preserving drafts, provider values and
 returned content. Keep display translations separate from execution values.
 Layout checks measure visible select-label centers as well as icon alignment.
+The suite also runs axe-core WCAG A/AA checks across all 23 pages, six platform
+panes, expanded navigation and the new introduction, search and populated
+insights views at narrow and desktop widths. Keyboard cases cover first-visit
+dismissal, focus return, search selection, draft preservation and source links.
+Automated checks do not certify accessibility; retain manual keyboard and
+assistive-technology review for workflows they cannot assess. Do not suppress
+an accessibility rule to make a layout change pass.
 
 On Windows, an installed Edge can replace the downloaded test browser:
 

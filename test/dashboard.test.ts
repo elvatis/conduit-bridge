@@ -20,7 +20,7 @@ function dashboard(lang = 'en') {
   const requests: string[] = [];
   const stored = new Map();
   const context = createContext({
-    document: { getElementById: element, querySelectorAll: () => [], addEventListener() {}, documentElement: { lang }, readyState: 'loading', hidden: false },
+    document: { getElementById: element, querySelector: (selector: string) => selector === '.skip-link' ? element('skip-link') : null, querySelectorAll: () => [], addEventListener() {}, documentElement: { lang }, readyState: 'loading', hidden: false },
     sessionStorage: { getItem: (key: string) => stored.get(key), setItem: (key: string, value: string) => stored.set(key, value) },
     localStorage: { getItem: (key: string) => key === 'conduit_lang' ? lang : stored.get(key), setItem: (key: string, value: string) => stored.set(key,value) },
     window: { addEventListener() {} }, MutationObserver: class { observe() {} }, queueMicrotask() {},

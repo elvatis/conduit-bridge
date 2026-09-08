@@ -9,6 +9,7 @@ import { createContentCipher, openSecretVault, type ContentCipher } from './secr
 import { FileSnapshotBackend, SqliteSnapshotBackend, TransactionalStateStore, type SnapshotCodec } from './storage.js';
 import { PlatformContentService, PlatformContentError, type ContextInput, type PlatformSession, type PlatformMemory } from './platform-content.js';
 import { PlatformVaultService, VAULT_SUGGESTION_SCHEMA } from './platform-vault.js';
+import { PlatformInsightsService } from './platform-insights.js';
 import { PlatformCatalogService } from './platform-catalog.js';
 import { PlatformProfileService, type PlatformProviderProfile } from './platform-profiles.js';
 import { PlatformRunService, type PlatformRun, type PlatformRunInput } from './platform-runs.js';
@@ -75,6 +76,7 @@ export class PlatformApi {
   readonly profiles: PlatformProfileService;
   readonly runs: PlatformRunService;
   readonly vault: PlatformVaultService;
+  readonly insights: PlatformInsightsService;
   private readonly codec: SnapshotCodec;
   private initError?: Error;
   private started?: Promise<void>;
@@ -113,6 +115,25 @@ export class PlatformApi {
         finally { release(); }
       },
     });
+    this.insights = new PlatformInsightsService(this.store, {
+      sessions: (ownerId, version) => {
+        const operator = operatorForOwner(ownerId, deps.cfg());
+        if (authorizationVersion(operator, deps.cfg()) !== version) throw new PlatformContentError('Insight authorization has changed', 403);
+        requirePlatformCapability(operator, 'view');
+        return this.visibleSessions(operator).filter(session => session.userId === ownerId);
+      },
+      analyze: async (ownerId, version, analysis, signal) => {
+        const operator = operatorForOwner(ownerId, deps.cfg());
+        if (authorizationVersion(operator, deps.cfg()) !== version) throw new PlatformContentError('Insight authorization has changed', 403);
+        requirePlatformCapability(operator, 'operate');
+        const endpoint = new URL(process.env.BITNET_URL || 'http://127.0.0.1:8080');
+        if (!['127.0.0.1', '[::1]', 'localhost'].includes(endpoint.hostname) || !['http:', 'https:'].includes(endpoint.protocol)) throw new PlatformContentError('Insights require BitNet on this device', 403);
+        if (deps.providerForModel('bitnet/auto') !== 'bitnet') throw new PlatformContentError('Local BitNet is unavailable', 503);
+        const release = deps.acquire(); if (!release) throw new PlatformContentError('Execution capacity unavailable', 429);
+        try { return await this.execute({ model: 'bitnet/auto', mode: 'chat', messages: [{ role: 'user', content: analysis.prompt }], max_tokens: 512, temperature: 0.1, response_format: { type: 'json_object', schema: analysis.schema }, signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]) }, { operator }); }
+        finally { release(); }
+      },
+    });
     this.runs = new PlatformRunService(this.store, {
       concurrency: 4, acquire: () => deps.acquire(), begin: run => deps.begin(run), finish: run => deps.finish(run), spend: id => deps.spend(id),
       execute: (request, { run }) => {
@@ -129,7 +150,7 @@ export class PlatformApi {
   }
   async stop(): Promise<void> {
     for (const controller of this.sessionControllers.values()) controller.abort(new Error('Bridge is stopping'));
-    await this.content.stop(); await this.vault.stop(); await this.runs.stop(); await this.store.close();
+    await this.content.stop(); await this.vault.stop(); await this.insights.stop(); await this.runs.stop(); await this.store.close();
   }
   private visibleSessions(operator: PlatformOperatorContext): PlatformSession[] {
     return this.content.listSessions().filter(s => (operator.role === 'admin' || s.userId === operator.operatorId) && platformCapabilityAllowed(operator, 'view', globalWorkspace(s.workspaceId)));
@@ -223,7 +244,7 @@ export class PlatformApi {
         if (method === 'GET' && !id) response(res, 200, { storage: { backend: this.store.backend.kind, revision: this.store.revision, encrypted: this.store.backend.kind !== 'memory', ready: !this.initError, error: this.initError ? redactSecrets(this.initError.message) : undefined, availableBackends: [{ id: 'file', available: true }, { id: 'sqlite', available: true }, { id: 'prisma', available: false, reason: 'Provide a generated client through PrismaSnapshotBackend in the embedding application' }], credentials: secureStorageStatus(), migration: 'Use encrypted backup/restore with the selected backend after restarting. No silent database switch.' } });
         else if (method === 'GET' && id === 'backup') response(res, 200, await this.store.backup(this.codec));
         else if (method === 'POST' && id === 'restore') {
-          if (this.runs.list().some(r => ['running', 'queued', 'waiting_approval'].includes(r.status)) || this.sessionControllers.size || this.vault.busy) throw new PlatformContentError('Stop active work before restoring a backup', 409);
+          if (this.runs.list().some(r => ['running', 'queued', 'waiting_approval'].includes(r.status)) || this.sessionControllers.size || this.vault.busy || this.insights.busy) throw new PlatformContentError('Stop active work before restoring a backup', 409);
           await this.store.restore(body as { format: string; data: string }, this.codec); response(res, 200, { restored: true });
         } else if (method === 'POST' && id === 'config') {
           if (!['file', 'sqlite'].includes(body.backend)) throw new PlatformContentError('Choose file or sqlite; Prisma clients are supplied by the embedding application');
@@ -274,6 +295,20 @@ export class PlatformApi {
           const config = { operators: (this.deps.cfg().platformAuth?.operators || []).filter(o => o.id !== id) };
           (this.deps.saveConfig ?? saveConfig)({ platformAuth: config }); this.deps.cfg().platformAuth = config; response(res, 200, { deleted: true });
         } else throw new PlatformContentError('Unknown operator operation', 404);
+        return true;
+      }
+      if (resource === 'insights') {
+        const version = authorizationVersion(operator, this.deps.cfg());
+        if (!id && method === 'GET') response(res, 200, this.insights.view(operator.operatorId, version));
+        else if (id === 'refresh' && method === 'POST') {
+          requirePlatformCapability(operator, 'operate');
+          if (!['de', 'en'].includes(body.language)) throw new PlatformContentError('Select English or German');
+          if (this.insights.busy) throw new PlatformContentError('Local insight analysis is already running', 409);
+          void this.insights.scan(operator.operatorId, version, body.language).catch(() => {});
+          response(res, 202, { started: true });
+        } else if (id === 'cancel' && method === 'POST') {
+          requirePlatformCapability(operator, 'operate'); this.insights.cancel(operator.operatorId); response(res, 200, { cancelled: true });
+        } else throw new PlatformContentError('Unknown insight operation', 404);
         return true;
       }
       if (resource === 'vault') {

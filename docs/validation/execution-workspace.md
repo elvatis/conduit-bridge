@@ -7,6 +7,11 @@ These checks cover the local changes, not a deployed release.
 
 ## Automated checks
 
+The [session insights and usability follow-up](session-insights.md) records the
+current test results, 57-browser-case suite, first-visit introduction, page search,
+draft examples, automated accessibility checks and native BitNet limitations.
+The entries below preserve evidence from the preceding design passes.
+
 - Navigation/settings follow-up: all 48 existing browser tests passed (47.0
   seconds). A separate check measured 24 credential rows at 320, 390, 768,
   1280, 1920 and 3840 pixels in both languages: 16-pixel input/button gaps,

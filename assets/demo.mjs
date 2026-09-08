@@ -35,6 +35,18 @@ try {
   await navigate('git-workspace');await page.locator('.gw-file').first().waitFor();await capture('Review history and changes side by side.',3.0);
   await navigate('repository-analytics');await page.locator('#ra-content').waitFor();await capture('Explore production and test code over time.',2.8);
   await page.locator('#ra-pin').click();await capture('Pin a snapshot to inspect the details.',2.0);
+  const insightExamples = [
+    ['finding','The restart check retained every saved chat.'],
+    ['decision','Use SQLite for retained conversations.'],
+    ['lesson','Check field width after adding help icons.'],
+    ['action','Test the encrypted backup restore.'],
+  ];
+  fixture.data.session.messages = insightExamples.map(([,content],index) => ({id:'insight-demo-'+index,role:'assistant',content,createdAt:stamp,status:'complete'}));
+  fixture.payloads['/v1/platform/sessions'] = { data: [fixture.data.session] };
+  await page.evaluate(() => window.platformRefresh());
+  fixture.payloads['/v1/platform/insights'] = {ownerId:'demo',availableSessions:1,availableMessages:4,excludedMessages:0,busy:false,stale:false,job:{status:'complete',phase:'merging',completed:4,total:4},report:{language:'en',generatedAt:stamp,sessions:1,messages:4,excludedMessages:0,items:insightExamples.map(([kind,text],index)=>({id:'item-'+index,kind,text,sources:[{sessionId:fixture.data.session.id,messageId:'insight-demo-'+index,title:fixture.data.session.title,quote:text}]}))}};
+  await navigate('insights');await page.locator('#ins-results').waitFor();await page.locator('#ins-finding summary').click();await capture('Gather insights with original source excerpts.',3.0);
+  await navigate('help');await capture('Start with an example. Keep control of the draft.',2.8);
   await navigate('platform');const handle=(await page.locator('#sidebar-resizer').boundingBox());await page.mouse.move(handle.x+5,300);await page.mouse.down();
   for(let offset=10;offset<=90;offset+=10){await page.mouse.move(handle.x+5+offset,300);await capture('Drag the navigation to make room.',.08);}
   await page.mouse.up();await capture('A workspace that fits the way you work.',2.4);

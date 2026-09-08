@@ -161,6 +161,12 @@ library entry or sends a message automatically.
 
 ## Reviewed memory
 
+For summaries across your own conversations, open the separate **Insights**
+navigation page. Its local BitNet extraction and combining stages retain
+original excerpts and saved progress. It does not write memories or execute
+the listed tasks. See [Session insights](session-insights.md) for its HTTP
+interface and [a worked example](../examples/README.md#combine-earlier-conversations).
+
 Create facts in Memory, review candidates, then explicitly attach approved IDs.
 There is no automatic retrieval/capture job. Memory is untrusted reference data
 and cannot grant tools.

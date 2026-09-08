@@ -1,3 +1,5 @@
+> Current review point: The requested usability, examples and local session insights work is implemented and locally validated (633 tests and 57 browser cases). Review PR #120 and docs/validation/session-insights.md. Recheck hosted checks on its final head; merge/release remain outside this task. Remaining native-model limitation: original excerpts are verified, while relevance and category assignment still require human review. The implementation plans in older entries below are historical.
+
 > Current work: Commit the validated scanner/navigation/settings repair to PR #120. Continue the authorized usability work: spacing, accessible compact actions, first-visit introduction offer with Help re-entry, dedicated examples and local BitNet session insights. Hosted checks must be green before any separately authorized merge.
 
 > Current follow-up: Review the text centering, Apple-inspired control patterns and expanded German localization in PR #120. Local validation: 613 tests and 48 browser cases, plus the final targeted installed-template rerun. Recheck hosted CI on the updated head before any separately authorized merge.

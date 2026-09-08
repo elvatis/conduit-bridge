@@ -1,7 +1,8 @@
 # Demo recording
 
 `demo.gif` is an English tour of chat, model effort, execution evidence, Git
-history, repository analytics and the resizable navigation. All displayed
+history, repository analytics, local session insights, Help examples and the
+resizable navigation. All displayed
 content is illustrative. The recording never starts a provider, submits a
 task or changes a repository.
 

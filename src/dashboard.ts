@@ -1,6 +1,8 @@
 import { GIT_WORKSPACE_HTML, GIT_WORKSPACE_STYLE, GIT_WORKSPACE_SCRIPT } from './ui/git-workspace.js';
 import { REPOSITORY_ANALYTICS_HTML, REPOSITORY_ANALYTICS_STYLE, REPOSITORY_ANALYTICS_SCRIPT, REPOSITORY_ANALYTICS_NAV_HTML } from './ui/repository-analytics.js';
 import { MODERN_STYLE } from './ui/modern-style.js';
+import { INSIGHTS_HTML, INSIGHTS_NAV_HTML, INSIGHTS_SCRIPT, INSIGHTS_STYLE } from './ui/insights.js';
+import { GETTING_STARTED_HTML, GETTING_STARTED_SCRIPT, GETTING_STARTED_STYLE, HELP_EXAMPLES_HTML, INTRO_OFFER_HTML, NAV_SEARCH_BUTTON } from './ui/getting-started.js';
 import { SIDEBAR_RESIZE_HTML, SIDEBAR_RESIZE_SCRIPT, SIDEBAR_RESIZE_STYLE } from './ui/sidebar-resize.js';
 import { effortControl, EFFORT_STYLE } from './ui/effort-slider.js';
 import { TRANSLATIONS } from './i18n.js';
@@ -128,7 +130,7 @@ const SHARED_STYLE = `
     color: var(--muted);
     padding: 10px 10px 3px;
     text-transform: uppercase;
-    opacity: .55;
+    opacity: 1;
     pointer-events: none;
     user-select: none;
   }
@@ -855,6 +857,8 @@ const SHARED_STYLE = `
   ${REPOSITORY_ANALYTICS_STYLE}
   ${EFFORT_STYLE}
   ${MODERN_STYLE}
+  ${INSIGHTS_STYLE}
+  ${GETTING_STARTED_STYLE}
   ${SIDEBAR_RESIZE_STYLE}
 `;
 
@@ -869,6 +873,7 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
   <style>${SHARED_STYLE}</style>
 </head>
 <body>
+<a class="skip-link" href="#workspace-content" data-i18n="start_skip">Skip to content</a>
 <main id="main-layout">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -884,6 +889,7 @@ ${PLATFORM_NEW_CHAT_HTML}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
         <span class="nav-label" data-i18n="nav_platform">Webchat &amp; agents</span>
       </button>
+${INSIGHTS_NAV_HTML}
 ${PLATFORM_HISTORY_HTML}
       <button data-section="models" title="Models" data-i18n-title="nav_models">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
@@ -979,26 +985,28 @@ ${EXECUTION_TREE_HTML}
   </aside>
 
   ${SIDEBAR_RESIZE_HTML}
-  <div class="workspace">
+  <div class="workspace" id="workspace-content" tabindex="-1">
     <nav class="appbar" aria-label="Dashboard controls" data-i18n-aria="ui_dashboard_controls">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <button id="menu-toggle" type="button" aria-label="Toggle navigation" data-i18n-aria="ui_toggle_navigation" data-i18n="ui_menu">Menu</button>
+        <button id="menu-toggle" type="button" aria-label="Toggle navigation" data-i18n-aria="ui_toggle_navigation" title="Toggle navigation" data-i18n-title="ui_toggle_navigation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
         <span class="appbrand" id="page-title" data-i18n="nav_platform">Chat</span>
       </div>
       <div class="header-actions">
+        ${NAV_SEARCH_BUTTON}
         <button id="lang-toggle" type="button" title="Switch language" data-i18n-title="ui_switch_language" aria-label="Toggle language" data-i18n-aria="ui_toggle_language"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="lang-label">DE</span></button>
-        <button id="refresh" type="button">
+        <button id="refresh" type="button" title="Refresh" aria-label="Refresh" data-i18n-title="btn_refresh" data-i18n-aria="btn_refresh">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-          <span class="action-label" data-i18n="btn_refresh">Refresh</span>
         </button>
       </div>
     </nav>
 
     <p id="notice" role="status"></p>
+    ${INTRO_OFFER_HTML}
     ${PLATFORM_HTML}
     ${EXECUTION_HTML}
     ${GIT_WORKSPACE_HTML.replace('class="gw-page"', 'class="wide page-section gw-page"')}
     ${REPOSITORY_ANALYTICS_HTML}
+    ${INSIGHTS_HTML}
 
     <!-- Overview Section -->
     <div id="overview-section" class="page-section">
@@ -1434,6 +1442,8 @@ ${EXECUTION_TREE_HTML}
     <section id="help-section-v2" class="wide page-section">
       <h2 data-i18n="h_help">Help and Operating Guide</h2>
       <p class="muted" data-i18n="ui_help_description">Getting started, connecting clients, and managing autonomous agent policies.</p>
+      ${HELP_EXAMPLES_HTML}
+      <details class="help-technical"><summary data-i18n="start_technical">Technical reference</summary>
       <section><h3 data-i18n="h_supported_platforms">Supported desktop platforms</h3><p><span data-i18n="help_platforms_dashboard">Conduit Bridge currently supports Windows Desktop and Linux Desktop. It needs Node.js 24 or newer. Start the bridge on the desktop and open</span> <code>http://127.0.0.1:31338/</code>.</p></section>
       <section><h3 data-i18n="h_desktop_autostart">Desktop autostart</h3><p><span data-i18n="help_after_build">After building, use</span> <code>./scripts/install-autostart.sh</code> <span data-i18n="help_linux_or">on Linux Desktop or</span> <code>powershell -ExecutionPolicy Bypass -File .\\scripts\\install-autostart.ps1</code> <span data-i18n="help_windows_start">on Windows Desktop. The bridge starts as the logged-in desktop user on</span> <code>127.0.0.1:31338</code><span data-i18n="help_see_inline">. See</span> <code>docs/guides/autostart.md</code> <span data-i18n="help_removal">for removal and troubleshooting.</span></p></section>
       <section>
@@ -1446,11 +1456,13 @@ Chat: POST /v1/chat/completions
 Pipelines: GET /v1/pipelines
 <span data-i18n="ui_events">Events</span>: ws://127.0.0.1:31338/v1/events</pre>
       </section>
+      </details>
     </section>
   </div>
 </main>
 
 <!-- Customize Navigation Modal -->
+${GETTING_STARTED_HTML}
 <dialog class="modal-backdrop" id="nav-modal" aria-labelledby="nav-modal-title">
   <div class="modal-dialog">
     <div class="modal-header">
@@ -1589,6 +1601,7 @@ Pipelines: GET /v1/pipelines
   // Navigation visibility customization
   const NAV_SECTIONS = [
     { key: 'execution', label: 'ex_nav' },
+    { key: 'insights', label: 'ins_nav' },
     { key: 'git-workspace', label: 'gw_nav' },
     { key: 'repository-analytics', label: 'ra_nav' },
     { key: 'overview', label: 'nav_overview' },
@@ -1653,7 +1666,7 @@ Pipelines: GET /v1/pipelines
   function openNavModal() {
     const visible = getVisibleNavs();
     const container = $('nav-checkboxes-container');
-    setLocalizedHtml(container, () => NAV_SECTIONS.filter(s => !['execution','git-workspace','repository-analytics','platform','models','workspaces','settings','help'].includes(s.key)).map(s =>
+    setLocalizedHtml(container, () => NAV_SECTIONS.filter(s => !['execution','git-workspace','repository-analytics','insights','platform','models','workspaces','settings','help'].includes(s.key)).map(s =>
       '<label class="nav-checkbox-label">' +
         '<input type="checkbox" data-nav-key="' + esc(s.key) + '"' + (visible.has(s.key) ? ' checked' : '') + '> ' +
         esc(t(s.label)) +
@@ -1690,6 +1703,7 @@ Pipelines: GET /v1/pipelines
 
   // Navigation section toggles
   const sectionIds = {
+    insights: 'insights-section',
     execution: 'execution-section',
     'git-workspace': 'git-workspace',
     'repository-analytics': 'repository-analytics-section',
@@ -1725,6 +1739,7 @@ Pipelines: GET /v1/pipelines
     if (name === 'execution') executionRefresh();
     if (name === 'git-workspace') window.gitWorkspace?.refresh();
     if (name === 'repository-analytics') loadRepositoryAnalytics();
+    if (name === 'insights') loadInsights();
     const section = NAV_SECTIONS.find(item => item.key === name);
     if (section) setLocalizedText($('page-title'), () => t(section.label));
     Object.entries(sectionIds).forEach(([key, id]) => {
@@ -1733,6 +1748,7 @@ Pipelines: GET /v1/pipelines
     });
     document.querySelectorAll('[data-section]').forEach(button => {
       button.classList.toggle('active', button.dataset.section === name);
+      if (button.dataset.section === name) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current');
     });
     sidebar.classList.remove('open');
     syncSidebarExpanded();
@@ -3004,7 +3020,7 @@ Pipelines: GET /v1/pipelines
     if (dirtySections.has('settings-section')) return;
     setLocalizedHtml($('settings-keys'), () => '<div class="setting-list">' + Object.entries(data.apiKeys || {}).map(([provider, info]) =>
       '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(localizedValue(info.source || (info.configured ? t('status_configured') : t('status_not_detected')))) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" aria-label="' + esc(provider + ': ' + t('lbl_api_key_write_only')) + '" placeholder="' + (info.configured ? t('ph_replace_api_key') : t('ph_paste_api_key')) + ('"><button type="submit" class="primary" title="' + esc(t('btn_save_api_key') + ': ' + provider) + '" aria-label="' + esc(t('btn_save_api_key') + ': ' + provider) + '">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' + '</button></form></div>')
-    ).join('') + ('</div><p class="muted">' + esc(t('ui_keys_write_only')) + '</p>'));
+    ).join('') + '</div>');
     document.querySelectorAll('[data-key-provider]').forEach(form => form.addEventListener('submit', saveKey));
   }
 
@@ -3055,6 +3071,7 @@ Pipelines: GET /v1/pipelines
       // Only active-page data changes with activity; catalogs and settings do not.
       const jobs = [];
       if (activeSection === 'execution') jobs.push(executionRefresh());
+      if (activeSection === 'insights') jobs.push(loadInsights());
       if (activeSection === 'pipelines' || activePipelineRun?.status === 'running') {
         jobs.push(request('/v1/pipelines/runs').then(data => renderPipelineRuns(data.data || [])));
       }
@@ -3085,9 +3102,10 @@ Pipelines: GET /v1/pipelines
       repositoryIdentity(identity.operator);
       pfState.operator = identity.operator;
       exIdentity(identity.operator);
+      if (activeSection === 'insights') await loadInsights();
       if (identity.operator?.source === 'operator-token') {
         setLocalizedText($('side-runtime'), () => (t('ui_workspace_access') + ' ') + identity.operator.role);
-        if (!['execution','git-workspace','repository-analytics'].includes(activeSection)) showSection('platform');
+        if (!['execution','git-workspace','repository-analytics','insights'].includes(activeSection)) showSection('platform');
         await platformRefresh();
         setNotice(() => (t('ui_workspace_loaded_for') + ' ') + pfOperatorName(identity.operator), 'quiet');
         return;
@@ -3463,11 +3481,14 @@ Pipelines: GET /v1/pipelines
   ${EXECUTION_SCRIPT}
   ${GIT_WORKSPACE_SCRIPT}
   ${REPOSITORY_ANALYTICS_SCRIPT}
+  ${INSIGHTS_SCRIPT}
+  ${GETTING_STARTED_SCRIPT}
   let repositoryActor = '';
   function repositoryIdentity(operator) {
     const key = JSON.stringify(operator || null);
     if (key === repositoryActor) return;
     repositoryActor = key;
+    insightsReset();
     $('git-workspace-nav').dataset.detected = 'false';
     window.gitWorkspace.configure({workspaces:[],workspaceId:'',canWrite:false,language:currentLang,request});
     raReset();
