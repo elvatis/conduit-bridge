@@ -3,29 +3,29 @@
   "project": "pb",
   "last_session": {
     "agent": "codex",
-    "session_id": "cli-1788855290",
-    "timestamp": "2026-09-08T08:14:50Z",
-    "commit": "5a6dd57",
-    "phase": "implementation",
+    "session_id": "cli-1788858221",
+    "timestamp": "2026-09-08T09:03:42Z",
+    "commit": "309fa97",
+    "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:f60058af0ac200fb959bb369714195b5268c1cc34652aa2a3ff6341ba65dbddd",
-      "updated": "2026-09-08T08:14:50Z",
-      "lines": 463,
+      "checksum": "sha256:d84d99079c86caf665c9256955da4ab1c348fde99286b3b0f67163d78fb5487e",
+      "updated": "2026-09-08T09:03:32Z",
+      "lines": 465,
       "summary": "PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:9e921421ec2fd6c0881217dc0d0042b1db8758da539ff258cf1501638d12de00",
-      "updated": "2026-09-08T08:14:33Z",
+      "checksum": "sha256:b20f1643d915051aa6827293fe23dadc5b9a15f2fe5551b538aa7db35835454a",
+      "updated": "2026-09-08T09:03:32Z",
       "lines": 73,
       "summary": "Second inspection is implemented: named native dialogs with focus/Escape,"
     },
     "LOG.md": {
-      "checksum": "sha256:7549e8fa6c6fffa25493dbffbd9a445aac8e944986ee0aca4fcb5fdc8f517a46",
-      "updated": "2026-09-08T08:14:50Z",
-      "lines": 328,
+      "checksum": "sha256:625455d7a93e97c65e34879642aa4fbee081dad11329a2b2f7a4b1609058e750",
+      "updated": "2026-09-08T09:03:33Z",
+      "lines": 332,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Final guided onboarding and source-linked local insights; 633 tests, 57 browser cases, real 34-message aggregation and persistence verified.",
+  "quick_context": "Correct local insight selection and categories; 690 tests and 21 native checks pass",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 7788,
-    "full_read": 15000
+    "manifest_plus_core": 7829,
+    "full_read": 15267
   }
 }

@@ -3,9 +3,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { installFixture, sections, stamp } from './fixture.mjs';
 
 function report() {
+  const texts = ['Der Neustarttest war erfolgreich.', 'Wir haben SQLite als Datenbank gewählt.', 'Für künftige Änderungen gilt: Formularbreiten nach zusätzlichen Hilfesymbolen prüfen.', 'Bitte ergänze einen Wiederherstellungstest.'];
   return { language: 'de', generatedAt: stamp, sessions: 1, messages: 1, excludedMessages: 0,
-    items: ['finding', 'decision', 'lesson', 'action'].map((kind, index) => ({ id: 'item-' + index, kind, text: ['Prüfung erfolgreich.', 'SQLite gewählt.', 'Breite nach Änderungen prüfen.', 'Wiederherstellung testen.'][index],
-      sources: [{ sessionId: 'session-demo', messageId: 'message-demo', title: 'A focused developer workspace', quote: 'Keep the execution controls clear and the repository context close at hand.' }] })) };
+    items: ['finding', 'decision', 'lesson', 'action'].map((kind, index) => ({ id: 'item-' + index, kind, text: texts[index],
+      sources: [{ sessionId: 'session-demo', messageId: 'message-demo', messageNumber: 1, title: 'A focused developer workspace', quote: texts[index] }] })) };
 }
 const violations = async (page: any) => (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => ({ target: node.target, failure: node.failureSummary })) }));
 
@@ -51,15 +52,17 @@ test('page search includes hidden navigation, supports arrows, no results, Escap
 test('insights refresh and cancellation preserve source details; source links focus the original message', async ({ page }) => {
   const fixture = await installFixture(page, { language: 'de', sessions: true });
   const data = fixture.payloads['/v1/platform/insights'] as any; data.report = report(); data.job.status = 'complete';
+  (fixture.payloads['/v1/platform/sessions/session-demo'] as any).session.messages[0].content = data.report.items.map((item: any) => item.text).join(' ');
   fixture.on('POST', '/v1/platform/insights/refresh', request => { expect(request.body).toEqual({ language: 'de' }); data.busy = true; data.job = { status: 'running', phase: 'reading', completed: 0, total: 2 }; return { status: 202, body: {} }; });
   fixture.on('POST', '/v1/platform/insights/cancel', () => { data.busy = false; data.job.status = 'cancelled'; return {}; });
   await fixture.open('insights'); await expect(page.locator('#ins-results')).toBeVisible();
-  const details = page.locator('#ins-finding details'); await details.locator('summary').click(); await expect(details.locator('blockquote')).toContainText('Keep the execution controls');
+  const details = page.locator('#ins-finding details'); await details.locator('summary').click(); await expect(details.locator('button')).toContainText('Nachricht 1'); await expect(details.locator('blockquote')).toHaveCount(0);
   await page.locator('#ins-refresh').click(); await expect(page.locator('#ins-cancel')).toBeVisible();
   await expect(page.locator('#ins-status')).toContainText('0 von 2');
   data.job.completed = 1; await expect(page.locator('#ins-status')).toContainText('1 von 2', { timeout: 6000 }); await expect(details).toHaveAttribute('open', '');
   await page.locator('#ins-cancel').click(); await expect(page.locator('#ins-cancel')).toBeHidden(); await expect(details).toHaveAttribute('open', '');
   await details.locator('button').click(); await expect(page.locator('#pf-message-message-demo')).toBeFocused();
+  await expect(page.locator('#pf-message-message-demo')).toContainText(data.report.items[0].text);
   expect(fixture.requests.filter(item => item.method === 'POST').map(item => item.path)).toEqual(['/v1/platform/insights/refresh', '/v1/platform/insights/cancel']);
   expect(fixture.errors).toEqual([]); expect(fixture.unexpected).toEqual([]);
 });
@@ -98,8 +101,11 @@ test('all navigation sections and platform panes pass automated accessibility ch
 for (const width of [320, 1280]) test(`introduction, search and populated insights are accessible at ${width}px`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: width === 320 ? 640 : 900 });
   const fixture = await installFixture(page, { language: 'de', introduction: true }); const data = fixture.payloads['/v1/platform/insights'] as any; data.report = report(); data.job.status = 'complete';
+  data.report.items[0].text = 'Der Neustarttest war erfolgreich, einschließlich ' + 'der Wiederherstellung verschlüsselter Gesprächsdaten, '.repeat(7) + 'und alle Chats blieben erhalten.';
+  data.report.items[0].sources[0].quote = data.report.items[0].text;
   await fixture.open('insights'); await page.locator('#ins-finding summary').click();
   expect(await violations(page), 'populated insights').toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'long original excerpt fits').toBe(true);
   await page.locator('#intro-offer [data-open-intro]').click(); expect(await violations(page), 'introduction').toEqual([]);
   await expect(page.locator('#intro-done')).toBeFocused(); await page.keyboard.press('Escape');
   await page.locator('#nav-search-open').click(); expect(await violations(page), 'page search').toEqual([]); await page.keyboard.press('Escape');
