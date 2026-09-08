@@ -9,6 +9,7 @@ import { TOOL_COPY_DE, SYSTEM_TOOL_COPY_DE } from './ui/tool-copy.js';
 import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
 import { BRAND_ICON } from './ui/brand.js';
 import { WORKSPACE_STYLE } from './ui/workspace-style.js';
+// scg-ignore-next-line MINI_SHAI_HULUD_LOADER Reviewed 2026-09-08: static import of our tracked UI view, with no install hook, runtime download or credential loader; see docs/operations/supply-chain-review.md.
 import { EXECUTION_STYLE, EXECUTION_HTML, EXECUTION_SCRIPT, EXECUTION_NAV_HTML, EXECUTION_TREE_HTML } from './ui/execution.js';
 import { SELECT_STYLE, SELECT_SCRIPT } from './ui/select.js';
 import { PLATFORM_NEW_CHAT_HTML, PLATFORM_HISTORY_HTML, PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
@@ -3002,7 +3003,7 @@ Pipelines: GET /v1/pipelines
   function renderSettings(data) {
     if (dirtySections.has('settings-section')) return;
     setLocalizedHtml($('settings-keys'), () => '<div class="setting-list">' + Object.entries(data.apiKeys || {}).map(([provider, info]) =>
-      '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(localizedValue(info.source || (info.configured ? t('status_configured') : t('status_not_detected')))) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" placeholder="' + (info.configured ? t('ph_replace_api_key') : t('ph_paste_api_key')) + ('"><button type="submit">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' + '<span class="action-label">' + esc(t('btn_save_api_key')) + '</span>' + '</button></form></div>')
+      '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(localizedValue(info.source || (info.configured ? t('status_configured') : t('status_not_detected')))) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" aria-label="' + esc(provider + ': ' + t('lbl_api_key_write_only')) + '" placeholder="' + (info.configured ? t('ph_replace_api_key') : t('ph_paste_api_key')) + ('"><button type="submit" class="primary" title="' + esc(t('btn_save_api_key') + ': ' + provider) + '" aria-label="' + esc(t('btn_save_api_key') + ': ' + provider) + '">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' + '</button></form></div>')
     ).join('') + ('</div><p class="muted">' + esc(t('ui_keys_write_only')) + '</p>'));
     document.querySelectorAll('[data-key-provider]').forEach(form => form.addEventListener('submit', saveKey));
   }

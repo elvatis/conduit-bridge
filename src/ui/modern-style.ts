@@ -378,7 +378,12 @@ export const MODERN_STYLE = String.raw`
   .ex-page button.effort-close,.ex-page .ex-plan-toolbar button,.modal-close { min-height:var(--control-compact); min-width:var(--control-compact); }
   .effort-trigger > svg:last-child { width:.875rem; height:.875rem; color:var(--muted); }
   .effort-trigger[aria-expanded="true"] > svg:last-child { transform:rotate(180deg); }
-  .setting-row form { align-items:center; gap:var(--control-gap); }
+  .setting-row { grid-template-columns:minmax(8rem,.7fr) minmax(12rem,.8fr) minmax(18rem,1.4fr); gap:1rem 1.5rem; padding-block:1rem; }
+  .setting-row form { display:flex; align-items:center; gap:1rem; margin:0; }
+  .setting-row form > .setting-caption { width:auto; flex:none; margin:0; }
+  .setting-row form input { flex:1; width:0; }
+  .setting-row form button { flex:none; width:var(--control-height); padding:0; }
+  .setting-row > .setting-badge { justify-self:start; }
   .setting-row input,.setting-row button { min-height:var(--control-height); margin:0; }
   button > svg { display:block; flex-shrink:0; }
   button:has(> svg:only-child),.ex-icon-button,.ex-send,.ex-tree-heading button,.ex-plan-toolbar button,.effort-close,.modal-close,#sidebar-toggle,#refresh,#ra-refresh,#ra-previous,#ra-next,#pf-chat-send,#pf-chat-stop,.gw-page .gw-plus,#gw-refresh { display:inline-flex; align-items:center; justify-content:center; gap:0; flex-shrink:0; }
@@ -411,6 +416,7 @@ export const MODERN_STYLE = String.raw`
   @media(max-width:480px) { .modal-footer { flex-direction:column; align-items:stretch; } .modal-footer > button { width:100%; justify-content:center; } }
   /* Center the visible label; reserve equal room around select text for its arrow. */
   button { justify-content:center; text-align:center; line-height:1.25; }
+  .sidebar:not(.collapsed) .side-menu button,.sidebar:not(.collapsed) .sidebar-new-chat,.sidebar:not(.collapsed) .nav-custom-trigger { justify-content:flex-start; text-align:left; }
   button > .action-label { margin:0; line-height:inherit; }
   .select-trigger.select-trigger { position:relative; justify-content:center; padding-inline:2.25rem; text-align:center; }
   .select-trigger > span { flex:1; text-align:center; }

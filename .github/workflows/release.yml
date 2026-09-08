@@ -20,9 +20,10 @@
 # Three existing tags here (v0.2.5, v0.3.0, v0.4.0) are lightweight, so the
 # title falls back to the tag name rather than failing.
 #
-# The two-job split is a privilege boundary. `build` runs npm ci and the test
+# The three-job split is a privilege boundary. `build` runs npm ci and the test
 # suite - the whole dependency tree - and holds no write scope. `publish` holds
-# contents: write and runs no repository or registry code at all.
+# contents: write. `attest` alone holds OIDC and attestation write permissions.
+# Neither privileged job checks out or executes repository or registry code.
 
 name: Release
 
@@ -54,8 +55,6 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      id-token: write
-      attestations: write
 
     # The tag is resolved once and read from the environment everywhere. It is
     # never interpolated into a run: block: GitHub substitutes ${{ }} into the
@@ -86,6 +85,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
           # Full history: the ancestry check needs main, and the Layer 2 drift
           # gate needs the tagged commit's parent.
           fetch-depth: 0
@@ -171,13 +171,8 @@ jobs:
           tar -czf "$RUNNER_TEMP/release/conduit-bridge-${VERSION}.tar.gz" \
             dist package.json package-lock.json README.md
 
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
-        with:
-          subject-path: ${{ runner.temp }}/release/conduit-bridge-${{ env.VERSION }}.tar.gz
-
-      - name: Upload the attested build subject
-        uses: actions/upload-artifact@v7
+      - name: Upload the tested build subject
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-build-subject
           path: ${{ runner.temp }}/release/conduit-bridge-${{ env.VERSION }}.tar.gz
@@ -203,20 +198,42 @@ jobs:
           fi
 
       - name: Hand the notes to the publish job
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-notes
           path: ${{ runner.temp }}/release/RELEASE_NOTES.md
           retention-days: 7
           if-no-files-found: error
 
-  publish:
+  attest:
     needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # scg-ignore-next-line GHA_OIDC_WRITE_PERM Required for provenance only; isolated job has two SHA-pinned GitHub actions, no checkout or run steps. Reviewed 2026-09-08; docs/operations/supply-chain-review.md.
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Download this run's tested build subject
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-build-subject
+          path: ${{ runner.temp }}/release
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ runner.temp }}/release/conduit-bridge-${{ needs.build.outputs.version }}.tar.gz
+
+  publish:
+    needs: [build, attest]
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # The only job with write scope. No checkout, no npm, no repository code.
+    # The only job with repository write scope. No checkout or repository code.
     permissions:
       contents: write
 
@@ -227,7 +244,7 @@ jobs:
 
     steps:
       - name: Download the release notes
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-notes
           path: ${{ runner.temp }}/release

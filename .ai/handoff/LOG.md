@@ -2,6 +2,10 @@
 
 _Reverse chronological._
 
+## 2026-09-08 - Supply chain isolation and navigation/settings corrections
+
+Supply chain and settings follow-up (2026-09-08): Reviewed PR #120 scanner comment. Isolated provenance into a job with only SHA-pinned GitHub download/attestation actions; build has no write permissions, publishing depends on attestation, checkout does not persist credentials. Added two documented line-specific exceptions for the local UI import false positive and the required isolated OIDC permission. Exact CI scanner 6.0.15 reports zero findings at low minimum, score 0 and two suppressions; removing the comments restores exactly the two findings. actionlint, secret scan and governance checks pass. Expanded navigation is left aligned. Credential forms have 16px input/save-icon gaps, accessible names and usable widths including dynamic tooltips. All 48 browser tests pass (47.0s); 24 rows additionally pass a six-width/two-language geometry audit. Production build passes. Local bridge restarted idle, preserving seven chats; bridge and BitNet return 200. No merge or release.
+
 ## 2026-09-08 - Text alignment, German copy and control materials
 
 Text, language and design follow-up (2026-09-08): Centered select labels and balanced pipeline fields. Added Apple-inspired glass navigation/popovers, opaque content, capsule buttons, segmented choices, system type and clearer switches/sliders. German copy now covers dynamic Effort controls and levels, all 17 shipped presets, installed template originals, 23 tool descriptions, Git actions, empty states and chart dates; edited content and wire values are preserved. Complete local suites pass 613 tests/70 files (32.94s) and 48 browser cases (44.3s); the final installed-preset follow-up passes all 45 affected contracts and four language browser cases. Build passes and the English GIF is regenerated. Updating PR #120; previous head 77c34c3 passed every hosted check. No merge or release.

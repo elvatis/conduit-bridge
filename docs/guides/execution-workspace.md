@@ -24,6 +24,10 @@ Shared controls use 44-pixel minimum heights, consistent icon alignment and
 pointers. Model menus support search and keyboard selection; Effort popovers
 stay within the viewport, scroll when needed and return focus when closed.
 Execution input and its expanded settings stay below the recorded evidence.
+Navigation entries align left when expanded. API credential fields use a
+16-pixel gap before a compact save icon; the icon's tooltip and accessible
+name identify the provider and action. Inputs retain their usable width when
+help icons are added or the form stacks on a narrow screen.
 
 Navigation preferences, pipeline creation, repository registration and Git
 actions use named native dialogs. Opening a dialog moves focus inside it;

@@ -32,6 +32,7 @@ export const I18N_SCRIPT = String.raw`
     admin: 'role_admin', operator: 'lbl_operator', viewer: 'role_viewer',
     none: 'effort_none', minimal: 'effort_minimal', xhigh: 'effort_xhigh', max: 'effort_max',
     vault: 'source_vault', env: 'source_env', environment: 'source_env', ultra: 'effort_ultra', ultracode: 'effort_ultracode',
+    'bridge config': 'source_bridge_config', 'not detected': 'status_not_detected',
     'cli not installed': 'status_cli_not_installed',
   };
   function effortLabel(value) { return value ? t('effort_' + value) : t('ex_effort_default'); }

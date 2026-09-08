@@ -7,6 +7,19 @@ These checks cover the local changes, not a deployed release.
 
 ## Automated checks
 
+- Navigation/settings follow-up: all 48 existing browser tests passed (47.0
+  seconds). A separate check measured 24 credential rows at 320, 390, 768,
+  1280, 1920 and 3840 pixels in both languages: 16-pixel input/button gaps,
+  usable input widths, 44-pixel buttons and accessible names. Expanded
+  navigation icons align to the left padding; collapsed icons remain centered.
+  Dynamic tooltip captions were included in the width check. Production build
+  passes. The local service was restarted without active runs; seven chats
+  remain and bridge/BitNet health checks return 200.
+- [Supply chain review](../operations/supply-chain-review.md): the exact CI
+  scanner 6.0.15 reports zero findings at the action's `low` minimum severity,
+  score 0, complete coverage and two reviewed line exceptions. Removing those
+  exceptions restores precisely the original two findings. actionlint 1.7.12,
+  Secret Scan and configured governance checks pass. No release was run.
 - Complete Vitest suite after the text alignment, design and language pass:
   613 tests in 70 files passed (32.94 seconds).
 - Playwright suite: 48 browser tests passed (44.3 seconds), using Microsoft
