@@ -113,10 +113,16 @@ source excerpts survived a process restart. A source link opened and focused
 the matching original message. Storage reopening and source links remain covered
 by automated regressions in the repaired version.
 
-The regenerated English GIF includes an illustrative source-linked summary
-and Help examples. The recording intercepts all requests and asserts that it
-sent no mutations or provider calls. Desktop and narrow screenshots were
-visually inspected for spacing, clipping, hierarchy and readable source text.
+The refreshed English GIF uses the current evidence classifier on seven
+synthetic messages, asserting that a question and two echo messages are omitted
+while four supported statements retain their categories. It shows numbered
+source links, opens the exact original message, and includes Help examples,
+introduction re-entry and page search. Captions remain readable above dialog
+backdrops. Recording intercepts all requests and asserts that it sent no
+mutations or provider calls. Source frames and decoded final GIF frames were
+visually inspected. FFprobe confirms 1200x800 pixels, 407 frames and 40.7
+seconds, approximately 2.01 MiB. Earlier desktop and narrow screenshots were
+also checked for spacing, clipping, hierarchy and readable source text.
 
 ## Remaining verification limits
 

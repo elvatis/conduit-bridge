@@ -11,7 +11,7 @@ keys, authenticated coding CLIs, local models, conversations, and workspace
 access under explicit local control. It runs on Windows Desktop and Linux
 Desktop at `127.0.0.1:31338`.
 
-![Conduit dashboard: chat, execution, Git history and repository analytics](assets/demo.gif)
+![Conduit dashboard: chat, execution, Git history, source-linked insights and guided Help](assets/demo.gif)
 
 The tour uses illustrative data. [Record the English demo](assets/README.md)
 or follow the [workspace examples](examples/workspace/README.md).

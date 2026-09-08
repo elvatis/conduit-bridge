@@ -3,29 +3,29 @@
   "project": "pb",
   "last_session": {
     "agent": "codex",
-    "session_id": "cli-1788858221",
-    "timestamp": "2026-09-08T09:03:42Z",
-    "commit": "309fa97",
-    "phase": "fix",
+    "session_id": "cli-1788861396",
+    "timestamp": "2026-09-08T09:56:37Z",
+    "commit": "a059862",
+    "phase": "documentation",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:d84d99079c86caf665c9256955da4ab1c348fde99286b3b0f67163d78fb5487e",
-      "updated": "2026-09-08T09:03:32Z",
-      "lines": 465,
+      "checksum": "sha256:26810d474b6b7376990f2dbb11d8212fcc5b31ad2be9c3a95949635f85409fc1",
+      "updated": "2026-09-08T09:56:27Z",
+      "lines": 467,
       "summary": "PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:b20f1643d915051aa6827293fe23dadc5b9a15f2fe5551b538aa7db35835454a",
-      "updated": "2026-09-08T09:03:32Z",
+      "checksum": "sha256:0a1288bcceeb9e7e99187b3502a2230ae1226f7e2abd3a2aaafc82052ee0d441",
+      "updated": "2026-09-08T09:56:27Z",
       "lines": 73,
       "summary": "Second inspection is implemented: named native dialogs with focus/Escape,"
     },
     "LOG.md": {
-      "checksum": "sha256:625455d7a93e97c65e34879642aa4fbee081dad11329a2b2f7a4b1609058e750",
-      "updated": "2026-09-08T09:03:33Z",
-      "lines": 332,
+      "checksum": "sha256:92a97d4c918dc1348c8fbe81ec16d579d12f7932735775daad32ee2127d244c5",
+      "updated": "2026-09-08T09:56:28Z",
+      "lines": 336,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Correct local insight selection and categories; 690 tests and 21 native checks pass",
+  "quick_context": "Refresh demo GIF for corrected insights, source links, introduction and search",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 7829,
-    "full_read": 15267
+    "manifest_plus_core": 7980,
+    "full_read": 15588
   }
 }
