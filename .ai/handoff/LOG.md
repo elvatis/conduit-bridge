@@ -2,6 +2,25 @@
 
 _Reverse chronological._
 
+## 2026-09-08 - UI controls, navigation and functional coverage
+
+- Aligned control heights, padding, icon centers, popovers and responsive forms
+  throughout the Elvatis dashboard; execution input stays below run evidence.
+- Added pointer and keyboard navigation resizing, persistence, cancellation
+  and reset, plus short-window scrolling without overlapping navigation links.
+- Fixed Effort positioning/focus-scroll behavior and the analytics identity
+  initialization race exposed by browser regression tests.
+- Added 34 isolated Playwright checks and Linux Chromium CI. All 22 navigation
+  sections and six platform tabs fit five viewport widths in both languages.
+- Reran all 611 Vitest tests in 70 files and the 34 browser tests after the
+  final design corrections; all pass. Production build passes.
+- Added English assets/demo.gif with a reproducible Playwright/FFmpeg script,
+  bounded review/pipeline examples and contributor/validation documentation.
+- Rebuilt and restarted the local bridge on 31338 after confirming every run
+  had finished. Seven retained chats and the separate BitNet service survive.
+- Preparing the user-requested feature PR; release and runtime gap follow-ups
+  remain separate work.
+
 ## 2026-09-08 - Execution and repository workspace
 
 - Created codex/agent-orchestrator-dashboard from fetched main cb87534.

@@ -1,0 +1,30 @@
+{
+  "id": "workspace-review-example",
+  "name": "Workspace review with an approval checkpoint",
+  "description": "Draft review criteria from supplied context, then approve the final checklist.",
+  "category": "review",
+  "steps": [
+    {
+      "id": "criteria",
+      "name": "Review criteria",
+      "model": "{{model}}",
+      "mode": "chat",
+      "effort": "medium",
+      "fastMode": false,
+      "max_tokens": 512,
+      "promptTemplate": "From the supplied context, propose three concrete acceptance criteria. State any missing evidence. Do not claim to have inspected files or executed tests. Context: {{prompt}}"
+    },
+    {
+      "id": "checklist",
+      "name": "Approved checklist",
+      "model": "{{peer_model}}",
+      "mode": "chat",
+      "effort": "medium",
+      "fastMode": false,
+      "dependsOn": ["criteria"],
+      "requiresApproval": true,
+      "max_tokens": 512,
+      "promptTemplate": "Turn these approved criteria into a concise manual review checklist with an expected result for each item: {{previous_output}}. Distinguish planned checks from completed evidence."
+    }
+  ]
+}

@@ -5,6 +5,30 @@ navigation. Chat, Execution, Git workspace and Repository analytics share the
 Elvatis navy, cyan and copper palette and adapt to narrow viewports. No embedded
 preview frame is part of the shipped dashboard.
 
+## Navigation and controls
+
+Drag the navigation's right edge to change its width. The supported range is
+240 to 480 CSS pixels, with at least 360 pixels reserved for workspace content.
+The browser remembers the chosen width. Double-click the divider to reset it.
+
+Focus the divider with Tab to use the keyboard: Left/Right adjusts by 8 pixels,
+Shift+Left/Right by 32, Home/End chooses the available minimum/maximum, and
+Enter restores the default width. Escape cancels an active drag. At mobile
+widths the navigation becomes a drawer, with its menu button and Escape handling.
+In short windows the navigation scrolls as one column so its links stay reachable.
+
+Shared controls use 44-pixel minimum heights, consistent icon alignment and
+8-pixel gaps. Compact desktop controls use 36 pixels and enlarge for coarse
+pointers. Model menus support search and keyboard selection; Effort popovers
+stay within the viewport, scroll when needed and return focus when closed.
+Execution input and its expanded settings stay below the recorded evidence.
+
+The visual pass follows the clarity, hierarchy and familiar navigation approach
+in [Apple's Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/),
+adapted to a browser dashboard using Elvatis colors. This is a custom web UI,
+with explicit responsive and keyboard checks documented in the
+[validation record](../validation/execution-workspace.md).
+
 ## Chats and projects
 
 The collapsible **Chat history** stays beside the workspace pages. Search finds
@@ -40,6 +64,11 @@ set is limited to 64 items per run step.
 Continuing the selected agent task as a new turn and steering a running turn
 remain future runtime work. **Explore a sample** is clearly marked illustrative
 data and never executes agents.
+
+For a guided sample, a bounded review request and a pipeline with an approval
+checkpoint, see [the workspace examples](../../examples/workspace/README.md).
+The [English demo recording](../../assets/README.md) reproduces the dashboard
+tour using isolated illustrative fixtures.
 
 ## Effort and faster speed
 

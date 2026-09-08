@@ -11,13 +11,18 @@ keys, authenticated coding CLIs, local models, conversations, and workspace
 access under explicit local control. It runs on Windows Desktop and Linux
 Desktop at `127.0.0.1:31338`.
 
+![Conduit dashboard: chat, execution, Git history and repository analytics](assets/demo.gif)
+
+The tour uses illustrative data. [Record the English demo](assets/README.md)
+or follow the [workspace examples](examples/workspace/README.md).
+
 ## What it does
 
 | Need | Conduit Bridge provides |
 | --- | --- |
 | One client endpoint | OpenAI-compatible chat, responses, embeddings, model discovery, metrics, events, and comparison endpoints. |
 | Provider choice | Direct APIs, authenticated coding CLIs, LM Studio, and optional local BitNet inference remain separate and independently configurable. |
-| Productive local work | A dashboard for chat, models, provider health, projects, budgets, pipelines, governance, and diagnostics. |
+| Productive local work | Chat projects, execution evidence, Git history and diffs, repository analytics, models, budgets, pipelines, governance, and diagnostics. |
 | Controlled automation | Bounded agent runs, approval gates, scoped workspaces, versioned skills, provider profiles, and usage estimates. |
 | Private local state | Every platform conversation stays on this device until explicit deletion. Encrypted SQLite is the default, with backup and restore. |
 | Message vault | Search every conversation message with SQLite full text or tgrep regex. Recurring local BitNet scans propose improved prompts with source links. |
@@ -82,6 +87,8 @@ Execution adds a hierarchical task view, provider events and a plan drawer.
 The shared Effort popover includes a separate Faster speed switch where supported.
 Git workspace shows branches, worktrees, commit history and diffs; Repository
 analytics charts committed source history with inspectable snapshots and export.
+Drag the navigation's right edge to adjust its width, or focus the divider and
+use the arrow keys. The width and language preference survive a browser reload.
 See [Execution and repository workspace](docs/guides/execution-workspace.md)
 for behavior, permissions and current limits.
 

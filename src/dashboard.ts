@@ -1,6 +1,7 @@
 import { GIT_WORKSPACE_HTML, GIT_WORKSPACE_STYLE, GIT_WORKSPACE_SCRIPT } from './ui/git-workspace.js';
 import { REPOSITORY_ANALYTICS_HTML, REPOSITORY_ANALYTICS_STYLE, REPOSITORY_ANALYTICS_SCRIPT, REPOSITORY_ANALYTICS_NAV_HTML } from './ui/repository-analytics.js';
 import { MODERN_STYLE } from './ui/modern-style.js';
+import { SIDEBAR_RESIZE_HTML, SIDEBAR_RESIZE_SCRIPT, SIDEBAR_RESIZE_STYLE } from './ui/sidebar-resize.js';
 import { effortControl, EFFORT_STYLE } from './ui/effort-slider.js';
 import { TRANSLATIONS } from './i18n.js';
 import { I18N_SCRIPT } from './ui/i18n.js';
@@ -838,6 +839,7 @@ const SHARED_STYLE = `
   ${REPOSITORY_ANALYTICS_STYLE}
   ${EFFORT_STYLE}
   ${MODERN_STYLE}
+  ${SIDEBAR_RESIZE_STYLE}
 `;
 
 export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
@@ -960,6 +962,7 @@ ${EXECUTION_TREE_HTML}
     </div>
   </aside>
 
+  ${SIDEBAR_RESIZE_HTML}
   <div class="workspace">
     <nav class="appbar" aria-label="Dashboard controls" data-i18n-aria="ui_dashboard_controls">
       <div style="display: flex; align-items: center; gap: 10px;">
@@ -1560,6 +1563,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     window.addEventListener?.('resize', syncSidebarExpanded);
   }
   initSidebarCollapse();
+  ${SIDEBAR_RESIZE_SCRIPT}
 
   // Navigation visibility customization
   const NAV_SECTIONS = [
@@ -3446,6 +3450,8 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     window.gitWorkspace.configure({workspaces:[],workspaceId:'',canWrite:false,language:currentLang,request});
     raReset();
     pfState.workspaces = null;
+    // Identity initialization invalidates a deep-link load that may already be in flight.
+    if (activeSection === 'repository-analytics') loadRepositoryAnalytics(true);
   }
   function repositoryWorkspaceSync(workspaces = pfState.workspaces || [], workspaceId) {
     if (!window.gitWorkspace) return;

@@ -1,4 +1,4 @@
-> Current feature work (2026-09-08): Review codex/agent-orchestrator-dashboard and docs/guides/execution-workspace.md. Local validation passes 611 tests/70 files, 31 final targeted checks, build and 390/1920/3840px browser QA. The original v0.10.0 release/PR work below is historical. Next runtime priorities are in docs/CODEX-GAP-ANALYSIS.md and docs/CLAUDE-CODE-GAP-ANALYSIS.md: task/turn continuity, provider streaming, specific tool approvals and task/worktree/review binding. These reports are audits, not completed implementations. Current UI runs locally on 31338; no feature push or release. The separate MIT change is merged as PR #119. Review docs/operations/command-guards.md before future PR merges.
+> Current feature work (2026-09-08): Review codex/agent-orchestrator-dashboard and docs/guides/execution-workspace.md. Local validation passes 611 tests/70 files and 34 browser tests after final design fixes. All pages/tabs pass English/German layout checks from 390 to 3840px. Navigation resizing, button alignment, settings coverage, an English reproducible GIF and workspace examples are included. The requested PR is the next review point; no release. The original v0.10.0 release/PR work below is historical. Next runtime priorities remain task/turn continuity, provider streaming, specific tool approvals and task/worktree/review binding in the Codex/Claude Code gap analyses. These reports are audits, not completed implementations. Current UI runs locally on 31338. MIT PR #119 is merged. Review docs/operations/command-guards.md before future PR merges.
 
 # Next actions
 
@@ -20,7 +20,9 @@ _Updated: 2026-09-07_
    now starts automatically with the bridge; BITNET_AUTOSTART=false disables it. Rebuild with `scripts/bitnet/build-windows.ps1`
    after stopping it. Review upstream #602 before removing the 2B relu2 patch.
    Live LM Studio/Gemini API planning still needs a loaded model/credentials.
-Do not reintroduce `web-*`, Playwright, cookie extraction or VNC components.
+Do not reintroduce `web-*` provider transports, cookie extraction or VNC
+components. Playwright is permitted as an isolated development test/recording
+dependency; it is not a runtime provider or an authenticated browser bridge.
 Keep the gateway port unchanged; optional BitNet/tgrep daemon ports are explicit
 administrator-controlled integrations requested in the addendum.
 

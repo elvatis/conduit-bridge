@@ -109,7 +109,6 @@ export const EXECUTION_WORKSPACE_SCRIPT = String.raw`
     $('ex-layout').classList.toggle('ex-plan-collapsed',collapsed);
     $('ex-plan-body').hidden = collapsed;
     $('ex-plan-toggle').setAttribute('aria-expanded',String(!collapsed));
-    $('ex-plan-toggle').textContent = collapsed ? '‹' : '›';
   }
   function exCommandCard(command,index) {
     const duration = command.completedAt && command.startedAt ? exElapsed(command.startedAt,command.completedAt) : t('ex_running');
