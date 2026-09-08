@@ -1,4 +1,4 @@
-# Current update — MIT license (2026-09-08)
+# Current update - MIT license (2026-09-08)
 
 The repository owner requested changing the project license from Apache-2.0 to MIT. LICENSE now contains MIT with the original Elvatis / Emre Kohler copyright attribution. The root package manifest, root lockfile metadata and README agree. Third-party dependency license declarations remain unchanged. Linux and Windows tests, CodeQL, Secret Scan and Supply Chain Guard passed on the license commit; this follow-up refreshes the required handoff state and manifest.
 
