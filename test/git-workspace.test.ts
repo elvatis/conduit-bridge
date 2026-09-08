@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -130,8 +130,11 @@ describe('Git workspace reads against real repositories', () => {
 });
 
 describe('explicit Git workspace actions in isolated fixtures', () => {
-  it('creates a branch and a constrained linked worktree without changing the active branch', async () => {
-    const { root, service } = await fixture();
+  it('creates a constrained linked worktree from an aliased root without changing the active branch', async () => {
+    const { root, container } = await fixture();
+    const alias = join(container, 'workspace alias');
+    await symlink(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const service = new GitWorkspaceService(alias);
     await service.action({ action: 'create-branch', name: 'codex/new-branch' });
     expect(git(root, 'branch', '--show-current')).toBe('main');
     expect(git(root, 'show-ref', '--verify', 'refs/heads/codex/new-branch')).toContain('refs/heads/codex/new-branch');
@@ -140,7 +143,7 @@ describe('explicit Git workspace actions in isolated fixtures', () => {
     const linked = snapshot.worktrees.find(tree => tree.branch === 'codex/new-worktree')!;
     expect(linked.available).toBe(true);
     expect(snapshot.files.some(file => file.path.startsWith('.conduit-worktrees/'))).toBe(false);
-    expect(dirname(linked.path)).toBe(join(root, '.conduit-worktrees').replaceAll('\\', '/'));
+    expect(dirname(linked.path)).toBe(join(await realpath(root), '.conduit-worktrees').replaceAll('\\', '/'));
     expect((await service.snapshot({ worktree: linked.id })).branch).toBe('codex/new-worktree');
     await expect(service.action({ action: 'add-worktree', name: '../escape' })).rejects.toThrow();
     await expect(service.action({ action: 'create-branch', name: '--force' })).rejects.toThrow('valid branch');

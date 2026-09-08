@@ -51,6 +51,13 @@ UI contracts cover escaped/searchable groups and assignment requests. Merge
 guard tests cover hold markers beyond a long title prefix, label holds, drafts,
 missing/pending checks and missing commit identity.
 
+The first hosted Windows run for PR #120 exposed two fixture expectations
+comparing the runner's short temporary path (`RUNNER~1`) with the canonical
+path returned by the services. Both assertions now compare the expected
+canonical root and explicitly register a junction/symlink alias. The worktree
+destination and repository authorization assertions remain in place.
+Both complete affected test files then passed locally: 34 tests in 25.06 seconds.
+
 ## Browser interaction and layout matrix
 
 The checked-in suite in `test/browser/` bundles the current dashboard source.

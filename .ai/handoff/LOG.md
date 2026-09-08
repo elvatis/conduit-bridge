@@ -2,6 +2,16 @@
 
 _Reverse chronological._
 
+## 2026-09-08 - PR #120 Windows fixture correction
+
+- Published the requested workspace PR after integrating the MIT main update.
+- Linux, Chromium UI, CodeQL, AAHP and security checks passed. Hosted Windows
+  exposed short-name versus canonical temporary-path assertions in two new tests.
+- Corrected expected paths and strengthened both cases with explicit aliased
+  workspace roots. Production path handling and authorization are unchanged.
+- Both affected test files pass locally: 34 tests, including real Git/worktree
+  actions in isolated repositories and scoped HTTP authorization.
+
 ## 2026-09-08 - UI controls, navigation and functional coverage
 
 - Aligned control heights, padding, icon centers, popovers and responsive forms

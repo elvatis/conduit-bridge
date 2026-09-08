@@ -3,29 +3,29 @@
   "project": "pb",
   "last_session": {
     "agent": "codex",
-    "session_id": "cli-1788832252",
-    "timestamp": "2026-09-08T01:50:53Z",
-    "commit": "42ad026",
-    "phase": "review",
+    "session_id": "cli-1788832741",
+    "timestamp": "2026-09-08T01:59:02Z",
+    "commit": "052fb4a",
+    "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:9e40da61e481fbe1683d93ff3e51cbe13d8f95e2d53ff720204cea267a253d84",
-      "updated": "2026-09-08T01:50:41Z",
-      "lines": 441,
-      "summary": "The repository owner requested changing the project license from Apache-2.0 to MIT. LICENSE now contains MIT with the original Elvatis / Emre Kohler c"
+      "checksum": "sha256:fbb7c15dd2cded231b6f84b11d2340c9389acbd19f56370ed14a28842b4b611b",
+      "updated": "2026-09-08T01:58:54Z",
+      "lines": 447,
+      "summary": "PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and"
     },
     "NEXT_ACTIONS.md": {
-      "checksum": "sha256:5d36cc690e07ec3c3dae7550ee722664c42e883d6a086341a2467decbeeed4a6",
-      "updated": "2026-09-08T01:46:41Z",
-      "lines": 57,
-      "summary": "The new integration assessment is in docs/guides/integration-assessment.md."
+      "checksum": "sha256:a283cd9b3e4a97deed0ec689bd1a649d2db99e58c473b13c64c9ec9266efdcf2",
+      "updated": "2026-09-08T01:57:32Z",
+      "lines": 62,
+      "summary": "Review [PR #120](https://github.com/elvatis/conduit-bridge/pull/120), including"
     },
     "LOG.md": {
-      "checksum": "sha256:d0314d9277a0d0e9fc7b11f22fb61abd65af804898ea1ffcfd59d02a5ca95954",
-      "updated": "2026-09-08T01:46:41Z",
-      "lines": 288,
+      "checksum": "sha256:a1c2c668e859502d18a9757c40fa6b2c4093f29920a12d319e6208214955dec7",
+      "updated": "2026-09-08T01:58:54Z",
+      "lines": 298,
       "summary": "_Reverse chronological._"
     },
     "LOG-ARCHIVE.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Feature PR includes execution, effort/Fast, Git/analytics, chat projects, polished controls and resizable navigation; 611 unit/integration and 34 browser tests pass; main MIT handoff integrated.",
+  "quick_context": "PR #120 open. All 611 local tests and 34 browser tests passed; hosted Windows exposed two path-alias fixture assertions, now corrected and strengthened with real junction/symlink cases; all 34 affected tests pass.",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 6708,
-    "full_read": 12956
+    "manifest_plus_core": 6825,
+    "full_read": 13180
   }
 }

@@ -1,5 +1,11 @@
 > Note (2026-09-08, codex/agent-orchestrator-dashboard): Added the full-page Elvatis execution workspace, shared Effort/Faster speed controls, public Codex execution events, persistent chat projects, repository analytics and Git/worktree views. The final design pass aligns buttons/icons, fixes responsive settings and popovers, and adds navigation resizing with persistence and keyboard controls. Windows: 611 tests/70 files and 34 new browser tests pass after the design fixes, with all 22 pages and six workspace tabs checked in English/German at 390/768/1280/1920/3840px. Build passes. Added isolated Chromium CI, English demo.gif with reproducible recording, and workspace examples. The rebuilt local bridge runs on 31338 with seven retained chats; BitNet remains healthy on 8080. MIT PR #119 merged separately. This branch is prepared for the requested PR; no release. See docs/validation/execution-workspace.md and the runtime gap analyses.
 
+PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and
+security checks passed on its first head. Hosted Windows exposed two temporary
+path alias expectations in the new Git/analytics fixtures; they now assert
+canonical paths and explicitly exercise junction/symlink registration.
+Both complete affected test files pass locally (34 tests).
+
 # Current update - MIT license (2026-09-08)
 
 The repository owner requested changing the project license from Apache-2.0 to MIT. LICENSE now contains MIT with the original Elvatis / Emre Kohler copyright attribution. The root package manifest, root lockfile metadata and README agree. Third-party dependency license declarations remain unchanged. Linux and Windows tests, CodeQL, Secret Scan and Supply Chain Guard passed on the license commit; this follow-up refreshes the required handoff state and manifest.

@@ -2,6 +2,11 @@
 
 # Next actions
 
+Review [PR #120](https://github.com/elvatis/conduit-bridge/pull/120), including
+the English demo and complete validation record. Confirm hosted checks on its
+current head before considering a merge. The user requested creation of the
+PR; merging and releasing are not part of this task.
+
 The new integration assessment is in docs/guides/integration-assessment.md.
 Start with versioned workflow/layout persistence and a scoped GitHub read
 service, followed by the Canvas UI and local cross-session prompt patterns.

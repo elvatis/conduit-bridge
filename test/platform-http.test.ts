@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -384,10 +384,10 @@ describe('platform HTTP vault', () => {
 });
 
 describe('repository workspace HTTP authorization', () => {
-  function register() {
-    const result = server.workspaceManager.addOrUpdateWorkspace(state.runtime, 'Repository fixture', true);
+  function register(path = state.runtime) {
+    const result = server.workspaceManager.addOrUpdateWorkspace(path, 'Repository fixture', true);
     if (!result.entry) throw new Error(result.error);
-    server.governanceManager.saveRepository({id:'fixture-repository',name:'Fixture',path:state.runtime});
+    server.governanceManager.saveRepository({id:'fixture-repository',name:'Fixture',path});
     return result.entry.id;
   }
   it('allows scoped reads and rejects unknown or ungranted workspaces before reading Git', async () => {
@@ -402,14 +402,18 @@ describe('repository workspace HTTP authorization', () => {
     expect(unauthenticated.status).toBe(401);
     expect(snapshot).toHaveBeenCalledTimes(1);
   });
-  it('binds analytics to registered repositories and filters catalogs by workspace access', async () => {
-    const workspaceId = register();
+  it('binds analytics to canonical registered roots and filters catalogs by workspace access', async () => {
+    const repository = join(state.runtime, 'repository');
+    const alias = join(state.runtime, 'repository alias');
+    mkdirSync(repository);
+    symlinkSync(repository, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const workspaceId = register(alias);
     const read = vi.spyOn(RepositoryAnalyticsService.prototype, 'read').mockResolvedValue({status:'empty',snapshots:[]} as any);
     const catalog = await api('/v1/analytics/repositories', undefined, 'viewer');
     expect(catalog.status).toBe(200);
     expect(catalog.data.data).toContainEqual({id:'fixture-repository',name:'Fixture'});
     expect((await api('/v1/analytics/repository?repository=fixture-repository&branch=HEAD', undefined, 'viewer')).status).toBe(200);
-    expect(read.mock.calls[0][0].path).toBe(state.runtime);
+    expect(read.mock.calls[0][0].path).toBe(realpathSync.native(repository));
     config.platformAuth!.operators!.find(operator => operator.id === 'viewer')!.workspaceIds = [workspaceId + '-other'];
     expect((await api('/v1/analytics/repositories', undefined, 'viewer')).data.data).toEqual([]);
     expect((await api('/v1/analytics/repository?repository=fixture-repository', undefined, 'viewer')).status).toBe(403);
