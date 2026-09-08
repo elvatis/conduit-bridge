@@ -35,6 +35,13 @@ for (const width of [390,768,1280,1920,3840]) for (const language of ['en','de']
         return dy>1.5||(!label&&!button.matches('.select-trigger')&&dx>1.5)?[{id:button.id,label,dx,dy}]:[];
       }));
       expect.soft(misplaced,`${name}: icon alignment`).toEqual([]);
+      const labels=await page.locator('.select-trigger').evaluateAll(buttons=>buttons.flatMap(button=>{
+        if(!button.checkVisibility()||button.closest('details:not([open])'))return [];
+        const rect=button.getBoundingClientRect();if(rect.right<=0)return [];
+        const label=button.querySelector('span')!,box=label.getBoundingClientRect();
+        return Math.abs(box.x+box.width/2-rect.x-rect.width/2)>.6||Math.abs(box.y+box.height/2-rect.y-rect.height/2)>.6||getComputedStyle(label).textAlign!=='center'?[label.textContent]:[];
+      }));
+      expect.soft(labels,`${name}: visible select text centered`).toEqual([]);
       if(name==='execution') {
         await page.locator('#ex-demo').click();
         await page.locator('.ex-run-settings > summary').click();

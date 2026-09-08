@@ -27,6 +27,10 @@ Dialog checks also cover 320 x 480 and 1280 x 720 viewports, accessible names,
 initial and restored focus, inactive background controls, and Escape handling
 for nested menus and popovers. Execution checks retain failed-action messages
 across a completed refresh and clear them after a successful retry.
+Language checks load the shipped pipeline/tool catalogs, add controls after
+startup and switch languages while preserving drafts, provider values and
+returned content. Keep display translations separate from execution values.
+Layout checks measure visible select-label centers as well as icon alignment.
 
 On Windows, an installed Edge can replace the downloaded test browser:
 

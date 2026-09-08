@@ -2,6 +2,12 @@
 
 _Reverse chronological._
 
+## 2026-09-08 - Text alignment, German copy and control materials
+
+Text, language and design follow-up (2026-09-08): Centered select labels and balanced pipeline fields. Added Apple-inspired glass navigation/popovers, opaque content, capsule buttons, segmented choices, system type and clearer switches/sliders. German copy now covers dynamic Effort controls and levels, all 17 shipped presets, installed template originals, 23 tool descriptions, Git actions, empty states and chart dates; edited content and wire values are preserved. Complete local suites pass 613 tests/70 files (32.94s) and 48 browser cases (44.3s); the final installed-preset follow-up passes all 45 affected contracts and four language browser cases. Build passes and the English GIF is regenerated. Updating PR #120; previous head 77c34c3 passed every hosted check. No merge or release.
+
+The live UI was reloaded and the German pipeline dialog inspected. Native focus and Escape remain intact. All seven chats and the separate BitNet service are retained.
+
 ## 2026-09-08 - Second workspace inspection
 
 - Reproduced and fixed stale accessible width after animated navigation reset.

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createContext, runInContext } from 'node:vm';
 import { EFFORT_SCRIPT, effortControl } from '../src/ui/effort-slider.js';
+import { I18N_SCRIPT } from '../src/ui/i18n.js';
+import { TRANSLATIONS } from '../src/i18n.js';
 
 // Exercise the shipped control logic against fields and native input events.
 // Browser QA covers top-layer positioning, keyboard focus and track rendering.
@@ -21,14 +23,14 @@ function slider() {
     querySelector:node, querySelectorAll:() => [], closest:() => null, matches:() => true,
   };
   const provider: any = {value:'cli-gemini'};
-  const document = {body:{}, querySelectorAll:() => [control], querySelector:(selector: string) => selector === '#provider' ? provider : model,
+  const document = {body:{},readyState:'loading', querySelectorAll:() => [control], querySelector:(selector: string) => selector === '#provider' ? provider : model,
     addEventListener:(type: string, fn: any) => handlers.set(type,fn),
   };
-  const context = createContext({document,window:{addEventListener() {}},MutationObserver:class {observe() {}},queueMicrotask() {},
-    Event:class { constructor(readonly type: string) {} },t:(key: string) => key === 'ex_effort_default' ? 'Default' : key,
+  const context = createContext({document,window:{__CB_TRANSLATIONS:TRANSLATIONS,addEventListener() {}},localStorage:{getItem:()=> 'en'},MutationObserver:class {observe() {}},queueMicrotask() {},
+    Event:class { constructor(readonly type: string) {} },
     providerForModel:(id: string) => id.split('/')[0],
   });
-  runInContext(EFFORT_SCRIPT,context);
+  runInContext(I18N_SCRIPT + EFFORT_SCRIPT,context);
   const sync = () => runInContext('syncEffortControls()',context);
   const input = (index: number) => {
     const range = node('[type="range"]'); range.value = String(index);

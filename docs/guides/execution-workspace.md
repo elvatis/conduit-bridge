@@ -32,11 +32,24 @@ stay inactive while a dialog is open. Escape first closes a nested model menu
 or Effort popover. On narrow screens, dialog content scrolls and footer buttons
 stack at full width.
 
-The visual pass follows the clarity, hierarchy and familiar navigation approach
-in [Apple's Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/),
-adapted to a browser dashboard using Elvatis colors. This is a custom web UI,
-with explicit responsive and keyboard checks documented in the
-[validation record](../validation/execution-workspace.md).
+Controls follow [Apple's material guidance](https://developer.apple.com/design/human-interface-guidelines/materials)
+with translucent navigation and floating menus, opaque content panels, capsule
+buttons, inset segmented choices, system typography and distinct slider thumbs.
+Elvatis cyan and copper provide the accents. Reduced transparency and increased
+contrast preferences replace glass with solid surfaces; reduced motion disables
+control transitions. This is a custom browser implementation of those patterns.
+The [validation record](../validation/execution-workspace.md) describes its
+responsive and keyboard checks.
+
+Select text is centered within the control with equal space reserved on both
+sides for its arrow. Pipeline fields use equal columns and stack on phones.
+German is the default language. The language button also updates newly added
+Effort controls, their levels and accessible labels, built-in pipeline names,
+descriptions and steps, coding presets, tool descriptions, Git actions and
+analytics dates. In German, **Aufwand** names the Effort control. Installed
+templates retain translated display labels while their original title and
+description remain intact; edited steps keep their own text. Language changes
+preserve provider IDs, executable prompts, custom text, selections and drafts.
 
 ## Chats and projects
 

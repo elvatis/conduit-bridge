@@ -118,7 +118,7 @@ export const REPOSITORY_ANALYTICS_SCRIPT = String.raw`
   const raNumber = value => Number(value).toLocaleString(currentLang === 'de' ? 'de-DE' : 'en-US');
   const raSigned = value => (value > 0 ? '+' : '') + raNumber(value);
   const raCompact = value => Intl.NumberFormat(currentLang === 'de' ? 'de-DE' : 'en-US', { notation:'compact', maximumFractionDigits:1 }).format(value);
-  const raDate = value => new Date(value).toLocaleDateString('en-US', { timeZone:'UTC', month:'2-digit', day:'2-digit', year:'numeric' });
+  const raDate = value => new Date(value).toLocaleDateString(currentLang === 'de' ? 'de-DE' : 'en-US', { timeZone:'UTC', month:'2-digit', day:'2-digit', year:'numeric' });
   const raRatio = snapshot => snapshot.production[raState.metric] ? (snapshot.tests[raState.metric] / snapshot.production[raState.metric]).toLocaleString(currentLang === 'de' ? 'de-DE' : 'en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) + '×' : '—';
   const raSnapshots = () => raState.report?.snapshots || [];
   const raVisible = () => raSnapshots().slice(raState.start, raState.end + 1);

@@ -7,9 +7,9 @@ These checks cover the local changes, not a deployed release.
 
 ## Automated checks
 
-- Complete Vitest suite after the second inspection and corrections: 611 tests in
-  70 files passed (32.48 seconds).
-- New Playwright suite: 44 browser tests passed (38.8 seconds), using Microsoft
+- Complete Vitest suite after the text alignment, design and language pass:
+  613 tests in 70 files passed (32.94 seconds).
+- Playwright suite: 48 browser tests passed (44.3 seconds), using Microsoft
   Edge on Windows. CI also runs the suite with Chromium on Linux.
 - Production build and TypeScript checking passed.
 - Secret scan passed across tracked and untracked files.
@@ -74,7 +74,8 @@ provider accounts, real conversations or a Git repository.
 
 | Area | Verified behavior |
 | --- | --- |
-| Responsive layout | All 22 navigation sections and six workspace tabs in English and German at 390, 768, 1280, 1920 and 3840 CSS pixels; no page overflow or browser errors; SVG icon centering within 1.5 pixels. |
+| Responsive layout | All 22 navigation sections and six workspace tabs in English and German at 390, 768, 1280, 1920 and 3840 CSS pixels; no page overflow or browser errors; SVG icon centering within 1.5 pixels and select-label centers within 0.6 pixels. |
+| Language | All 17 shipped presets, their steps and 23 tool descriptions have German copy. Browser checks exercise loaded and installed presets, edited steps, dynamic Effort controls, accessible labels, Git actions, chart dates and empty result boxes; language switching preserves drafts, provider values, output text and pinned chart selection. |
 | Navigation | Pointer resize, saved width after reload, cancellation, keyboard steps during animation, reset with immediate accessible width feedback, viewport bounds, collapse, mobile Escape/focus, short-window scrolling, visibility preferences and language persistence. |
 | Dialogs | Navigation, pipeline, repository and Git branch dialogs at 320 x 480 in German and 1280 x 720 in English: accessible names, initial focus, inactive background, Tab/Shift+Tab, Escape, restored focus, inner scrolling and nested model/Effort controls. |
 | Model and Effort controls | Search, keyboard selection, effort slider, separate Faster speed value, unavailable models, popup bounds and return focus at mobile and desktop widths. |
@@ -108,6 +109,24 @@ across toolbar, form, modal and navigation controls. Model catalogs and settings
 reflow to the available content width. Execution settings no longer cover the
 recorded evidence. Compact desktop controls grow for coarse pointers, and
 reduced-motion preferences suppress control and resize animations.
+
+The text and language inspection found hardcoded empty-state text, untranslated
+dynamic Effort labels/levels, shipped preset and tool descriptions, Git actions
+and English-only dates. These now use shared localization. Unchanged installed
+presets receive the same display translations as the catalog; edited step names
+are preserved. After that final installed-preset adjustment, all 45 affected
+unit contracts and all four language browser cases passed again. The full
+suites above already include the new coverage. Tool risk badges also handle
+lowercase risk values so high and critical operations receive the correct color.
+
+Visual changes use a system font, opaque content panels, glass navigation and
+popovers, capsule buttons, inset segmented choices and clearer switch/slider
+thumbs. Glass is removed for reduced-transparency and increased-contrast
+preferences. This follows Apple's material hierarchy in a custom browser UI;
+native Apple rendering is not claimed. The final English demo was regenerated.
+An additional measurement checked 336 visible select-label boxes across all
+pages, six tabs and the pipeline dialog at 390/1280/3840px in both languages.
+Their horizontal and vertical centers were within 0.6 CSS pixels.
 
 Screenshots accompany layout cases under `.ai/logs/browser-results`; failed
 tests retain traces and the HTML report. See

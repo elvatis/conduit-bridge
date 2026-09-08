@@ -64,6 +64,15 @@ export const EFFORT_SCRIPT = String.raw`
     const controls = [...root.querySelectorAll('.effort-control')];
     if (root.matches?.('.effort-control')) controls.unshift(root);
     controls.forEach(control => {
+      // Controls are also inserted after startup (pipeline steps and role rows).
+      control.querySelectorAll('[data-i18n]').forEach(node => {
+        const text = t(node.dataset.i18n); if (node.textContent !== text) node.textContent = text;
+      });
+      for (const [data, attribute] of [['data-i18n-title','title'],['data-i18n-aria','aria-label']]) {
+        control.querySelectorAll('[' + data + ']').forEach(node => {
+          const text = t(node.getAttribute(data)); if (node.getAttribute(attribute) !== text) node.setAttribute(attribute,text);
+        });
+      }
       const scope = control.closest('.model-effort-pair') || document;
       let model = scope.querySelector(control.dataset.effortModel);
       if (!model?.value && control.dataset.effortFallback) model = document.querySelector(control.dataset.effortFallback) || model;
@@ -88,12 +97,12 @@ export const EFFORT_SCRIPT = String.raw`
       note.dataset.i18n = noteKey; if (note.textContent !== t(noteKey)) note.textContent = t(noteKey);
       range.disabled = field.disabled;
       control.querySelector('.effort-trigger').disabled = field.disabled;
-      const label = field.value ? field.value.charAt(0).toUpperCase() + field.value.slice(1) : t('ex_effort_default');
+      const label = effortLabel(field.value);
       if (output.textContent !== label) output.textContent = label;
       const write = (selector, text) => { const node = control.querySelector(selector); if (node.textContent !== text) node.textContent = text; };
       write('.effort-trigger-value', label);
       write('.effort-model-label', model?.selectedOptions?.[0]?.textContent?.split(' · ')[0] || model?.value || provider?.value || t('lbl_model'));
-      write('.effort-scale-max', values.at(-1)?.toUpperCase() || '');
+      write('.effort-scale-max', effortLabel(values.at(-1)));
       write('.effort-step-count', String(Number(range.value) + 1) + ' / ' + values.length);
       range.setAttribute('aria-valuetext',label);
       const percent = Number(range.value) / Math.max(1,Number(range.max)) * 100;

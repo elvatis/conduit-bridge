@@ -5,6 +5,7 @@ import { SIDEBAR_RESIZE_HTML, SIDEBAR_RESIZE_SCRIPT, SIDEBAR_RESIZE_STYLE } from
 import { effortControl, EFFORT_STYLE } from './ui/effort-slider.js';
 import { TRANSLATIONS } from './i18n.js';
 import { I18N_SCRIPT } from './ui/i18n.js';
+import { TOOL_COPY_DE, SYSTEM_TOOL_COPY_DE } from './ui/tool-copy.js';
 import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
 import { BRAND_ICON } from './ui/brand.js';
 import { WORKSPACE_STYLE } from './ui/workspace-style.js';
@@ -1041,7 +1042,7 @@ ${EXECUTION_TREE_HTML}
         <button id="play-run" class="primary" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_run_test">Run test</span></button>
         <span id="play-note" class="muted"></span>
       </div>
-      <pre id="play-output" aria-live="polite">No test run yet.</pre>
+      <pre id="play-output" aria-live="polite" data-i18n="ui_no_test">No test run yet.</pre>
     </section>
 
     <!-- API Providers Section -->
@@ -1308,15 +1309,15 @@ ${EXECUTION_TREE_HTML}
         <button id="orch-run" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg><span class="action-label" data-i18n="btn_run_orchestration">Run orchestration</span></button>
         <span id="orch-note" class="muted"></span>
       </div>
-      <pre id="orch-output">No orchestration run yet.</pre>
+      <pre id="orch-output" data-i18n="ui_no_orchestration">No orchestration run yet.</pre>
     </section>
 
     <!-- Integration Tests Section -->
     <section id="integration-section" class="wide page-section">
       <h2 data-i18n="h_integration">Integration tests</h2>
       <p class="muted" data-i18n="ui_integration_description">Automated verification testing OpenAI routes and provider execution matrices.</p>
-      <pre>Base URL: http://127.0.0.1:31338/v1
-Endpoint: POST /chat/completions</pre>
+      <pre><span data-i18n="ui_base_url">Base URL</span>: http://127.0.0.1:31338/v1
+<span data-i18n="ui_endpoint">Endpoint</span>: POST /chat/completions</pre>
       <div class="play-actions">
         <button id="test-all-cli" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_test_clis">Test all CLI providers</span></button>
         <button id="test-openai" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_test_openai">Test OpenAI-compatible route</span></button>
@@ -1436,13 +1437,13 @@ Endpoint: POST /chat/completions</pre>
       <section><h3 data-i18n="h_desktop_autostart">Desktop autostart</h3><p><span data-i18n="help_after_build">After building, use</span> <code>./scripts/install-autostart.sh</code> <span data-i18n="help_linux_or">on Linux Desktop or</span> <code>powershell -ExecutionPolicy Bypass -File .\\scripts\\install-autostart.ps1</code> <span data-i18n="help_windows_start">on Windows Desktop. The bridge starts as the logged-in desktop user on</span> <code>127.0.0.1:31338</code><span data-i18n="help_see_inline">. See</span> <code>docs/guides/autostart.md</code> <span data-i18n="help_removal">for removal and troubleshooting.</span></p></section>
       <section>
         <h3 data-i18n="h_client_endpoints">Client endpoints</h3>
-        <pre>Base URL: http://127.0.0.1:31338/v1
-Models:   GET /v1/models
-Status:   GET /v1/status
-Chat:     POST /v1/chat/completions
-Tools:    GET /v1/tools
+        <pre><span data-i18n="ui_base_url">Base URL</span>: http://127.0.0.1:31338/v1
+<span data-i18n="h_models">Models</span>: GET /v1/models
+<span data-i18n="lbl_status">Status</span>: GET /v1/status
+Chat: POST /v1/chat/completions
+<span data-i18n="ui_tools">Tools</span>: GET /v1/tools
 Pipelines: GET /v1/pipelines
-Events:   ws://127.0.0.1:31338/v1/events</pre>
+<span data-i18n="ui_events">Events</span>: ws://127.0.0.1:31338/v1/events</pre>
       </section>
     </section>
   </div>
@@ -1540,6 +1541,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 <script>
   ${I18N_SCRIPT}
   const $ = id => document.getElementById(id);
+  const toolCopyDe = ${JSON.stringify(TOOL_COPY_DE)}, systemToolCopyDe = ${JSON.stringify(SYSTEM_TOOL_COPY_DE)};
+  function toolText(tool, field = 'displayName') {
+    return (currentLang === 'de' ? toolCopyDe[tool.name]?.[field === 'description' ? 1 : 0] : '') || tool[field] || (field === 'description' ? t('ui_no_tool_description') : tool.name);
+  }
+  function systemToolText(value) { return (currentLang === 'de' ? systemToolCopyDe[value] : '') || localizedValue(value); }
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
   // Sidebar collapse toggle
@@ -1906,7 +1912,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
             return '<button type="button" class="tool-pill' + (isSelected ? ' selected' : '') + '" ' +
               'data-tool-name="' + esc(tool.name) + '" ' +
               'data-tool-provider="' + esc(providerName) + '" ' +
-              'title="' + esc(tool.description) + ' (' + (tool.mutating ? t('ui_mutating_state') : t('ui_read_only')) + ')">' +
+              'title="' + esc(toolText(tool, 'description')) + ' (' + (tool.mutating ? t('ui_mutating_state') : t('ui_read_only')) + ')">' +
               '<span class="pill-tag ' + tagClass + '">' + tagLabel + '</span>' +
               '<span>' + esc(tool.name) + '</span>' +
             '</button>';
@@ -2069,12 +2075,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   // Pipelines Subsystem UI
+  function pipelineRunName(run) { return pipelineText(cachedPipelines.find(pipe => pipe.id === run.pipelineId)) || run.pipelineName; }
   function renderPipelines(pipelines) {
     cachedPipelines = pipelines || [];
     const select = $('pipe-run-select');
     if (select) {
       const prev = select.value;
-      setLocalizedHtml(select, () => cachedPipelines.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join(''));
+      setLocalizedHtml(select, () => cachedPipelines.map(p => '<option value="' + esc(p.id) + '">' + esc(pipelineText(p)) + '</option>').join(''));
       if (prev && cachedPipelines.some(p => p.id === prev)) select.value = prev;
     }
 
@@ -2104,7 +2111,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         const isCheckpoint = Boolean(step.requiresApproval);
         return '<div class="pipeline-step-pill">' +
           '<span class="step-badge">' + (idx + 1) + '</span>' +
-          '<strong>' + esc(step.name) + '</strong>' +
+          '<strong>' + esc(pipelineText(pipe, 'name', step)) + '</strong>' +
           '<span class="step-meta">[' + esc(step.model) + ' · ' + esc(localizedValue(step.mode || 'chat')) + ']</span>' +
           '<span class="step-meta">' + (step.dependsOn?.length ? (t('ui_after') + ' ') + step.dependsOn.map(esc).join(', ') : t('ui_start_step')) + '</span>' +
           (isCheckpoint ? ('<span class="checkpoint-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' + ' ' + esc(t('ui_approval_gate')) + '</span>') : '') +
@@ -2114,8 +2121,8 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       return '<div class="pipeline-card" data-pipe-id="' + esc(pipe.id) + '">' +
         '<div class="pipeline-header">' +
           '<div>' +
-            '<h3 style="margin: 0 0 4px; color: var(--text);">' + esc(pipe.name) + (pipe.isBuiltIn ? (' <span class="setting-badge info">' + esc(t('ui_built_in')) + '</span>') : '') + '</h3>' +
-            '<span class="muted" style="font-size: 0.9286rem;">' + esc(pipe.description) + '</span>' +
+            '<h3 style="margin: 0 0 4px; color: var(--text);">' + esc(pipelineText(pipe)) + (pipe.isBuiltIn ? (' <span class="setting-badge info">' + esc(t('ui_built_in')) + '</span>') : '') + '</h3>' +
+            '<span class="muted" style="font-size: 0.9286rem;">' + esc(pipelineText(pipe, 'description')) + '</span>' +
           '</div>' +
           '<div class="actions">' +
             '<button type="button" class="primary" data-run-pipe="' + esc(pipe.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>' + '<span class="action-label">' + esc(t('btn_select_run')) + '</span>' + '</button>') +
@@ -2131,7 +2138,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     cachedRuns = runs || [];
     const approvals = $('pipeline-approvals');
     if (approvals) setLocalizedHtml(approvals, () => cachedRuns.filter(run => run.status === 'waiting_approval').map(run =>
-      '<div class="activity-event warning run-history-item"><span><strong>' + esc(run.pipelineName) + ('</strong><br>' + esc(t('ui_step_colon')) + ' ') + esc(run.pendingApprovalStepId || 'pending') + '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 0 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + '<span class="action-label">' + esc(t('btn_review_approval')) + '</span>' + '</button></div>')
+      '<div class="activity-event warning run-history-item"><span><strong>' + esc(pipelineRunName(run)) + ('</strong><br>' + esc(t('ui_step_colon')) + ' ') + esc(run.pendingApprovalStepId || 'pending') + '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 0 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + '<span class="action-label">' + esc(t('btn_review_approval')) + '</span>' + '</button></div>')
     ).join('') || ('<span class="muted">' + esc(t('ui_no_approvals')) + '</span>'));
     const selected = cachedRuns.find(run => run.id === selectedRunId);
     if (selected) renderLiveRun(selected);
@@ -2148,7 +2155,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         '<span>' +
           '<time>' + new Date(run.startedAt).toLocaleString(currentLang) + '</time><br>' +
           '<strong class="level">' + esc(localizedValue(run.status.toUpperCase())) + '</strong> · ' +
-          esc(run.pipelineName) + (run.initialPrompt ? ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' : (' ' + t('ui_saved_summary_only'))) +
+          esc(pipelineRunName(run)) + (run.initialPrompt ? ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' : (' ' + t('ui_saved_summary_only'))) +
         '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<span class="action-label">' + esc(t('btn_view_run')) + '</span>' + '</button>') +
       '</div>';
     }).join(''));
@@ -2214,7 +2221,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
       return '<div class="step-result-card ' + esc(step.status) + '">' +
         '<div class="step-result-header">' +
-          '<strong>' + esc(step.stepName) + ' <small class="muted">(' + esc(step.model) + ')</small></strong>' +
+          '<strong>' + esc(pipelineText(cachedPipelines.find(pipe => pipe.id === run.pipelineId), 'name', step)) + ' <small class="muted">(' + esc(step.model) + ')</small></strong>' +
           badge +
         '</div>' +
         (step.content ? '<div class="step-result-content">' + esc(step.content) + '</div>' : '') +
@@ -2224,7 +2231,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     return '<div style="margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;">' +
       '<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px;">' +
-        ('<strong>' + esc(t('ui_run_status')) + ' ') + esc(run.pipelineName) + '</strong>' +
+        ('<strong>' + esc(t('ui_run_status')) + ' ') + esc(pipelineRunName(run)) + '</strong>' +
         statusBadge +
       '</div>' +
       ('<div class="muted">' + esc(t('ui_run')) + ' ') + esc(run.id) + (run.error ? ' · ' + esc(run.error) : '') + '</div>' +
@@ -2368,7 +2375,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       ('<strong>' + esc(t('ui_step')) + ' ') + idx + '</strong>' +
       '<button type="button" class="modal-close" style="color: var(--bad);" title="' + esc(t('btn_remove_step')) + '" aria-label="' + esc(t('btn_remove_step')) + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="10" y2="17"/><line x1="14" x2="14" y1="10" y2="17"/></svg></button>' +
     '</div>' +
-    '<div style="display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 8px; margin-bottom: 8px;">' +
+    '<div class="pipeline-step-fields">' +
       ('<label><span>' + esc(t('lbl_step_name')) + '</span><input type="text" class="step-name-inp" value="') + esc(s.name) + '"></label>' +
       ('<label><span>' + esc(t('lbl_model')) + '</span><select class="step-model-inp">') + modelOptionGroups(s.model) + '</select></label>' + effortControlHtml(effortId,'.step-model-inp',s.effort || '','','',s.fastMode) +
       ('<label><span>' + esc(t('lbl_mode')) + '</span><select class="step-mode-inp">') +
@@ -2495,15 +2502,15 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         const displayName = tool.name || tool.displayName || tool.executable;
         const binPath = tool.path || tool.binaryPath || 'PATH';
         const risk = tool.riskLevel || 'Low';
-        const riskClass = risk === 'Critical' || risk === 'High' ? 'bad' : (risk === 'Medium' ? 'warn' : 'ok');
+        const riskClass = /^(critical|high)$/i.test(risk) ? 'bad' : (/^medium$/i.test(risk) ? 'warn' : 'ok');
         return '<div class="provider-block" style="padding: 10px; margin: 0;">' +
           '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">' +
-            '<strong>' + esc(displayName) + '</strong>' +
+            '<strong>' + esc(systemToolText(displayName)) + '</strong>' +
             '<span class="setting-badge ' + (isAvail ? 'ok' : 'bad') + '">' + (isAvail ? t('status_available') : t('status_missing')) + '</span>' +
           '</div>' +
           '<div class="muted" style="font-size: 0.8571rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
           '<div style="display: flex; gap: 6px; margin-top: 6px; font-size: 0.8rem;">' +
-            '<span class="setting-badge info">' + esc(tool.category || tool.classification || t('group_system')) + '</span>' +
+            '<span class="setting-badge info">' + esc(systemToolText(tool.category || tool.classification || t('group_system'))) + '</span>' +
             '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(risk)) + '</span>' +
             (tool.version ? '<span class="setting-badge muted">' + esc(tool.version) + '</span>' : '') +
           '</div>' +
@@ -2526,11 +2533,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     }
 
     setLocalizedHtml(container, () => list.map(tool => {
-      const riskClass = tool.riskLevel === 'Critical' || tool.riskLevel === 'High' ? 'bad' : (tool.riskLevel === 'Medium' ? 'warn' : 'ok');
+      const riskClass = /^(critical|high)$/i.test(tool.riskLevel) ? 'bad' : (/^medium$/i.test(tool.riskLevel) ? 'warn' : 'ok');
       return '<div class="tool-card">' +
         '<div class="tool-card-title">' +
           '<div>' +
-            '<strong>' + esc(tool.displayName || tool.name) + '</strong> ' +
+            '<strong>' + esc(toolText(tool)) + '</strong> ' +
             '<code>' + esc(tool.name) + '</code>' +
           '</div>' +
           '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(tool.riskLevel || 'Low')) + '</span>' +
@@ -2540,7 +2547,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           '<span class="setting-badge muted">' + esc(localizedValue(tool.category || 'general')) + '</span>' +
           (tool.mutating ? ('<span class="setting-badge warn">' + esc(t('ui_workspace_mutating')) + '</span>') : ('<span class="setting-badge ok">' + esc(t('ui_read_only')) + '</span>')) +
         '</div>' +
-        '<p class="tool-card-desc">' + esc(tool.description || t('ui_no_tool_description')) + '</p>' +
+        '<p class="tool-card-desc">' + esc(toolText(tool, 'description')) + '</p>' +
       '</div>';
     }).join(''));
   }
@@ -2926,7 +2933,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: 'Compare the current project state and identify the most important next engineering action.' })
       });
-      setLocalizedText($('orch-output'), () => data.results.map(r => r.role + ' (' + r.model + ')\\n' + (r.preview || r.content || '')).join('\\n\\n'));
+      setLocalizedText($('orch-output'), () => data.results.map(r => localizedValue(r.role) + ' (' + r.model + ')\\n' + (r.preview || r.content || '')).join('\\n\\n'));
       setLocalizedText($('orch-note'), () => t('status_completed'));
       showSection('activity');
     } catch (error) {
@@ -3081,7 +3088,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         setLocalizedText($('side-runtime'), () => (t('ui_workspace_access') + ' ') + identity.operator.role);
         if (!['execution','git-workspace','repository-analytics'].includes(activeSection)) showSection('platform');
         await platformRefresh();
-        setNotice(() => (t('ui_workspace_loaded_for') + ' ') + (identity.operator.displayName || identity.operator.operatorId), 'quiet');
+        setNotice(() => (t('ui_workspace_loaded_for') + ' ') + pfOperatorName(identity.operator), 'quiet');
         return;
       }
       const [
