@@ -14,7 +14,7 @@ evidence.
 | [Session insights](guides/session-insights.md) | Local BitNet summaries of own conversations, source excerpts, progress and limits. |
 | [Platform guide](guides/platform.md) | Durable conversations, searchable vault, recurring prompt scans, memories, skills, profiles, and bounded runs. |
 | [Storage and backups](guides/storage.md) | Runtime files, encrypted file storage, SQLite, backup/restore, and `CONDUIT_HOME`. |
-| [BitNet on Windows](guides/bitnet.md) | Local BitNet CPU inference, native build, configuration, and lifecycle. |
+| [Install llama-server and BitNet](guides/bitnet.md) | Guided tool installation, native Windows build, verified GGUF download, configuration, first chat, daily operation and troubleshooting. |
 | [tgrep code search](guides/tgrep.md) | Local code indexing, daemon operation, ripgrep fallback, and limits. |
 | [Pipeline examples](guides/pipelines.md) | Controlled write, approval, and parallel-workflow examples. |
 | [Tools and Projects](guides/tools-and-projects.md) | Executable tools, GitHub Projects, permissions, and limits. |

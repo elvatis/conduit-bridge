@@ -73,9 +73,22 @@ precedence over `.env` files.
 
 ### Local inference
 
-Set `LM_STUDIO_URL` for a running LM Studio OpenAI-compatible endpoint. For
-local BitNet CPU inference, follow [BitNet on Windows](bitnet.md). BitNet has a
-separate URL and lifecycle so it remains independent from LM Studio.
+Set `LM_STUDIO_URL` for a running LM Studio OpenAI-compatible endpoint.
+Installing Conduit alone does not install a local inference engine or model.
+
+For BitNet CPU inference, follow [Install llama-server and BitNet](bitnet.md).
+The walkthrough starts with the Windows C++/Clang prerequisites, builds the
+BitNet-compatible `llama-server`, downloads and checks the exact GGUF, prints
+configuration with your own paths, and verifies a first chat. Each stage has
+an expected result and linked troubleshooting. The BitNet build already
+includes llama.cpp; a separate Llama model or Ollama installation is not needed.
+Linux guidance and its current validation limits are stated separately.
+
+Conduit connects to BitNet at `http://127.0.0.1:8080`, while clients continue
+using the bridge at `http://127.0.0.1:31338/v1`. Use `bitnet/auto` for the loaded
+model. Its presence in the catalog is not evidence of a working installation;
+complete the guide's health and first-answer checks. BitNet has a separate URL
+and lifecycle from LM Studio.
 
 ## Send a first request
 

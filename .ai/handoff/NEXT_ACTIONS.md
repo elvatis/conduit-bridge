@@ -1,3 +1,5 @@
+> Current review point: Review the new README installation route and docs/guides/bitnet.md in PR #120. The guide now accompanies a Windows x64 operator from prerequisites through a verified GGUF, configuration, readiness, first request and recovery. It explicitly distinguishes the BitNet build of llama-server, model aliases, process ownership and unvalidated native Linux paths. Focused tests, build and documentation checks pass; recheck hosted CI on the documentation head. Native service installation/restart, merge and release are outside this documentation task. Earlier review points below are historical.
+
 > Current review point: The English demo.gif is regenerated for the corrected insight selection, numbered source-message links, introduction and page search. The recording checks its synthetic categories against the current evidence rules and asserts no provider/mutation calls. Source and encoded frames were visually checked. Review the refreshed media in PR #120 and recheck hosted checks on its new head. The preceding application head a059862 passed all eight hosted checks, 690 tests and 57 browser cases. Merge/release remain outside this task. Older plans below are historical.
 
 > Current work: Commit the validated scanner/navigation/settings repair to PR #120. Continue the authorized usability work: spacing, accessible compact actions, first-visit introduction offer with Help re-entry, dedicated examples and local BitNet session insights. Hosted checks must be green before any separately authorized merge.
@@ -70,4 +72,3 @@ decision or source work, so it is recorded here rather than assumed.
 4. **The first tag after `release.yml` landed must be cut at a commit that
    contains it.** GitHub loads the workflow from the tagged commit, so a tag
    on an earlier commit runs nothing: no run, no red X, no notification.
-
