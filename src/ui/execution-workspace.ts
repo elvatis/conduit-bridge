@@ -60,7 +60,7 @@ export const EXECUTION_WORKSPACE_SCRIPT = String.raw`
       ++exState.epoch; ++exState.selectionEpoch;
       exState.catalogs = false; exState.runs = []; exState.selected = null; exState.files = [];
       exState.models = []; exState.workspaces = []; exState.effortValues = [''];
-      $('ex-prompt').value = ''; exRenderFiles();
+      $('ex-prompt').value = ''; exError(null); exError(null,'refresh'); exRenderFiles();
     }
     exState.operator = operator;
     exRender();
@@ -69,7 +69,7 @@ export const EXECUTION_WORKSPACE_SCRIPT = String.raw`
     if (exState.submitting) return;
     if (exState.preview) exPreview(false);
     ++exState.selectionEpoch; exState.newTask = true; exState.selected = null; exState.step = '';
-    exState.files = []; $('ex-prompt').value = ''; $('ex-feedback').value = '';
+    exState.files = []; $('ex-prompt').value = ''; $('ex-feedback').value = ''; exError(null);
     exRenderFiles(); exRender(); $('ex-prompt').focus();
   }
   function exFilterTasks(source,query) {

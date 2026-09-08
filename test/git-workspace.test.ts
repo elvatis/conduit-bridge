@@ -39,6 +39,7 @@ describe('Git workspace reads against real repositories', () => {
     expect(diff.patch).toContain('+const first = true;');
   });
 
+  // Real Git startup and three snapshots can exceed the unit-test budget on a busy Windows runner.
   it('uses topology, full metadata, ref badges and the first parent for a merge', async () => {
     const { root, service } = await fixture();
     git(root, 'checkout', '-b', 'codex/feature');
@@ -60,7 +61,7 @@ describe('Git workspace reads against real repositories', () => {
     expect(diff.patch).toContain('+export const feature = true;');
     expect(await service.snapshot({ limit: 2 })).toMatchObject({ truncated: true, historyLimit: 2, commits: expect.any(Array) });
     expect((await service.snapshot({ branch: 'refs/heads/codex/feature' })).commits[0].subject).toBe('Add feature');
-  });
+  }, 15_000);
 
   it('reads initial, renamed, modified and untracked paths literally with line counts', async () => {
     const { root, service } = await fixture();

@@ -102,6 +102,25 @@ test('execution attachments, limits, failed queue and sample isolation',async({p
   expect(fixture.errors).toEqual([]);expect(fixture.unexpected).toEqual([]);
 });
 
+test('execution refresh preserves failed actions until a successful retry or new task',async({page})=>{
+  const fixture=await installFixture(page);let fail=true;
+  const run={id:'retry-demo',prompt:'Review the workspace',status:'queued',model:modelId,mode:'plan',createdAt:stamp,steps:[]};
+  fixture.on('POST','/v1/platform/runs',()=>fail?{status:503,body:{error:{message:'Queue unavailable'}}}:{run});
+  await fixture.open('execution');await page.locator('#ex-prompt').fill(run.prompt);await select(page,'ex-model',modelId);
+  await page.locator('#ex-send').click();await expect(page.locator('#ex-error')).toHaveText('Queue unavailable');
+  // Await the same asynchronous refresh used by the background timer.
+  await page.evaluate(async()=>{await (window as any).executionRefresh();});
+  await expect(page.locator('#ex-error')).toHaveText('Queue unavailable');await expect(page.locator('#ex-prompt')).toHaveValue(run.prompt);
+  fail=false;await page.locator('#ex-send').click();await expect(page.locator('#ex-error')).toBeHidden();await expect(page.locator('#ex-prompt')).toHaveValue('');
+  fail=true;await page.locator('#ex-prompt').fill('Another task');await page.locator('#ex-send').click();await expect(page.locator('#ex-error')).toHaveText('Queue unavailable');
+  await page.locator('#ex-create-task').click();await expect(page.locator('#ex-error')).toBeHidden();
+  fixture.on('GET','/v1/platform/runs',()=>({status:503,body:{error:{message:'Read unavailable'}}}));
+  await page.evaluate(async()=>{await (window as any).executionRefresh();});await expect(page.locator('#ex-error')).toHaveText('Read unavailable');
+  fixture.on('GET','/v1/platform/runs',()=>({data:[]}));
+  await page.evaluate(async()=>{await (window as any).executionRefresh();});await expect(page.locator('#ex-error')).toBeHidden();
+  expect(fixture.requests.filter(r=>r.method==='POST')).toHaveLength(3);expect(fixture.errors).toEqual([]);expect(fixture.unexpected).toEqual([]);
+});
+
 for(const role of ['admin','reviewer','operator','viewer']) test(`execution approval actions respect ${role} role`,async({page})=>{
   const fixture=await installFixture(page,{role});
   const run={id:'approval-demo',prompt:'Inspect the workspace',status:'waiting_approval',model:modelId,mode:'agent',createdAt:stamp,maxIterations:2,steps:[]};

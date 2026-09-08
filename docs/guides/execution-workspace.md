@@ -16,12 +16,21 @@ Shift+Left/Right by 32, Home/End chooses the available minimum/maximum, and
 Enter restores the default width. Escape cancels an active drag. At mobile
 widths the navigation becomes a drawer, with its menu button and Escape handling.
 In short windows the navigation scrolls as one column so its links stay reachable.
+The divider reports the requested width immediately, including during animated
+resizing and after a reset.
 
 Shared controls use 44-pixel minimum heights, consistent icon alignment and
 8-pixel gaps. Compact desktop controls use 36 pixels and enlarge for coarse
 pointers. Model menus support search and keyboard selection; Effort popovers
 stay within the viewport, scroll when needed and return focus when closed.
 Execution input and its expanded settings stay below the recorded evidence.
+
+Navigation preferences, pipeline creation, repository registration and Git
+actions use named native dialogs. Opening a dialog moves focus inside it;
+Escape closes it and returns focus to the invoking control. Background controls
+stay inactive while a dialog is open. Escape first closes a nested model menu
+or Effort popover. On narrow screens, dialog content scrolls and footer buttons
+stack at full width.
 
 The visual pass follows the clarity, hierarchy and familiar navigation approach
 in [Apple's Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/),
@@ -61,6 +70,9 @@ display private reasoning. Output is redacted and bounded; the retained event
 set is limited to 64 items per run step.
 
 **Pause updates** pauses the display refresh only. Cancel stops the run.
+If queueing or another action fails, its error remains visible across background
+updates. A successful retry or starting a new task clears the action error;
+connection errors clear when refreshing succeeds.
 Continuing the selected agent task as a new turn and steering a running turn
 remain future runtime work. **Explore a sample** is clearly marked illustrative
 data and never executes agents.

@@ -23,6 +23,10 @@ German at 390, 768, 1280, 1920 and 3840 CSS pixels. Interaction tests cover
 settings, permissions, failed saves, keyboard use, project persistence,
 execution controls, Git browsing and analytics export. Add a regression that
 exercises the failing behavior when fixing a functional defect.
+Dialog checks also cover 320 x 480 and 1280 x 720 viewports, accessible names,
+initial and restored focus, inactive background controls, and Escape handling
+for nested menus and popovers. Execution checks retain failed-action messages
+across a completed refresh and clear them after a successful retry.
 
 On Windows, an installed Edge can replace the downloaded test browser:
 

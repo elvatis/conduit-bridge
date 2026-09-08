@@ -46,6 +46,14 @@ test('short desktop navigation does not overlap and all links remain reachable',
   await page.screenshot({path:info.outputPath('short-window-navigation.png')});expect(fixture.errors).toEqual([]);
 });
 
+test('navigation reset reports the target width after animation and subsequent keys',async({page})=>{
+  await page.emulateMedia({reducedMotion:'no-preference'});const fixture=await installFixture(page);await fixture.open();const panel=page.locator('#sidebar'),handle=page.locator('#sidebar-resizer'),initial=Math.round((await panel.boundingBox())!.width);
+  await handle.focus();await handle.press('End');await expect.poll(async()=>Math.round((await panel.boundingBox())!.width)).toBe(480);
+  await handle.press('Enter');await expect(handle).toHaveAttribute('aria-valuenow',String(initial));await expect.poll(async()=>Math.round((await panel.boundingBox())!.width)).toBe(initial);
+  await handle.press('End');await handle.press('Enter');await handle.press('ArrowRight');await expect(handle).toHaveAttribute('aria-valuenow',String(initial+8));
+  await handle.press('Enter');await page.locator('#sidebar-collapse-btn').click();await page.locator('#sidebar-collapse-btn').click();await expect(handle).toHaveAttribute('aria-valuenow',String(initial));expect(fixture.errors).toEqual([]);
+});
+
 test('navigation visibility and language preferences survive reload',async({page})=>{
   const fixture=await installFixture(page);await fixture.open();await page.locator('.nav-advanced > summary').click();await page.locator('#open-nav-custom-btn').click();
   await page.locator('[data-preset="all"]').click();await page.locator('#save-nav-btn').click();await page.reload();
@@ -110,7 +118,7 @@ test('provider policy changes preserve explicit permission and tool restrictions
 });
 
 test('pipeline builder retains two steps, dependency order and approval setting',async({page},info)=>{
-  const fixture=await installFixture(page);fixture.on('POST','/v1/pipelines',record=>({pipeline:{...record.body,id:'pipeline-demo'}}));await fixture.open('pipelines');await page.locator('#btn-open-create-pipeline').click();await page.locator('#pipe-name-input').fill('Review and validate');await page.locator('#pipe-desc-input').fill('Two bounded stages.');await page.locator('.step-name-inp').fill('Review');await page.locator('.step-model-inp').selectOption(modelId,{force:true});await page.locator('.step-mode-inp').selectOption('plan',{force:true});await page.locator('.step-approval-inp').check();await page.locator('#pipe-add-step-btn').click();await page.locator('.step-name-inp').nth(1).fill('Validate');await page.locator('.step-model-inp').nth(1).selectOption(modelId,{force:true});await page.screenshot({path:info.outputPath('pipeline-builder.png')});await page.locator('#save-pipeline-btn').click();await expect(page.locator('#pipeline-modal')).not.toHaveClass(/open/);
+  const fixture=await installFixture(page);fixture.on('POST','/v1/pipelines',record=>({pipeline:{...record.body,id:'pipeline-demo'}}));await fixture.open('pipelines');await page.locator('#btn-open-create-pipeline').click();await page.locator('#pipe-name-input').fill('Review and validate');await page.locator('#pipe-desc-input').fill('Two bounded stages.');await page.locator('.step-name-inp').fill('Review');await page.locator('.step-model-inp').selectOption(modelId,{force:true});await page.locator('.step-mode-inp').selectOption('plan',{force:true});await page.locator('.step-approval-inp').check();await page.locator('#pipe-add-step-btn').click();await page.locator('.step-name-inp').nth(1).fill('Validate');await page.locator('.step-model-inp').nth(1).selectOption(modelId,{force:true});await page.screenshot({path:info.outputPath('pipeline-builder.png')});await page.locator('#save-pipeline-btn').click();await expect(page.locator('#pipeline-modal')).not.toBeVisible();
   const sent=fixture.requests.find(r=>r.method==='POST')!.body;expect(sent.steps).toHaveLength(2);expect(sent.steps[0]).toMatchObject({name:'Review',mode:'plan',requiresApproval:true,fastMode:false});expect(sent.steps[1].dependsOn).toEqual(['step-1']);expect(fixture.errors).toEqual([]);expect(fixture.unexpected).toEqual([]);
 });
 

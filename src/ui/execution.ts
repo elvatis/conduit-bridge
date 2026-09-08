@@ -169,7 +169,13 @@ export const EXECUTION_SCRIPT = String.raw`
   const exSnapshot = ${executionSnapshot.toString()};
   const exIcons = { branch: ${JSON.stringify(branch)}, terminal: ${JSON.stringify(terminal)} };
   const exState = { runs: [], selected: null, step: '', collapsed: new Set(), preview: false, auto: false, submitting: false, polling: null, epoch: 0, selectionEpoch: 0, operator: null, catalogs: false, files: [], cardKey: '', treeKey: '', pinned: new Set(), paused: false, planCollapsed: false };
-  function exError(error) { $('ex-error').hidden = !error; $('ex-error').textContent = error?.message || ''; }
+  // A successful poll must not erase an error from the user's last action.
+  const exErrors = { action: null, refresh: null };
+  function exError(error, source = 'action') {
+    exErrors[source] = error;
+    const visible = exErrors.action || exErrors.refresh;
+    $('ex-error').hidden = !visible; $('ex-error').textContent = visible?.message || '';
+  }
   function exStatusIcon(status) {
     const safe = ['running','completed','failed','cancelled','interrupted','rejected','waiting_approval','exhausted','pending','queued','skipped'].includes(status) ? status : 'pending';
     return '<span class="ex-state ' + safe + '" aria-label="' + esc(localizedValue(safe)) + '">' + ({ completed:'✓',failed:'×',cancelled:'×',interrupted:'×',rejected:'×',exhausted:'×',pending:'·',queued:'·',waiting_approval:'Ⅱ',skipped:'–' }[safe] || '') + '</span>';
@@ -257,8 +263,8 @@ export const EXECUTION_SCRIPT = String.raw`
             exState.selected = {kind:item.kind,run:detail.run};
           }
         }
-        exError(null); exSetConnection('ex_live',true); exRender();
-      } catch(error) { if (epoch !== exState.epoch) return; exSetConnection('ex_disconnected'); exError(error); }
+        exError(null,'refresh'); exSetConnection('ex_live',true); exRender();
+      } catch(error) { if (epoch !== exState.epoch) return; exSetConnection('ex_disconnected'); exError(error,'refresh'); }
     })().finally(() => { exState.polling = null; });
     return exState.polling;
   }
@@ -308,7 +314,7 @@ export const EXECUTION_SCRIPT = String.raw`
       review:{stepId:'review',stepName:'Sentinel',model:'cli-codex/gpt-daybreak-blue-latest',status:'running',startedAt:1700000004000,content:'Reviewing output escaping and workspace policy boundaries.'}
     }}};
   }
-  function exPreview(enabled) { if (exState.submitting) return; ++exState.epoch; ++exState.selectionEpoch; exState.preview = enabled; exState.selected = enabled ? exSample() : null; exState.step = enabled ? 'forge' : ''; exError(null); exSetConnection(enabled ? 'ex_sample' : 'ex_connecting'); exRender(); if (!enabled) executionRefresh(); }
+  function exPreview(enabled) { if (exState.submitting) return; ++exState.epoch; ++exState.selectionEpoch; exState.preview = enabled; exState.selected = enabled ? exSample() : null; exState.step = enabled ? 'forge' : ''; exError(null); exError(null,'refresh'); exSetConnection(enabled ? 'ex_sample' : 'ex_connecting'); exRender(); if (!enabled) executionRefresh(); }
   $('ex-demo').addEventListener('click',() => exPreview(true));
   $('ex-exit-demo').addEventListener('click',() => exPreview(false));
   $('ex-new-task').addEventListener('click',exNewTask);

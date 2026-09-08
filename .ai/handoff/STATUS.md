@@ -1,10 +1,20 @@
-> Note (2026-09-08, codex/agent-orchestrator-dashboard): Added the full-page Elvatis execution workspace, shared Effort/Faster speed controls, public Codex execution events, persistent chat projects, repository analytics and Git/worktree views. The final design pass aligns buttons/icons, fixes responsive settings and popovers, and adds navigation resizing with persistence and keyboard controls. Windows: 611 tests/70 files and 34 new browser tests pass after the design fixes, with all 22 pages and six workspace tabs checked in English/German at 390/768/1280/1920/3840px. Build passes. Added isolated Chromium CI, English demo.gif with reproducible recording, and workspace examples. The rebuilt local bridge runs on 31338 with seven retained chats; BitNet remains healthy on 8080. MIT PR #119 merged separately. This branch is prepared for the requested PR; no release. See docs/validation/execution-workspace.md and the runtime gap analyses.
+> Note (2026-09-08, codex/agent-orchestrator-dashboard): Added the full-page Elvatis execution workspace, shared Effort/Faster speed controls, public Codex execution events, persistent chat projects, repository analytics and Git/worktree views. The final design pass aligns buttons/icons, fixes responsive settings and popovers, and adds navigation resizing with persistence and keyboard controls. Windows: 611 tests/70 files and 44 browser tests pass after the second inspection, with all 22 pages and six workspace tabs checked in English/German at 390/768/1280/1920/3840px. Build passes. Added isolated Chromium CI, English demo.gif with reproducible recording, and workspace examples. The rebuilt local bridge runs on 31338 with seven retained chats; BitNet remains healthy on 8080. MIT PR #119 merged separately. PR #120 is open; no release. See docs/validation/execution-workspace.md and the runtime gap analyses.
 
 PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and
 security checks passed on its first head. Hosted Windows exposed two temporary
 path alias expectations in the new Git/analytics fixtures; they now assert
 canonical paths and explicitly exercise junction/symlink registration.
 Both complete affected test files pass locally (34 tests).
+
+Second inspection (2026-09-08): Fixed stale accessible sidebar width after
+reset, keyboard/focus handling in three legacy dialogs, Git dialog naming,
+nested model/Effort menus and narrow dialog footers. Fixed background polling
+erasing failed-action errors; action and refresh errors now clear independently.
+Added ten browser regressions. Full Windows validation passes: 611 tests in
+70 files, 44 browser tests and production build. The one real-Git merge fixture
+has a bounded 15-second allowance after a demonstrated load timeout. The local
+bridge is rebuilt on 31338 with seven chats preserved; BitNet is healthy on 8080.
+Updating existing PR #120; its previous head ab51b53 had all hosted checks green.
 
 # Current update - MIT license (2026-09-08)
 

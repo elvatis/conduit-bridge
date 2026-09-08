@@ -2,6 +2,22 @@
 
 _Reverse chronological._
 
+## 2026-09-08 - Second workspace inspection
+
+- Reproduced and fixed stale accessible width after animated navigation reset.
+- Converted navigation, pipeline and repository overlays to named native
+  dialogs with initial/restored focus and Escape. Kept model menus inside the
+  modal and made Escape close nested Effort popovers first. Named Git dialogs
+  and stacked narrow footer controls; inspected German dialogs at 320 x 480.
+- Reproduced a polling race that erased failed-action messages. Refresh and
+  action errors now clear independently; retry and new-task behavior is covered.
+- Added ten browser regressions. Complete reruns pass 611 Vitest tests in 70
+  files (32.48s), 44 Playwright tests (38.8s) and the production build.
+- A real-Git merge fixture exceeded its 5s default during a parallel load run;
+  only that fixture now allows 15s, with unchanged assertions.
+- Rebuilt the local bridge on 31338, preserved seven chats and checked BitNet
+  health on 8080. Updating existing PR #120; no merge or release.
+
 ## 2026-09-08 - PR #120 Windows fixture correction
 
 - Published the requested workspace PR after integrating the MIT main update.

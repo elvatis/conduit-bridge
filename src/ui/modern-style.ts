@@ -408,5 +408,6 @@ export const MODERN_STYLE = String.raw`
     .model-row button { width:max-content; max-width:100%; }
   }
   @media(pointer:coarse) { .page-section .filter-chip,.preset-btn,.modal-close,.ex-page button.effort-close,.ex-page .ex-plan-toolbar button { min-height:44px; min-width:44px; } }
+  @media(max-width:480px) { .modal-footer { flex-direction:column; align-items:stretch; } .modal-footer > button { width:100%; justify-content:center; } }
   @media(prefers-reduced-motion:reduce) { button,.effort-trigger > svg,.ex-plan-toolbar button svg { transition:none; } }
 `;

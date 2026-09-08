@@ -121,7 +121,7 @@ export const SELECT_SCRIPT = String.raw`
     const search=document.createElement('input'); search.type='search'; search.className='select-search'; search.placeholder=t('ui_search_options');
     search.setAttribute('aria-label',t('ui_search_options')); search.setAttribute('role','combobox'); search.setAttribute('aria-expanded','true'); search.setAttribute('aria-autocomplete','list'); search.setAttribute('autocomplete','off');
     const list=document.createElement('div'); list.className='select-options'; list.id=ui.id+'-list'; list.setAttribute('role','listbox'); list.setAttribute('aria-label',selectLabel(select)); search.setAttribute('aria-controls',list.id);
-    searchWrap.appendChild(search); panel.append(searchWrap,list); document.body.appendChild(panel);
+    searchWrap.appendChild(search); panel.append(searchWrap,list); (select.closest('dialog') || document.body).appendChild(panel);
     openSelect={select,ui,panel,search,list,active:select.selectedIndex,visible:[]}; ui.trigger.setAttribute('aria-expanded','true');
     search.addEventListener('input',renderSelectOptions);
     search.addEventListener('keydown',event=>{

@@ -1,6 +1,11 @@
-> Current feature work (2026-09-08): Review codex/agent-orchestrator-dashboard and docs/guides/execution-workspace.md. Local validation passes 611 tests/70 files and 34 browser tests after final design fixes. All pages/tabs pass English/German layout checks from 390 to 3840px. Navigation resizing, button alignment, settings coverage, an English reproducible GIF and workspace examples are included. The requested PR is the next review point; no release. The original v0.10.0 release/PR work below is historical. Next runtime priorities remain task/turn continuity, provider streaming, specific tool approvals and task/worktree/review binding in the Codex/Claude Code gap analyses. These reports are audits, not completed implementations. Current UI runs locally on 31338. MIT PR #119 is merged. Review docs/operations/command-guards.md before future PR merges.
+> Current feature work (2026-09-08): Review codex/agent-orchestrator-dashboard and docs/guides/execution-workspace.md. Local validation passes 611 tests/70 files and 44 browser tests after the second inspection. All pages/tabs pass English/German layout checks from 390 to 3840px. Navigation resizing, button alignment, settings coverage, an English reproducible GIF and workspace examples are included. PR #120 is the current review point; no release. The original v0.10.0 release/PR work below is historical. Next runtime priorities remain task/turn continuity, provider streaming, specific tool approvals and task/worktree/review binding in the Codex/Claude Code gap analyses. These reports are audits, not completed implementations. Current UI runs locally on 31338. MIT PR #119 is merged. Review docs/operations/command-guards.md before future PR merges.
 
 # Next actions
+
+Second inspection is implemented: named native dialogs with focus/Escape,
+accurate divider reset feedback and persistent failed-action errors. Latest
+local checks pass 611 tests/70 files and 44 browser tests, including ten added
+regressions. The bridge is rebuilt with retained chats and healthy BitNet.
 
 Review [PR #120](https://github.com/elvatis/conduit-bridge/pull/120), including
 the English demo and complete validation record. Confirm hosted checks on its

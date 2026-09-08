@@ -626,6 +626,13 @@ const SHARED_STYLE = `
   .modal-backdrop {
     position: fixed;
     inset: 0;
+    margin: 0;
+    border: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    color: var(--text);
     z-index: 100;
     background: rgba(2,6,12,.78);
     backdrop-filter: blur(4px);
@@ -634,9 +641,11 @@ const SHARED_STYLE = `
     justify-content: center;
     padding: 20px;
   }
-  .modal-backdrop.open {
+  .modal-backdrop[open] {
     display: flex;
   }
+  .modal-backdrop::backdrop { background:transparent; }
+  body:has(.modal-backdrop[open]) { overflow:hidden; }
   .modal-dialog {
     background: var(--panel);
     border: 1px solid var(--line-2);
@@ -650,6 +659,7 @@ const SHARED_STYLE = `
     box-shadow: 0 20px 40px rgba(0,0,0,.55);
   }
   .modal-header {
+    flex-shrink: 0;
     padding: 16px 20px;
     border-bottom: 1px solid var(--line);
     display: flex;
@@ -657,6 +667,8 @@ const SHARED_STYLE = `
     justify-content: space-between;
   }
   .modal-body {
+    min-height: 0;
+    overscroll-behavior: contain;
     padding: 20px;
     overflow-y: auto;
     display: flex;
@@ -664,6 +676,8 @@ const SHARED_STYLE = `
     gap: 16px;
   }
   .modal-footer {
+    flex-shrink: 0;
+    flex-wrap: wrap;
     padding: 14px 20px;
     border-top: 1px solid var(--line);
     display: flex;
@@ -1435,10 +1449,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 </main>
 
 <!-- Customize Navigation Modal -->
-<div class="modal-backdrop" id="nav-modal">
+<dialog class="modal-backdrop" id="nav-modal" aria-labelledby="nav-modal-title">
   <div class="modal-dialog">
     <div class="modal-header">
-      <h3 style="margin: 0;" data-i18n="h_customize_navigation">Customize Navigation Visibility</h3>
+      <h3 style="margin: 0;" id="nav-modal-title" tabindex="-1" autofocus data-i18n="h_customize_navigation">Customize Navigation Visibility</h3>
       <button class="modal-close" id="close-nav-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
@@ -1463,17 +1477,17 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       <button type="button" class="primary" id="save-nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="ui_apply_prefs">Apply Preferences</span></button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Custom Pipeline Builder Modal -->
-<div class="modal-backdrop" id="pipeline-modal">
+<dialog class="modal-backdrop" id="pipeline-modal" aria-labelledby="pipeline-modal-title">
   <div class="modal-dialog" style="max-width: 740px;">
     <div class="modal-header">
       <h3 style="margin: 0;" id="pipeline-modal-title" data-i18n="h_create_pipeline">Create Custom Agent Pipeline</h3>
       <button class="modal-close" id="close-pipeline-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
-      <label><span data-i18n="lbl_pipeline_name">Pipeline Name</span><input type="text" id="pipe-name-input" placeholder="e.g. Architect -&gt; Implement -&gt; Audit" data-i18n-ph="ph_pipeline_name"></label>
+      <label><span data-i18n="lbl_pipeline_name">Pipeline Name</span><input type="text" id="pipe-name-input" autofocus placeholder="e.g. Architect -&gt; Implement -&gt; Audit" data-i18n-ph="ph_pipeline_name"></label>
       <label><span data-i18n="lbl_description">Description</span><input type="text" id="pipe-desc-input" placeholder="Brief workflow summary" data-i18n-ph="ph_pipeline_description"></label>
       <div>
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1488,17 +1502,17 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       <button type="button" class="primary" id="save-pipeline-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="btn_save_pipeline">Save Pipeline</span></button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Register Repository Modal -->
-<div class="modal-backdrop" id="repo-modal">
+<dialog class="modal-backdrop" id="repo-modal" aria-labelledby="repo-modal-title">
   <div class="modal-dialog" style="max-width: 580px;">
     <div class="modal-header">
-      <h3 style="margin: 0;" data-i18n="h_register_repository">Register Repository</h3>
+      <h3 style="margin: 0;" id="repo-modal-title" data-i18n="h_register_repository">Register Repository</h3>
       <button class="modal-close" id="close-repo-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
-      <label><span data-i18n="lbl_repo_identifier">Repository Identifier (e.g. org/repo)</span><input type="text" id="repo-id-input" placeholder="acme/service-mesh" data-i18n-ph="ph_repo_id"></label>
+      <label><span data-i18n="lbl_repo_identifier">Repository Identifier (e.g. org/repo)</span><input type="text" id="repo-id-input" autofocus placeholder="acme/service-mesh" data-i18n-ph="ph_repo_id"></label>
       <label><span data-i18n="lbl_repo_name">Repository Friendly Name</span><input type="text" id="repo-name-input" placeholder="Acme Service Mesh" data-i18n-ph="ph_repo_name"></label>
       <label><span data-i18n="lbl_local_path">Local Absolute Path</span><input type="text" id="repo-path-input" placeholder="C:\\path\\to\\project" data-i18n-ph="ph_workspace_path"></label>
       <label><span data-i18n="lbl_description">Description</span><input type="text" id="repo-desc-input" placeholder="Purpose and architecture role" data-i18n-ph="ph_repo_description"></label>
@@ -1520,7 +1534,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       <button type="button" class="primary" id="save-repo-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_register_repo">Register Repository</span></button>
     </div>
   </div>
-</div>
+</dialog>
 
 <script>window.__CB_TRANSLATIONS = ${JSON.stringify(TRANSLATIONS).replace(/</g, '\\u003c')};</script>
 <script>
@@ -1638,22 +1652,22 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         esc(t(s.label)) +
       '</label>'
     ).join(''));
-    $('nav-modal').classList.add('open');
+    $('nav-modal').showModal();
   }
 
   $('open-nav-custom-btn').addEventListener('click', openNavModal);
-  $('close-nav-modal').addEventListener('click', () => $('nav-modal').classList.remove('open'));
+  $('close-nav-modal').addEventListener('click', () => $('nav-modal').close());
   $('reset-nav-btn').addEventListener('click', () => {
     localStorage.removeItem('conduit_nav_visibility');
     applyNavVisibility();
-    $('nav-modal').classList.remove('open');
+    $('nav-modal').close();
   });
 
   $('save-nav-btn').addEventListener('click', () => {
     const checked = [...document.querySelectorAll('#nav-checkboxes-container input[data-nav-key]:checked')].map(cb => cb.dataset.navKey);
     localStorage.setItem('conduit_nav_visibility', JSON.stringify(checked.length ? checked : ['overview']));
     applyNavVisibility();
-    $('nav-modal').classList.remove('open');
+    $('nav-modal').close();
   });
 
   document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -1725,7 +1739,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   $('menu-toggle').addEventListener('click', () => { sidebar.classList.toggle('open'); syncSidebarExpanded(); });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && sidebar.classList.contains('open')) { sidebar.classList.remove('open'); syncSidebarExpanded(); $('menu-toggle').focus(); }
+    if (event.key === 'Escape' && !document.querySelector('dialog[open]') && sidebar.classList.contains('open')) { sidebar.classList.remove('open'); syncSidebarExpanded(); $('menu-toggle').focus(); }
   });
 
   // Auth & API fetch wrapper
@@ -2382,10 +2396,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     $('pipe-desc-input').value = '';
     $('pipe-steps-container').innerHTML = '';
     addStepToBuilder();
-    $('pipeline-modal').classList.add('open');
+    $('pipeline-modal').showModal();
   });
-  $('close-pipeline-modal').addEventListener('click', () => $('pipeline-modal').classList.remove('open'));
-  $('cancel-pipeline-btn').addEventListener('click', () => $('pipeline-modal').classList.remove('open'));
+  $('close-pipeline-modal').addEventListener('click', () => $('pipeline-modal').close());
+  $('cancel-pipeline-btn').addEventListener('click', () => $('pipeline-modal').close());
   $('pipe-add-step-btn').addEventListener('click', () => addStepToBuilder());
 
   $('save-pipeline-btn').addEventListener('click', async () => {
@@ -2413,7 +2427,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, description, steps }),
       });
-      $('pipeline-modal').classList.remove('open');
+      $('pipeline-modal').close();
       await refresh();
     } catch (err) {
       alert((t('error_save_failed') + ' ') + err.message);
@@ -3228,10 +3242,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     $('repo-name-input').value = '';
     $('repo-path-input').value = '';
     $('repo-desc-input').value = '';
-    $('repo-modal').classList.add('open');
+    $('repo-modal').showModal();
   });
-  $('close-repo-modal')?.addEventListener('click', () => $('repo-modal').classList.remove('open'));
-  $('cancel-repo-btn')?.addEventListener('click', () => $('repo-modal').classList.remove('open'));
+  $('close-repo-modal')?.addEventListener('click', () => $('repo-modal').close());
+  $('cancel-repo-btn')?.addEventListener('click', () => $('repo-modal').close());
 
   $('save-repo-btn')?.addEventListener('click', async () => {
     const id = $('repo-id-input').value.trim();
@@ -3249,7 +3263,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, name, path, description, assignedGovernancePipeline }),
       });
-      $('repo-modal').classList.remove('open');
+      $('repo-modal').close();
       await refresh();
     } catch (err) {
       alert((t('error_save_failed') + ' ') + err.message);

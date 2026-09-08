@@ -22,6 +22,11 @@ export const SIDEBAR_RESIZE_SCRIPT = String.raw`
     if (preferred !== null && (!Number.isFinite(preferred) || preferred < minimum || preferred > 480)) preferred = null;
     const maximum = () => Math.max(minimum,Math.min(480,window.innerWidth - 360));
     const clamp = value => Math.max(minimum,Math.min(maximum(),Math.round(value)));
+    // The handle follows the target CSS width while the grid may still animate.
+    const targetWidth = () => {
+      const style = getComputedStyle(handle);
+      return clamp(parseFloat(style.left) + parseFloat(style.width) / 2);
+    };
     function apply(value, persist = false) {
       if (value === null) layout.style.removeProperty('--sidebar-width');
       else layout.style.setProperty('--sidebar-width',clamp(value) + 'px');
@@ -30,7 +35,7 @@ export const SIDEBAR_RESIZE_SCRIPT = String.raw`
         if (value === null) localStorage.removeItem(storageKey); else localStorage.setItem(storageKey,String(value));
       }
       handle.setAttribute('aria-valuemax',String(maximum()));
-      handle.setAttribute('aria-valuenow',String(value === null ? Math.round(panel.getBoundingClientRect().width) : clamp(value)));
+      handle.setAttribute('aria-valuenow',String(targetWidth()));
       handle.tabIndex = window.innerWidth <= 760 || panel.classList.contains('collapsed') ? -1 : 0;
     }
     function finish(cancelled) {
@@ -38,12 +43,12 @@ export const SIDEBAR_RESIZE_SCRIPT = String.raw`
       const previous = drag; drag = null;
       layout.classList.remove('resizing-sidebar');
       if (handle.hasPointerCapture(previous.pointer)) handle.releasePointerCapture(previous.pointer);
-      apply(cancelled ? previous.preferred : clamp(panel.getBoundingClientRect().width),!cancelled);
+      apply(cancelled ? previous.preferred : targetWidth(),!cancelled);
     }
     handle.addEventListener('pointerdown',event => {
       if (event.button !== 0 || window.innerWidth <= 760 || panel.classList.contains('collapsed')) return;
       event.preventDefault(); handle.focus();
-      drag = {pointer:event.pointerId,start:event.clientX,width:panel.getBoundingClientRect().width,preferred};
+      drag = {pointer:event.pointerId,start:event.clientX,width:targetWidth(),preferred};
       layout.classList.add('resizing-sidebar'); handle.setPointerCapture(event.pointerId);
     });
     handle.addEventListener('pointermove',event => { if (drag && drag.pointer === event.pointerId) apply(drag.width + event.clientX - drag.start); });
@@ -53,7 +58,7 @@ export const SIDEBAR_RESIZE_SCRIPT = String.raw`
     handle.addEventListener('dblclick',() => apply(null,true));
     handle.addEventListener('keydown',event => {
       if (event.key === 'Escape') { finish(true); return; }
-      const step = event.shiftKey ? 32 : 8, width = preferred === null ? panel.getBoundingClientRect().width : clamp(preferred);
+      const step = event.shiftKey ? 32 : 8, width = targetWidth();
       const value = event.key === 'ArrowLeft' ? width-step : event.key === 'ArrowRight' ? width+step : event.key === 'Home' ? minimum : event.key === 'End' ? maximum() : undefined;
       if (value !== undefined || event.key === 'Enter') { event.preventDefault(); apply(event.key === 'Enter' ? null : clamp(value),true); }
     });

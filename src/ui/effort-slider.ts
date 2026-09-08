@@ -125,7 +125,12 @@ export const EFFORT_SCRIPT = String.raw`
     control.querySelector('[type="range"]').focus();
   });
   document.addEventListener('toggle',event => { if (event.target.matches?.('.effort-popover')) event.target.closest('.effort-control').querySelector('.effort-trigger').setAttribute('aria-expanded',String(event.newState === 'open')); },true);
-  document.addEventListener('keydown',event => { if (event.key === 'Escape') document.querySelectorAll('.effort-trigger[aria-expanded="true"]').forEach(trigger => { closeEffortPopover(trigger.closest('.effort-control')); trigger.focus(); }); });
+  document.addEventListener('keydown',event => {
+    if (event.key !== 'Escape') return;
+    const triggers = document.querySelectorAll('.effort-trigger[aria-expanded="true"]');
+    if (triggers.length) { event.preventDefault(); event.stopPropagation(); }
+    triggers.forEach(trigger => { closeEffortPopover(trigger.closest('.effort-control')); trigger.focus(); });
+  });
   window.addEventListener('resize',() => document.querySelectorAll('.effort-trigger[aria-expanded="true"]').forEach(trigger => positionEffortPopover(trigger.closest('.effort-control'))));
   document.addEventListener('scroll',event => {
     if (event.target.closest?.('.effort-popover')) return;
