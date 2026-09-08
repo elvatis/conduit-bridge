@@ -10,6 +10,7 @@ evidence.
 | Document | Use it for |
 | --- | --- |
 | [Getting started](guides/getting-started.md) | Installation, provider connection, dashboard, and first OpenAI-compatible request. |
+| [Execution and repository workspace](guides/execution-workspace.md) | Full-page UI, effort/speed controls, run events, Git/worktrees and repository analytics. |
 | [Platform guide](guides/platform.md) | Durable conversations, searchable vault, recurring prompt scans, memories, skills, profiles, and bounded runs. |
 | [Storage and backups](guides/storage.md) | Runtime files, encrypted file storage, SQLite, backup/restore, and `CONDUIT_HOME`. |
 | [BitNet on Windows](guides/bitnet.md) | Local BitNet CPU inference, native build, configuration, and lifecycle. |
@@ -31,7 +32,11 @@ evidence.
 | Document | Use it for |
 | --- | --- |
 | [Release process](operations/releasing.md) | Versioning, changelog entries, tags, and GitHub Releases. |
+| [Command safeguards](operations/command-guards.md) | Complete PR hold checks, explicit Git start points and Windows command lessons. |
 | [Provider and agent roadmap](architecture/provider-agent-roadmap.md) | The implemented platform design and intended next work. |
+| [Codex gap analysis](CODEX-GAP-ANALYSIS.md) | Prioritized runtime gaps against public Codex components. |
+| [Claude Code gap analysis](CLAUDE-CODE-GAP-ANALYSIS.md) | Prioritized gaps against documented Claude Code CLI, SDK and desktop capabilities. |
+| [Canvas, prompt patterns and Akido](guides/integration-assessment.md) | Integration assessment, verified interfaces, proposed schemas and implementation packages. |
 | [Changelog](../CHANGELOG.md) | Changes between released versions. |
 | [Security policy](../SECURITY.md) | Supported versions, credential handling, and disclosure. |
 
@@ -46,6 +51,7 @@ environment.
 
 | Report | Scope |
 | --- | --- |
+| [Execution and repository workspace](validation/execution-workspace.md) | Effort/Fast mode, events, Git fixtures, analytics, access controls and responsive UI. |
 | [Provider and agent platform](validation/platform.md) | Provider matrix, encrypted storage, and dashboard verification. |
 | [Additional integrations](validation/addendum.md) | Native BitNet, tgrep, local routing, tools, and CLI-session checks. |
 | [Tools and GitHub Projects](validation/integrations.md) | Tool and project integration coverage. |

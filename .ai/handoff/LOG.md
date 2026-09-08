@@ -2,6 +2,37 @@
 
 _Reverse chronological._
 
+## 2026-09-08 - Execution and repository workspace
+
+- Created codex/agent-orchestrator-dashboard from fetched main cb87534.
+- Added execution task hierarchy, provider event details, plan drawer, shared
+  effort popup and independent Fast-mode transport/settings/accounting support.
+- Integrated registered-repository analytics and Git/worktree browsing with
+  scoped read authorization, admin Git actions and explicit repository policy.
+- Made workspace pages fill available width and height, including responsive
+  chat/execution and direct analytics pages. All provider effects in browser
+  QA were disabled; Git reads used real local history.
+- Added durable operator-owned chat projects, assignment and title search.
+  Browser fixtures verify a moved chat retains its messages and workspace.
+- Corrected wide-screen typography, SVG axis scaling and commit graph row
+  continuity. Git navigation remains visible; the repository toolbar spans the
+  page. Chat history now loads when opening a direct Git/analytics link.
+- Completed Codex and Claude Code gap audits with official sources and
+  acceptance criteria. Current work does not claim task/turn or tool-dialog parity.
+- Completed docs/guides/integration-assessment.md: Canvas/SQLite adapter,
+  durable prompt patterns and scoped GitHub/Akido integration packages. Akido
+  help is reachable with 98 exposed tools; no integration was installed.
+- Added complete PR title/label hold preflight and explicit Git branch starts.
+- Merged separate MIT license PR #119 after required checks; GitHub About and
+  recognized MIT license verified. Restored native BitNet and rebuilt the local
+  bridge on 31338; both health endpoints pass and seven chats remain available.
+- Validation: 611 tests/70 files, 31 final targeted checks, build, Secret Scan
+  and whitespace check pass; nine responsive page/viewport combinations pass.
+  Evidence: docs/validation/execution-workspace.md. No feature push or release.
+- AAHP precommit verification passes in the isolated candidate worktree.
+  Root-directory lint reports an upstream miniaudio documentation arrow as a
+  conflict marker inside ignored BitNet artifacts; see the validation report.
+
 ## 2026-09-07 - GHAS hardening before merge
 
 - Fixed CodeQL findings for incomplete Markdown escaping in governance and

@@ -78,6 +78,13 @@ are searchable and put authenticated CLI models first, followed by local and
 API transports. The complete transport ID stays visible so an operator can
 tell which account or local service will answer.
 
+Execution adds a hierarchical task view, provider events and a plan drawer.
+The shared Effort popover includes a separate Faster speed switch where supported.
+Git workspace shows branches, worktrees, commit history and diffs; Repository
+analytics charts committed source history with inspectable snapshots and export.
+See [Execution and repository workspace](docs/guides/execution-workspace.md)
+for behavior, permissions and current limits.
+
 The routing skill classifies a request before execution and returns a primary
 model plus ordered fallbacks. The route is a recommendation subject to the
 models currently advertised by `/v1/models`, provider policy, credentials and
@@ -321,4 +328,4 @@ release information is in [CONTRIBUTING.md](CONTRIBUTING.md) and
 
 ## License
 
-Apache-2.0
+[MIT](LICENSE)

@@ -5,6 +5,12 @@
  * Providers map the normalized level to their own wire format.
  */
 
+/** Accepted persisted effort values, including cross-provider aliases. */
+export const EFFORT_LEVELS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'ultracode'] as const;
+export function isEffortLevel(value: unknown): value is typeof EFFORT_LEVELS[number] {
+  return typeof value === 'string' && (EFFORT_LEVELS as readonly string[]).includes(value);
+}
+
 export type OpenAiEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type ClaudeEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type AgyEffort = 'low' | 'medium' | 'high';

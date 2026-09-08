@@ -1,13 +1,16 @@
+import { parseFastMode } from './fast-mode.js';
+import { isEffortLevel } from './effort.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runtimeDir } from './config.js';
 import type { ProviderRegistry } from './registry.js';
-import type { ProviderAgentPolicy, ProviderAdapter, ChatRequest } from './types.js';
+import type { ProviderAgentPolicy, ProviderAdapter, ChatRequest, ExecutionEvent } from './types.js';
 import type { BudgetManager } from './budget.js';
 import type { GovernanceManager } from './governance.js';
 import type { MetricsStore } from './metrics.js';
 import { abortable, executeWithAccounting, estimateTokens, estimateCost } from './usage.js';
 import { redactSecrets } from './redact.js';
+import { recordExecutionEvent } from './execution-events.js';
 
 export type PipelineStepExecutionType = 'sequential' | 'parallel' | 'fan_out';
 export type PipelineRunStatus = 'running' | 'waiting_approval' | 'completed' | 'failed' | 'rejected' | 'cancelled' | 'interrupted';
@@ -24,6 +27,8 @@ export interface PipelineStep {
   parallelGroup?: string;
   max_tokens?: number;
   effort?: string;
+  /** Request the provider fast tier without changing reasoning effort. */
+  fastMode?: boolean;
 }
 
 export interface PipelineDefinition {
@@ -37,6 +42,7 @@ export interface PipelineDefinition {
 }
 
 export interface PipelineRunStepResult {
+  events?: ExecutionEvent[];
   stepId: string;
   stepName: string;
   model: string;
@@ -86,6 +92,7 @@ export function summarizePipelineRun(value: PipelineRun): PipelineRun {
   for (const step of Object.values(run.stepResults)) {
     if (step.error) step.error = redactSecrets(step.error).slice(0, 4000);
     delete step.content;
+    delete step.events;
   }
   return run;
 }
@@ -106,7 +113,8 @@ export function validatePipeline(pipeline: PipelineDefinition): void {
     if (step.mode && !['chat', 'plan', 'agent'].includes(step.mode)) throw new Error('Unsupported step mode');
     if (step.dependsOn !== undefined && (!Array.isArray(step.dependsOn) || step.dependsOn.length > 50 || !step.dependsOn.every(safeId) || new Set(step.dependsOn).size !== step.dependsOn.length)) throw new Error('dependsOn must contain at most 50 unique safe IDs');
     if (step.max_tokens !== undefined && (!Number.isInteger(step.max_tokens) || step.max_tokens < 1 || step.max_tokens > 32768)) throw new Error('Step max_tokens must be an integer from 1 to 32768');
-    if (step.effort !== undefined && !['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].includes(step.effort)) throw new Error('Unsupported step effort');
+    parseFastMode(step.fastMode);
+    if (step.effort !== undefined && !isEffortLevel(step.effort)) throw new Error('Unsupported step effort');
     steps.set(step.id, step);
   }
   const visited = new Set<string>();
@@ -857,10 +865,17 @@ export async function runPipeline(
         if (resolved && !resolved.allowed) throw new Error(resolved.reason || `Execution forbidden for ${provider.name}`);
         if (!await abortable(provider.ensureConnected(), signal)) throw new Error(`Provider ${provider.name} is not connected`);
         signal.throwIfAborted();
+        let lastEventNotice = 0;
         const output = await executeWithAccounting(provider, {
           model: step.model, messages: [{ role: 'user', content: prompt }], mode,
           cwd: run.workingDirectory, signal, disallowedTools: resolved?.disallowedTools ?? policy?.disallowedTools,
-          max_tokens: step.max_tokens, effort: step.effort,
+          max_tokens: step.max_tokens, effort: step.effort, fastMode: step.fastMode,
+          onExecutionEvent: event => {
+            if (signal.aborted || result.status !== 'running') return;
+            result.events ??= [];
+            if (!recordExecutionEvent(result.events, event, Object.values(run.stepResults).reduce((count, item) => count + (item.events?.length || 0), 0) < 64)) return;
+            if (Date.now() - lastEventNotice >= 500) { lastEventNotice = Date.now(); publish(); }
+          },
         }, {
           budgetManager: options.budgetManager, metrics: options.metrics, runId: run.id,
           maxOutputChars: MAX_PIPELINE_OUTPUT_CHARS,
@@ -871,7 +886,7 @@ export async function runPipeline(
         result.status = 'completed';
         const tokens = estimateTokens(prompt) + estimateTokens(output);
         run.tokensConsumed = (run.tokensConsumed || 0) + tokens;
-        run.costUsd = Number(((run.costUsd || 0) + estimateCost(step.model, estimateTokens(prompt), estimateTokens(output))).toFixed(8));
+        run.costUsd = Number(((run.costUsd || 0) + estimateCost(step.model, estimateTokens(prompt), estimateTokens(output), step.fastMode)).toFixed(8));
         log('success', `Step '${step.name}' completed`, step.id);
       } catch (error) {
         result.status = 'failed';

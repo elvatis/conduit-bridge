@@ -1,3 +1,6 @@
+import { RepositoryApi } from './repository-api.js';
+import { FastModeError, parseFastMode } from './fast-mode.js';
+import { isEffortLevel } from './effort.js';
 import { LocalServerManager } from './providers/llama-server.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -69,6 +72,7 @@ export class BridgeServer {
   private _unsubscribeActivity: (() => void) | null = null;
   private _platform: PlatformApi;
   private _integrations: IntegrationApi;
+  private _repositoryApi: RepositoryApi;
 
   constructor(cfg: BridgeConfig, options?: {
     pipelineStore?: PipelineStore;
@@ -104,6 +108,13 @@ export class BridgeServer {
       saveConfig: cfg => saveConfig(cfg),
       installPipeline: definition => this._pipelineStore.savePipeline(definition as PipelineDefinition),
     }, options?.platformStore);
+    this._repositoryApi = new RepositoryApi({
+      cfg: () => this._cfg,
+      workspaces: () => this._workspaceManager.listWorkspaces(),
+      repositories: () => this._governanceManager.listRepositories(),
+      repositoryWorkspace: repository => this._platformWorkspace(undefined, repository.path, repository.id).workspaceId!,
+      authorize: (actor, workspaceId, write) => this._skillContext(actor, workspaceId, new AbortController().signal, write, () => actor).authorize(write ? 'execute' : 'read', { skill: write ? 'git-workspace' : 'filesystem' }),
+    });
     this._integrations = new IntegrationApi({
       servers: this._localServers,
       cfg: () => this._cfg, workspaces: this._workspaceManager,
@@ -147,8 +158,8 @@ export class BridgeServer {
         logger.error(`Unhandled request error: ${err.message}`);
         if (!res.headersSent) {
           const tooLarge = err instanceof RequestBodyTooLargeError;
-          res.writeHead(tooLarge ? 413 : 500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: { message: tooLarge ? 'Request body is too large' : err.message, type: tooLarge ? 'request_too_large' : 'internal_error' } }));
+          res.writeHead(tooLarge ? 413 : err instanceof FastModeError ? 400 : 500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: tooLarge ? 'Request body is too large' : err.message, type: tooLarge ? 'request_too_large' : err instanceof FastModeError ? 'invalid_request' : 'internal_error' } }));
         }
       });
     });
@@ -579,7 +590,7 @@ export class BridgeServer {
     const mode = original.mode || 'chat';
     if (mode === 'agent' && (policy?.agentEnabled === false || repository?.overrides?.agentEnabled === false)) throw new PlatformContentError('Agent mode is disabled by provider or repository policy', 403);
     if (mode === 'agent' && workspace.requiresApproval) throw new PlatformContentError('This repository requires governed pipeline execution. Use its assigned pipeline and required gates.', 403);
-    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }) };
+    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }), fastMode: parseFastMode(original.fastMode) ?? context.profile?.defaultFastMode };
     const cwdError = agentModeCwdError(mode, request.cwd); if (cwdError) throw new PlatformContentError(cwdError, 400);
     if (!await provider.checkSession()) throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
     const runId = context.runId || `chat-${randomUUID()}`;
@@ -678,6 +689,7 @@ export class BridgeServer {
       return;
     }
 
+    if (await this._repositoryApi.handle(req, res, () => readBody(req))) return;
     if (await this._integrations.handle(req, res, () => readBody(req))) return;
 
     // Scoped platform tokens authorize only the platform routes, not legacy admin APIs.
@@ -768,7 +780,7 @@ export class BridgeServer {
         if (!provider || !(await provider.ensureConnected())) return { model, ok: false, latencyMs: Date.now() - started, error: 'provider unavailable' };
         try {
           const content = await executeWithAccounting(provider, {
-            model, messages: [{ role: 'user', content: data.prompt }], effort: data.effort,
+            model, messages: [{ role: 'user', content: data.prompt }], effort: data.effort, fastMode: parseFastMode(data.fastMode),
             max_tokens: typeof data.max_tokens === 'number' ? Math.min(Math.max(1, data.max_tokens), 4096) : 256,
             signal: controller.signal,
           }, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
@@ -788,8 +800,8 @@ export class BridgeServer {
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
       const strategies = new Set<OrchestrationStrategy>(['sequential', 'parallel', 'debate']);
-      const roles = Array.isArray(data?.roles) ? data.roles.filter((r: any) => typeof r?.name === 'string' && typeof r?.model === 'string').slice(0, 8).map((r: any) => ({ name: r.name.trim().slice(0, 60), model: r.model.trim().slice(0, 180) })) : this._orchestrator.roles;
-      this._orchestrator = { enabled: Boolean(data?.enabled), strategy: strategies.has(data?.strategy) ? data.strategy : 'sequential', roles, fallbackModels: Array.isArray(data?.fallbackModels) ? data.fallbackModels.filter((m: any) => typeof m === 'string').slice(0, 8) : [] };
+      const roles = Array.isArray(data?.roles) ? data.roles.filter((r: any) => typeof r?.name === 'string' && typeof r?.model === 'string').slice(0, 8).map((r: any) => ({ name: r.name.trim().slice(0, 60), model: r.model.trim().slice(0, 180), effort: isEffortLevel(r.effort) ? r.effort : undefined, fastMode: parseFastMode(r.fastMode) })) : this._orchestrator.roles;
+      this._orchestrator = { enabled: Boolean(data?.enabled), strategy: strategies.has(data?.strategy) ? data.strategy : 'sequential', roles, fallbackFastMode: parseFastMode(data?.fallbackFastMode), fallbackEffort: isEffortLevel(data?.fallbackEffort) ? data.fallbackEffort : undefined, fallbackModels: Array.isArray(data?.fallbackModels) ? data.fallbackModels.filter((m: any) => typeof m === 'string').slice(0, 8) : [] };
       saveConfig({ orchestrator: this._orchestrator });
       this._activity.add('success', 'orchestrator', 'Orchestrator configuration updated');
       json(res, 200, this._orchestrator);
@@ -807,7 +819,7 @@ export class BridgeServer {
       if (!this._limit(req, res)) return;
       const accountingRunId = `orchestrator-${randomUUID()}`;
       this._activity.add('info', 'orchestrator', 'Run started with ' + this._orchestrator.strategy + ' strategy');
-      const runRole = async (role: { name: string; model: string }, prompt: string) => {
+      const runRole = async (role: { name: string; model: string; effort?: string; fastMode?: boolean }, prompt: string) => {
         const candidates = [role.model, ...this._orchestrator.fallbackModels].filter((model, i, all) => model && all.indexOf(model) === i);
         let lastError: unknown = new Error(role.name + ': no usable model');
         for (const model of candidates) {
@@ -816,7 +828,7 @@ export class BridgeServer {
             if (!provider || !(await provider.ensureConnected())) throw new Error('model is unavailable');
             this._activity.add('info', 'orchestrator', role.name + ' started on ' + model);
             const content = await executeWithAccounting(provider, {
-              model, messages: [{ role: 'user', content: prompt }], effort: data.effort,
+              model, messages: [{ role: 'user', content: prompt }], effort: data.effort || (model === role.model ? role.effort : this._orchestrator.fallbackEffort), fastMode: parseFastMode(data.fastMode) ?? (model === role.model ? role.fastMode : this._orchestrator.fallbackFastMode),
             }, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
             this._activity.add('success', 'orchestrator', role.name + ' completed on ' + model);
             return { role: role.name, model, content };
@@ -916,7 +928,7 @@ export class BridgeServer {
       if (!provider || !(await provider.ensureConnected())) { json(res, 503, { error: { message: 'Response provider is unavailable', type: 'provider_unavailable' } }); return; }
       try {
         const content = await executeWithAccounting(provider, {
-          model: data.model, messages, effort: data.reasoning?.effort || data.reasoning_effort,
+          model: data.model, messages, effort: data.reasoning?.effort || data.reasoning_effort, fastMode: parseFastMode(data.fastMode),
           max_tokens: data.max_output_tokens, signal: controller.signal,
         }, { budgetManager: this._budgetManager, metrics: this._metrics });
         json(res, 200, { id: 'resp-' + Date.now(), object: 'response', model: data.model, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: content }] }], status: 'completed' });
@@ -1408,7 +1420,7 @@ export class BridgeServer {
           dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn.map(String) : undefined,
           parallelGroup: typeof s.parallelGroup === 'string' ? s.parallelGroup : undefined,
           max_tokens: s.max_tokens,
-          effort: s.effort,
+          effort: s.effort, fastMode: s.fastMode,
         })),
         isBuiltIn: false,
         category: typeof data.category === 'string' ? data.category : 'custom',
@@ -1762,7 +1774,7 @@ export class BridgeServer {
             messages,
             temperature,
             max_tokens,
-            effort,
+            effort, fastMode: parseFastMode(req_data.fastMode),
             cwd,
             mode: parsed.mode,
             disallowedTools: policy?.disallowedTools,

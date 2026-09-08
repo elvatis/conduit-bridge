@@ -17,6 +17,13 @@ import {
 import { codexPlatformSandboxArgs } from '../src/providers/cli-codex.js';
 
 describe('runCli cancellation', () => {
+  it('observes UTF-8 stdout before process exit without letting observers fail execution', async () => {
+    const chunks: string[] = [];
+    const result = await runCli({binPath:process.execPath,args:['-e',"process.stdout.write(Buffer.from([0xe2])); setTimeout(()=>{process.stdout.write(Buffer.from([0x82,0xac]));},10)"],onStdout:chunk => { chunks.push(chunk); throw new Error('Observer error'); }});
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('€');
+    expect(chunks.join('')).toBe('€');
+  });
   it('terminates a child process when the request signal is aborted', async () => {
     const controller = new AbortController();
     const promise = runCli({

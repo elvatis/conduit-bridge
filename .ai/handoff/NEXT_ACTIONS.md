@@ -1,4 +1,11 @@
+> Current feature work (2026-09-08): Review codex/agent-orchestrator-dashboard and docs/guides/execution-workspace.md. Local validation passes 611 tests/70 files, 31 final targeted checks, build and 390/1920/3840px browser QA. The original v0.10.0 release/PR work below is historical. Next runtime priorities are in docs/CODEX-GAP-ANALYSIS.md and docs/CLAUDE-CODE-GAP-ANALYSIS.md: task/turn continuity, provider streaming, specific tool approvals and task/worktree/review binding. These reports are audits, not completed implementations. Current UI runs locally on 31338; no feature push or release. The separate MIT change is merged as PR #119. Review docs/operations/command-guards.md before future PR merges.
+
 # Next actions
+
+The new integration assessment is in docs/guides/integration-assessment.md.
+Start with versioned workflow/layout persistence and a scoped GitHub read
+service, followed by the Canvas UI and local cross-session prompt patterns.
+These are proposed follow-ups, not shipped capabilities.
 
 Current version: **v0.10.0**
 

@@ -1,3 +1,4 @@
+import { requireFastModeSupport } from '../fast-mode.js';
 import OpenAI from 'openai';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
@@ -50,6 +51,7 @@ export class CodexApiProvider extends ApiBaseProvider {
     // "api-codex/…" upstream as if it were a model name.
     const apiModel = MODEL_MAP[req.model] ?? stripPrefix(req.model, PREFIX);
 
+    requireFastModeSupport(this.name,req.model,req.fastMode);
     const reasoning_effort = toOpenAiEffort(req.effort);
     const response = await client.chat.completions.create({
       model: apiModel,
@@ -57,6 +59,7 @@ export class CodexApiProvider extends ApiBaseProvider {
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(reasoning_effort ? { reasoning_effort } : {}),
+      ...(req.fastMode === undefined ? {} : { service_tier: req.fastMode ? 'priority' as const : 'default' as const }),
     }, { signal: req.signal });
 
     return response.choices[0]?.message?.content ?? '';
@@ -68,6 +71,7 @@ export class CodexApiProvider extends ApiBaseProvider {
     // "api-codex/…" upstream as if it were a model name.
     const apiModel = MODEL_MAP[req.model] ?? stripPrefix(req.model, PREFIX);
 
+    requireFastModeSupport(this.name,req.model,req.fastMode);
     const reasoning_effort = toOpenAiEffort(req.effort);
     const stream = await client.chat.completions.create({
       model: apiModel,
@@ -76,6 +80,7 @@ export class CodexApiProvider extends ApiBaseProvider {
       ...(req.max_tokens ? { max_tokens: req.max_tokens } : {}),
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       ...(reasoning_effort ? { reasoning_effort } : {}),
+      ...(req.fastMode === undefined ? {} : { service_tier: req.fastMode ? 'priority' as const : 'default' as const }),
     }, { signal: req.signal });
 
     for await (const chunk of stream) {

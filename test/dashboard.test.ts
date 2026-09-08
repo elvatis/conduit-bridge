@@ -12,7 +12,7 @@ function dashboard(lang = 'en') {
       listeners: new Map(), classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
       addEventListener(event: string, handler: unknown) { this.listeners.set(event, handler); },
       setAttribute() {},
-      querySelectorAll: () => [], querySelector: () => null, scrollIntoView() {},
+      querySelectorAll: () => [], querySelector: () => null, scrollIntoView() {}, focus() {},
     });
     return elements.get(id);
   };
@@ -23,7 +23,7 @@ function dashboard(lang = 'en') {
     document: { getElementById: element, querySelectorAll: () => [], addEventListener() {}, documentElement: { lang }, readyState: 'loading', hidden: false },
     sessionStorage: { getItem: (key: string) => stored.get(key), setItem: (key: string, value: string) => stored.set(key, value) },
     localStorage: { getItem: (key: string) => key === 'conduit_lang' ? lang : stored.get(key), setItem: (key: string, value: string) => stored.set(key,value) },
-    window: {},
+    window: { addEventListener() {} }, MutationObserver: class { observe() {} }, queueMicrotask() {},
     setTimeout: (callback: () => void) => { timers.push(callback); return timers.length; },
     setInterval() {}, console, alert: vi.fn(),
     fetch: async (path: string) => { requests.push(path); return { ok: true, status: 200, json: async () => ({ data: [] }) }; },
@@ -36,6 +36,60 @@ function dashboard(lang = 'en') {
 }
 
 describe('dashboard browser contracts', () => {
+  it('isolates sample execution, renders inspectable evidence and escapes command output', async () => {
+    const ui = dashboard();
+    ui.run(`activeSection = 'execution'; exPreview(true)`);
+    expect(ui.element('ex-preview-banner').hidden).toBe(false);
+    expect(ui.element('ex-send').disabled).toBe(true);
+    expect(ui.element('ex-plan-content').innerHTML).toContain('1 / 5');
+    expect(ui.element('ex-feed').innerHTML).toContain('rg --files src/ui');
+    expect(ui.element('ex-feed').innerHTML).toContain('exit 0');
+    await ui.run('executionRefresh(); exSubmit(); exRunAction("approve")');
+    expect(ui.requests).toEqual([]);
+    const command = ui.run(`exCommandCard({command:'echo <script>alert(1)</script>',stdout:'<img src=x onerror=alert(1)>',stderr:'<error>',startedAt:1,completedAt:1001,exitCode:1},0)`);
+    expect(command).not.toContain('<script>');
+    expect(command).not.toContain('<img');
+    expect(command).toContain('&lt;error&gt;');
+  });
+
+  it('filters by project, pin and active state, and uses streamed checklist evidence', () => {
+    const ui = dashboard();
+    ui.run(`exState.runs = [{kind:'agent',run:{id:'a',prompt:'First',status:'completed',createdAt:1,input:{workingDirectory:'/one'},steps:[]}},{kind:'agent',run:{id:'b',prompt:'Second',status:'running',createdAt:2,input:{workingDirectory:'/two'},steps:[{iteration:1,status:'running',events:[{kind:'plan',id:'plan',items:[{text:'Read source',completed:true},{text:'Run tests',completed:false}]}]}]}}]; exState.pinned.add('agent:a')`);
+    expect(ui.run('exFilterTasks(exState.runs, "").map(exKey)')).toEqual(['agent:a', 'agent:b']);
+    ui.element('ex-group').value = 'active';
+    expect(ui.run('exFilterTasks(exState.runs, "").map(exKey)')).toEqual(['agent:b']);
+    ui.element('ex-project').value = '/one';
+    expect(ui.run('exFilterTasks(exState.runs, "")')).toEqual([]);
+    ui.run('exState.selected = exState.runs[1]; exRenderPlan()');
+    expect(ui.element('ex-plan-content').innerHTML).toContain('1 / 2');
+    expect(ui.element('ex-plan-content').innerHTML).toContain('Run tests');
+  });
+
+  it('sends selected effort, scope, workspace and explicit approval without losing a failed draft', async () => {
+    const ui = dashboard();
+    ui.run(`exState.operator = {role:'operator'}; exState.workspaces = [{id:'w',path:'/work'}]; let exSent; pfApi = async (path,body) => { exSent = {path,body}; throw new Error('Queue unavailable'); }`);
+    for (const [id, value] of Object.entries({ 'ex-prompt':'Check the task', 'ex-model':'cli-codex/test', 'ex-mode':'plan', 'ex-workspace':'w', 'ex-iterations':'2', 'ex-duration':'120', 'ex-cost':'0.5' })) ui.element(id).value = value;
+    ui.element('ex-effort').value = 'high';
+    await ui.run('exSubmit()');
+    expect(ui.run('exSent')).toMatchObject({path:'/runs',body:{prompt:'Check the task',effort:'high',mode:'plan',workspaceId:'w',workingDirectory:'/work',requiresApproval:true}});
+    expect(ui.element('ex-prompt').value).toBe('Check the task');
+    expect(ui.element('ex-error').textContent).toBe('Queue unavailable');
+    expect(ui.run('exState.submitting')).toBe(false);
+    ui.element('ex-model').value = 'cli-gemini/test'; ui.run('exUpdateEffort()');
+    expect(ui.run('exEffortValue()')).toBe('high');
+  });
+
+  it('pauses polling and rejects an outdated detail response after switching to sample data', async () => {
+    const ui = dashboard();
+    ui.run(`activeSection = 'execution'; exState.paused = true`);
+    await ui.run('executionRefresh()'); expect(ui.requests).toEqual([]);
+    ui.run(`exState.paused = false; exState.runs = [{kind:'agent',run:{id:'a',prompt:'Old task',status:'running',steps:[]}}]; let exResolve; request = () => new Promise(resolve => { exResolve = resolve; }); let selecting = exSelect('agent:a')`);
+    ui.run(`exPreview(true); exResolve({run:{id:'a',prompt:'Stale data',steps:[]}})`);
+    await ui.run('selecting');
+    expect(ui.run('exState.selected.run.id')).toBe('sample');
+    expect(ui.element('ex-card').innerHTML).not.toContain('Stale data');
+  });
+
   it('starts in chat and keeps daily navigation outside the closed administration disclosure', () => {
     const ui = dashboard();
     expect(ui.run('activeSection')).toBe('platform');

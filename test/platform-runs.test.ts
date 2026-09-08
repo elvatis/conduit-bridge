@@ -16,6 +16,24 @@ async function terminal(service: PlatformRunService, id: string) {
 afterEach(async () => { await Promise.all(services.splice(0).map(s => s.stop())); });
 
 describe('bounded durable agent runs', () => {
+  it('exposes live evidence, persists it at completion and forwards selected effort', async () => {
+    let finish!: (value: string) => void;
+    let sink: Parameters<PlatformRunRuntime['execute']>[0]['onExecutionEvent'];
+    let effort: string | undefined;
+    const { service } = await setup({ execute: async request => { effort = request.effort; sink = request.onExecutionEvent; return new Promise<string>(resolve => { finish = resolve; }); } });
+    const run = await service.create({ prompt: 'Verify source', model: 'lmstudio/test', effort: 'high' });
+    for (let i = 0; i < 50 && !sink; i++) await delay(5);
+    expect(effort).toBe('high'); expect(sink).toBeTypeOf('function');
+    sink!({ kind: 'command', id: 'cmd', command: 'npm test', startedAt: 1, status: 'running' });
+    expect(service.get(run.id)?.steps[0].events?.[0]).toMatchObject({ command: 'npm test', status: 'running' });
+    sink!({ kind: 'command', id: 'cmd', command: 'npm test', startedAt: 1, completedAt: 2, status: 'completed', exitCode: 0, stdout: 'Tests passed' });
+    finish('Done'); const result = await terminal(service, run.id);
+    expect(result.steps[0].events).toHaveLength(1);
+    expect(result.steps[0].events?.[0]).toMatchObject({ status: 'completed', exitCode: 0, stdout: 'Tests passed' });
+    sink!({ kind: 'message', id: 'late', at: 3, text: 'Late event must be ignored' });
+    expect(service.get(run.id)?.steps[0].events).toHaveLength(1);
+    await expect(service.create({ prompt: 'Invalid', model: 'lmstudio/test', effort: 'infinite' })).rejects.toThrow('effort');
+  });
   it('executes a bounded repair, retains evidence, and never adds a hidden final call', async () => {
     let calls = 0;
     const { service } = await setup({ execute: async () => ++calls === 1 ? 'Need one repair' : 'DONE with evidence' });

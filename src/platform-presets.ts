@@ -3,7 +3,7 @@ import { validatePipeline, type PipelineDefinition, type PipelineStep } from './
 export interface CodingPipelineModels { planner: string; implementer: string; reviewer: string; security: string; }
 
 /** Bind role models at installation time; no stale provider/model IDs are embedded. */
-export function buildCodingPipelines(models: CodingPipelineModels): PipelineDefinition[] {
+export function buildCodingPipelines(models: CodingPipelineModels, efforts: Partial<Record<keyof CodingPipelineModels, string>> = {}, fastModes: Partial<Record<keyof CodingPipelineModels, boolean>> = {}): PipelineDefinition[] {
   for (const [role, model] of Object.entries(models)) {
     if (typeof model !== 'string' || !model.trim() || model.length > 300 || /[\r\n\0]/.test(model)) throw new Error(`A valid model is required for ${role}`);
   }
@@ -11,7 +11,7 @@ export function buildCodingPipelines(models: CodingPipelineModels): PipelineDefi
   const evidence = 'Use the original requirement and actual source/diff/test artifacts. A prior model narrative is a claim, not verification. Cite inspected paths and exact executed commands/results. If artifacts are absent or a check was not run, report insufficient evidence instead of inventing a pass.';
   const prompt = (task: string) => `${task}\n\n${evidence}\n\nOriginal task:\n{{prompt}}\n\nDependency evidence:\n{{prior_steps}}`;
   const step = (id: string, name: string, role: keyof CodingPipelineModels, task: string, dependencies: string[] = [], extra: Partial<PipelineStep> = {}): PipelineStep => ({
-    id, name, model: models[role], mode: 'chat', max_tokens: 1536,
+    id, name, model: models[role], ...(efforts[role] ? { effort: efforts[role] } : {}), ...(fastModes[role] !== undefined ? { fastMode: fastModes[role] } : {}), mode: 'chat', max_tokens: 1536,
     dependsOn: dependencies, promptTemplate: prompt(task), ...extra,
   });
   const implement = (dependencies: string[]) => step('implement', 'Implement and collect verification evidence', 'implementer',

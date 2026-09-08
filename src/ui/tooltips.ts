@@ -97,7 +97,7 @@ export type SettingTooltipKey = keyof typeof TOOLTIP_REGISTRY;
 
 /** Static control IDs mapped to semantic setting keys. */
 export const SETTING_TOOLTIP_IDS: Readonly<Record<string, SettingTooltipKey>> = {
-  'play-model': 'model', 'play-mode': 'mode', 'play-cwd': 'workingDirectory', 'play-ws-select': 'workspace', 'play-effort': 'effort', 'play-prompt': 'prompt',
+  'play-model': 'model', 'play-mode': 'mode', 'play-cwd': 'workingDirectory', 'play-ws-select': 'workspace', 'play-prompt': 'prompt',
   'pipe-run-select': 'pipeline.id', 'pipe-run-repo': 'pipeline.repository', 'pipe-run-cwd': 'workspace', 'pipe-run-prompt': 'prompt',
   'cfg-daily-budget': 'budget.dailyBudgetUsd', 'cfg-monthly-budget': 'budget.monthlyBudgetUsd', 'cfg-max-cost-run': 'budget.maxCostPerRunUsd', 'cfg-max-tokens-run': 'budget.maxTokensPerRun', 'cfg-warn-threshold': 'budget.warningThresholdPercent', 'cfg-hard-stop': 'budget.hardStop',
   'new-ws-path': 'workingDirectory', 'new-ws-name': 'workspace.name', 'orch-enabled': 'orchestrator.enabled', 'orch-strategy': 'orchestrator.strategy', 'orch-fallbacks': 'orchestrator.fallbackModels',
@@ -107,7 +107,7 @@ export const SETTING_TOOLTIP_IDS: Readonly<Record<string, SettingTooltipKey>> = 
   'pf-preset-model': 'preset.model', 'pf-preset-planner': 'preset.planner', 'pf-preset-implementer': 'preset.implementer', 'pf-preset-reviewer': 'preset.reviewer', 'pf-preset-security': 'preset.security',
   'pf-library-search': 'catalog.search', 'pf-entry-name': 'catalog.name', 'pf-entry-version': 'catalog.version', 'pf-entry-description': 'catalog.description', 'pf-entry-body': 'catalog.instructions', 'pf-entry-model': 'model', 'pf-entry-mode': 'mode', 'pf-entry-skills': 'session.skillRefs', 'pf-entry-tags': 'catalog.tags', 'pf-entry-tools': 'catalog.requiredTools', 'pf-entry-modes': 'catalog.modes',
   'pf-run-prompt': 'prompt', 'pf-run-model': 'model', 'pf-run-agent': 'session.agentId', 'pf-run-mode': 'mode', 'pf-run-workspace': 'workspace', 'pf-run-output': 'run.maxOutputTokens', 'pf-run-approval': 'run.requiresApproval', 'pf-run-iterations': 'run.maxIterations', 'pf-run-duration': 'run.maxDurationMs', 'pf-run-cost': 'budget.maxCostPerRunUsd', 'pf-run-tokens': 'budget.maxTokensPerRun', 'pf-run-success': 'run.successPattern', 'pf-run-feedback': 'approval.feedback', 'pf-evaluation-models': 'evaluation.models',
-  'pf-storage-backend': 'storage.backend', 'pf-storage-restore-file': 'storage.restore', 'pf-profile-name': 'profile.name', 'pf-profile-provider': 'profile.provider', 'pf-profile-executable': 'profile.cliExecutable', 'pf-profile-model': 'model', 'pf-profile-key': 'profile.apiKey', 'pf-profile-clear': 'profile.clearCredential', 'pf-profile-effort': 'effort', 'pf-profile-concurrency': 'profile.maxConcurrent', 'pf-profile-enabled': 'profile.enabled',
+  'pf-storage-backend': 'storage.backend', 'pf-storage-restore-file': 'storage.restore', 'pf-profile-name': 'profile.name', 'pf-profile-provider': 'profile.provider', 'pf-profile-executable': 'profile.cliExecutable', 'pf-profile-model': 'model', 'pf-profile-key': 'profile.apiKey', 'pf-profile-clear': 'profile.clearCredential', 'pf-profile-concurrency': 'profile.maxConcurrent', 'pf-profile-enabled': 'profile.enabled',
 };
 
 /** Selectors for provider policies and pipeline controls generated after initial rendering. */

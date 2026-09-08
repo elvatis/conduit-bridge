@@ -135,7 +135,16 @@ export interface ChatMessage {
   content: string;
 }
 
+export type ExecutionEvent = {
+  kind: 'command'; id: string; command: string; cwd?: string;
+  status: 'running' | 'completed' | 'failed'; startedAt: number; completedAt?: number;
+  stdout?: string; stderr?: string; combinedOutput?: string; exitCode?: number;
+} | { kind: 'message'; id: string; text: string; at: number }
+  | { kind: 'plan'; id: string; items: { text: string; completed: boolean }[]; at: number };
+
 export interface ChatRequest {
+  /** Trusted host-only execution evidence sink. Never accepted from HTTP input. */
+  onExecutionEvent?: (event: ExecutionEvent) => void;
   /** Trusted host-only continuity scope; never copied from a raw HTTP request. Native CLIs retain their own transcripts. */
   cliSessionKey?: string;
   model: string;
@@ -151,6 +160,8 @@ export interface ChatRequest {
    * high | xhigh | max (providers that only support a subset map down).
    */
   effort?: string;
+  /** Request the provider fast tier without changing reasoning effort. */
+  fastMode?: boolean;
   /**
    * Working directory for CLI providers. Ignored by API/LM Studio transports.
    * Must be an absolute path that exists; otherwise the CLI uses an empty sandbox.

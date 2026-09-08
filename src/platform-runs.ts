@@ -1,8 +1,11 @@
+import { parseFastMode } from './fast-mode.js';
+import { isEffortLevel } from './effort.js';
 import { randomUUID, createHash } from 'node:crypto';
 import type { StateStore } from './storage.js';
-import type { ChatRequest } from './types.js';
+import type { ChatRequest, ExecutionEvent } from './types.js';
 import { abortable, estimateCost, estimateTokens } from './usage.js';
 import { redactSecrets } from './redact.js';
+import { recordExecutionEvent } from './execution-events.js';
 
 const RUNS = 'platform.runs';
 const ARTIFACTS = 'platform.artifacts';
@@ -17,6 +20,9 @@ export interface PlatformRunInput {
   repository?: string;
   workingDirectory?: string;
   mode?: 'chat' | 'plan' | 'agent';
+  effort?: string;
+  /** Request the provider fast tier without changing reasoning effort. */
+  fastMode?: boolean;
   maxIterations?: number;
   maxDurationMs?: number;
   maxCostUsd?: number;
@@ -41,6 +47,7 @@ export interface PlatformRunIteration {
   error?: string;
   contentHash?: string;
   artifactId?: string;
+  events?: ExecutionEvent[];
 }
 export interface PlatformArtifact {
   id: string;
@@ -100,6 +107,8 @@ function validate(input: PlatformRunInput): PlatformRunInput {
   const result = structuredClone(input);
   result.mode ??= 'chat';
   if (!['chat', 'plan', 'agent'].includes(result.mode)) throw new PlatformRunError('Invalid execution mode');
+  result.fastMode = parseFastMode(result.fastMode);
+  if (result.effort !== undefined && !isEffortLevel(result.effort)) throw new PlatformRunError('Invalid reasoning effort');
   result.maxIterations = bounded(input.maxIterations, 1, 1, 10, 'maxIterations');
   result.maxDurationMs = bounded(input.maxDurationMs, 120000, 100, 1800000, 'maxDurationMs');
   result.maxCostUsd = bounded(input.maxCostUsd, 0.5, 0, 100, 'maxCostUsd');
@@ -114,6 +123,7 @@ function validate(input: PlatformRunInput): PlatformRunInput {
 
 /** Single-host durable queue. Interrupted side effects never auto-replay. */
 export class PlatformRunService {
+  private liveEvidence = new Map<string, Map<number, ExecutionEvent[]>>();
   private active = new Map<string, { controller: AbortController; promise: Promise<void> }>();
   private pumping = false;
   private stopped = false;
@@ -136,7 +146,14 @@ export class PlatformRunService {
     this.schedule();
   }
   list(): PlatformRun[] { return this.store.list<PlatformRun>(RUNS).sort((a, b) => b.createdAt - a.createdAt); }
-  get(id: string): PlatformRun | undefined { return this.store.read<PlatformRun>(RUNS, id); }
+  get(id: string): PlatformRun | undefined {
+    const run = this.store.read<PlatformRun>(RUNS, id);
+    for (const step of run?.steps ?? []) {
+      const events = this.liveEvidence.get(id)?.get(step.iteration);
+      if (events) step.events = structuredClone(events);
+    }
+    return run;
+  }
   getArtifact(id: string): PlatformArtifact | undefined { return this.store.read<PlatformArtifact>(ARTIFACTS, id); }
   private require(id: string): PlatformRun { const run = this.get(id); if (!run) throw new PlatformRunError('Run not found', 404, 'not_found'); return run; }
   private async save(run: PlatformRun, artifacts: PlatformArtifact[] = []): Promise<void> {
@@ -242,14 +259,25 @@ export class PlatformRunService {
         const inputTokens = estimateTokens(messages.map(m => m.content).join('\n'));
         const maxOutput = Math.min(run.input.maxOutputTokens!, run.input.maxTokens! - run.tokensConsumed - inputTokens);
         if (maxOutput <= 0) throw new PlatformRunError('Run token budget exhausted', 402, 'budget_exceeded');
-        if (run.costUsd + estimateCost(run.model, inputTokens, maxOutput) > run.input.maxCostUsd!) throw new PlatformRunError('Run cost reservation exceeds its limit', 402, 'budget_exceeded');
+        if (run.costUsd + estimateCost(run.model, inputTokens, maxOutput, run.input.fastMode) > run.input.maxCostUsd!) throw new PlatformRunError('Run cost reservation exceeds its limit', 402, 'budget_exceeded');
         const step: PlatformRunIteration = { iteration, startedAt: this.now(), status: 'running' }; run.steps.push(step); await this.save(run);
-        const content = await abortable(this.runtime.execute({ model: run.model, messages, mode: run.input.mode, cwd: run.input.workingDirectory, max_tokens: maxOutput, signal: controller.signal }, { run: structuredClone(run), iteration }), controller.signal);
+        let lastEventNotice = 0;
+        const onExecutionEvent = (event: ExecutionEvent) => {
+          if (controller.signal.aborted || step.status !== 'running' || typeof event.id !== 'string') return;
+          step.events ??= [];
+          if (!recordExecutionEvent(step.events, event, run.steps.reduce((count, item) => count + (item.events?.length || 0), 0) < 64)) return;
+          if (!this.liveEvidence.has(run.id)) this.liveEvidence.set(run.id, new Map());
+          this.liveEvidence.get(run.id)!.set(iteration, step.events);
+          // The detailed GET exposes this bounded volatile snapshot. Persist at
+          // normal step transitions so output bursts never race durable revisions.
+          if (this.now() - lastEventNotice >= 250) { lastEventNotice = this.now(); try { this.runtime.onUpdate?.(structuredClone(run)); } catch {} }
+        };
+        const content = await abortable(this.runtime.execute({ model: run.model, messages, mode: run.input.mode, effort: run.input.effort, fastMode: run.input.fastMode, cwd: run.input.workingDirectory, max_tokens: maxOutput, signal: controller.signal, onExecutionEvent }, { run: structuredClone(run), iteration }), controller.signal);
         controller.signal.throwIfAborted();
         if (typeof content !== 'string' || content.length > maxOutput * 4) throw new PlatformRunError('Provider output exceeded the run output limit');
         const measured = this.runtime.spend?.(run.id);
         run.tokensConsumed = measured?.tokens ?? run.tokensConsumed + inputTokens + estimateTokens(content);
-        run.costUsd = measured?.costUsd ?? run.costUsd + estimateCost(run.model, inputTokens, estimateTokens(content));
+        run.costUsd = measured?.costUsd ?? run.costUsd + estimateCost(run.model, inputTokens, estimateTokens(content), run.input.fastMode);
         const digest = createHash('sha256').update(content.trim()).digest('hex');
         const artifact: PlatformArtifact = { id: `artifact-${randomUUID()}`, runId: run.id, name: `iteration-${iteration}.md`, mediaType: 'text/markdown', content, sizeBytes: Buffer.byteLength(content), sha256: digest, createdAt: this.now() };
         Object.assign(step, { status: 'completed', content, completedAt: this.now(), contentHash: digest, artifactId: artifact.id });
@@ -268,7 +296,7 @@ export class PlatformRunService {
       const step = run.steps.at(-1); if (step?.status === 'running') { step.status = 'failed'; step.error = run.error; step.completedAt = this.now(); }
       const spend = this.runtime.spend?.(run.id); if (spend) { run.costUsd = spend.costUsd; run.tokensConsumed = spend.tokens; }
       await this.save(run);
-    } finally { if (timer) clearTimeout(timer); this.runtime.finish?.(run); }
+    } finally { this.liveEvidence.delete(run.id); if (timer) clearTimeout(timer); this.runtime.finish?.(run); }
   }
   async stop(): Promise<void> {
     this.stopped = true; if (this.timer) clearTimeout(this.timer);

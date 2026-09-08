@@ -132,6 +132,8 @@ export const I18N_SCRIPT = String.raw`
       document.querySelectorAll('[' + attribute + ']').forEach(element => element.setAttribute(property, t(element.getAttribute(attribute))));
     }
     refreshLocalizedBindings();
+    if (typeof syncEffortControls === 'function') syncEffortControls();
+    window.gitWorkspace?.setLanguage(currentLang);
     if (typeof updateSettingTooltipLanguage === 'function') updateSettingTooltipLanguage();
     try { localStorage.setItem('conduit_lang', currentLang); } catch {}
     const label = document.getElementById('lang-label');

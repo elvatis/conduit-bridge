@@ -1,8 +1,14 @@
+import { REPOSITORY_ANALYTICS_COPY } from './ui/repository-analytics-copy.js';
+import { EXECUTION_COPY } from './ui/execution-copy.js';
+
 export type Lang = 'en' | 'de';
 
 /** All interface copy, shared by static markup and browser renderers. */
 export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   "en": {
+    ...EXECUTION_COPY.en,
+    ...REPOSITORY_ANALYTICS_COPY.en,
+    "gw_nav": "Git workspace",
     "tab_vault": "Vault",
     "h_vault": "Message vault",
     "ui_vault_description": "All conversations stay on this device. Search their full text and turn recurring patterns into better prompts.",
@@ -106,7 +112,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "lbl_mode": "Mode",
     "lbl_prompt": "Prompt",
     "lbl_working_dir": "Working directory",
-    "lbl_effort": "Effort tier",
+    "lbl_effort": "Effort",
     "lbl_pipeline": "Select Pipeline",
     "lbl_repository": "Repository Target",
     "lbl_pipeline_name": "Pipeline Name",
@@ -1046,6 +1052,14 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tip_label_storage.restore": "Help: Encrypted backup restore",
     "ui_new_chat": "New chat",
     "ui_recent_chats": "Recent conversations",
+    "ui_chat_history": "Chat history",
+    "ph_search_chat_projects": "Search chats and projects",
+    "btn_new_chat_project": "New project",
+    "lbl_project_name": "Project name",
+    "lbl_chat_project": "Project",
+    "ui_no_chat_project": "No project",
+    "btn_rename_project": "Edit project",
+    "confirm_delete_chat_project": "Delete this empty project? Conversations must be moved out first.",
     "ui_main_navigation": "Main navigation",
     "ui_settings_help": "Settings and help",
     "ui_tools_admin": "Tools & administration",
@@ -1065,6 +1079,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "ui_api_models_group": "API models"
   },
   "de": {
+    ...EXECUTION_COPY.de,
+    ...REPOSITORY_ANALYTICS_COPY.de,
+    "gw_nav": "Git-Workspace",
     "tab_vault": "Vault",
     "h_vault": "Nachrichten-Vault",
     "ui_vault_description": "Alle Gespräche bleiben auf diesem Gerät. Durchsuche ihren Inhalt und verbessere Prompts anhand wiederkehrender Muster.",
@@ -1168,7 +1185,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "lbl_mode": "Modus",
     "lbl_prompt": "Prompt",
     "lbl_working_dir": "Arbeitsverzeichnis",
-    "lbl_effort": "Reasoning-Stufe",
+    "lbl_effort": "Effort",
     "lbl_pipeline": "Pipeline auswählen",
     "lbl_repository": "Ziel-Repository",
     "lbl_pipeline_name": "Pipeline-Name",
@@ -2108,6 +2125,14 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tip_label_storage.restore": "Hilfe: Verschlüsselte Sicherung wiederherstellen",
     "ui_new_chat": "Neuer Chat",
     "ui_recent_chats": "Letzte Gespräche",
+    "ui_chat_history": "Chatverlauf",
+    "ph_search_chat_projects": "Chats und Projekte suchen",
+    "btn_new_chat_project": "Neues Projekt",
+    "lbl_project_name": "Projektname",
+    "lbl_chat_project": "Projekt",
+    "ui_no_chat_project": "Ohne Projekt",
+    "btn_rename_project": "Projekt bearbeiten",
+    "confirm_delete_chat_project": "Dieses leere Projekt löschen? Enthaltene Chats müssen zuerst verschoben werden.",
     "ui_main_navigation": "Hauptnavigation",
     "ui_settings_help": "Einstellungen und Hilfe",
     "ui_tools_admin": "Tools & Verwaltung",

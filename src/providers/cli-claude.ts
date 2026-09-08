@@ -1,3 +1,4 @@
+import { requireFastModeSupport } from '../fast-mode.js';
 import type {
   BridgeConfig,
   ProviderName,
@@ -125,6 +126,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
     const accountModel = parseClaudeModel(req.model, PREFIX);
     const model = accountModel.model;
     const prompt = flattenMessages(lease?.messages ?? req.messages);
+    requireFastModeSupport(this.name,req.model,req.fastMode);
     const effort = toClaudeEffort(req.effort);
     const mode = req.mode ?? 'chat';
 
@@ -143,6 +145,7 @@ export class ClaudeCliProvider implements ProviderAdapter {
       '--model', model,
       ...cliPermissionArgs('cli-claude', mode, { disallowedTools: req.disallowedTools }),
       ...(effort ? ['--effort', effort] : []),
+      ...(req.fastMode === undefined ? [] : ['--settings', JSON.stringify({fastMode:req.fastMode})]),
     ];
 
     const result = await runCli({

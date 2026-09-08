@@ -11,6 +11,42 @@ async function fixture(now: () => number = Date.now) {
 const turn = (input: string, extra: Partial<ContextInput> = {}): ContextInput => ({ input, provider: 'cli-claude', model: 'cli-claude/model-a', maxOutputTokens: 64, ...extra });
 
 describe('platform conversations', () => {
+  it('persists chat projects and moves or branches conversations without changing their workspace or transcript', async () => {
+    const { service, backend } = await fixture();
+    const project = await service.createProject({ name: ' Release planning ', userId: 'alice' });
+    const session = await service.createSession({ userId: 'alice', workspaceId: 'trusted-workspace', projectId: project.id });
+    await service.runTurn(session.id, turn('Keep this context'), async () => 'Saved context');
+    const renamed = await service.updateProject(project.id, { name: 'Launch', expectedRevision: 1 });
+    expect(renamed).toMatchObject({ name: 'Launch', revision: 2 });
+    await expect(service.updateProject(project.id, { name: 'Stale', expectedRevision: 1 })).rejects.toMatchObject({ status: 409 });
+    const reloadedStore = new TransactionalStateStore(backend); await reloadedStore.ready();
+    const reloaded = new PlatformContentService(reloadedStore);
+    expect(reloaded.listProjects()).toEqual([renamed]);
+    expect(reloaded.getSession(session.id)).toMatchObject({ projectId: project.id, workspaceId: 'trusted-workspace', messages: expect.any(Array) });
+    const branch = await service.branchSession(session.id);
+    expect(branch.projectId).toBe(project.id);
+    await expect(service.deleteProject(project.id)).rejects.toMatchObject({ status: 409, code: 'project_not_empty' });
+    const moved = await service.updateSession(session.id, { projectId: null, expectedRevision: 3 });
+    expect(moved.projectId).toBeUndefined();
+    expect(moved.workspaceId).toBe('trusted-workspace');
+    expect(moved.messages.map(message => message.content)).toEqual(['Keep this context','Saved context']);
+    await service.updateSession(branch.id, { projectId: null });
+    await service.deleteProject(project.id);
+    expect(service.listProjects()).toEqual([]);
+    expect(service.getSession(session.id)?.messages).toHaveLength(2);
+  });
+
+  it('rejects missing or foreign projects on both creation and reassignment', async () => {
+    const { service } = await fixture();
+    const project = await service.createProject({ name: 'Private', userId: 'alice' });
+    await expect(service.createSession({ userId: 'bob', projectId: project.id })).rejects.toMatchObject({ status: 404 });
+    await expect(service.createSession({ userId: 'alice', projectId: 'missing' })).rejects.toMatchObject({ status: 404 });
+    const session = await service.createSession({ userId: 'bob' });
+    await expect(service.updateSession(session.id, { projectId: project.id })).rejects.toMatchObject({ status: 404 });
+    expect(service.getSession(session.id)?.revision).toBe(1);
+    await expect(service.createProject({ name: ' ', userId: 'alice' })).rejects.toThrow();
+  });
+
   it('retains every conversation and reloads it from storage by default', async () => {
     const { backend, store, service } = await fixture();
     const commit = vi.spyOn(backend, 'commit');

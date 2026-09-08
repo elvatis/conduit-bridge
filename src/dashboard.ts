@@ -1,8 +1,13 @@
+import { GIT_WORKSPACE_HTML, GIT_WORKSPACE_STYLE, GIT_WORKSPACE_SCRIPT } from './ui/git-workspace.js';
+import { REPOSITORY_ANALYTICS_HTML, REPOSITORY_ANALYTICS_STYLE, REPOSITORY_ANALYTICS_SCRIPT, REPOSITORY_ANALYTICS_NAV_HTML } from './ui/repository-analytics.js';
+import { MODERN_STYLE } from './ui/modern-style.js';
+import { effortControl, EFFORT_STYLE } from './ui/effort-slider.js';
 import { TRANSLATIONS } from './i18n.js';
 import { I18N_SCRIPT } from './ui/i18n.js';
 import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
 import { BRAND_ICON } from './ui/brand.js';
 import { WORKSPACE_STYLE } from './ui/workspace-style.js';
+import { EXECUTION_STYLE, EXECUTION_HTML, EXECUTION_SCRIPT, EXECUTION_NAV_HTML, EXECUTION_TREE_HTML } from './ui/execution.js';
 import { SELECT_STYLE, SELECT_SCRIPT } from './ui/select.js';
 import { PLATFORM_NEW_CHAT_HTML, PLATFORM_HISTORY_HTML, PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
 
@@ -34,17 +39,17 @@ const SHARED_STYLE = `
     margin: 0;
     background: var(--bg);
     color: var(--body);
-    font: 14.5px/1.5 Inter, system-ui, -apple-system, sans-serif;
+    font: 1.0357rem/1.5 Inter, system-ui, -apple-system, sans-serif;
     background-image: radial-gradient(circle at 18% 0%, rgba(34,180,255,.08), transparent 32%), linear-gradient(180deg,#07111f 0%,#050B16 100%);
   }
-  main {
-    min-height: 100vh;
+  #main-layout {
+    min-height: 100dvh;
     display: grid;
     grid-template-columns: 252px minmax(0,1fr);
     padding: 0;
     transition: grid-template-columns .18s cubic-bezier(.4,0,.2,1);
   }
-  main.sidebar-collapsed {
+  #main-layout.sidebar-collapsed {
     grid-template-columns: 68px minmax(0,1fr);
   }
   .sidebar {
@@ -84,18 +89,18 @@ const SHARED_STYLE = `
   }
   .brand-mark {
     color: var(--blue);
-    font: 700 10px var(--font-sans);
+    font: 700 0.8rem var(--font-sans);
     letter-spacing: .16em;
   }
   .brand h1 {
     font-family: Georgia,serif;
-    font-size: 20px;
+    font-size: 1.4286rem;
     margin: 4px 0 2px;
     color: var(--text);
   }
   .brand small {
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 0.8214rem;
   }
   .collapse-btn {
     border: 1px solid transparent;
@@ -115,7 +120,7 @@ const SHARED_STYLE = `
     border-color: var(--line);
   }
   .nav-group-label {
-    font: 600 9.5px var(--font-sans);
+    font: 600 0.8rem var(--font-sans);
     letter-spacing: .12em;
     color: var(--muted);
     padding: 10px 10px 3px;
@@ -143,7 +148,7 @@ const SHARED_STYLE = `
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 13.5px;
+    font-size: 0.9643rem;
     white-space: nowrap;
     width: 100%;
     transition: all .12s ease;
@@ -191,7 +196,7 @@ const SHARED_STYLE = `
     background: transparent;
     color: var(--muted);
     padding: 7px 10px;
-    font-size: 12px;
+    font-size: 0.8571rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -215,7 +220,7 @@ const SHARED_STYLE = `
     margin-top: auto;
     padding: 14px 6px 0;
     color: var(--muted);
-    font: 11px/1.5 var(--font-sans);
+    font: 0.8rem/1.5 var(--font-sans);
     border-top: 1px solid var(--line);
   }
   .sidebar.collapsed .side-footer {
@@ -247,7 +252,7 @@ const SHARED_STYLE = `
   }
   .appbrand {
     color: var(--blue);
-    font: 700 13px var(--font-sans);
+    font: 700 0.9286rem var(--font-sans);
     letter-spacing: .08em;
   }
   .header-actions {
@@ -256,9 +261,9 @@ const SHARED_STYLE = `
     gap: 8px;
   }
   h1, h2, h3, p { margin-top: 0; }
-  h1 { font-size: 26px; margin-bottom: 4px; color: var(--text); }
-  h2 { font-size: 18px; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
-  h3 { font-size: 15px; margin-bottom: 5px; color: var(--text); }
+  h1 { font-size: 1.8571rem; margin-bottom: 4px; color: var(--text); }
+  h2 { font-size: 1.2857rem; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  h3 { font-size: 1.0714rem; margin-bottom: 5px; color: var(--text); }
   .muted, small { color: var(--muted); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
   .summary { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; margin: 0 0 16px; }
@@ -270,9 +275,9 @@ const SHARED_STYLE = `
     transition: transform .12s ease, border-color .12s ease;
   }
   .summary-item:hover { border-color: var(--line-2); transform: translateY(-1px); }
-  .summary-item strong { display: block; font-size: 22px; color: var(--blue); }
-  .summary-item span { color: var(--muted); font-size: 12px; }
-  .status-legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: 0 0 16px; }
+  .summary-item strong { display: block; font-size: 1.5714rem; color: var(--blue); }
+  .summary-item span { color: var(--muted); font-size: 0.8571rem; }
+  .status-legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 0.8571rem; margin: 0 0 16px; }
   .status-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .anchor { scroll-margin-top: 76px; }
   section, .transport {
@@ -307,7 +312,7 @@ const SHARED_STYLE = `
     padding: 7px 12px;
     cursor: pointer;
     text-decoration: none;
-    font-size: 13px;
+    font-size: 0.9286rem;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -329,7 +334,7 @@ const SHARED_STYLE = `
   .model-tools { display: grid; grid-template-columns: minmax(220px,1fr) 160px 210px auto; gap: 8px; margin-bottom: 12px; }
   .model-tools input { flex: 1; min-width: 0; }
   .model-summary { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0 14px; }
-  .model-summary span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--muted); font-size: 12px; }
+  .model-summary span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--muted); font-size: 0.8571rem; }
   .model-transport-group { margin: 14px 0 20px; }
   .model-transport-group > h3 { display: flex; justify-content: space-between; color: var(--blue); margin-bottom: 8px; }
   .model-provider-group { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; margin: 8px 0; overflow: hidden; }
@@ -343,8 +348,8 @@ const SHARED_STYLE = `
   .model-row:first-child { border-top: 0; }
   .model-row strong, .model-row code { display: block; }
   .model-row strong { color: var(--text); overflow-wrap: anywhere; }
-  .model-row code { font-size: 12px; }
-  .model-row .model-meta { color: var(--muted); font-size: 12px; }
+  .model-row code { font-size: 0.8571rem; }
+  .model-row .model-meta { color: var(--muted); font-size: 0.8571rem; }
   #model-list { max-height: 70vh; overflow: auto; padding-right: 4px; }
   .setting-list { display: grid; gap: 10px; margin: 12px 0 24px; }
   .setting-row { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(180px, 1fr) auto; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; }
@@ -354,7 +359,7 @@ const SHARED_STYLE = `
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font: 11.5px/1 var(--font-sans);
+    font: 0.8214rem/1 var(--font-sans);
     padding: 4px 8px;
     border-radius: 999px;
     border: 1px solid transparent;
@@ -391,7 +396,7 @@ const SHARED_STYLE = `
     gap: 6px;
   }
   .tool-picker-actions button {
-    font-size: 11.5px;
+    font-size: 0.8214rem;
     padding: 4px 8px;
     background: #112340;
     border: 1px solid var(--line);
@@ -420,7 +425,7 @@ const SHARED_STYLE = `
     background: rgba(255,111,145,.15);
     border: 1px solid rgba(255,111,145,.35);
     color: #ff9cb2;
-    font-size: 12px;
+    font-size: 0.8571rem;
     padding: 2px 8px;
     border-radius: 999px;
     font-weight: 500;
@@ -431,7 +436,7 @@ const SHARED_STYLE = `
     color: #ff9cb2;
     cursor: pointer;
     padding: 0 1px;
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1;
     opacity: .7;
   }
@@ -458,14 +463,14 @@ const SHARED_STYLE = `
     justify-content: space-between;
     padding: 6px 12px;
     background: #122844;
-    font-size: 12px;
+    font-size: 0.8571rem;
     font-weight: 600;
     color: var(--blue-soft);
     cursor: pointer;
     user-select: none;
   }
   .tool-cat-title .cat-badge {
-    font-size: 11px;
+    font-size: 0.8rem;
     color: var(--muted);
     font-weight: 400;
   }
@@ -481,7 +486,7 @@ const SHARED_STYLE = `
     gap: 6px;
     padding: 4px 8px;
     border-radius: 5px;
-    font-size: 12px;
+    font-size: 0.8571rem;
     border: 1px solid var(--line);
     background: #081628;
     color: var(--text);
@@ -498,7 +503,7 @@ const SHARED_STYLE = `
     color: #ffaec0;
   }
   .pill-tag {
-    font-size: 9px;
+    font-size: 0.8rem;
     text-transform: uppercase;
     font-weight: 700;
     padding: 1px 4px;
@@ -539,22 +544,22 @@ const SHARED_STYLE = `
     background: #0a192f;
     border: 1px solid var(--line);
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 0.8571rem;
   }
   .pipeline-step-pill .step-meta {
-    font-size: 10.5px;
+    font-size: 0.8rem;
     color: var(--muted);
     font-family: var(--font-sans);
   }
   .pipeline-arrow {
     color: var(--muted);
-    font-size: 14px;
+    font-size: 1rem;
   }
   .checkpoint-badge {
     background: rgba(245,184,61,.18);
     color: var(--warn);
     border: 1px solid rgba(245,184,61,.3);
-    font-size: 10px;
+    font-size: 0.8rem;
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 600;
@@ -601,14 +606,14 @@ const SHARED_STYLE = `
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
-    font-size: 13px;
+    font-size: 0.9286rem;
   }
   .step-result-content {
     background: #040913;
     border: 1px solid rgba(143,213,236,.1);
     border-radius: 5px;
     padding: 10px;
-    font-size: 12px;
+    font-size: 0.8571rem;
     max-height: 240px;
     overflow-y: auto;
     white-space: pre-wrap;
@@ -673,7 +678,7 @@ const SHARED_STYLE = `
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
-    font-size: 16px;
+    font-size: 1.1429rem;
   }
   .modal-close:hover { color: var(--text); }
   .preset-buttons {
@@ -683,7 +688,7 @@ const SHARED_STYLE = `
     margin-bottom: 8px;
   }
   .preset-btn {
-    font-size: 12px;
+    font-size: 0.8571rem;
     padding: 5px 10px;
     background: #15253b;
     border: 1px solid var(--line);
@@ -702,7 +707,7 @@ const SHARED_STYLE = `
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: 0.9286rem;
     color: var(--text);
     cursor: pointer;
   }
@@ -731,9 +736,9 @@ const SHARED_STYLE = `
   .play-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   #play-output { white-space: pre-wrap; min-height: 54px; margin: 14px 0 0; }
   .activity-list { display: grid; gap: 7px; max-height: 460px; overflow: auto; }
-  .activity-event { display: grid; grid-template-columns: 76px 86px minmax(0,1fr); gap: 10px; align-items: start; border-top: 1px solid var(--line); padding: 9px 0; font-size: 13px; }
+  .activity-event { display: grid; grid-template-columns: 76px 86px minmax(0,1fr); gap: 10px; align-items: start; border-top: 1px solid var(--line); padding: 9px 0; font-size: 0.9286rem; }
   .activity-event:first-child { border-top: 0; }
-  .activity-event time, .activity-event .scope { color: var(--muted); font: 12px var(--font-sans); }
+  .activity-event time, .activity-event .scope { color: var(--muted); font: 0.8571rem var(--font-sans); }
   .activity-event.success .level { color: var(--ok); }
   .activity-event.warning .level { color: var(--warn); }
   .activity-event.error .level { color: var(--bad); }
@@ -743,7 +748,7 @@ const SHARED_STYLE = `
   li { margin: 7px 0; }
   pre { overflow-x: auto; background: #050B16; border: 1px solid var(--line); padding: 14px; border-radius: 6px; }
   @media (max-width: 760px) {
-    main { display: block; }
+    #main-layout { display: block; }
     .sidebar { position: fixed; z-index: 30; width: min(290px,86vw); transform: translateX(-102%); transition: transform .18s ease; box-shadow: 18px 0 45px rgba(0,0,0,.35); }
     .sidebar.open { transform: translateX(0); }
     .workspace { padding: 0 16px 42px; }
@@ -758,29 +763,29 @@ const SHARED_STYLE = `
   .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; margin: 16px 0 24px; }
   .chart-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
   .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .chart-header h3 { margin: 0; font-size: 14px; color: var(--blue-soft); }
-  .chart-badge { font: 600 11px var(--font-sans); padding: 2px 6px; border-radius: 4px; background: rgba(34,180,255,.12); color: var(--blue); }
+  .chart-header h3 { margin: 0; font-size: 1rem; color: var(--blue-soft); }
+  .chart-badge { font: 600 0.8rem var(--font-sans); padding: 2px 6px; border-radius: 4px; background: rgba(34,180,255,.12); color: var(--blue); }
   .svg-chart { width: 100%; height: auto; display: block; }
-  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 0.8571rem; color: var(--muted); }
   .legend-item { display: inline-flex; align-items: center; gap: 5px; }
   .legend-color { width: 10px; height: 10px; border-radius: 2px; }
 
   /* Risk & Classification Badges */
-  .risk-badge { font: 700 10.5px var(--font-sans); padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .risk-badge { font: 700 0.8rem var(--font-sans); padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
   .risk-low { background: rgba(31,209,138,.14); color: var(--ok); border: 1px solid rgba(31,209,138,.3); }
   .risk-medium { background: rgba(245,184,61,.14); color: var(--warn); border: 1px solid rgba(245,184,61,.3); }
   .risk-high { background: rgba(255,138,61,.14); color: var(--copper); border: 1px solid rgba(255,138,61,.3); }
   .risk-critical { background: rgba(255,111,145,.14); color: var(--bad); border: 1px solid rgba(255,111,145,.3); }
-  .class-badge { font: 500 11px Inter, sans-serif; padding: 2px 7px; border-radius: 4px; background: rgba(143,213,236,.12); color: var(--blue-soft); border: 1px solid rgba(143,213,236,.25); }
+  .class-badge { font: 500 0.8rem Inter, sans-serif; padding: 2px 7px; border-radius: 4px; background: rgba(143,213,236,.12); color: var(--blue-soft); border: 1px solid rgba(143,213,236,.25); }
 
   /* Filter Chips */
   .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
-  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: #0A1729; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 0.8571rem; border: 1px solid var(--line); background: #0A1729; color: var(--muted); cursor: pointer; transition: all .12s ease; }
   .filter-chip:hover { border-color: var(--line-2); color: var(--text); }
   .filter-chip.active { background: var(--blue); color: #050B16; border-color: var(--blue); font-weight: 600; }
 
   /* Data Table */
-  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; margin: 10px 0; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9286rem; text-align: left; margin: 10px 0; }
   .data-table th { background: #112340; color: var(--blue-soft); padding: 9px 12px; border-bottom: 1px solid var(--line-2); font-weight: 600; }
   .data-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   .data-table tr:hover td { background: rgba(17,35,64,.5); }
@@ -794,7 +799,7 @@ const SHARED_STYLE = `
   .budget-fill.danger { background: #ff6f91; }
 
   /* Directory Browser */
-  .dir-browser { background: #0A1729; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
+  .dir-browser { background: #0A1729; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 0.9286rem; }
   .dir-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
   .dir-item:hover { background: #112340; border-color: var(--line); }
   .dir-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; font-family: var(--font-sans); color: var(--blue-soft); }
@@ -811,7 +816,7 @@ const SHARED_STYLE = `
   .pipeline-run-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 12px; }
   .pipeline-header, .step-result-header, .checkpoint-banner > div, .chart-header { flex-wrap: wrap; gap: 8px; }
   .activity-event, .pipeline-card, .step-result-content, .tool-card, .dir-browser { overflow-wrap: anywhere; }
-  .chart-values { padding-left: 20px; font-size: 12px; overflow-wrap: anywhere; }
+  .chart-values { padding-left: 20px; font-size: 0.8571rem; overflow-wrap: anywhere; }
   .run-history-item { grid-template-columns: minmax(0,1fr) auto; }
   .data-table { table-layout: fixed; overflow-wrap: anywhere; }
   .data-table td > div { flex-wrap: wrap; }
@@ -824,10 +829,15 @@ const SHARED_STYLE = `
     .pipeline-header, .step-result-header { align-items: stretch; }
     .activity-event:not(.run-history-item) { grid-template-columns: 66px minmax(0,1fr); }
     .activity-event:not(.run-history-item) > :last-child { grid-column: 1 / -1; }
-    .data-table th, .data-table td { padding: 6px 4px; font-size: 11px; }
+    .data-table th, .data-table td { padding: 6px 4px; font-size: 0.8rem; }
   }
   ${WORKSPACE_STYLE}
+  ${EXECUTION_STYLE}
   ${SELECT_STYLE}
+  ${GIT_WORKSPACE_STYLE}
+  ${REPOSITORY_ANALYTICS_STYLE}
+  ${EFFORT_STYLE}
+  ${MODERN_STYLE}
 `;
 
 export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
@@ -852,10 +862,11 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
       </button>
     </div>
 ${PLATFORM_NEW_CHAT_HTML}
-<nav class="side-menu" aria-label="Main navigation" data-i18n-aria="ui_main_navigation">      <button class="active" data-section="platform" title="Conversation &amp; Agent Workspace" data-i18n-title="h_platform">
+<nav class="side-menu" aria-label="Main navigation" data-i18n-aria="ui_main_navigation">${EXECUTION_NAV_HTML}<button id="git-workspace-nav" data-section="git-workspace"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 7v10m12-10v3a5 5 0 0 1-5 5H6"/></svg><span class="nav-label" data-i18n="gw_nav">Git workspace</span></button>${REPOSITORY_ANALYTICS_NAV_HTML}<button class="active" data-section="platform" title="Conversation &amp; Agent Workspace" data-i18n-title="h_platform">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
         <span class="nav-label" data-i18n="nav_platform">Webchat &amp; agents</span>
       </button>
+${PLATFORM_HISTORY_HTML}
       <button data-section="models" title="Models" data-i18n-title="nav_models">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
         <span class="nav-label" data-i18n="nav_models">Models</span>
@@ -864,7 +875,7 @@ ${PLATFORM_NEW_CHAT_HTML}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         <span class="nav-label" data-i18n="nav_workspaces">Workspaces</span>
       </button></nav>
-${PLATFORM_HISTORY_HTML}
+${EXECUTION_TREE_HTML}
 <details class="nav-advanced" id="advanced-nav"><summary title="Tools and administration" data-i18n-title="ui_tools_admin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><path d="M14 17.5h7m-3.5-3.5v7"/></svg><span data-i18n="ui_tools_admin">Tools and administration</span></summary>    <nav class="side-menu" aria-label="Dashboard sections" data-i18n-aria="ui_dashboard_sections" id="side-nav">
       <div class="nav-group-label" data-nav-group="core" data-i18n="group_core">Core</div>
       <button data-section="overview" title="Overview" data-i18n-title="nav_overview">
@@ -966,6 +977,9 @@ ${PLATFORM_HISTORY_HTML}
 
     <p id="notice" role="status"></p>
     ${PLATFORM_HTML}
+    ${EXECUTION_HTML}
+    ${GIT_WORKSPACE_HTML.replace('class="gw-page"', 'class="wide page-section gw-page"')}
+    ${REPOSITORY_ANALYTICS_HTML}
 
     <!-- Overview Section -->
     <div id="overview-section" class="page-section">
@@ -1004,7 +1018,7 @@ ${PLATFORM_HISTORY_HTML}
         <label><span data-i18n="lbl_working_dir">Working directory</span><input id="play-cwd" type="text" placeholder="Absolute path (required when agent mode is selected)" data-i18n-ph="ph_absolute_path"></label>
         <label><span data-i18n="lbl_workspace_quick">Workspace quick select</span><select id="play-ws-select"><option value="" data-i18n="ui_choose_workspace">-- Choose Workspace --</option></select></label>
       </div>
-      <label><span data-i18n="lbl_effort">Effort tier</span><select id="play-effort"></select></label>
+      ${effortControl('play-effort', '#play-model')}
       <label><span data-i18n="lbl_prompt">Prompt</span><textarea id="play-prompt" data-i18n-value="sample_ping">Reply with exactly: pong</textarea></label>
       <div class="play-actions">
         <button id="play-run" class="primary" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_run_test">Run test</span></button>
@@ -1126,7 +1140,7 @@ ${PLATFORM_HISTORY_HTML}
         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 28px; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
           <div>
             <h3 style="margin: 0;" data-i18n="h_governance_audit">Governance Approval Audit Trail</h3>
-            <p class="muted" style="margin: 0; font-size: 13px;" data-i18n="ui_governance_audit_description">Full audit log of human authorizations, gate sign-offs, and rejections.</p>
+            <p class="muted" style="margin: 0; font-size: 0.9286rem;" data-i18n="ui_governance_audit_description">Full audit log of human authorizations, gate sign-offs, and rejections.</p>
           </div>
           <div class="play-actions">
             <button type="button" id="btn-export-audit-json"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span class="action-label" data-i18n="btn_export_json">Export JSON</span></button>
@@ -1213,7 +1227,7 @@ ${PLATFORM_HISTORY_HTML}
         <div class="dir-browser">
           <div class="dir-breadcrumb">
             <span data-i18n="lbl_path">Path:</span> <strong id="browser-current-path">-</strong>
-            <button type="button" id="browser-up-btn" style="padding: 2px 8px; font-size: 11px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span class="action-label" data-i18n="btn_parent_directory">Up one level</span></button>
+            <button type="button" id="browser-up-btn" style="padding: 2px 8px; font-size: 0.8rem;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span class="action-label" data-i18n="btn_parent_directory">Up one level</span></button>
           </div>
           <div id="browser-dirs-list" style="display: grid; gap: 4px; max-height: 240px; overflow-y: auto;"></div>
         </div>
@@ -1271,7 +1285,7 @@ ${PLATFORM_HISTORY_HTML}
         </select>
       </label>
       <div id="orch-roles"></div>
-      <label><span data-i18n="lbl_fallback_models">Fallback models</span><select id="orch-fallbacks" multiple size="4"></select></label>
+      <label><span data-i18n="lbl_fallback_models">Fallback models</span><select id="orch-fallbacks" multiple size="4"></select></label>${effortControl('orch-fallback-effort', '#orch-fallbacks')}
       <div class="play-actions">
         <button id="orch-save" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="btn_save_orchestration">Save orchestration</span></button>
         <button id="orch-run" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg><span class="action-label" data-i18n="btn_run_orchestration">Run orchestration</span></button>
@@ -1461,7 +1475,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       <div>
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
           <label style="font-weight: 600; color: var(--text); margin: 0;" data-i18n="lbl_pipeline_steps">Pipeline Steps</label>
-          <button type="button" id="pipe-add-step-btn" style="font-size: 12px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_add_step">Add Step</span></button>
+          <button type="button" id="pipe-add-step-btn" style="font-size: 0.8571rem;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_add_step">Add Step</span></button>
         </div>
         <div id="pipe-steps-container" style="display: grid; gap: 10px;"></div>
       </div>
@@ -1549,6 +1563,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   // Navigation visibility customization
   const NAV_SECTIONS = [
+    { key: 'execution', label: 'ex_nav' },
+    { key: 'git-workspace', label: 'gw_nav' },
+    { key: 'repository-analytics', label: 'ra_nav' },
     { key: 'overview', label: 'nav_overview' },
     { key: 'platform', label: 'nav_platform' },
     { key: 'playground', label: 'nav_playground' },
@@ -1603,7 +1620,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const visible = getVisibleNavs();
     document.querySelectorAll('#side-nav button[data-section]').forEach(btn => {
       const key = btn.dataset.section;
-      btn.style.display = visible.has(key) ? 'flex' : 'none';
+      btn.style.display = key === 'execution' || visible.has(key) ? 'flex' : 'none';
     });
     updateNavGroups();
   }
@@ -1611,7 +1628,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   function openNavModal() {
     const visible = getVisibleNavs();
     const container = $('nav-checkboxes-container');
-    setLocalizedHtml(container, () => NAV_SECTIONS.filter(s => !['platform','models','workspaces','settings','help'].includes(s.key)).map(s =>
+    setLocalizedHtml(container, () => NAV_SECTIONS.filter(s => !['execution','git-workspace','repository-analytics','platform','models','workspaces','settings','help'].includes(s.key)).map(s =>
       '<label class="nav-checkbox-label">' +
         '<input type="checkbox" data-nav-key="' + esc(s.key) + '"' + (visible.has(s.key) ? ' checked' : '') + '> ' +
         esc(t(s.label)) +
@@ -1648,6 +1665,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   // Navigation section toggles
   const sectionIds = {
+    execution: 'execution-section',
+    'git-workspace': 'git-workspace',
+    'repository-analytics': 'repository-analytics-section',
     overview: 'overview-section',
     platform: 'platform-section',
     playground: 'playground-section',
@@ -1670,8 +1690,16 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   };
 
   let activeSection = 'platform';
-  function showSection(name) {
+  function showSection(name, updateLocation = true) {
+    if (!Object.hasOwn(sectionIds, name)) return;
+    if (updateLocation && window.location && window.location.hash !== '#' + name) window.history?.pushState(null, '', '#' + name);
     activeSection = name;
+    $('ex-sidebar').hidden = name !== 'execution';
+    $('ex-create-task').hidden = name !== 'execution';
+    $('pf-new-chat').hidden = name === 'execution';
+    if (name === 'execution') executionRefresh();
+    if (name === 'git-workspace') window.gitWorkspace?.refresh();
+    if (name === 'repository-analytics') loadRepositoryAnalytics();
     const section = NAV_SECTIONS.find(item => item.key === name);
     if (section) setLocalizedText($('page-title'), () => t(section.label));
     Object.entries(sectionIds).forEach(([key, id]) => {
@@ -1841,7 +1869,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     const chipsHtml = Array.from(selectedTools).sort().map(tool =>
       '<span class="tool-chip"><span>' + esc(tool) + '</span><button type="button" class="chip-del" data-remove-tool="' + esc(tool) + '" data-for-provider="' + esc(providerName) + '">&times;</button></span>'
-    ).join('') || ('<span class="muted" style="font-size:12px;">' + esc(t('ui_no_restrictions')) + '</span>');
+    ).join('') || ('<span class="muted" style="font-size:0.8571rem;">' + esc(t('ui_no_restrictions')) + '</span>');
 
     const accordionHtml = categories.map(cat => {
       const toolsInCat = knownTools.filter(tool => tool.category === cat);
@@ -1871,7 +1899,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     return '<div class="tool-picker-container" data-picker-for="' + esc(providerName) + '">' +
       '<div class="tool-picker-top">' +
-        ('<span style="font-size: 12px; font-weight: 600; color: var(--text);">' + esc(t('lbl_disallowed_tools')) + '</span>') +
+        ('<span style="font-size: 0.8571rem; font-weight: 600; color: var(--text);">' + esc(t('lbl_disallowed_tools')) + '</span>') +
         '<div class="tool-picker-actions">' +
           '<button type="button" data-tool-action="mutating" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + ('>' + '<span class="action-label">' + esc(t('btn_restrict_mutating')) + '</span>' + '</button>') +
           '<button type="button" data-tool-action="all" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + ('>' + '<span class="action-label">' + esc(t('btn_select_all')) + '</span>' + '</button>') +
@@ -1895,7 +1923,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (chipsArea) {
       setLocalizedHtml(chipsArea, () => Array.from(newSet).sort().map(tool =>
         '<span class="tool-chip"><span>' + esc(tool) + '</span><button type="button" class="chip-del" data-remove-tool="' + esc(tool) + '" data-for-provider="' + esc(providerName) + '">&times;</button></span>'
-      ).join('') || ('<span class="muted" style="font-size:12px;">' + esc(t('ui_no_restrictions')) + '</span>'));
+      ).join('') || ('<span class="muted" style="font-size:0.8571rem;">' + esc(t('ui_no_restrictions')) + '</span>'));
     }
 
     picker.querySelectorAll('.tool-pill').forEach(pill => {
@@ -2069,7 +2097,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         '<div class="pipeline-header">' +
           '<div>' +
             '<h3 style="margin: 0 0 4px; color: var(--text);">' + esc(pipe.name) + (pipe.isBuiltIn ? (' <span class="setting-badge info">' + esc(t('ui_built_in')) + '</span>') : '') + '</h3>' +
-            '<span class="muted" style="font-size: 13px;">' + esc(pipe.description) + '</span>' +
+            '<span class="muted" style="font-size: 0.9286rem;">' + esc(pipe.description) + '</span>' +
           '</div>' +
           '<div class="actions">' +
             '<button type="button" class="primary" data-run-pipe="' + esc(pipe.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>' + '<span class="action-label">' + esc(t('btn_select_run')) + '</span>' + '</button>') +
@@ -2300,6 +2328,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   });
 
   // Pipeline Builder Modal
+  let effortControlSequence = 0;
   function addStepToBuilder(step) {
     const container = $('pipe-steps-container');
     const idx = container.children.length + 1;
@@ -2313,16 +2342,17 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     };
 
     const row = document.createElement('div');
-    row.className = 'provider-block';
+    row.className = 'provider-block model-effort-pair';
+    const effortId = 'step-effort-' + (++effortControlSequence);
     row.style.margin = '0';
     row.style.padding = '12px';
     setLocalizedHtml(row, () => '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
       ('<strong>' + esc(t('ui_step')) + ' ') + idx + '</strong>' +
       '<button type="button" class="modal-close" style="color: var(--bad);" title="' + esc(t('btn_remove_step')) + '" aria-label="' + esc(t('btn_remove_step')) + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="10" y2="17"/><line x1="14" x2="14" y1="10" y2="17"/></svg></button>' +
     '</div>' +
-    '<div style="display: grid; grid-template-columns: 1fr 1.2fr 100px; gap: 8px; margin-bottom: 8px;">' +
+    '<div style="display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 8px; margin-bottom: 8px;">' +
       ('<label><span>' + esc(t('lbl_step_name')) + '</span><input type="text" class="step-name-inp" value="') + esc(s.name) + '"></label>' +
-      ('<label><span>' + esc(t('lbl_model')) + '</span><select class="step-model-inp">') + modelOptionGroups(s.model) + '</select></label>' +
+      ('<label><span>' + esc(t('lbl_model')) + '</span><select class="step-model-inp">') + modelOptionGroups(s.model) + '</select></label>' + effortControlHtml(effortId,'.step-model-inp',s.effort || '','','',s.fastMode) +
       ('<label><span>' + esc(t('lbl_mode')) + '</span><select class="step-mode-inp">') +
         '<option value="chat"' + (s.mode === 'chat' ? ' selected' : '') + ('>' + esc(t('mode_chat')) + '</option>') +
         '<option value="plan"' + (s.mode === 'plan' ? ' selected' : '') + ('>' + esc(t('mode_plan')) + '</option>') +
@@ -2330,7 +2360,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       '</select></label>' +
     '</div>' +
     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">' +
-      '<label class="nav-checkbox-label" style="font-size: 12px;">' +
+      '<label class="nav-checkbox-label" style="font-size: 0.8571rem;">' +
         '<input type="checkbox" class="step-approval-inp"' + (s.requiresApproval ? ' checked' : '') + ('>' + ' ' + esc(t('lbl_approval_checkpoint'))) +
       '</label>' +
     '</div>' +
@@ -2340,6 +2370,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     row.querySelector('.modal-close').addEventListener('click', () => row.remove());
     container.appendChild(row);
+    syncEffortControls(row);
   }
 
   $('btn-open-create-pipeline').addEventListener('click', () => {
@@ -2365,6 +2396,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       id: 'step-' + (idx + 1),
       name: row.querySelector('.step-name-inp').value.trim() || ((t('ui_step') + ' ') + (idx + 1)),
       model: row.querySelector('.step-model-inp').value,
+      effort: row.querySelector('.effort-value').value || undefined, fastMode: row.querySelector('.effort-fast-value').value === 'true',
       mode: row.querySelector('.step-mode-inp').value,
       requiresApproval: row.querySelector('.step-approval-inp').checked,
       promptTemplate: row.querySelector('.step-prompt-inp').value.trim() || '{{prompt}}',
@@ -2451,8 +2483,8 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
             '<strong>' + esc(displayName) + '</strong>' +
             '<span class="setting-badge ' + (isAvail ? 'ok' : 'bad') + '">' + (isAvail ? t('status_available') : t('status_missing')) + '</span>' +
           '</div>' +
-          '<div class="muted" style="font-size: 12px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
-          '<div style="display: flex; gap: 6px; margin-top: 6px; font-size: 11px;">' +
+          '<div class="muted" style="font-size: 0.8571rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
+          '<div style="display: flex; gap: 6px; margin-top: 6px; font-size: 0.8rem;">' +
             '<span class="setting-badge info">' + esc(tool.category || tool.classification || t('group_system')) + '</span>' +
             '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(risk)) + '</span>' +
             (tool.version ? '<span class="setting-badge muted">' + esc(tool.version) + '</span>' : '') +
@@ -2524,7 +2556,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           cachedRepositories.map(r =>
             '<tr>' +
               '<td><strong>' + esc(r.name || r.id) + '</strong><br><small class="muted"><code>' + esc(r.id) + '</code></small></td>' +
-              '<td style="font-family: monospace; font-size: 12px;">' + esc(r.path) + '</td>' +
+              '<td style="font-family: monospace; font-size: 0.8571rem;">' + esc(r.path) + '</td>' +
               '<td><span class="setting-badge info">' + esc(r.assignedGovernancePipeline || r.assignedPipeline || 'standard-governance') + '</span></td>' +
               '<td><small class="muted">' + (r.policyOverrides ? t('ui_custom_rules') + Object.keys(r.policyOverrides).length + (' ' + t('ui_rules_suffix')) : t('ui_standard')) + '</small></td>' +
               '<td>' +
@@ -2652,7 +2684,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           cachedWorkspaces.map(w =>
             '<tr>' +
               '<td><strong>' + esc(w.name || t('lbl_workspace')) + '</strong></td>' +
-              '<td style="font-family: monospace; font-size: 12px;">' + esc(w.path) + '</td>' +
+              '<td style="font-family: monospace; font-size: 0.8571rem;">' + esc(w.path) + '</td>' +
               '<td><span class="setting-badge ' + (w.exists ? 'ok' : 'bad') + '">' + (w.exists ? t('status_found_disk') : t('status_not_found')) + '</span></td>' +
               '<td><span class="setting-badge ' + (w.isWritable || w.writable ? 'ok' : 'warn') + '">' + (w.isWritable || w.writable ? t('permission_read_write') : t('ui_read_only')) + '</span></td>' +
               '<td>' +
@@ -2690,7 +2722,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
                 '<strong>' + esc(d.name) + '</strong>' +
               '</div>' +
-              '<button type="button" style="padding: 2px 8px; font-size: 11px;" data-add-dir-ws="' + esc(d.path) + '" data-name="' + esc(d.name) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>' + '<span class="action-label">' + esc(t('btn_add_workspace')) + '</span>' + '</button>') +
+              '<button type="button" style="padding: 2px 8px; font-size: 0.8rem;" data-add-dir-ws="' + esc(d.path) + '" data-name="' + esc(d.name) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>' + '<span class="action-label">' + esc(t('btn_add_workspace')) + '</span>' + '</button>') +
             '</div>'
           ).join(''));
         }
@@ -2751,7 +2783,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         const outPct = 100 - inPct;
 
         setLocalizedHtml(costContainer, () => '<div style="padding: 10px 0;">' +
-          '<div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">' +
+          '<div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.9286rem;">' +
             ('<span>' + esc(t('lbl_input_colon')) + ' ' + '<strong>') + inTok.toLocaleString(currentLang) + '</strong> (' + inPct + '%)</span>' +
             ('<span>' + esc(t('lbl_output_colon')) + ' ' + '<strong>') + outTok.toLocaleString(currentLang) + '</strong> (' + outPct + '%)</span>' +
           '</div>' +
@@ -2760,9 +2792,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
             '<div style="width: ' + outPct + ('%; background: var(--ok);" title="' + esc(t('lbl_output_tokens')) + '"></div>') +
           '</div>' +
           '<div style="margin-top: 16px; text-align: center;">' +
-            ('<span class="muted" style="font-size: 12px;">' + esc(t('lbl_estimated_total_cost')) + '</span>') +
-            '<div style="font-size: 24px; font-weight: 700; color: var(--ok); margin-top: 2px;">$' + estCost.toFixed(6) + '</div>' +
-            ('<span class="muted" style="font-size: 11px;">' + esc(t('ui_usage_estimates')) + '</span>') +
+            ('<span class="muted" style="font-size: 0.8571rem;">' + esc(t('lbl_estimated_total_cost')) + '</span>') +
+            '<div style="font-size: 1.7143rem; font-weight: 700; color: var(--ok); margin-top: 2px;">$' + estCost.toFixed(6) + '</div>' +
+            ('<span class="muted" style="font-size: 0.8rem;">' + esc(t('ui_usage_estimates')) + '</span>') +
           '</div>' +
         '</div>');
       }
@@ -2781,20 +2813,20 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
         setLocalizedHtml(pipeContainer, () => '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0;">' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--ok);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--ok);">' + completed + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('status_completed')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--ok);">' + completed + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('status_completed')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--warn);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--warn);">' + waiting + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('ui_awaiting_gate')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--warn);">' + waiting + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('ui_awaiting_gate')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--accent);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--accent);">' + running + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('status_running')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--accent);">' + running + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('status_running')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--bad);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--bad);">' + failed + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('ui_failed_rejected_cancelled')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--bad);">' + failed + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('ui_failed_rejected_cancelled')) + '</div>') +
           '</div>' +
         '</div>');
       }
@@ -2823,7 +2855,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           categories.map(c => {
             const pct = Math.max(6, Math.round((c.count / maxVal) * 100));
             return '<div>' +
-              '<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px;">' +
+              '<div style="display: flex; justify-content: space-between; font-size: 0.8571rem; margin-bottom: 2px;">' +
                 '<span>' + esc(t(c.label)) + '</span>' +
                 '<strong>' + c.count + '</strong>' +
               '</div>' +
@@ -2842,21 +2874,24 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     $('orch-enabled').value = String(Boolean(data.enabled));
     $('orch-strategy').value = data.strategy || 'sequential';
     setLocalizedHtml($('orch-roles'), () => (data.roles || []).map((role, i) =>
-      ('<label><span>' + esc(t('lbl_role')) + ' ') + (i + 1) + ': ' + esc(localizedValue(role.name)) + '</span><select data-orch-role="' + i + ('"><option value="">' + esc(t('ui_select_model')) + '</option>') + modelOptionGroups(role.model) + '</select></label>'
+      ('<div class="model-effort-pair"><label><span>' + esc(t('lbl_role')) + ' ') + (i + 1) + ': ' + esc(localizedValue(role.name)) + '</span><select data-orch-role="' + i + ('"><option value="">' + esc(t('ui_select_model')) + '</option>') + modelOptionGroups(role.model) + '</select></label>' + effortControlHtml('orch-effort-' + i,'[data-orch-role]',role.effort || '','','',role.fastMode) + '</div>'
     ).join(''));
     setLocalizedHtml($('orch-fallbacks'), () => modelOptionGroups(data.fallbackModels || []));
+    $('orch-fallback-effort').value = data.fallbackEffort || '';
+    setEffortFastMode('orch-fallback-effort',data.fallbackFastMode);
+    syncEffortControls();
   }
 
   async function saveOrchestrator() {
     const roles = [...document.querySelectorAll('[data-orch-role]')].map((select, i) => ({
       name: ['Analyst', 'Reviewer', 'Synthesizer'][i] || (t('lbl_role') + ' ') + (i + 1),
-      model: select.value
+      model: select.value, effort: $('orch-effort-' + i).value || undefined, fastMode: effortFastMode('orch-effort-' + i) ?? false
     }));
     const fallbackModels = [...$('orch-fallbacks').selectedOptions].map(option => option.value);
     const data = await request('/v1/orchestrator', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: $('orch-enabled').value === 'true', strategy: $('orch-strategy').value, roles, fallbackModels })
+      body: JSON.stringify({ enabled: $('orch-enabled').value === 'true', strategy: $('orch-strategy').value, roles, fallbackModels, fallbackEffort: $('orch-fallback-effort').value || undefined, fallbackFastMode: effortFastMode('orch-fallback-effort') ?? false })
     });
     dirtySections.delete('orchestrator-section');
     renderOrchestrator(data);
@@ -2937,14 +2972,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       : t('ui_no_usage'));
   }
 
-  function updateEffortOptions() {
-    const model = $('play-model').value;
-    const provider = providerForModel(model);
-    const info = capabilities[provider] || { values: ['none','minimal','low','medium','high','xhigh','max'] };
-    setLocalizedHtml($('play-effort'), () => info.values.map(value =>
-      '<option value="' + value + '">' + esc(localizedValue(value)) + (info.aliases && info.aliases[value] ? (' ' + t('ui_maps_to') + ' ') + esc(localizedValue(info.aliases[value])) + ')' : '') + '</option>'
-    ).join(''));
-  }
+  function updateEffortOptions() { syncEffortControls(); }
 
   function renderSettings(data) {
     if (dirtySections.has('settings-section')) return;
@@ -3000,6 +3028,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     try {
       // Only active-page data changes with activity; catalogs and settings do not.
       const jobs = [];
+      if (activeSection === 'execution') jobs.push(executionRefresh());
       if (activeSection === 'pipelines' || activePipelineRun?.status === 'running') {
         jobs.push(request('/v1/pipelines/runs').then(data => renderPipelineRuns(data.data || [])));
       }
@@ -3027,10 +3056,12 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     setNotice(() => t('status_refreshing'), 'quiet');
     try {
       const identity = await request('/v1/platform/me');
+      repositoryIdentity(identity.operator);
       pfState.operator = identity.operator;
+      exIdentity(identity.operator);
       if (identity.operator?.source === 'operator-token') {
         setLocalizedText($('side-runtime'), () => (t('ui_workspace_access') + ' ') + identity.operator.role);
-        showSection('platform');
+        if (!['execution','git-workspace','repository-analytics'].includes(activeSection)) showSection('platform');
         await platformRefresh();
         setNotice(() => (t('ui_workspace_loaded_for') + ' ') + (identity.operator.displayName || identity.operator.operatorId), 'quiet');
         return;
@@ -3084,9 +3115,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       renderGovernance(reposData.data || [], auditData.data || []);
       renderBudgets(budgetData);
       renderWorkspaces(wsData.data || []);
+      repositoryWorkspaceSync(wsData.data || []);
       renderAnalyticsCharts(analyticsData);
       platformSyncModels();
-      if (activeSection === 'platform') await platformRefresh();
+      // Chat history and projects are visible beside every page, including deep links.
+      await platformRefresh();
 
       setNotice(() => (t('ui_updated') + ' ') + new Date().toLocaleTimeString(currentLang), 'quiet');
     } catch (error) {
@@ -3114,7 +3147,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       const body = {
         model: $('play-model').value,
         mode: $('play-mode').value,
-        effort: $('play-effort').value,
+        effort: $('play-effort').value, fastMode: effortFastMode('play-effort') ?? false,
         messages: [{ role: 'user', content: $('play-prompt').value }],
         max_tokens: 64
       };
@@ -3136,7 +3169,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   $('play-model').addEventListener('change', updateEffortOptions);
   $('play-run').addEventListener('click', runPlayground);
-  $('refresh').addEventListener('click', () => { pfState.models = null; pfState.workspaces = null; return refresh(); });
+  $('refresh').addEventListener('click', () => { pfState.models = null; pfState.workspaces = null; exState.catalogs = false; return refresh(); });
   $('model-search').addEventListener('input', () => renderModels(models));
   $('model-transport-filter').addEventListener('change', () => renderModels(models));
   $('model-provider-filter').addEventListener('change', () => renderModels(models));
@@ -3388,7 +3421,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     ws.onmessage = event => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'activity' || data.type === 'platform_run') scheduleLiveRefresh();
+        if (data.type === 'activity' || data.type === 'platform_run' || data.type === 'pipeline_run') scheduleLiveRefresh();
       } catch {}
     };
     ws.onerror = () => {
@@ -3401,9 +3434,32 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   ${PLATFORM_SCRIPT}
+  ${EXECUTION_SCRIPT}
+  ${GIT_WORKSPACE_SCRIPT}
+  ${REPOSITORY_ANALYTICS_SCRIPT}
+  let repositoryActor = '';
+  function repositoryIdentity(operator) {
+    const key = JSON.stringify(operator || null);
+    if (key === repositoryActor) return;
+    repositoryActor = key;
+    $('git-workspace-nav').dataset.detected = 'false';
+    window.gitWorkspace.configure({workspaces:[],workspaceId:'',canWrite:false,language:currentLang,request});
+    raReset();
+    pfState.workspaces = null;
+  }
+  function repositoryWorkspaceSync(workspaces = pfState.workspaces || [], workspaceId) {
+    if (!window.gitWorkspace) return;
+    const selected = workspaceId && workspaces.some(item => item.id === workspaceId) ? workspaceId : undefined;
+    return window.gitWorkspace.configure({request,workspaces,language:currentLang,canWrite:pfState.operator?.role === 'admin',...(selected ? {workspaceId:selected} : {})});
+  }
+  document.addEventListener('git-workspace-detected',event => { $('git-workspace-nav').dataset.detected = String(!!event.detail.detected); });
+  document.addEventListener('change',event => { if (['pf-chat-workspace','ex-workspace'].includes(event.target.id)) repositoryWorkspaceSync(undefined,event.target.value); });
   ${SETTING_TOOLTIP_SCRIPT}
   ${SELECT_SCRIPT}
   pfRenderTranscript();
+  const sectionFromLocation = () => { const name = window.location?.hash?.slice(1) || 'platform'; if (Object.hasOwn(sectionIds, name)) showSection(name, false); };
+  window.addEventListener('hashchange', sectionFromLocation);
+  if (window.location?.hash) sectionFromLocation();
   refresh();
   connectEvents();
   setInterval(refreshLive, 15000);

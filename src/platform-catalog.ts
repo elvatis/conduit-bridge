@@ -1,3 +1,5 @@
+import { parseFastMode } from './fast-mode.js';
+import { isEffortLevel } from './effort.js';
 import { randomUUID } from 'node:crypto';
 import type { StateStore, StateTransaction } from './storage.js';
 import { KNOWN_TOOLS } from './cli-mode.js';
@@ -34,6 +36,8 @@ export interface PlatformAgent {
   provider?: string;
   model?: string;
   profileId?: string;
+  defaultEffort?: string;
+  defaultFastMode?: boolean;
   mode: CatalogMode;
   skillRefs: CatalogReference[];
   promptRefs: CatalogReference[];
@@ -49,6 +53,8 @@ export interface AgentInput {
   provider?: string;
   model?: string;
   profileId?: string;
+  defaultEffort?: string;
+  defaultFastMode?: boolean;
   mode?: CatalogMode;
   skillRefs?: CatalogReference[];
   promptRefs?: CatalogReference[];
@@ -189,13 +195,15 @@ export class PlatformCatalogService {
     const mode = modes([input.mode || 'chat'])[0];
     const skillRefs = refs(input.skillRefs || []);
     const promptRefs = refs(input.promptRefs || []);
+    const defaultFastMode = parseFastMode(input.defaultFastMode);
+    if (input.defaultEffort !== undefined && !isEffortLevel(input.defaultEffort)) throw new CatalogError('Unsupported default effort');
     for (const [key, value] of Object.entries({ provider: input.provider, model: input.model, profileId: input.profileId })) if (value !== undefined) string(value, key, 300);
     return this.store.transaction(tx => {
       const previous = tx.read<PlatformAgent>(AGENTS, agentId);
       if (input.expectedRevision !== undefined && input.expectedRevision !== (previous?.revision || 0)) throw new CatalogError('Agent changed; reload before saving', 409, 'revision_conflict');
       const entries = [...this.resolveReferences(SKILLS, skillRefs, tx), ...this.resolveReferences(PROMPTS, promptRefs, tx)];
       if (entries.some(entry => !entry.modes.includes(mode))) throw new CatalogError(`An attachment does not support ${mode} mode`, 409, 'mode_mismatch');
-      const agent: PlatformAgent = { id: agentId, name, description, instructions, mode, provider: input.provider, model: input.model, profileId: input.profileId, skillRefs, promptRefs, revision: (previous?.revision || 0) + 1, createdAt: previous?.createdAt ?? this.now(), updatedAt: this.now() };
+      const agent: PlatformAgent = { id: agentId, name, description, instructions, mode, provider: input.provider, model: input.model, profileId: input.profileId, defaultEffort: input.defaultEffort, defaultFastMode, skillRefs, promptRefs, revision: (previous?.revision || 0) + 1, createdAt: previous?.createdAt ?? this.now(), updatedAt: this.now() };
       tx.put(AGENTS, agentId, agent);
       return structuredClone(agent);
     });

@@ -1,3 +1,4 @@
+import { parseFastMode } from './fast-mode.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID, createHash } from 'node:crypto';
 import { join, isAbsolute } from 'node:path';
@@ -199,7 +200,7 @@ export class PlatformApi {
       contextTokens: Math.min(body.contextTokens ?? 8192, selected?.contextWindow ?? 8192, selected?.maxPromptChars ? Math.floor(selected.maxPromptChars / 4) : Infinity),
       maxOutputTokens: Math.min(body.maxOutputTokens ?? 1024, selected?.maxOutputTokens ?? 8192),
       systemPrompt: attached.instructions, memoryIds: body.memoryIds,
-      effort: body.effort || profile?.defaultEffort || 'low', mode: 'chat', cwd: workspace.cwd,
+      effort: body.effort || agent?.defaultEffort || profile?.defaultEffort || 'low', fastMode: parseFastMode(body.fastMode) ?? agent?.defaultFastMode ?? profile?.defaultFastMode, mode: 'chat', cwd: workspace.cwd,
       expectedRevision: body.expectedRevision ?? body.revision, requestId: body.requestId,
     };
   }
@@ -246,7 +247,9 @@ export class PlatformApi {
         if (!model || !this.deps.providerForModel(model)) throw new PlatformContentError('Select a model to bind the preset roles');
         const roles = { planner: body.planner || model, implementer: body.implementer || model, reviewer: body.reviewer || model, security: body.security || model };
         if (Object.values(roles).some(m => typeof m !== 'string' || !this.deps.providerForModel(m))) throw new PlatformContentError('Every role must use a known provider/model');
-        const definitions = buildCodingPipelines(roles);
+        const efforts = Object.fromEntries(Object.keys(roles).map(role => [role, body.roleEfforts?.[role] || body.effort || undefined]));
+        const fastModes = Object.fromEntries(Object.keys(roles).map(role => [role, parseFastMode(body.roleFastModes?.[role]) ?? parseFastMode(body.fastMode)]));
+        const definitions = buildCodingPipelines(roles, efforts, fastModes);
         if (method === 'GET' && !id) response(res, 200, { data: definitions });
         else if (method === 'POST' && id && action === 'install') {
           requirePlatformCapability(operator, 'admin');
@@ -298,6 +301,19 @@ export class PlatformApi {
         } else throw new PlatformContentError('Unknown vault operation', 404);
         return true;
       }
+      if (resource === 'projects') {
+        requirePlatformCapability(operator, method === 'GET' ? 'view' : 'operate');
+        if (!id && method === 'GET') response(res, 200, { data: this.content.listProjects().filter(project => operator.role === 'admin' || project.userId === operator.operatorId) });
+        else if (!id && method === 'POST') response(res, 201, { project: await this.content.createProject({ name: body.name, userId: operator.operatorId }) });
+        else {
+          const project = this.content.getProject(id);
+          if (!project || (operator.role !== 'admin' && project.userId !== operator.operatorId)) throw new PlatformContentError('Project not found', 404);
+          if (!action && method === 'PATCH') response(res, 200, { project: await this.content.updateProject(id, { name: body.name, expectedRevision: body.expectedRevision }) });
+          else if (!action && method === 'DELETE') { await this.content.deleteProject(id); response(res, 200, { deleted: true }); }
+          else throw new PlatformContentError('Unknown project operation', 404);
+        }
+        return true;
+      }
       if (resource === 'sessions') {
         if (!id && method === 'GET') {
           const data = this.content.listSessions().filter(s => (operator.role === 'admin' || s.userId === operator.operatorId) && platformCapabilityAllowed(operator, 'view', globalWorkspace(s.workspaceId))).map(({ messages, ...s }) => ({ ...s, messageCount: messages.length }));
@@ -306,13 +322,13 @@ export class PlatformApi {
         if (!id && method === 'POST') {
           const workspace = body.workspaceId && body.workspaceId !== 'default' ? this.deps.resolveWorkspace(body.workspaceId) : {};
           requirePlatformCapability(operator, 'operate', workspace.workspaceId);
-          const session = await this.content.createSession({ title: body.title, retention: body.retention, workspaceId: workspace.workspaceId, userId: operator.operatorId, agentId: body.agentId, model: body.model, profileId: body.profileId, ttlMs: body.ttlMs });
+          const session = await this.content.createSession({ title: body.title, retention: body.retention, workspaceId: workspace.workspaceId, userId: operator.operatorId, projectId: body.projectId, agentId: body.agentId, model: body.model, profileId: body.profileId, ttlMs: body.ttlMs });
           await this.vault.settings(operator.operatorId, authorizationVersion(operator, this.deps.cfg()));
           response(res, 201, { session }); return true;
         }
         const session = this.authorizeSession(operator, id, method === 'GET' ? 'view' : 'operate');
         if (!action && method === 'GET') response(res, 200, { session });
-        else if (!action && method === 'PATCH') response(res, 200, { session: await this.content.updateSession(id, { title: body.title, retention: body.retention, model: body.model, provider: body.model ? this.deps.providerForModel(body.model) : undefined, profileId: body.profileId, agentId: body.agentId, ttlMs: body.ttlMs, expectedRevision: body.expectedRevision ?? body.revision }) });
+        else if (!action && method === 'PATCH') response(res, 200, { session: await this.content.updateSession(id, { projectId: body.projectId, title: body.title, retention: body.retention, model: body.model, provider: body.model ? this.deps.providerForModel(body.model) : undefined, profileId: body.profileId, agentId: body.agentId, ttlMs: body.ttlMs, expectedRevision: body.expectedRevision ?? body.revision }) });
         else if (!action && method === 'DELETE') { await this.content.deleteSession(id); response(res, 200, { deleted: true }); }
         else if (action === 'export' && method === 'GET') response(res, 200, JSON.parse(this.content.exportSession(id, 'json')));
         else if (action === 'branch' && method === 'POST') {
@@ -433,7 +449,7 @@ export class PlatformApi {
           if (!Array.isArray(body.models) || !body.models.length || body.models.length > 8 || body.models.some((m: unknown) => typeof m !== 'string' || !this.deps.providerForModel(m))) throw new PlatformContentError('Select 1 to 8 known models');
           const group = `evaluation-${randomUUID()}`; const runIds: string[] = [];
           for (const model of [...new Set<string>(body.models)]) {
-            const run = await this.runs.create({ prompt: 'This is a tiny instruction-following evaluation. Reply with exactly EVAL_OK. Do not use tools.', model, mode: 'chat', maxIterations: 1, maxOutputTokens: 64, successPattern: 'EVAL_OK', ownerId: operator.operatorId, authorizationVersion: authorizationVersion(operator, this.deps.cfg()), idempotencyKey: `${group}:${runIds.length}` }); runIds.push(run.id);
+            const run = await this.runs.create({ prompt: 'This is a tiny instruction-following evaluation. Reply with exactly EVAL_OK. Do not use tools.', model, effort: body.effort, fastMode: parseFastMode(body.fastMode), mode: 'chat', maxIterations: 1, maxOutputTokens: 64, successPattern: 'EVAL_OK', ownerId: operator.operatorId, authorizationVersion: authorizationVersion(operator, this.deps.cfg()), idempotencyKey: `${group}:${runIds.length}` }); runIds.push(run.id);
           }
           const evaluation = { id: group, ownerId: operator.operatorId, createdAt: Date.now(), runIds, fixture: 'instruction-following-v1' };
           await this.store.transaction(tx => tx.put('platform.evaluations', group, evaluation)); response(res, 202, { evaluation });
@@ -465,7 +481,7 @@ export class PlatformApi {
     if (mode === 'agent' && this.deps.cfg().agentPolicies?.[provider]?.agentEnabled === false) throw new PlatformContentError('Agent mode is disabled for this provider', 403);
     return {
       prompt: body.prompt, model, profileId: profile?.id, agentId: agent?.id, workspaceId: workspace.workspaceId,
-      repository: workspace.repository, workingDirectory: workspace.cwd, mode, maxIterations: body.maxIterations,
+      repository: workspace.repository, workingDirectory: workspace.cwd, mode, effort: body.effort || agent?.defaultEffort || profile?.defaultEffort, fastMode: parseFastMode(body.fastMode) ?? agent?.defaultFastMode ?? profile?.defaultFastMode, maxIterations: body.maxIterations,
       maxDurationMs: body.maxDurationMs, maxTokens: body.maxTokens, maxOutputTokens: body.maxOutputTokens,
       maxCostUsd: workspace.maxCostUsd !== undefined ? Math.min(body.maxCostUsd ?? 0.5, workspace.maxCostUsd) : body.maxCostUsd,
       requiresApproval: workspace.requiresApproval || body.requiresApproval === true, successPattern: body.successPattern,

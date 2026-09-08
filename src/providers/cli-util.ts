@@ -251,6 +251,8 @@ export interface RunCliOptions {
   /** Environment names required by this provider; excludes other providers' secrets. */
   envKeys?: string[];
   signal?: AbortSignal;
+  /** Host-only observer for structured output. Observer failures do not stop the child. */
+  onStdout?: (chunk: string) => void;
 }
 
 /** Spawn a CLI with graceful SIGTERM → SIGKILL timeout (Windows taskkill /T). */
@@ -330,7 +332,8 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
       opts.signal?.removeEventListener('abort', onAbort);
     };
 
-    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.stdout?.setEncoding('utf8');
+    proc.stdout?.on('data', (chunk: string) => { stdout += chunk; try { opts.onStdout?.(chunk); } catch { /* observers cannot fail execution */ } });
     proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
     proc.on('close', code => {
       closed = true;

@@ -41,7 +41,7 @@ function workspace(lang = 'en') {
     $: element,
     esc: (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!),
     document: { getElementById: element, querySelectorAll: () => [], createElement: () => ({ value: '', textContent: '', selected: false }), addEventListener() {}, readyState: 'loading', documentElement: { lang }, hidden: false },
-    window: { __CB_TRANSLATIONS: TRANSLATIONS }, localStorage: { getItem: () => lang, setItem() {} },
+    window: { __CB_TRANSLATIONS: TRANSLATIONS, addEventListener() {} }, MutationObserver: class { observe() {} }, queueMicrotask() {}, localStorage: { getItem: () => lang, setItem() {} },
     request: async (path: string, options: any) => { calls.push({ path, options, body: options?.body ? JSON.parse(options.body) : undefined }); return structuredClone(fixtures.get(path) ?? { data: [] }); },
     models: [{ id: 'cli-codex/first' }, { id: 'cli-gemini/second' }], cachedWorkspaces: [], activeSection: 'platform',
     setInterval() {}, withAuth: (headers: unknown) => headers,
@@ -56,6 +56,35 @@ function workspace(lang = 'en') {
 }
 
 describe('platform workspace browser behavior', () => {
+  it('groups and searches escaped project history, preserving the project for a new chat', () => {
+    const ui = workspace('de');
+    ui.run(`pfState.operator = {operatorId:'alice',role:'operator'}; pfState.projects = [{id:'p',name:'<Launch>',userId:'alice'}]; pfState.sessions = [{id:'s',title:'Release checklist',projectId:'p'},{id:'u',title:'Separate chat'}]; pfRenderSessions()`);
+    expect(ui.element('pf-sessions').innerHTML).toContain('&lt;Launch&gt;');
+    expect(ui.element('pf-sessions').innerHTML).toContain('data-pf-project="p"');
+    expect(ui.element('pf-sessions').innerHTML).toContain('Separate chat');
+    ui.element('pf-session-search').value = 'launch'; ui.run('pfRenderSessions()');
+    expect(ui.element('pf-sessions').innerHTML).toContain('Release checklist');
+    expect(ui.element('pf-sessions').innerHTML).not.toContain('Separate chat');
+    ui.run("pfPrepareNewChat('p')");
+    expect(ui.element('pf-chat-project').value).toBe('p');
+    expect(ui.calls).toHaveLength(0);
+  });
+
+  it('reassigns an existing chat with its revision and preserves its messages and workspace', async () => {
+    const ui = workspace();
+    const moved = {id:'s',userId:'alice',title:'Existing chat',workspaceId:'w',projectId:'p',revision:5,messages:[{id:'m',role:'user',content:'Keep context'}]};
+    ui.run(`pfState.operator={operatorId:'alice',role:'operator'}; pfState.session={id:'s',userId:'alice',revision:4,messages:[{id:'m',role:'user',content:'Keep context'}]}; pfState.projects=[{id:'p',name:'Launch',userId:'alice'}]; pfRenderSessions()`);
+    ui.fixtures.set('/v1/platform/sessions/s', {session:moved});
+    ui.fixtures.set('/v1/platform/sessions', {data:[moved]});
+    ui.fixtures.set('/v1/platform/projects', {data:[{id:'p',name:'Launch',userId:'alice'}]});
+    ui.element('pf-chat-project').value = 'p';
+    await ui.run('pfMoveChat()');
+    const update = ui.calls.find(call => call.options?.method === 'PATCH');
+    expect(update).toMatchObject({path:'/v1/platform/sessions/s',body:{projectId:'p',expectedRevision:4}});
+    expect(ui.run('pfState.session')).toEqual(moved);
+    expect(ui.element('pf-transcript').innerHTML).toContain('Keep context');
+  });
+
   it('renders escaped vault results and turns a suggestion into an unsent draft', async () => {
     const ui = workspace('de');
     ui.run("pfState.operator = {operatorId:'alice', role:'operator', workspaceIds:['*']}; pfState.models = [{id:'bitnet/auto'}]");
@@ -87,6 +116,7 @@ describe('platform workspace browser behavior', () => {
     const ui = workspace();
     ui.run(`pfState.session = {id:'s', messages:[{id:'m',role:'user',content:'Existing conversation'}]}; pfRenderTranscript();`);
     ui.element('pf-chat-model').value = 'cli-codex/first';
+    ui.element('pf-chat-effort').value = 'high'; ui.element('pf-chat-effort-fast').value = 'true';
     ui.element('pf-chat-context').value = '8192'; ui.element('pf-chat-output').value = '256';
     ui.element('pf-chat-skills').options = [{ value: 'skill-review@3', textContent: 'Review v3', selected: true }];
     ui.element('pf-chat-memories').options = [{ value: 'memory-1', textContent: 'A preference', selected: true }];
@@ -94,7 +124,7 @@ describe('platform workspace browser behavior', () => {
     ui.element('pf-chat-model').value = 'cli-gemini/second';
     const changed = ui.run(`pfChatBody('Continue')`);
     expect(initial.model).toBe('cli-codex/first');
-    expect(changed).toMatchObject({ model: 'cli-gemini/second', skillRefs: [{ id: 'skill-review', version: 3 }], memoryIds: ['memory-1'], contextTokens: 8192, maxOutputTokens: 256, stream: true });
+    expect(changed).toMatchObject({ effort:'high', fastMode:true, model: 'cli-gemini/second', skillRefs: [{ id: 'skill-review', version: 3 }], memoryIds: ['memory-1'], contextTokens: 8192, maxOutputTokens: 256, stream: true });
     expect(ui.element('pf-transcript').innerHTML).toContain('Existing conversation');
     expect(ui.run(`pfState.session.id`)).toBe('s');
   });
@@ -234,13 +264,14 @@ describe('platform workspace browser behavior', () => {
     ui.run(`pfState.operator = {role:'admin',source:'bridge-token'}`);
     ui.element('pf-preset-model').value = 'cli-codex/first';
     ui.element('pf-preset-security').value = 'cli-gemini/second';
+    ui.element('pf-preset-effort').value = 'high'; ui.element('pf-preset-security-effort').value = 'medium';
     ui.element('pf-entry-body').value = 'Unfinished agent instructions';
     ui.fixtures.set('/v1/platform/presets?model=cli-codex%2Ffirst', { data: [{ id: 'platform-bugfix', name: 'Bugfix review', description: 'Collect regression evidence.', steps: [{ requiresApproval: true }, {}] }] });
     ui.fixtures.set('/v1/platform/presets/platform-bugfix/install', { pipeline: { id: 'platform-bugfix', name: 'Bugfix review' } });
     await ui.run('pfLoadPresets()');
     expect(ui.element('pf-presets-list').innerHTML).toContain('2 steps · 1 approval checkpoints');
     await ui.run(`pfInstallPreset('platform-bugfix')`);
-    expect(ui.calls[1]).toMatchObject({ path: '/v1/platform/presets/platform-bugfix/install', body: { model: 'cli-codex/first', security: 'cli-gemini/second' } });
+    expect(ui.calls[1]).toMatchObject({ path: '/v1/platform/presets/platform-bugfix/install', body: { model: 'cli-codex/first', effort:'high', roleEfforts:{security:'medium'}, security: 'cli-gemini/second' } });
     expect(ui.element('pf-preset-open').hidden).toBe(false);
     expect(ui.element('pf-entry-body').value).toBe('Unfinished agent instructions');
     ui.run(`pfState.operator = {role:'viewer'}`);
