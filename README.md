@@ -321,4 +321,4 @@ release information is in [CONTRIBUTING.md](CONTRIBUTING.md) and
 
 ## License
 
-Apache-2.0
+[MIT](LICENSE)
