@@ -24,7 +24,15 @@ node dist/cli.js start
 ```
 
 Open <http://127.0.0.1:31338/>. The dashboard should show the provider status
-and a chat composer. Verify the service separately if a client cannot connect:
+and a chat composer. To work without the dashboard, start interactive chat
+instead. It uses the same listener and stored conversations:
+
+```bash
+node dist/cli.js chat
+```
+
+`/help` lists in-session commands. `/model <id>` chooses the next reply without
+dropping the transcript. Verify the service separately if a client cannot connect:
 
 ```bash
 node dist/cli.js status

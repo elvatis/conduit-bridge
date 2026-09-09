@@ -79,6 +79,16 @@ switch (cmd) {
     break;
   }
 
+  case 'chat': {
+    try { assertSupportedPlatform(); } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+    const { runChatCommand } = await import('./interactive-cli.js');
+    await runChatCommand(cfg, { model: flags.model });
+    break;
+  }
+
   case 'config': {
     const key = args[1];
     const val = args[2];
@@ -112,6 +122,7 @@ switch (cmd) {
 Usage:
   conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]
                        [--auth-token=<token>]
+  conduit-bridge chat  [--model=<id>] [--port=31338] [--host=127.0.0.1]
   conduit-bridge status
   conduit-bridge config [key] [value]
 

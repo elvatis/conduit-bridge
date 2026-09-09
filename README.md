@@ -40,6 +40,17 @@ npm run build
 node dist/cli.js start
 ```
 
+To work only in the terminal, use the interactive chat command. It attaches to a
+running listener, or starts one if nothing is bound:
+
+```bash
+node dist/cli.js chat
+node dist/cli.js chat --model=cli-codex/gpt-5.6-sol
+```
+
+Slash commands: `/help`, `/models`, `/model <id>`, `/new`, `/stop`, `/quit`.
+Conversations are stored as platform sessions, same as the dashboard.
+
 For an existing checkout, start with `npm install` in its root directory.
 In Windows PowerShell, use `npm.cmd` if the npm script shim is blocked, and
 `curl.exe` for single-line curl commands. Multiline `bash` examples need Bash;
