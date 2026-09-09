@@ -178,7 +178,7 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
     $('pf-delete-chat').disabled = !operate || !pfState.session || pfState.busy;
     $('pf-export-chat').disabled = !pfState.session;
     if (!operate) { $('pf-run-cancel').disabled = true; $('pf-run-retry').disabled = true; }
-    if (operator.source === 'operator-token') document.querySelectorAll('#sidebar [data-section]').forEach(button => { button.hidden = !['platform','execution','git-workspace','repository-analytics','help'].includes(button.dataset.section); });
+    if (operator.source === 'operator-token') document.querySelectorAll('#sidebar [data-section]').forEach(button => { button.hidden = !['platform','execution','git-workspace','repository-analytics','insights','help'].includes(button.dataset.section); });
     if (typeof updateNavGroups === 'function') updateNavGroups();
   }
   async function pfApi(path, body, method) { return request(pfPath(path), body === undefined ? undefined : { method: method || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
@@ -220,10 +220,22 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
     setLocalizedHtml($('pf-scope-options'), () => workspaces.map(workspace => '<option value="' + esc(workspace.id) + '">' + esc(workspace.name || workspace.id) + '</option>').join(''));
     pfContextSummary();
   }
+  function pfTransport(id) { return typeof providerForModel === 'function' ? providerForModel(id) : String(id || '').split('/')[0]; }
+  function pfAlignAttachmentsToModel() {
+    const provider = pfTransport($('pf-chat-model').value);
+    const profile = pfState.profiles.find(item => item.id === $('pf-chat-profile').value);
+    if (profile && profile.provider && profile.provider !== provider) $('pf-chat-profile').value = '';
+    const agent = pfState.agents.find(item => item.id === $('pf-chat-agent').value);
+    if (agent && agent.provider && agent.provider !== provider) $('pf-chat-agent').value = '';
+  }
   function pfContextSummary() {
     syncEffortControls();
     const agent = pfState.agents.find(item => item.id === $('pf-chat-agent').value);
-    setLocalizedText($('pf-context-summary'), () => ($('pf-chat-model').value || t('ui_choose_model')) + (agent ? (' ' + t('ui_agent_prefix') + ' ') + agent.name + ' (' + (agent.skillRefs || []).length + (' ' + t('ui_pinned_skills_count')) : '') + ' · ' + pfValues('pf-chat-skills').length + (' ' + t('ui_attached_skills_count') + ' ') + pfValues('pf-chat-memories').length + (' ' + t('ui_approved_memories_count') + ' ') + localizedValue($('pf-chat-retention').value) + (' ' + t('ui_retention_suffix')));
+    const last = (pfState.session?.messages || []).filter(message => message.role === 'assistant').at(-1);
+    const nextProvider = pfTransport($('pf-chat-model').value);
+    const priorProvider = last ? pfTransport(last.model || last.provider) : nextProvider;
+    const resumeNote = last && nextProvider.startsWith('cli-') && priorProvider !== nextProvider ? (' · ' + t('ui_native_session_fresh')) : '';
+    setLocalizedText($('pf-context-summary'), () => ($('pf-chat-model').value || t('ui_choose_model')) + (agent ? (' ' + t('ui_agent_prefix') + ' ') + agent.name + ' (' + (agent.skillRefs || []).length + (' ' + t('ui_pinned_skills_count')) : '') + ' · ' + pfValues('pf-chat-skills').length + (' ' + t('ui_attached_skills_count') + ' ') + pfValues('pf-chat-memories').length + (' ' + t('ui_approved_memories_count') + ' ') + localizedValue($('pf-chat-retention').value) + (' ' + t('ui_retention_suffix')) + resumeNote);
   }
   function pfTab(name) {
     pfState.tab = name;
@@ -419,7 +431,7 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
   }
   async function pfSaveSessionDetails() {
     if (!pfState.session) return pfNewSession();
-    pfState.session = pfEntity(await pfApi('/sessions/' + encodeURIComponent(pfState.session.id), { title: $('pf-chat-title').value.trim() || t('ph_new_conversation'), model: $('pf-chat-model').value, retention: $('pf-chat-retention').value, expectedRevision: pfState.session.revision }, 'PATCH'), 'session');
+    pfState.session = pfEntity(await pfApi('/sessions/' + encodeURIComponent(pfState.session.id), { title: $('pf-chat-title').value.trim() || t('ph_new_conversation'), model: $('pf-chat-model').value, retention: $('pf-chat-retention').value, profileId: $('pf-chat-profile').value || null, agentId: $('pf-chat-agent').value || null, expectedRevision: pfState.session.revision }, 'PATCH'), 'session');
     return pfState.session;
   }
   function pfRenderTranscript() {
@@ -427,7 +439,7 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
     pfOptions('pf-summary-through', messages.filter(message => message.role === 'assistant' && (!message.status || message.status === 'complete')), () => t('ui_select_completed_reply'), message => message.id, message => pfDate(message.createdAt) + ' · ' + String(message.content).slice(0, 60));
     setLocalizedHtml($('pf-transcript'), () => messages.map(message => '<article id="pf-message-' + esc(message.id) + '" class="platform-message ' + (message.role === 'user' ? 'user' : 'assistant') + '"><header><strong>' + (message.role === 'user' ? t('ui_you') : t('ui_assistant')) + '</strong><small>' + esc(message.model || message.provider || '') + ' · ' + esc(pfDate(message.createdAt)) + (message.status && message.status !== 'complete' ? ' · ' + esc(t('vault_message_' + message.status)) : '') + '</small></header><div class="platform-message-content">' + esc(message.content) + '</div><div class="platform-message-actions"><button type="button" data-pf-copy-message="' + esc(message.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' + '<span class="action-label">' + esc(t('btn_copy')) + '</span>' + '</button>') + (message.role === 'user' ? '<button type="button" data-pf-edit-message="' + esc(message.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg>' + '<span class="action-label">' + esc(t('btn_edit_branch')) + '</span>' + '</button><button type="button" data-pf-retry-message="') + esc(message.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>' + '<span class="action-label">' + esc(t('btn_retry_branch')) + '</span>' + '</button>') : '<button type="button" data-pf-memory-message="' + esc(message.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>' + '<span class="action-label">' + esc(t('btn_propose_memory')) + '</span>' + '</button>')) + '</div></article>').join('') || ('<div class="platform-empty"><div class="chat-welcome-icon" aria-hidden="true">${BRAND_ICON}</div><h3>' + esc(t('h_portable_conversation')) + '</h3><p>' + esc(t('ui_start_conversation')) + '</p></div><div class="chat-suggestions">' + ['write','understand','plan'].map(topic => '<button type="button" data-chat-suggestion="' + topic + '">' + esc(t('ui_suggest_' + topic)) + '</button>').join('') + '</div>'));
   }
-  function pfChatBody(content) { return { content, model: $('pf-chat-model').value, effort: $('pf-chat-effort').value || undefined, fastMode: effortFastMode('pf-chat-effort') ?? false, profileId: $('pf-chat-profile').value || undefined, agentId: $('pf-chat-agent').value || undefined, skillRefs: pfRefs('pf-chat-skills'), memoryIds: pfValues('pf-chat-memories'), contextTokens: Number($('pf-chat-context').value), maxOutputTokens: Number($('pf-chat-output').value), expectedRevision: pfState.session?.revision, stream: true }; }
+  function pfChatBody(content) { return { content, model: $('pf-chat-model').value, effort: $('pf-chat-effort').value || undefined, fastMode: effortFastMode('pf-chat-effort') ?? false, profileId: $('pf-chat-profile').value || null, agentId: $('pf-chat-agent').value || null, skillRefs: pfRefs('pf-chat-skills'), memoryIds: pfValues('pf-chat-memories'), contextTokens: Number($('pf-chat-context').value), maxOutputTokens: Number($('pf-chat-output').value), expectedRevision: pfState.session?.revision, stream: true }; }
   function pfRenderContextInspection(result) {
     const context = result.context || result;
     setLocalizedHtml($('pf-context-inspection'), () => '<p><strong>' + esc(context.estimatedInputTokens) + (' ' + esc(t('ui_estimated_input_tokens')) + '</strong> · ') + esc(context.maxOutputTokens) + (' ' + t('ui_output_reserved') + ' ') + esc(context.contextTokens) + (' ' + esc(t('ui_token_context')) + '</p><p>') + esc((context.selectedMessageIds || []).length) + (' ' + t('ui_prior_messages') + ' ') + esc((context.omittedMessageIds || []).length) + (' ' + t('ui_omitted_messages') + ' ') + esc((context.selectedMemoryIds || []).length) + (' ' + esc(t('ui_memories_included')) + '</p><p>') + (context.summaryUsed ? t('ui_summary_included') : t('ui_summary_not_included')) + (' ' + esc(t('ui_token_estimate')) + '</p>'));
@@ -742,6 +754,7 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
   $('pf-chat-input').addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); pfSendChat(); } });
   $('pf-chat-stop').addEventListener('click', pfHandle(pfStopChat));
   for (const id of ['pf-chat-model','pf-chat-agent','pf-chat-retention','pf-chat-skills','pf-chat-memories']) $(id).addEventListener('change', pfContextSummary);
+  $('pf-chat-model').addEventListener('change', () => { pfAlignAttachmentsToModel(); pfContextSummary(); });
   for (const id of ['pf-chat-model','pf-chat-agent','pf-chat-workspace','pf-chat-profile']) $(id).addEventListener('change', () => { pfRefreshMemoryOptions(); pfContextSummary(); });
   $('pf-save-chat').addEventListener('click', pfHandle(async () => { await pfSaveSessionDetails(); await platformRefresh(); pfStatus(() => t('ui_conversation_saved')); }));
   $('pf-export-chat').addEventListener('click', pfHandle(() => { if (pfState.session) return pfDownload('/sessions/' + encodeURIComponent(pfState.session.id) + '/export', 'conversation-' + pfState.session.id + '.json'); }));

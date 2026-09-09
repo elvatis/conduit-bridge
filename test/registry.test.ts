@@ -74,6 +74,24 @@ describe('ProviderRegistry', () => {
       const ids = registry.allModels().map(m => m.id);
       expect(new Set(ids).size).toBe(ids.length);
     });
+
+    it('attaches capability metadata to every catalog row', () => {
+      const cli = registry.allModelsIncludingUnavailable().find(m => m.provider === 'cli-claude');
+      expect(cli?.capabilities).toMatchObject({
+        modes: ['chat', 'plan', 'agent'],
+        streaming: 'turn',
+        nativeResume: true,
+        local: false,
+      });
+      expect(cli?.capabilities?.effort.length).toBeGreaterThan(0);
+      const local = registry.allModelsIncludingUnavailable().find(m => m.provider === 'bitnet');
+      expect(local?.capabilities).toMatchObject({
+        modes: ['chat'],
+        streaming: 'token',
+        nativeResume: false,
+        local: true,
+      });
+    });
   });
 
   describe('providerForModel lookup', () => {

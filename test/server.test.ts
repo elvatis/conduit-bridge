@@ -196,6 +196,7 @@ describe('BridgeServer HTTP handler', () => {
       expect(body.object).toBe('list');
       expect(Array.isArray(body.data)).toBe(true);
       expect(body.data[0]).toMatchObject({ id: 'cli-grok/grok-4.5', object: 'model', owned_by: 'xai' });
+      expect(body.data[0].capabilities).toMatchObject({ modes: ['chat', 'plan', 'agent'], streaming: 'turn', nativeResume: true, local: false });
     });
   });
 

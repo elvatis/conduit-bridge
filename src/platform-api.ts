@@ -15,6 +15,7 @@ import { PlatformProfileService, type PlatformProviderProfile } from './platform
 import { PlatformRunService, type PlatformRun, type PlatformRunInput } from './platform-runs.js';
 import { authenticatePlatformOperator, requirePlatformCapability, platformCapabilityAllowed, createPlatformOperatorCredential, type PlatformOperatorContext, type PlatformCapability } from './platform-auth.js';
 import { KNOWN_TOOLS, normalizeDisallowedTools } from './cli-mode.js';
+import { capabilitiesFor } from './model-capability.js';
 import { redactSecrets } from './redact.js';
 import { buildCodingPipelines } from './platform-presets.js';
 
@@ -201,9 +202,10 @@ export class PlatformApi {
     return { instructions: parts.join('\n\n'), skillRefs: refs };
   }
   private contextInput(body: Record<string, any>, session: PlatformSession, operator: PlatformOperatorContext): ContextInput {
-    const agent = body.agentId || session.agentId ? this.catalog.getAgent(body.agentId || session.agentId) : undefined;
-    const selectedProfile = body.profileId || session.profileId || agent?.profileId;
-    const profile = selectedProfile ? this.requireProfile(selectedProfile) : undefined;
+    const requestedAgentId = Object.hasOwn(body, 'agentId') ? (typeof body.agentId === 'string' && body.agentId ? body.agentId : undefined) : session.agentId;
+    const agent = requestedAgentId ? this.catalog.getAgent(requestedAgentId) : undefined;
+    const requestedProfileId = Object.hasOwn(body, 'profileId') ? (typeof body.profileId === 'string' && body.profileId ? body.profileId : undefined) : (session.profileId || agent?.profileId);
+    const profile = requestedProfileId ? this.requireProfile(requestedProfileId) : undefined;
     const model = body.model || profile?.model || agent?.model || session.model;
     const provider = typeof model === 'string' ? this.deps.providerForModel(model) : undefined;
     if (!provider) throw new PlatformContentError('Select a known provider/model');
@@ -217,7 +219,7 @@ export class PlatformApi {
       this.authorizeMemory(operator, memory, 'view');
     }
     return {
-      input: body.content ?? body.input, provider, model, profileId: profile?.id, agentId: agent?.id,
+      input: body.content ?? body.input, provider, model, profileId: profile?.id, agentId: requestedAgentId,
       contextTokens: Math.min(body.contextTokens ?? 8192, selected?.contextWindow ?? 8192, selected?.maxPromptChars ? Math.floor(selected.maxPromptChars / 4) : Infinity),
       maxOutputTokens: Math.min(body.maxOutputTokens ?? 1024, selected?.maxOutputTokens ?? 8192),
       systemPrompt: attached.instructions, memoryIds: body.memoryIds,
@@ -259,7 +261,7 @@ export class PlatformApi {
       if (resource === 'diagnostics' && method === 'GET') {
         requirePlatformCapability(operator, 'admin'); response(res, 200, { data: await this.deps.diagnostics(), storage: { backend: this.store.backend.kind }, credentials: secureStorageStatus() }); return true;
       }
-      if (resource === 'models' && method === 'GET') { response(res, 200, { data: this.deps.models() }); return true; }
+      if (resource === 'models' && method === 'GET') { response(res, 200, { data: this.deps.models().map(model => ({ ...model, capabilities: model.capabilities ?? capabilitiesFor(model.provider, model.id) })) }); return true; }
       if (resource === 'workspaces' && method === 'GET') {
         response(res, 200, { data: this.deps.workspaces().filter(w => platformCapabilityAllowed(operator, 'view', w.id)) }); return true;
       }

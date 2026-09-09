@@ -124,9 +124,43 @@ describe('platform workspace browser behavior', () => {
     ui.element('pf-chat-model').value = 'cli-gemini/second';
     const changed = ui.run(`pfChatBody('Continue')`);
     expect(initial.model).toBe('cli-codex/first');
-    expect(changed).toMatchObject({ effort:'high', fastMode:true, model: 'cli-gemini/second', skillRefs: [{ id: 'skill-review', version: 3 }], memoryIds: ['memory-1'], contextTokens: 8192, maxOutputTokens: 256, stream: true });
+    expect(changed).toMatchObject({ effort:'high', fastMode:true, model: 'cli-gemini/second', skillRefs: [{ id: 'skill-review', version: 3 }], memoryIds: ['memory-1'], contextTokens: 8192, maxOutputTokens: 256, stream: true, profileId: null, agentId: null });
     expect(ui.element('pf-transcript').innerHTML).toContain('Existing conversation');
     expect(ui.run(`pfState.session.id`)).toBe('s');
+  });
+
+  it('drops an incompatible profile on provider switch and PATCHes null profile and agent', async () => {
+    const ui = workspace();
+    ui.run(`pfState.session = {id:'s',revision:2,title:'Kept',retention:'retained',messages:[{id:'m',role:'assistant',provider:'cli-claude',model:'cli-claude/first',content:'Prior'}]};
+      pfState.profiles = [{id:'prof-claude',name:'Claude',provider:'cli-claude'}];
+      pfState.agents = [{id:'agent-claude',name:'Reviewer',provider:'cli-claude'}];
+      $('pf-chat-profile').innerHTML = '<option value=""></option><option value="prof-claude" selected>Claude</option>';
+      $('pf-chat-agent').innerHTML = '<option value=""></option><option value="agent-claude" selected>Reviewer</option>';
+      $('pf-chat-model').value = 'cli-claude/first'; pfRenderTranscript(); pfContextSummary();`);
+    expect(ui.element('pf-chat-profile').value).toBe('prof-claude');
+    ui.element('pf-chat-model').value = 'cli-codex/first';
+    ui.run('pfAlignAttachmentsToModel(); pfContextSummary()');
+    expect(ui.element('pf-chat-profile').value).toBe('');
+    expect(ui.element('pf-chat-agent').value).toBe('');
+    expect(ui.run(`pfChatBody('Next')`)).toMatchObject({ model: 'cli-codex/first', profileId: null, agentId: null });
+    expect(ui.element('pf-context-summary').textContent).toMatch(/fresh native session|new native session/i);
+    await ui.run('pfSaveSessionDetails()');
+    const patch = ui.calls.find(call => call.options?.method === 'PATCH');
+    expect(patch?.body).toMatchObject({ profileId: null, agentId: null, model: 'cli-codex/first' });
+  });
+
+  it('keeps Insights in the operator-token navigation set', () => {
+    const ui = workspace();
+    const buttons = [
+      { dataset: { section: 'insights' }, hidden: false },
+      { dataset: { section: 'settings' }, hidden: false },
+      { dataset: { section: 'platform' }, hidden: false },
+    ];
+    ui.context.document.querySelectorAll = () => buttons;
+    ui.run(`pfState.operator = {operatorId:'alice',role:'operator',source:'operator-token',workspaceIds:['*']}; pfApplyRole()`);
+    expect(buttons.find(button => button.dataset.section === 'insights')?.hidden).toBe(false);
+    expect(buttons.find(button => button.dataset.section === 'settings')?.hidden).toBe(true);
+    expect(buttons.find(button => button.dataset.section === 'platform')?.hidden).toBe(false);
   });
 
   it('prioritizes CLI then local models, distinguishes accounts, and starts a new chat with CLI', () => {

@@ -34,6 +34,21 @@ describe('bounded durable agent runs', () => {
     expect(service.get(run.id)?.steps[0].events).toHaveLength(1);
     await expect(service.create({ prompt: 'Invalid', model: 'lmstudio/test', effort: 'infinite' })).rejects.toThrow('effort');
   });
+  it('reloads persisted command evidence after a new service starts on the same store', async () => {
+    let finish!: (value: string) => void;
+    let sink: Parameters<PlatformRunRuntime['execute']>[0]['onExecutionEvent'];
+    const { service, store } = await setup({ execute: async request => { sink = request.onExecutionEvent; return new Promise<string>(resolve => { finish = resolve; }); } });
+    const run = await service.create({ prompt: 'Keep evidence', model: 'lmstudio/test' });
+    for (let i = 0; i < 50 && !sink; i++) await delay(5);
+    sink!({ kind: 'command', id: 'cmd', command: 'npm test', startedAt: 1, completedAt: 2, status: 'completed', exitCode: 0, stdout: 'ok' });
+    finish('Done');
+    await terminal(service, run.id);
+    await service.stop();
+    const restarted = new PlatformRunService(store, { execute: async () => 'unused' });
+    services.push(restarted);
+    await restarted.start();
+    expect(restarted.get(run.id)?.steps[0].events).toEqual([expect.objectContaining({ kind: 'command', command: 'npm test', exitCode: 0, stdout: 'ok' })]);
+  });
   it('executes a bounded repair, retains evidence, and never adds a hidden final call', async () => {
     let calls = 0;
     const { service } = await setup({ execute: async () => ++calls === 1 ? 'Need one repair' : 'DONE with evidence' });

@@ -194,11 +194,46 @@ describe('platform HTTP conversations', () => {
     expect(sent.status).toBe(200); expect(state.calls[0].model).toBe(modelB);
     expect(sent.data.session.profileId).toBe(saved.data.profile.id);
   });
+
+  it('clears a leftover profile when the next turn sends explicit null and a different provider', async () => {
+    const saved = await api('/v1/platform/profiles', { name: 'First provider', provider: 'cli-claude', model: modelA });
+    expect(saved.status).toBe(201);
+    const created = await session('admin', { profileId: saved.data.profile.id });
+    state.respond = async () => 'Kept';
+    expect((await turn(created.id, 'Remember Orion')).status).toBe(200);
+    expect(state.calls[0].model).toBe(modelA);
+    state.respond = async () => 'Orion';
+    const switched = await turn(created.id, 'Name?', { model: modelB, profileId: null });
+    expect(switched.status).toBe(200);
+    expect(switched.data.session.model).toBe(modelB);
+    expect(switched.data.session.profileId).toBeUndefined();
+    expect(state.calls[1].model).toBe(modelB);
+    expect(state.calls[1].messages.map(m => m.content)).toEqual(['Remember Orion', 'Kept', 'Name?']);
+  });
+
+  it('keeps the native session key when only mutable profile fields change', async () => {
+    const saved = await api('/v1/platform/profiles', { name: 'Resume profile', provider: 'cli-claude', model: modelA, defaultEffort: 'low' });
+    expect(saved.status).toBe(201);
+    const created = await session('admin', { profileId: saved.data.profile.id });
+    expect((await turn(created.id, 'First')).status).toBe(200);
+    const key = state.calls[0].cliSessionKey;
+    expect(typeof key).toBe('string');
+    const updated = await api('/v1/platform/profiles', {
+      id: saved.data.profile.id, expectedRevision: saved.data.profile.revision,
+      name: 'Resume profile', provider: 'cli-claude', model: modelA, defaultEffort: 'low', defaultFastMode: true,
+    });
+    expect(updated.status).toBe(201);
+    expect((await turn(created.id, 'Second')).status).toBe(200);
+    expect(state.calls[1].cliSessionKey).toBe(key);
+    expect(JSON.parse(key!)).toEqual([expect.any(String), created.id, saved.data.profile.id]);
+  });
 });
 
 describe('platform HTTP authorization and memory', () => {
   it('allows scoped model discovery while denying legacy settings and cross-operator sessions', async () => {
-    expect((await api('/v1/platform/models', undefined, 'viewer')).status).toBe(200);
+    const models = await api('/v1/platform/models', undefined, 'viewer');
+    expect(models.status).toBe(200);
+    expect(models.data.data[0].capabilities).toMatchObject({ modes: expect.any(Array), streaming: expect.any(String), nativeResume: expect.any(Boolean) });
     expect((await api('/v1/models', undefined, 'viewer')).status).toBe(401);
     expect((await api('/v1/settings', undefined, 'alice')).status).toBe(401);
     expect((await api('/v1/platform/sessions', { model: modelA }, 'viewer')).status).toBe(403);
@@ -460,6 +495,13 @@ describe('repository workspace HTTP authorization', () => {
     server.governanceManager.saveRepository({id:'fixture-repository',name:'Fixture',path:state.runtime,overrides:{requireApproval:true}});
     expect((await api('/api/git-workspace/action', body, 'admin')).status).toBe(403);
     expect(action).toHaveBeenCalledTimes(1);
+  });
+  it('allows Git fetch when repository policy disallows Bash', async () => {
+    const workspaceId = register();
+    const action = vi.spyOn(GitWorkspaceService.prototype, 'action').mockResolvedValue({ok:true,message:'Fixture fetch accepted'});
+    server.governanceManager.saveRepository({id:'fixture-repository',name:'Fixture',path:state.runtime,overrides:{disallowedTools:'Bash'}});
+    expect((await api('/api/git-workspace/action', {workspaceId,action:'fetch'}, 'admin')).status).toBe(200);
+    expect(action).toHaveBeenCalledExactlyOnceWith({action:'fetch',worktree:undefined,name:undefined});
   });
   it('validates modes and opaque worktree identifiers before the Git service', async () => {
     const workspaceId = register();

@@ -26,6 +26,7 @@ import { BudgetExceededError, BudgetManager } from './budget.js';
 import { WorkspaceManager, canonicalDirectory, isPathWithin } from './workspaces.js';
 import { GovernanceManager } from './governance.js';
 import { executeWithAccounting, openExecution, abortable } from './usage.js';
+import { capabilitiesFor } from './model-capability.js';
 import { PlatformApi, type PlatformExecutionContext } from './platform-api.js';
 import type { TransactionalStateStore } from './storage.js';
 import { PlatformContentError } from './platform-content.js';
@@ -539,7 +540,7 @@ export class BridgeServer {
         if (repository && (repository.overrides?.agentEnabled === false || live?.requiresApproval)) throw new SkillError('Repository policy requires its governed pipeline for this mutation', 403);
       }
       const restrictions = new Set(normalizeDisallowedTools(repository?.overrides?.disallowedTools)?.split(',').map(value => value.trim()) ?? []);
-      const required = skill === 'filesystem' ? effect === 'write' ? ['Write', 'Edit'] : ['Read', 'Glob'] : skill === 'code-search' ? ['Read', 'Glob', 'Grep', 'FileSearch'] : skill === 'browser' ? ['WebFetch'] : skill === 'web-search' ? ['WebSearch'] : effect === 'execute' ? ['Bash', 'Shell'] : [];
+      const required = skill === 'filesystem' ? effect === 'write' ? ['Write', 'Edit'] : ['Read', 'Glob'] : skill === 'code-search' ? ['Read', 'Glob', 'Grep', 'FileSearch'] : skill === 'browser' ? ['WebFetch'] : skill === 'web-search' ? ['WebSearch'] : skill === 'git-workspace' ? [] : effect === 'execute' ? ['Bash', 'Shell'] : [];
       if (required.some(tool => restrictions.has(tool))) throw new SkillError('Repository tool policy forbids this operation', 403);
     };
     return {
@@ -590,7 +591,7 @@ export class BridgeServer {
     const mode = original.mode || 'chat';
     if (mode === 'agent' && (policy?.agentEnabled === false || repository?.overrides?.agentEnabled === false)) throw new PlatformContentError('Agent mode is disabled by provider or repository policy', 403);
     if (mode === 'agent' && workspace.requiresApproval) throw new PlatformContentError('This repository requires governed pipeline execution. Use its assigned pipeline and required gates.', 403);
-    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }), fastMode: parseFastMode(original.fastMode) ?? context.profile?.defaultFastMode };
+    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile?.id ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }), fastMode: parseFastMode(original.fastMode) ?? context.profile?.defaultFastMode };
     const cwdError = agentModeCwdError(mode, request.cwd); if (cwdError) throw new PlatformContentError(cwdError, 400);
     if (!await provider.checkSession()) throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
     const runId = context.runId || `chat-${randomUUID()}`;
@@ -722,6 +723,7 @@ export class BridgeServer {
         // — one that goes stale the moment a catalog is discovered, not pinned.
         ...(m.contextWindow ? { context_window: m.contextWindow } : {}),
         ...(m.maxOutputTokens ? { max_output_tokens: m.maxOutputTokens } : {}),
+        capabilities: m.capabilities ?? capabilitiesFor(m.provider, m.id),
         conduit: { availability: m.availability ?? 'dynamic', source: m.source ?? 'provider' },
       }));
       json(res, 200, { object: 'list', data: models });

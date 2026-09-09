@@ -214,6 +214,17 @@ export interface ModelDefinition {
    */
   contextWindow?: number;
   maxOutputTokens?: number;
+  /** Transport contract for UI and swap checks. Absent on older catalog rows. */
+  capabilities?: ProviderCapability;
+}
+
+export interface ProviderCapability {
+  modes: Array<'chat' | 'plan' | 'agent'>;
+  effort: string[];
+  fastMode: boolean;
+  streaming: 'token' | 'turn' | 'none';
+  nativeResume: boolean;
+  local: boolean;
 }
 
 // ── Provider interface — each provider implements this ───────────────────────

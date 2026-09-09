@@ -416,7 +416,7 @@ export class PlatformContentService {
       signal.throwIfAborted();
       const now = this.now();
       const userMessage: PlatformMessage = { id: `message-${randomUUID()}`, role: 'user', content: input.input, provider: input.provider, model: input.model, profileId: input.profileId, createdAt: now, requestId, status: 'pending' };
-      const pending: PlatformSession = { ...previous, revision: previous.revision + 1, updatedAt: now, provider: input.provider, model: input.model, profileId: input.profileId, agentId: input.agentId ?? previous.agentId, messages: [...previous.messages, userMessage] };
+      const pending: PlatformSession = { ...previous, revision: previous.revision + 1, updatedAt: now, provider: input.provider, model: input.model, profileId: input.profileId, agentId: input.agentId, messages: [...previous.messages, userMessage] };
       await this.persist(pending, previous); // Do not dispatch a prompt that cannot be saved.
       let partial = '';
       let assistantMessage: PlatformMessage;
