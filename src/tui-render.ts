@@ -1016,6 +1016,38 @@ function boxRow(width: number, content: string): string {
   return `${NORD_BORDER}${BOX.v}${RESET}${clip(' ' + content, inner)}${NORD_BORDER}${BOX.v}${RESET}`;
 }
 
+/**
+ * Wrapped form of one transcript message, remembered between frames.
+ *
+ * Every frame wrapped every message of the whole session and then threw
+ * away everything outside the viewport. Measured at 120x40, that cost
+ * 0.32 ms at 10 messages, 1.05 at 60, 2.99 at 200, 8.46 at 600 and 26.1 at
+ * 1500. Past roughly 900 messages a single frame no longer fits the 16 ms
+ * budget, and since every keystroke paints a frame, that is input latency
+ * on the same thread that also handles the stream. Throttling cannot help:
+ * it bounds how often a frame is built, not what one costs.
+ *
+ * Wrapping is a pure function of content, width and meta, so it needs doing
+ * once per message rather than once per message per frame. The frame cost
+ * then follows what CHANGED instead of how long the session has run.
+ *
+ * Keyed on the message object: state updates rebuild the array but keep the
+ * element references, so existing entries hit. A WeakMap also means a
+ * dropped message takes its entry with it, with no eviction policy to get
+ * wrong.
+ */
+const bubbleCache = new WeakMap<object, { width: number; meta: string; content: string; lines: string[] }>();
+
+function bubbleCached(message: TuiMessage, width: number, meta: string): string[] {
+  const hit = bubbleCache.get(message as unknown as object);
+  // Content is compared as well as width: a streamed message is mutated in
+  // place while it grows, and a stale cache would freeze it mid-answer.
+  if (hit && hit.width === width && hit.meta === meta && hit.content === message.content) return hit.lines;
+  const lines = bubble(message.role, message.content, width, meta);
+  bubbleCache.set(message as unknown as object, { width, meta, content: message.content, lines });
+  return lines;
+}
+
 function bubble(role: 'user' | 'assistant', body: string, width: number, meta = ''): string[] {
   const color = role === 'user' ? CYAN : NORD_PURPLE;
   const title = role === 'user' ? 'you' : 'conduit';
@@ -1226,7 +1258,7 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
 
       for (const message of state.messages) {
         const meta = message.model ? `${MUTED}${message.model}${RESET}` : '';
-        transcript.push(...bubble(message.role, message.content, Math.max(24, rightWidth - 2), meta));
+        transcript.push(...bubbleCached(message, Math.max(24, rightWidth - 2), meta));
         if (message.metrics) {
           const m = message.metrics;
           const costStr = m.turnCostUsd !== undefined ? ` | Cost: $${m.turnCostUsd.toFixed(4)}` : '';
