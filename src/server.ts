@@ -1,3 +1,4 @@
+import './warning-filter.js';
 import { RepositoryApi } from './repository-api.js';
 import { FastModeError, parseFastMode } from './fast-mode.js';
 import { isEffortLevel } from './effort.js';
@@ -38,6 +39,7 @@ import type { GitHubProjectsProvider } from './providers/github-projects.js';
 import type { PlatformOperatorContext } from './platform-auth.js';
 import { authenticatePlatformOperator, requirePlatformCapability } from './platform-auth.js';
 import { VscodeBridgeConnection, type VscodeDispatchRequest, type VscodeDispatchResult } from './vscode-bridge.js';
+import { GitWorkspaceService } from './git-workspace.js';
 
 const CLI_PROVIDERS = new Set<ProviderName>(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok']);
 const MAX_REQUEST_BODY_BYTES = 1_048_576;
@@ -1746,6 +1748,161 @@ export class BridgeServer {
         return out;
       }, {});
       json(res, 200, { effort: providers });
+      return;
+    }
+
+    // ── /v1/chat/sessions ───────────────────────────────────────────────────
+    if (path === '/v1/chat/sessions' && method === 'POST') {
+      const body = await readBody(req);
+      let parsed: any = {};
+      try { if (body.trim()) parsed = JSON.parse(body); } catch {}
+      await this._platform.start();
+      const session = await this._platform.content.createSession({
+        title: parsed.title || 'Interactive Chat',
+        model: parsed.model,
+        workspaceId: parsed.workspaceId || 'default',
+        retention: 'retained',
+      });
+      json(res, 201, {
+        id: session.id,
+        model: session.model || parsed.model || 'gpt-4o',
+        title: session.title,
+        createdAt: session.createdAt,
+        messages: session.messages || [],
+      });
+      return;
+    }
+
+    if (path === '/v1/chat/sessions' && method === 'GET') {
+      await this._platform.start();
+      const sessions = this._platform.content.listSessions().map(s => ({
+        id: s.id,
+        title: s.title,
+        model: s.model,
+        updatedAt: s.updatedAt,
+        messages: s.messages || [],
+      }));
+      json(res, 200, { data: sessions });
+      return;
+    }
+
+    if (path.startsWith('/v1/chat/sessions/') && !path.endsWith('/cancel') && method === 'GET') {
+      const sessionId = decodeURIComponent(path.slice('/v1/chat/sessions/'.length));
+      await this._platform.start();
+      const session = this._platform.content.getSession(sessionId);
+      if (!session) {
+        json(res, 404, { error: { message: `Session ${sessionId} not found`, type: 'not_found' } });
+        return;
+      }
+      json(res, 200, {
+        id: session.id,
+        title: session.title,
+        model: session.model,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        messages: session.messages || [],
+        data: session,
+      });
+      return;
+    }
+
+    if (path.startsWith('/v1/chat/sessions/') && path.endsWith('/cancel') && method === 'POST') {
+      const sessionId = decodeURIComponent(path.slice('/v1/chat/sessions/'.length, -'/cancel'.length));
+      await this._platform.start();
+      this._platform.content.cancelTurn(sessionId);
+      json(res, 200, { cancelled: true });
+      return;
+    }
+
+    // ── /v1/runs ────────────────────────────────────────────────────────────
+    if (path === '/v1/runs' && method === 'GET') {
+      await this._platform.start();
+      const runs = this._platform.runs.list();
+      json(res, 200, { runs, data: runs });
+      return;
+    }
+
+    if (path === '/v1/runs' && method === 'POST') {
+      const body = await readBody(req);
+      let parsed: any = {};
+      try { if (body.trim()) parsed = JSON.parse(body); } catch {}
+      await this._platform.start();
+      const run = await this._platform.runs.create(parsed);
+      json(res, 201, run);
+      return;
+    }
+
+    if (path.startsWith('/v1/runs/') && !path.slice('/v1/runs/'.length).includes('/') && method === 'GET') {
+      const runId = decodeURIComponent(path.slice('/v1/runs/'.length));
+      await this._platform.start();
+      const run = this._platform.runs.get(runId);
+      if (!run) {
+        json(res, 404, { error: { message: `Run ${runId} not found`, type: 'not_found' } });
+        return;
+      }
+      json(res, 200, { run, data: run });
+      return;
+    }
+
+    if (path.startsWith('/v1/runs/') && method === 'POST') {
+      const segments = path.slice('/v1/runs/'.length).split('/');
+      if (segments.length === 2) {
+        const runId = decodeURIComponent(segments[0]);
+        const action = segments[1];
+        if (['approve', 'cancel', 'retry', 'continue'].includes(action)) {
+          const body = await readBody(req);
+          let parsed: any = {};
+          try { if (body.trim()) parsed = JSON.parse(body); } catch {}
+          await this._platform.start();
+          await this._platform.runs.action(runId, action as any, 'cli-operator', parsed.feedback);
+          json(res, 200, { success: true, action, id: runId });
+          return;
+        }
+      }
+    }
+
+    // ── /v1/insights ────────────────────────────────────────────────────────
+    if (path === '/v1/insights' && method === 'GET') {
+      await this._platform.start();
+      const view = this._platform.insights.view('local-admin', 'cli-version');
+      const summaries = (view as any)?.summaries || [];
+      json(res, 200, { insights: summaries, data: summaries });
+      return;
+    }
+
+    // ── /v1/git & /v1/workspaces/:id/git ────────────────────────────────────
+    if ((path === '/v1/git' || (path.startsWith('/v1/workspaces/') && path.endsWith('/git'))) && method === 'GET') {
+      let wsId: string | undefined;
+      if (path.startsWith('/v1/workspaces/')) {
+        wsId = decodeURIComponent(path.slice('/v1/workspaces/'.length, -'/git'.length));
+      }
+      const workspaceList = this._workspaceManager.listWorkspaces();
+      const workspace = wsId ? workspaceList.find(w => w.id === wsId) : (workspaceList[0] || { id: 'default', path: process.cwd() });
+      const targetDir = workspace?.path || process.cwd();
+      try {
+        const gitService = new GitWorkspaceService(targetDir);
+        const snapshot = await gitService.snapshot();
+        json(res, 200, {
+          detected: Boolean(snapshot.detected),
+          branch: snapshot.branch || '',
+          files: snapshot.files?.length || 0,
+          name: snapshot.name || '',
+        });
+      } catch {
+        json(res, 200, { detected: false, branch: '', files: 0, name: '' });
+      }
+      return;
+    }
+
+    // ── /v1/system/status ───────────────────────────────────────────────────
+    if (path === '/v1/system/status' && method === 'GET') {
+      const providers = this._registry.allModels().reduce<Array<{ name: string; connected: boolean }>>((acc, m) => {
+        if (!acc.some(p => p.name === m.provider)) {
+          acc.push({ name: m.provider, connected: true });
+        }
+        return acc;
+      }, []);
+      json(res, 200, { version: PKG_VERSION, providers });
       return;
     }
 

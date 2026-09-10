@@ -759,5 +759,45 @@ describe('BridgeServer HTTP handler', () => {
         rmSync(outside, { recursive: true, force: true });
       }
     });
+
+    it('creates, lists, gets, and cancels chat sessions via /v1/chat/sessions', async () => {
+      const createRes = await fetch(`${base}/v1/chat/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'cli-codex/gpt-5.6-sol', title: 'Test Session' }),
+      });
+      expect(createRes.status).toBe(201);
+      const created = await createRes.json();
+      expect(created.id).toMatch(/^session-/);
+      expect(created.model).toBe('cli-codex/gpt-5.6-sol');
+      expect(created.title).toBe('Test Session');
+
+      const listRes = await fetch(`${base}/v1/chat/sessions`);
+      expect(listRes.status).toBe(200);
+      const list = await listRes.json();
+      expect(Array.isArray(list.data)).toBe(true);
+      expect(list.data.some((s: any) => s.id === created.id)).toBe(true);
+
+      const getRes = await fetch(`${base}/v1/chat/sessions/${created.id}`);
+      expect(getRes.status).toBe(200);
+      const fetched = await getRes.json();
+      expect(fetched.id).toBe(created.id);
+      expect(fetched.title).toBe('Test Session');
+
+      const cancelRes = await fetch(`${base}/v1/chat/sessions/${created.id}/cancel`, {
+        method: 'POST',
+      });
+      expect(cancelRes.status).toBe(200);
+      expect((await cancelRes.json()).cancelled).toBe(true);
+    });
+
+    it('returns system status and advertised providers via /v1/system/status', async () => {
+      const res = await fetch(`${base}/v1/system/status`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.version).toBeDefined();
+      expect(Array.isArray(body.providers)).toBe(true);
+      expect(body.providers.some((p: any) => p.name === 'cli-grok')).toBe(true);
+    });
   });
 });

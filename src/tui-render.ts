@@ -468,7 +468,8 @@ export function decodeKey(seq: string): TuiKey | undefined {
   return undefined;
 }
 
-function insertChar(state: TuiState, char: string): TuiState {
+function insertChar(state: TuiState, char?: string): TuiState {
+  if (!char) return state;
   if (state.overlay !== 'none') {
     const nextFilter = state.filter + char;
     return { ...state, filter: nextFilter, selected: 0 };
@@ -723,8 +724,8 @@ export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; ac
     return { state: { ...state, input: before + '\n' + after, cursor: state.cursor + 1 }, action: 'none' };
   }
 
-  if (key.type === 'char' && key.value === '?' && !state.input) return { state: { ...state, view: 'help' }, action: 'none' };
-  if (key.type === 'char') return { state: insertChar(state, key.value), action: 'none' };
+  if (key.type === 'char' && (key.value === '?' || (key as any).char === '?') && !state.input) return { state: { ...state, view: 'help' }, action: 'none' };
+  if (key.type === 'char') return { state: insertChar(state, key.value || (key as any).char), action: 'none' };
   if (key.type === 'backspace') return { state: backspace(state), action: 'none' };
   if (key.type === 'left') return { state: { ...state, cursor: Math.max(0, state.cursor - 1) }, action: 'none' };
   if (key.type === 'right') return { state: { ...state, cursor: Math.min(state.input.length, state.cursor + 1) }, action: 'none' };

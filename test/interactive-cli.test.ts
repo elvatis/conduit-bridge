@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createHttpChatClient,
   parseChatCommand,
   parseSseChunk,
   preferredChatModel,
@@ -908,5 +909,39 @@ describe('Multi-Step Task Runner Progress & Turn Metrics', () => {
     expect(frame).toContain('indexing AST');
   });
 });
+
+describe('Chat client resilience and session fallback', () => {
+  it('falls back to local session generation if server createSession fails', async () => {
+    const frames: string[] = [];
+    const terminal = {
+      columns: 80,
+      rows: 24,
+      color: true,
+      write: (frame: string) => { frames.push(frame); },
+      readKey: async () => {
+        return { type: 'ctrl' as const, key: 'q' };
+      },
+    };
+
+    const failingClient: ChatTurnClient = {
+      listModels: async () => [{ id: 'mock-model' }],
+      createSession: async () => { throw new Error('HTTP 404 from /v1/chat/sessions: Not found'); },
+      listSessions: async () => [],
+      getSession: async () => { throw new Error('Not found'); },
+      listRuns: async () => [],
+      getRun: async () => { throw new Error('Not found'); },
+      runAction: async () => {},
+      createRun: async () => ({ id: 'mock-run' }),
+      listWorkspaces: async () => [],
+      gitSnapshot: async () => ({ detected: false, branch: '', files: 0, name: '' }),
+      send: async () => 'mock response',
+      cancel: async () => {},
+    };
+
+    await expect(runInteractiveChat({ client: failingClient, terminal })).resolves.toBeUndefined();
+    expect(frames.length).toBeGreaterThan(0);
+  });
+});
+
 
 
