@@ -12,6 +12,39 @@ export type ParseModeResult =
 const MODES = new Set<CliRunMode>(['chat', 'plan', 'agent']);
 
 export const DEFAULT_MUTATING_TOOLS = 'Write,Edit,NotebookEdit,Bash';
+
+/**
+ * How far a provider is confined when it runs in agent mode.
+ *
+ * "workspace" means the provider itself refuses writes outside the working
+ * directory. "none" means the bridge switched its permission check off and
+ * the only remaining boundary is the working directory the provider was
+ * given, which it is free to ignore.
+ *
+ * Derived from the same switch that builds the flags, so the two cannot
+ * drift: if a branch there changes, this has to change with it.
+ */
+export type AgentConfinement = 'workspace' | 'none';
+
+export function agentConfinement(provider: CliModeProvider): AgentConfinement {
+  switch (provider) {
+    case 'cli-codex':
+      // --sandbox workspace-write, the only provider with a real boundary.
+      return 'workspace';
+    case 'cli-claude':   // --permission-mode bypassPermissions
+    case 'cli-gemini':   // --dangerously-skip-permissions
+    case 'cli-grok':     // --always-approve
+      return 'none';
+  }
+}
+
+/** Providers that can write outside their working directory in agent mode. */
+export function unconfinedAgentProviders(providers: readonly string[]): string[] {
+  const known: CliModeProvider[] = ['cli-claude', 'cli-gemini', 'cli-codex', 'cli-grok'];
+  return providers
+    .filter((name): name is CliModeProvider => (known as readonly string[]).includes(name))
+    .filter(name => agentConfinement(name) === 'none');
+}
 const MUTATING_TOOLS = DEFAULT_MUTATING_TOOLS;
 
 /** Parse a persisted tool policy without allowing it to become CLI syntax. */

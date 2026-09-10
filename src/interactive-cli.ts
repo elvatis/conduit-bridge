@@ -8,6 +8,7 @@ import type { BridgeConfig } from './types.js';
 import { logger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
 import { cliEntryPath, ensureBridgeListener, spawnBridgeDaemon } from './bridge-listener.js';
+import { unconfinedAgentProviders } from './cli-mode.js';
 import {
   applyTuiKey,
   decodeKey,
@@ -847,10 +848,16 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         try {
           const st = await client.status();
           const provs = st.providers.map(p => `${p.connected ? '✓' : '✗'} ${p.name}`).join('  ');
+          // Agent mode runs three of the four providers with their permission
+          // check disabled. Without this line the user has no way to tell.
+          const unconfined = unconfinedAgentProviders(st.providers.filter(p => p.connected).map(p => p.name));
+          const warning = unconfined.length
+            ? `\nAgent mode is UNCONFINED for: ${unconfined.join(', ')}. These can write outside the workspace.`
+            : '';
           state = {
             ...state,
             notice: `conduit-bridge v${st.version || '0.10.0'}`,
-            messages: [...state.messages, { role: 'user', content: '/status' }, { role: 'assistant', content: `conduit-bridge v${st.version || '0.10.0'}\nProviders: ${provs || 'None'}` }],
+            messages: [...state.messages, { role: 'user', content: '/status' }, { role: 'assistant', content: `conduit-bridge v${st.version || '0.10.0'}\nProviders: ${provs || 'None'}${warning}` }],
           };
         } catch (err) {
           state = { ...state, notice: `Status failed: ${err instanceof Error ? err.message : String(err)}` };
