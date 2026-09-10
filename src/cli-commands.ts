@@ -78,7 +78,7 @@ export async function handleRunCommand(
   out: CliOutput = defaultCliOutput
 ): Promise<number> {
   if (!prompt || !prompt.trim()) {
-    out.error('Usage: conduit-bridge run "<prompt>" [--mode=chat|plan|agent] [--model=<id>] [--workspace=<id>] [--allow-unconfined] [--json]');
+    out.error('Usage: conduit-bridge run "<prompt>" [--mode=chat|plan|agent] [--model=<id>] [--workspace=<id>] [--allow-unconfined] [--rollback-on-failure] [--json]');
     return 1;
   }
   try {
@@ -86,10 +86,12 @@ export async function handleRunCommand(
     const model = flags.model;
     const workspaceId = flags.workspace;
     const allowUnconfined = flags['allow-unconfined'] === 'true' || flags.allowUnconfined === 'true' || cfg.allowUnconfined === true;
+    const rollbackOnFailure = flags['rollback-on-failure'] === 'true' || flags.rollbackOnFailure === 'true';
     const body: Record<string, any> = { prompt, mode };
     if (model) body.model = model;
     if (workspaceId) body.workspaceId = workspaceId;
     if (allowUnconfined) body.allowUnconfined = true;
+    if (rollbackOnFailure) body.rollbackOnFailure = true;
 
     const res = await requestBridgeJson<{ run: { id: string; status: string; prompt?: string; mode?: string } }>(
       cfg,
@@ -268,7 +270,20 @@ export async function handleRunsCommand(
       return 0;
     }
 
-    out.error(`Unknown runs command '${sub}'. Available: list, get, approve, cancel, continue, retry`);
+    if (sub === 'rollback') {
+      if (!targetId) {
+        out.error('Usage: conduit-bridge runs rollback <runId>');
+        return 1;
+      }
+      await requestBridgeJson(cfg, `/v1/platform/runs/${encodeURIComponent(targetId)}/actions`, {
+        method: 'POST',
+        body: { action: 'rollback', operator: 'cli' },
+      });
+      out.log(`Run ${targetId} changes rolled back.`);
+      return 0;
+    }
+
+    out.error(`Unknown runs command '${sub}'. Available: list, get, approve, cancel, continue, retry, rollback`);
     return 1;
   } catch (err: any) {
     out.error(`Error: ${err.message}`);

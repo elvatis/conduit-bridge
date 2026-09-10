@@ -102,6 +102,8 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('/approve run-101')).toEqual({ type: 'approve', runId: 'run-101' });
     expect(parseChatCommand('/cancel')).toEqual({ type: 'cancel', runId: undefined });
     expect(parseChatCommand('/cancel run-101')).toEqual({ type: 'cancel', runId: 'run-101' });
+    expect(parseChatCommand('/rollback')).toEqual({ type: 'rollback', runId: undefined });
+    expect(parseChatCommand('/rollback run-101')).toEqual({ type: 'rollback', runId: 'run-101' });
     expect(parseChatCommand('/workspaces')).toEqual({ type: 'workspaces' });
     expect(parseChatCommand('/insights')).toEqual({ type: 'insights' });
     expect(parseChatCommand('/status')).toEqual({ type: 'status' });
@@ -942,6 +944,14 @@ describe('Human-In-The-Loop Approval Workflow', () => {
 
     const steer = applyTuiKey(approvalState, { type: 'char', value: 'e' });
     expect(steer.state.input).toContain('/continue run-77');
+
+    const rollbackRuns = applyTuiKey(baseState({ view: 'runs', runs: [{ id: 'run-99', status: 'failed', model: 'test', prompt: 'test' }], runSelectedIndex: 0 }), { type: 'char', value: 'b' });
+    expect(rollbackRuns.action).toBe('rollback-run');
+    expect(rollbackRuns.payload).toBe('run-99');
+
+    const rollbackDetail = applyTuiKey(baseState({ view: 'run-detail', selectedRunDetail: { id: 'run-99', status: 'failed', model: 'test', prompt: 'test', createdAt: 1, costUsd: 0, tokensConsumed: 0, steps: [] } }), { type: 'char', value: 'b' });
+    expect(rollbackDetail.action).toBe('rollback-run');
+    expect(rollbackDetail.payload).toBe('run-99');
   });
 });
 

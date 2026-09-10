@@ -38,6 +38,8 @@ export interface PlatformRunInput {
   /** Fingerprint of the credential that authorized queuing, supplied by the HTTP layer. */
   authorizationVersion?: string;
   followUpPrompt?: string;
+  /** Automatically roll back uncommitted workspace changes if the run fails or is cancelled. */
+  rollbackOnFailure?: boolean;
 }
 export interface PlatformRunIteration {
   iteration: number;
@@ -95,6 +97,7 @@ export interface PlatformRunRuntime {
   /** Return undefined when concurrency is busy; the queued job is retried later. */
   acquire?(): (() => void) | undefined;
   onUpdate?(run: PlatformRun): void;
+  rollback?(run: PlatformRun): Promise<void>;
   concurrency?: number;
   now?: () => number;
 }
@@ -120,6 +123,7 @@ function validate(input: PlatformRunInput): PlatformRunInput {
   if (result.successPattern !== undefined && (typeof result.successPattern !== 'string' || !result.successPattern.trim() || result.successPattern.length > 200)) throw new PlatformRunError('successPattern must be a literal nonempty string up to 200 characters');
   if (result.idempotencyKey !== undefined && !/^[\w.:-]{1,120}$/.test(result.idempotencyKey)) throw new PlatformRunError('Invalid idempotencyKey');
   if (result.requiresApproval !== undefined && typeof result.requiresApproval !== 'boolean') throw new PlatformRunError('requiresApproval must be boolean');
+  if (result.rollbackOnFailure !== undefined && typeof result.rollbackOnFailure !== 'boolean') throw new PlatformRunError('rollbackOnFailure must be boolean');
   return result;
 }
 
@@ -230,6 +234,13 @@ export class PlatformRunService {
       run.error = undefined;
       await this.save(run); this.schedule(); return run;
     }
+    if (action === 'rollback') {
+      if (['queued', 'running', 'waiting_approval'].includes(run.status)) throw new PlatformRunError('An active run cannot be rolled back', 409);
+      if (!run.input.workingDirectory) throw new PlatformRunError('Run has no associated working directory to roll back', 400);
+      await this.runtime.rollback?.(run);
+      run.stopReason = 'Rolled back by operator';
+      await this.save(run); return run;
+    }
     throw new PlatformRunError('Unknown run action');
   }
   private schedule(delay = 0): void {
@@ -324,6 +335,9 @@ export class PlatformRunService {
         step.status = 'failed'; step.error = run.error; step.completedAt = this.now();
       }
       const spend = this.runtime.spend?.(run.id); if (spend) { run.costUsd = spend.costUsd; run.tokensConsumed = spend.tokens; }
+      if (run.input.rollbackOnFailure && run.input.workingDirectory) {
+        try { await this.runtime.rollback?.(run); } catch {}
+      }
       await this.save(run);
     } finally { delete run.input.followUpPrompt; this.liveEvidence.delete(run.id); if (timer) clearTimeout(timer); this.runtime.finish?.(run); }
   }

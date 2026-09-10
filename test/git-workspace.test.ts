@@ -191,6 +191,20 @@ describe('explicit Git workspace actions in isolated fixtures', () => {
     await actionPromise;
     expect(service.isMutating()).toBe(false);
   });
+
+  it('rolls back modified and untracked files to HEAD while preserving worktrees', async () => {
+    const { root, service } = await fixture();
+    await writeFile(join(root, 'app.ts'), 'export const modified = true;\n');
+    await writeFile(join(root, 'untracked.ts'), 'export const leftover = 123;\n');
+    const dirty = await service.snapshot();
+    expect(dirty.files).toHaveLength(2);
+    const result = await service.action({ action: 'rollback' });
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('rolled back');
+    expect((await readFile(join(root, 'app.ts'), 'utf8')).replace(/\r\n/g, '\n')).toBe('export const count = 1;\n');
+    const clean = await service.snapshot();
+    expect(clean.files).toHaveLength(0);
+  });
 });
 
 describe('Git graph and embedded UI', () => {

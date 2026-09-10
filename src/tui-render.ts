@@ -189,6 +189,7 @@ export type TuiAction =
   | 'cancel-run'
   | 'continue-run'
   | 'retry-run'
+  | 'rollback-run'
   | 'select-workspace';
 
 // ANSI Theme Palette (Nordic Dark + backward-compatible assertions)
@@ -778,6 +779,9 @@ export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; ac
     if (key.type === 'char' && (key.value === 'r' || key.value === 'R') && currentRun) {
       return { state, action: 'retry-run', payload: currentRun.id };
     }
+    if (key.type === 'char' && (key.value === 'b' || key.value === 'B') && currentRun) {
+      return { state, action: 'rollback-run', payload: currentRun.id };
+    }
   }
 
   if (state.view === 'run-detail') {
@@ -794,6 +798,9 @@ export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; ac
     }
     if (key.type === 'char' && (key.value === 'r' || key.value === 'R') && detail) {
       return { state, action: 'retry-run', payload: detail.id };
+    }
+    if (key.type === 'char' && (key.value === 'b' || key.value === 'B') && detail) {
+      return { state, action: 'rollback-run', payload: detail.id };
     }
   }
 
@@ -1152,7 +1159,7 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
         return `${pointer} ${statusPill(r.status)} ${BOLD}${r.id}${RESET}${stepProgress}  ${COPPER}${clip(r.model || 'model', 14)}${RESET}  ${TEXT}${clip(r.prompt, rightWidth - 40)}${RESET}`;
       });
       rightLines = [
-        `${BOLD}${TEXT}Agent Execution Runs${RESET}  ${MUTED}[Enter] Details  [A/Y] Approve  [C/S] Continue  [X] Cancel  [R] Retry${RESET}`,
+        `${BOLD}${TEXT}Agent Execution Runs${RESET}  ${MUTED}[Enter] Details  [A/Y] Approve  [C/S] Continue  [X] Cancel  [R] Retry  [B] Rollback${RESET}`,
         `${MUTED}${'─'.repeat(Math.max(8, rightWidth - 2))}${RESET}`,
         ...(rows.length ? rows.slice(0, availableHeight - 2) : [`${MUTED}  No execution runs found. Start one with /run <prompt>${RESET}`]),
       ];
@@ -1198,7 +1205,7 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
           }
         }
       }
-      rightLines.push(`${MUTED}[Esc] Back to runs  [A/Y] Approve  [C/S] Continue  [X] Cancel  [R] Retry${RESET}`);
+      rightLines.push(`${MUTED}[Esc] Back to runs  [A/Y] Approve  [C/S] Continue  [X] Cancel  [R] Retry  [B] Rollback${RESET}`);
     } else if (state.view === 'workspaces') {
       rightLines = [
         `${BOLD}${TEXT}Registered Workspaces${RESET}  ${MUTED}(Ctrl+W to switch)${RESET}`,

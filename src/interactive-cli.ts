@@ -42,6 +42,7 @@ export type ChatCommand =
   | { type: 'continue'; prompt: string; runId?: string }
   | { type: 'approve'; runId?: string }
   | { type: 'cancel'; runId?: string }
+  | { type: 'rollback'; runId?: string }
   | { type: 'workspaces' }
   | { type: 'insights' }
   | { type: 'status' }
@@ -59,7 +60,7 @@ export interface ChatTurnClient {
   getSession(id: string): Promise<ChatSession & { messages: TuiMessage[] }>;
   listRuns(): Promise<TuiRunRow[]>;
   getRun(id: string): Promise<TuiRunDetail>;
-  runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string): Promise<void>;
+  runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue' | 'rollback', feedback?: string): Promise<void>;
   createRun(prompt: string, model?: string, mode?: 'chat' | 'plan' | 'agent', workspaceId?: string): Promise<{ id: string }>;
   listWorkspaces(): Promise<TuiWorkspaceRow[]>;
   gitSnapshot(workspaceId?: string): Promise<{ detected: boolean; branch: string; files: number; name: string }>;
@@ -101,6 +102,7 @@ export function parseChatCommand(raw: string): ChatCommand {
   }
   if (name === 'approve') return { type: 'approve', runId: arg || undefined };
   if (name === 'cancel') return { type: 'cancel', runId: arg || undefined };
+  if (name === 'rollback') return { type: 'rollback', runId: arg || undefined };
   if (name === 'workspaces') return { type: 'workspaces' };
   if (name === 'insights') return { type: 'insights' };
   if (name === 'status') return { type: 'status' };
@@ -297,7 +299,7 @@ export function createHttpChatClient(
       // either way. The fallback to the platform route stays, because both
       // endpoints are live, but a failure of BOTH is now an error.
       try {
-        await requestJson('POST', `/v1/runs/${id}/${action}`, feedback ? { feedback } : {});
+        await requestJson('POST', `/v1/platform/runs/${id}/actions`, { action, feedback });
       } catch (primary) {
         try {
           await requestJson('POST', `/v1/platform/runs/${id}/${action}`, feedback ? { feedback } : {});
@@ -862,6 +864,18 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         state = { ...state, notice: `Continue failed: ${err instanceof Error ? err.message : String(err)}` };
       }
     }
+    if (next.action === 'rollback-run' && next.payload) {
+      try {
+        await client.runAction(next.payload, 'rollback');
+        state = { ...state, notice: `Rolled back changes for run ${next.payload}` };
+        state = await refreshExtras(client, state);
+        if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
+          state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
+        }
+      } catch (err) {
+        state = { ...state, notice: `Rollback failed: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
     if (next.action === 'select-workspace' && next.payload) {
       state.activeWorkspaceId = next.payload;
       try {
@@ -970,6 +984,22 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
             }
           } catch (err) {
             state = { ...state, notice: `Cancel failed: ${err instanceof Error ? err.message : String(err)}` };
+          }
+        }
+      } else if (command.type === 'rollback') {
+        const targetId = command.runId || state.selectedRunDetail?.id || state.runs[state.runSelectedIndex]?.id;
+        if (!targetId) {
+          state = { ...state, notice: 'No run selected to roll back' };
+        } else {
+          try {
+            await client.runAction(targetId, 'rollback');
+            state = { ...state, notice: `Rolled back changes for run ${targetId}` };
+            state = await refreshExtras(client, state);
+            if (state.selectedRunDetail?.id === targetId) {
+              state.selectedRunDetail = await client.getRun(targetId).catch(() => state.selectedRunDetail);
+            }
+          } catch (err) {
+            state = { ...state, notice: `Rollback failed: ${err instanceof Error ? err.message : String(err)}` };
           }
         }
       } else if (command.type === 'unknown') state = { ...state, notice: `Unknown command ${command.text}` };

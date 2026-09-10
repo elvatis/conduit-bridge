@@ -18,6 +18,7 @@ import { KNOWN_TOOLS, normalizeDisallowedTools, agentConfinementError } from './
 import { capabilitiesFor } from './model-capability.js';
 import { redactSecrets } from './redact.js';
 import { buildCodingPipelines } from './platform-presets.js';
+import { GitWorkspaceService } from './git-workspace.js';
 
 export interface PlatformExecutionContext {
   /** Present only for conversations with explicit retained history. */
@@ -145,6 +146,12 @@ export class PlatformApi {
         if (run.input.authorizationVersion !== authorizationVersion(operator, deps.cfg())) throw new PlatformContentError('The credential that authorized this queued run has changed. Create a new run after reviewing its state.', 403);
         requirePlatformCapability(operator, 'operate', globalWorkspace(run.workspaceId));
         return this.execute(request, { operator, profile: run.input.profileId ? this.requireProfile(run.input.profileId) : undefined, runId: run.id, workspaceId: run.workspaceId, repository: run.input.repository });
+      },
+      rollback: async run => {
+        if (run.input.workingDirectory) {
+          const gitService = new GitWorkspaceService(run.input.workingDirectory);
+          await gitService.action({ action: 'rollback' });
+        }
       },
       onUpdate: run => deps.event({ type: 'platform_run', id: run.id, status: run.status, revision: run.revision }),
     });
@@ -487,11 +494,13 @@ export class PlatformApi {
         if (method === 'POST' && !id) {
           const input = this.prepareRun(body, operator); const run = await this.runs.create(input); response(res, 202, { run: publicRun(run) }); return true;
         }
-        const capability = action === 'actions' && ['approve', 'reject'].includes(body.action) ? 'review' : method === 'GET' ? 'view' : 'operate';
+        const isRunAction = action === 'actions' || ['approve', 'reject', 'cancel', 'retry', 'continue', 'rollback'].includes(action);
+        const runAction = action === 'actions' ? body.action : action;
+        const capability = isRunAction && ['approve', 'reject'].includes(runAction) ? 'review' : method === 'GET' ? 'view' : 'operate';
         const run = this.authorizeRun(operator, this.runs.get(id), capability);
         if (method === 'GET' && action === 'events') response(res, 200, { data: run.steps.flatMap(s => s.events || []) });
         else if (method === 'GET' && !action) response(res, 200, { run: publicRun(run) });
-        else if (method === 'POST' && action === 'actions') response(res, 200, { run: publicRun(await this.runs.action(id, body.action, operator.operatorId, body.feedback)) });
+        else if (method === 'POST' && isRunAction) response(res, 200, { run: publicRun(await this.runs.action(id, runAction, operator.operatorId, body.feedback)) });
         else if (method === 'DELETE' && !action) { await this.runs.delete(id); response(res, 200, { deleted: true }); }
         else throw new PlatformContentError('Unknown run operation', 404);
         return true;
@@ -548,7 +557,9 @@ export class PlatformApi {
       repository: workspace.repository, workingDirectory: workspace.cwd, mode, effort: body.effort || agent?.defaultEffort || profile?.defaultEffort, fastMode: parseFastMode(body.fastMode) ?? agent?.defaultFastMode ?? profile?.defaultFastMode, maxIterations: body.maxIterations,
       maxDurationMs: body.maxDurationMs, maxTokens: body.maxTokens, maxOutputTokens: body.maxOutputTokens,
       maxCostUsd: workspace.maxCostUsd !== undefined ? Math.min(body.maxCostUsd ?? 0.5, workspace.maxCostUsd) : body.maxCostUsd,
-      requiresApproval: workspace.requiresApproval || body.requiresApproval === true, successPattern: body.successPattern,
+      requiresApproval: workspace.requiresApproval || body.requiresApproval === true,
+      rollbackOnFailure: body.rollbackOnFailure === true,
+      successPattern: body.successPattern,
       idempotencyKey: body.idempotencyKey, instructions: instructions.instructions, skillRefs: instructions.skillRefs, ownerId: operator.operatorId, authorizationVersion: authorizationVersion(operator, this.deps.cfg()),
     };
   }

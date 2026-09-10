@@ -18,7 +18,7 @@ export interface GitWorkspaceDiff {
   mode: 'history' | 'changes'; commit?: Omit<GitWorkspaceCommit, 'graph'>; files: GitWorkspaceFile[];
   path: string | null; patch: string; additions: number; deletions: number; binary: boolean; truncated: boolean; message?: string;
 }
-export type GitWorkspaceAction = 'fetch' | 'pull' | 'push' | 'create-branch' | 'add-worktree';
+export type GitWorkspaceAction = 'fetch' | 'pull' | 'push' | 'create-branch' | 'add-worktree' | 'rollback';
 
 const MAX_OUTPUT = 8 * 1024 * 1024;
 const MAX_PATCH = 240 * 1024;
@@ -292,7 +292,7 @@ export class GitWorkspaceService {
   /** Called only after the host authorizes an explicit user action. Never runs automatically. */
   async action(input: { action: GitWorkspaceAction; worktree?: string; name?: string }): Promise<{ ok: true; message: string }> {
     if (this.mutating) throw new GitWorkspaceError('Another Git operation is running. Try again when it completes.', 409);
-    const allowed: GitWorkspaceAction[] = ['fetch', 'pull', 'push', 'create-branch', 'add-worktree'];
+    const allowed: GitWorkspaceAction[] = ['fetch', 'pull', 'push', 'create-branch', 'add-worktree', 'rollback'];
     if (!allowed.includes(input.action)) throw new GitWorkspaceError('Unsupported Git action.');
     this.mutating = true;
     try {
@@ -322,7 +322,7 @@ export class GitWorkspaceService {
         }
       } else {
         const head = await this.head(ctx.cwd);
-        if (input.action !== 'fetch' && !head.branch) throw new GitWorkspaceError('Pull and push require an attached branch.');
+        if (input.action !== 'fetch' && input.action !== 'rollback' && !head.branch) throw new GitWorkspaceError('Pull and push require an attached branch.');
         if (input.action === 'pull') {
           const files = await this.status(ctx.cwd, ctx.trees);
           if (files.length) throw new GitWorkspaceError('Commit or stash your working changes before pulling.', 409);
@@ -335,9 +335,12 @@ export class GitWorkspaceService {
           // Explicit destination prevents push.default/mirror/followTags configuration
           // from publishing other branches or tags through this current-branch action.
           await this.git(ctx.cwd, ['-c', `remote.${remote}.mirror=false`, 'push', '--no-force', '--no-mirror', '--no-follow-tags', '--recurse-submodules=no', '--', remote, `HEAD:${remoteRef}`], true);
+        } else if (input.action === 'rollback') {
+          await this.git(ctx.cwd, ['reset', '--hard', 'HEAD'], true);
+          await this.git(ctx.cwd, ['clean', '-fd', '-e', '.conduit-worktrees'], true);
         } else await this.git(ctx.cwd, input.action === 'fetch' ? ['fetch', '--no-recurse-submodules'] : ['pull', '--ff-only', '--no-rebase', '--no-recurse-submodules'], true);
       }
-      return { ok: true, message: input.action === 'create-branch' ? 'Branch created. The current checkout is unchanged.' : input.action === 'add-worktree' ? 'Worktree created inside .conduit-worktrees.' : `Git ${input.action} completed.` };
+      return { ok: true, message: input.action === 'create-branch' ? 'Branch created. The current checkout is unchanged.' : input.action === 'add-worktree' ? 'Worktree created inside .conduit-worktrees.' : input.action === 'rollback' ? 'Working directory changes have been rolled back to HEAD.' : `Git ${input.action} completed.` };
     } finally { ++this.generation; this.cache.clear(); this.inFlight.clear(); this.mutating = false; }
   }
 }

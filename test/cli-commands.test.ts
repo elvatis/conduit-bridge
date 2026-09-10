@@ -208,6 +208,18 @@ describe('CLI scriptable subcommands', () => {
       expect(await handleRunsCommand(cfg(), ['retry', 'run-test-1'], {}, ret.out)).toBe(0);
       expect(ret.logs[0]).toBe('Run run-test-1 retried.');
       expect(calls.some(c => c.method === 'POST' && c.body.action === 'retry')).toBe(true);
+
+      const roll = makeOutput();
+      expect(await handleRunsCommand(cfg(), ['rollback', 'run-test-1'], {}, roll.out)).toBe(0);
+      expect(roll.logs[0]).toBe('Run run-test-1 changes rolled back.');
+      expect(calls.some(c => c.method === 'POST' && c.body.action === 'rollback')).toBe(true);
+    });
+
+    it('passes rollbackOnFailure flag on conduit-bridge run', async () => {
+      const { out } = makeOutput();
+      const code = await handleRunCommand(cfg(), 'Analyze repo', { 'rollback-on-failure': 'true' }, out);
+      expect(code).toBe(0);
+      expect(calls.some(c => c.method === 'POST' && c.path === '/v1/platform/runs' && c.body.rollbackOnFailure === true)).toBe(true);
     });
   });
 

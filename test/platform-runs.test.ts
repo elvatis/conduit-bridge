@@ -134,6 +134,53 @@ describe('bounded durable agent runs', () => {
     // Active run cannot be continued
     await expect(service.action(run.id, 'continue', 'operator-1', '')).rejects.toThrow('Follow-up instruction is required');
   });
+
+  it('rolls back workspace changes on operator action and automatically when rollbackOnFailure is true', async () => {
+    let rollbackCalls = 0;
+    let lastRolledBackRun: string | undefined;
+    const { service } = await setup({
+      execute: async () => 'some result',
+      rollback: async r => {
+        rollbackCalls++;
+        lastRolledBackRun = r.id;
+      },
+    });
+
+    const run = await service.create({ prompt: 'Task with working dir', model: 'lmstudio/test', workingDirectory: 'C:\\fake\\workspace', maxIterations: 1 });
+    await terminal(service, run.id);
+
+    // Rollback action by operator
+    await service.action(run.id, 'rollback', 'operator-1');
+    expect(rollbackCalls).toBe(1);
+    expect(lastRolledBackRun).toBe(run.id);
+    expect(service.get(run.id)?.stopReason).toBe('Rolled back by operator');
+
+    // Rollback requires a workingDirectory
+    const noDirRun = await service.create({ prompt: 'No cwd', model: 'lmstudio/test', maxIterations: 1 });
+    await terminal(service, noDirRun.id);
+    await expect(service.action(noDirRun.id, 'rollback', 'operator-1')).rejects.toThrow('working directory');
+
+    // Automatic rollback on failure
+    const failingService = (await setup({
+      execute: async () => { throw new Error('Simulated failure'); },
+      rollback: async r => {
+        rollbackCalls++;
+        lastRolledBackRun = r.id;
+      },
+    })).service;
+
+    const autoRollbackRun = await failingService.create({
+      prompt: 'Failing run with rollback',
+      model: 'lmstudio/test',
+      workingDirectory: 'C:\\fake\\workspace',
+      rollbackOnFailure: true,
+      maxIterations: 1,
+    });
+    const failedDone = await terminal(failingService, autoRollbackRun.id);
+    expect(failedDone.status).toBe('failed');
+    expect(rollbackCalls).toBe(2);
+    expect(lastRolledBackRun).toBe(autoRollbackRun.id);
+  });
 });
 
 it('isolates profile concurrency/cooldown and protects revision updates', async () => {
