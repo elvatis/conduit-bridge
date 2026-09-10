@@ -37,6 +37,7 @@ export interface PlatformRunInput {
   ownerId?: string;
   /** Fingerprint of the credential that authorized queuing, supplied by the HTTP layer. */
   authorizationVersion?: string;
+  followUpPrompt?: string;
 }
 export interface PlatformRunIteration {
   iteration: number;
@@ -81,6 +82,7 @@ export interface PlatformRun {
   tokensConsumed: number;
   approval?: { operator: string; decision: 'approved' | 'rejected'; time: number; feedback?: string };
   retryOf?: string;
+  followUps?: Array<{ prompt: string; operator: string; timestamp: number }>;
 }
 export class PlatformRunError extends Error {
   constructor(message: string, readonly status = 400, readonly code = 'invalid_request') { super(message); }
@@ -214,6 +216,20 @@ export class PlatformRunService {
       if (run.input.mode === 'agent') throw new PlatformRunError('Agent runs may have side effects. Inspect the workspace and explicitly create a new run.', 409, 'side_effect_review_required');
       const next = await this.create({ ...run.input, idempotencyKey: undefined }); next.retryOf = id; await this.save(next); return next;
     }
+    if (action === 'continue') {
+      if (['queued', 'running', 'waiting_approval'].includes(run.status)) throw new PlatformRunError('An active run cannot be continued', 409);
+      if (!feedback || !feedback.trim()) throw new PlatformRunError('Follow-up instruction is required to continue', 400);
+      const followUp = redactSecrets(feedback.trim().slice(0, 50000));
+      run.followUps ??= [];
+      run.followUps.push({ prompt: followUp, operator, timestamp: this.now() });
+      run.input.followUpPrompt = followUp;
+      run.maxIterations = Math.max(run.maxIterations, run.steps.length + 1);
+      run.status = run.input.requiresApproval ? 'waiting_approval' : 'queued';
+      run.stopReason = undefined;
+      run.completedAt = undefined;
+      run.error = undefined;
+      await this.save(run); this.schedule(); return run;
+    }
     throw new PlatformRunError('Unknown run action');
   }
   private schedule(delay = 0): void {
@@ -246,15 +262,24 @@ export class PlatformRunService {
       timer = setTimeout(() => controller.abort(new Error('Run deadline exceeded')), run.input.maxDurationMs); timer.unref();
       const fingerprints = new Set<string>();
       let prior = '';
-      for (let iteration = 1; iteration <= run.maxIterations; iteration++) {
+      for (const step of run.steps) {
+        if (step.status === 'completed' && step.content) {
+          prior = step.content;
+          if (step.contentHash) fingerprints.add(step.contentHash);
+        }
+      }
+      const startIteration = run.steps.length + 1;
+      for (let iteration = startIteration; iteration <= run.maxIterations; iteration++) {
         controller.signal.throwIfAborted();
+        const followUp = run.input.followUpPrompt;
+        const userPrompt = followUp ? `Original prompt: ${run.prompt}\n\nFollow-up: ${followUp}` : run.prompt;
         const messages: ChatRequest['messages'] = [
           { role: 'system', content: [run.input.instructions || 'Complete the requested task and provide concise, verifiable evidence.',
             `This run has at most ${run.maxIterations} iterations. Do not claim tools or tests ran unless they actually did.`,
             run.input.successPattern ? `Only include the success marker "${run.input.successPattern}" when the stated task is complete.` : '',
           ].filter(Boolean).join('\n') },
-          { role: 'user', content: run.prompt },
-          ...(prior ? [{ role: 'assistant' as const, content: prior }, { role: 'user' as const, content: 'Review the previous result against the original task. Repair remaining issues and report fresh evidence. Do not repeat unchanged work.' }] : []),
+          { role: 'user', content: userPrompt },
+          ...(prior ? [{ role: 'assistant' as const, content: prior }, { role: 'user' as const, content: followUp ? `Follow-up instructions: ${followUp}` : 'Review the previous result against the original task. Repair remaining issues and report fresh evidence. Do not repeat unchanged work.' }] : []),
         ];
         const inputTokens = estimateTokens(messages.map(m => m.content).join('\n'));
         const maxOutput = Math.min(run.input.maxOutputTokens!, run.input.maxTokens! - run.tokensConsumed - inputTokens);
@@ -280,6 +305,7 @@ export class PlatformRunService {
         run.costUsd = measured?.costUsd ?? run.costUsd + estimateCost(run.model, inputTokens, estimateTokens(content), run.input.fastMode);
         const digest = createHash('sha256').update(content.trim()).digest('hex');
         const artifact: PlatformArtifact = { id: `artifact-${randomUUID()}`, runId: run.id, name: `iteration-${iteration}.md`, mediaType: 'text/markdown', content, sizeBytes: Buffer.byteLength(content), sha256: digest, createdAt: this.now() };
+        step.events = this.liveEvidence.get(run.id)?.get(iteration) ?? step.events ?? [];
         Object.assign(step, { status: 'completed', content, completedAt: this.now(), contentHash: digest, artifactId: artifact.id });
         const { content: _privateContent, ...metadata } = artifact; run.artifacts.push(metadata);
         await this.save(run, [artifact]);
@@ -293,10 +319,13 @@ export class PlatformRunService {
       run.status = controller.signal.aborted ? 'cancelled' : 'failed';
       run.error = redactSecrets(error instanceof Error ? error.message : String(error)).slice(0, 2000);
       run.completedAt = this.now();
-      const step = run.steps.at(-1); if (step?.status === 'running') { step.status = 'failed'; step.error = run.error; step.completedAt = this.now(); }
+      const step = run.steps.at(-1); if (step?.status === 'running') {
+        step.events = this.liveEvidence.get(run.id)?.get(step.iteration) ?? step.events ?? [];
+        step.status = 'failed'; step.error = run.error; step.completedAt = this.now();
+      }
       const spend = this.runtime.spend?.(run.id); if (spend) { run.costUsd = spend.costUsd; run.tokensConsumed = spend.tokens; }
       await this.save(run);
-    } finally { this.liveEvidence.delete(run.id); if (timer) clearTimeout(timer); this.runtime.finish?.(run); }
+    } finally { delete run.input.followUpPrompt; this.liveEvidence.delete(run.id); if (timer) clearTimeout(timer); this.runtime.finish?.(run); }
   }
   async stop(): Promise<void> {
     this.stopped = true; if (this.timer) clearTimeout(this.timer);

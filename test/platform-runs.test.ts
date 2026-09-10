@@ -100,6 +100,40 @@ describe('bounded durable agent runs', () => {
     const recovered = new PlatformRunService(store, { execute: async () => { throw new Error('must not replay'); } }); services.push(recovered); await recovered.start();
     expect(recovered.get('run-crash')?.status).toBe('interrupted');
   });
+
+  it('continues a completed run with follow-up instructions on the same run id', async () => {
+    let calls = 0;
+    const receivedPrompts: string[] = [];
+    const { service } = await setup({
+      execute: async request => {
+        calls++;
+        const lastUser = request.messages.filter(m => m.role === 'user').pop()?.content || '';
+        receivedPrompts.push(lastUser);
+        return calls === 1 ? 'First iteration result' : 'Second iteration result';
+      },
+    });
+
+    const run = await service.create({ prompt: 'Implement database schema', model: 'lmstudio/test', maxIterations: 1 });
+    const firstDone = await terminal(service, run.id);
+    expect(firstDone.status).toBe('completed');
+    expect(firstDone.steps).toHaveLength(1);
+    expect(firstDone.steps[0].content).toBe('First iteration result');
+    expect(calls).toBe(1);
+
+    // Continuing with follow-up
+    await service.action(run.id, 'continue', 'operator-1', 'Now add migration script');
+    const secondDone = await terminal(service, run.id);
+    expect(secondDone.id).toBe(run.id);
+    expect(secondDone.status).toBe('completed');
+    expect(secondDone.steps).toHaveLength(2);
+    expect(secondDone.steps[1].content).toBe('Second iteration result');
+    expect(calls).toBe(2);
+    expect(receivedPrompts[1]).toContain('Now add migration script');
+    expect(secondDone.followUps).toEqual([expect.objectContaining({ prompt: 'Now add migration script', operator: 'operator-1' })]);
+
+    // Active run cannot be continued
+    await expect(service.action(run.id, 'continue', 'operator-1', '')).rejects.toThrow('Follow-up instruction is required');
+  });
 });
 
 it('isolates profile concurrency/cooldown and protects revision updates', async () => {

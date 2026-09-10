@@ -46,6 +46,15 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('/models')).toEqual({ type: 'models' });
     expect(parseChatCommand('/model')).toEqual({ type: 'models' });
     expect(parseChatCommand('/model cli-codex/gpt-5.6-sol')).toEqual({ type: 'model', id: 'cli-codex/gpt-5.6-sol' });
+    expect(parseChatCommand('/run build the project')).toEqual({ type: 'run', prompt: 'build the project' });
+    expect(parseChatCommand('/continue continue with tests')).toEqual({ type: 'continue', prompt: 'continue with tests' });
+    expect(parseChatCommand('/continue run-101 add more tests')).toEqual({ type: 'continue', runId: 'run-101', prompt: 'add more tests' });
+    expect(parseChatCommand('/approve')).toEqual({ type: 'approve', runId: undefined });
+    expect(parseChatCommand('/approve run-101')).toEqual({ type: 'approve', runId: 'run-101' });
+    expect(parseChatCommand('/cancel')).toEqual({ type: 'cancel', runId: undefined });
+    expect(parseChatCommand('/cancel run-101')).toEqual({ type: 'cancel', runId: 'run-101' });
+    expect(parseChatCommand('/workspaces')).toEqual({ type: 'workspaces' });
+    expect(parseChatCommand('/status')).toEqual({ type: 'status' });
     expect(parseChatCommand('/stop')).toEqual({ type: 'stop' });
     expect(parseChatCommand('hello there')).toEqual({ type: 'prompt', text: 'hello there' });
     expect(parseChatCommand('   ')).toEqual({ type: 'empty' });
@@ -214,5 +223,112 @@ describe('runInteractiveChat', () => {
     });
     expect(sends).toBe(0);
     expect(frames.join('')).toMatch(/unknown model/i);
+  });
+
+  it('handles /run, /approve, and /continue commands', async () => {
+    const createdRuns: Array<{ prompt: string; model?: string; mode?: string }> = [];
+    const runActions: Array<{ id: string; action: string; feedback?: string }> = [];
+    const toType = (str: string) => [...str].map(c => ({ type: 'char' as const, value: c }));
+
+    const keys = [
+      ...toType('/run test the build'),
+      { type: 'enter' as const },
+      ...toType('/approve'),
+      { type: 'enter' as const },
+      ...toType('/continue keep improving'),
+      { type: 'enter' as const },
+      { type: 'ctrl' as const, key: 'q' },
+    ];
+
+    await runInteractiveChat({
+      client: {
+        listModels: async () => [{ id: 'cli-codex/first' }],
+        createSession: async model => ({ id: 'session-1', model }),
+        listSessions: async () => [],
+        getSession: async id => ({ id, title: 'CLI chat', model: 'cli-codex/first', messages: [] }),
+        listRuns: async () => [{ id: 'run-42', status: 'waiting_approval', prompt: 'test the build' }],
+        getRun: async id => ({
+          id, status: 'waiting_approval', model: 'cli-codex/first', prompt: 'test the build',
+          createdAt: Date.now(), costUsd: 0, tokensConsumed: 10, steps: [],
+        }),
+        createRun: async (prompt, model, mode) => {
+          createdRuns.push({ prompt, model, mode });
+          return { id: 'run-42' };
+        },
+        runAction: async (id, action, feedback) => {
+          runActions.push({ id, action, feedback });
+        },
+        listWorkspaces: async () => [{ id: 'ws-1', name: 'default', path: '/repo', isDefault: true }],
+        gitSnapshot: async () => ({ detected: false, branch: '', files: 0, name: '' }),
+        status: async () => ({ version: '0.10.0', providers: [] }),
+        send: async () => 'ok',
+        cancel: async () => {},
+      },
+      terminal: {
+        columns: 80, rows: 24, color: true,
+        write: () => {},
+        readKey: async () => keys.shift() ?? null,
+      },
+    });
+
+    expect(createdRuns).toEqual([{ prompt: 'test the build', model: 'cli-codex/first', mode: 'agent' }]);
+    expect(runActions).toEqual([
+      { id: 'run-42', action: 'approve', feedback: undefined },
+      { id: 'run-42', action: 'continue', feedback: 'keep improving' },
+    ]);
+  });
+
+  it('supports runs view navigation and keyboard shortcuts [Enter, A, C, X]', async () => {
+    const runActions: Array<{ id: string; action: string; feedback?: string }> = [];
+    const inspected: string[] = [];
+
+    const keys = [
+      { type: 'ctrl' as const, key: 'r' }, // open runs view
+      { type: 'char' as const, value: 'a' }, // approve
+      { type: 'enter' as const }, // view run detail
+      { type: 'char' as const, value: 'c' }, // continue from detail
+      { type: 'escape' as const }, // back to runs view
+      { type: 'char' as const, value: 'x' }, // cancel run
+      { type: 'ctrl' as const, key: 'q' }, // quit
+    ];
+
+    await runInteractiveChat({
+      client: {
+        listModels: async () => [{ id: 'cli-codex/first' }],
+        createSession: async model => ({ id: 'session-1', model }),
+        listSessions: async () => [],
+        getSession: async id => ({ id, title: 'CLI chat', model: 'cli-codex/first', messages: [] }),
+        listRuns: async () => [{ id: 'run-99', status: 'waiting_approval', prompt: 'deploy service' }],
+        getRun: async id => {
+          inspected.push(id);
+          return {
+            id, status: 'waiting_approval', model: 'cli-codex/first', prompt: 'deploy service',
+            createdAt: Date.now(), costUsd: 0.05, tokensConsumed: 500,
+            steps: [{ iteration: 1, status: 'completed', content: 'Checked env' }],
+          };
+        },
+        createRun: async () => ({ id: 'run-99' }),
+        runAction: async (id, action, feedback) => {
+          runActions.push({ id, action, feedback });
+        },
+        listWorkspaces: async () => [{ id: 'ws-1', name: 'default', path: '/repo' }],
+        gitSnapshot: async () => ({ detected: false, branch: '', files: 0, name: '' }),
+        status: async () => ({ version: '0.10.0', providers: [] }),
+        send: async () => 'ok',
+        cancel: async () => {},
+      },
+      terminal: {
+        columns: 80, rows: 24, color: true,
+        write: () => {},
+        readKey: async () => keys.shift() ?? null,
+      },
+    });
+
+    expect(inspected).toEqual(['run-99', 'run-99']);
+    expect(runActions).toEqual([
+      { id: 'run-99', action: 'approve', feedback: undefined },
+      { id: 'run-99', action: 'continue', feedback: 'Continue execution' },
+      { id: 'run-99', action: 'cancel', feedback: undefined },
+    ]);
   });
 });

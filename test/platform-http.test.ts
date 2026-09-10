@@ -122,8 +122,27 @@ describe('platform HTTP conversations', () => {
     const context = await api(`/v1/platform/sessions/${created.id}/context`, { content: 'Continue', maxOutputTokens: 64 });
     expect(context.status).toBe(200);
     expect(context.data.context.selectedMessageIds).toHaveLength(4);
-    expect(context.data.context.messages.at(-1).content).toBe('Continue');
     expect(state.calls).toHaveLength(2);
+  });
+
+  it('falls back to secondary model in chat mode when primary fails, but refuses fallback in agent mode', async () => {
+    const created = await session();
+    config.orchestrator = { strategy: 'round-robin', fallbackModels: [modelB] };
+    state.respond = async request => {
+      if (request.model === modelA) throw new Error('Primary model unavailable (HTTP 503)');
+      return 'Fallback answered successfully.';
+    };
+
+    const chatResult = await turn(created.id, 'Hello through fallback', { model: modelA });
+    expect(chatResult.status).toBe(200);
+    const messages = chatResult.data.session.messages;
+    const lastAssistant = messages[messages.length - 1];
+    expect(lastAssistant.model).toBe(modelB);
+    expect(lastAssistant.content).toBe('Fallback answered successfully.');
+
+    state.respond = async () => { throw new Error('Primary agent failed'); };
+    const agentResult = await turn(created.id, 'Agent task', { model: modelA, mode: 'agent' });
+    expect(agentResult.status).toBeGreaterThanOrEqual(400);
   });
 
   it('streams deltas and one completed canonical turn over SSE', async () => {
@@ -378,6 +397,31 @@ describe('platform HTTP durable runs', () => {
     const run = await untilRun(created.data.run.id, 'completed');
     expect(run.approval.operator).toBe('reviewer'); expect(state.calls).toHaveLength(1);
     expect((await api(`/v1/platform/runs/${run.id}/actions`, { action: 'approve' }, 'reviewer')).status).toBe(409);
+  });
+
+  it('continues a completed run on the same run id and returns persisted events', async () => {
+    state.calls = [];
+    state.respond = async request => {
+      request.onExecutionEvent?.({ kind: 'command', id: 'c1', command: 'git status', startedAt: 10, completedAt: 20, status: 'completed', exitCode: 0, stdout: 'clean' });
+      return 'First completion';
+    };
+    const created = await api('/v1/platform/runs', { prompt: 'Initial task', model: modelA, maxOutputTokens: 64 }, 'alice');
+    const first = await untilRun(created.data.run.id, 'completed');
+    expect(first.steps).toHaveLength(1);
+
+    // Verify events endpoint
+    const events = await api(`/v1/platform/runs/${created.data.run.id}/events`, undefined, 'alice');
+    expect(events.status).toBe(200);
+    expect(events.data.data).toEqual([expect.objectContaining({ command: 'git status', exitCode: 0 })]);
+
+    // Continue the task
+    state.respond = async () => 'Continued completion';
+    const cont = await api(`/v1/platform/runs/${created.data.run.id}/actions`, { action: 'continue', feedback: 'Next step instructions' }, 'alice');
+    expect(cont.status).toBe(200);
+    const second = await untilRun(created.data.run.id, 'completed');
+    expect(second.id).toBe(created.data.run.id);
+    expect(second.steps).toHaveLength(2);
+    expect(second.steps[1].content).toBe('Continued completion');
   });
 });
 

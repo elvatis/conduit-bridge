@@ -182,6 +182,15 @@ describe('explicit Git workspace actions in isolated fixtures', () => {
     await writeFile(join(root, 'app.ts'), 'dirty\n');
     await expect(service.action({ action: 'pull' })).rejects.toThrow('working changes');
   });
+
+  it('exposes isMutating status during explicit actions', async () => {
+    const { service } = await fixture();
+    expect(service.isMutating()).toBe(false);
+    const actionPromise = service.action({ action: 'fetch' });
+    expect(service.isMutating()).toBe(true);
+    await actionPromise;
+    expect(service.isMutating()).toBe(false);
+  });
 });
 
 describe('Git graph and embedded UI', () => {

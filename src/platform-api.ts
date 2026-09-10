@@ -27,7 +27,9 @@ export interface PlatformExecutionContext {
   repository?: string;
   workspaceId?: string;
   operator: PlatformOperatorContext;
+  fallbackModels?: string[];
   onDelta?: (delta: string) => void;
+  onFallbackModelUsed?: (fallbackModel: string) => void;
 }
 export interface PlatformApiDependencies {
   cfg(): BridgeConfig;
@@ -385,7 +387,24 @@ export class PlatformApi {
             const stream = body.stream === true;
             const send = (event: unknown) => { if (!res.destroyed) res.write(`data: ${JSON.stringify(event)}\n\n`); };
             if (stream) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
-            const result = await this.content.runTurn(id, input, (request, _context, captureDelta) => { if (stream) send({ type: 'saved', requestId: request.requestId }); return this.execute(request, { operator, sessionId: id, workspaceId: session.workspaceId, profile: input.profileId ? this.requireProfile(input.profileId) : undefined, onDelta: delta => { captureDelta(delta); if (stream) send({ type: 'delta', delta }); } }); });
+            let resolvedModel = input.model;
+            let resolvedProvider = input.provider;
+            const result = await this.content.runTurn(id, input, async (request, _context, captureDelta) => {
+              if (stream) send({ type: 'saved', requestId: request.requestId });
+              const content = await this.execute(request, {
+                operator,
+                sessionId: id,
+                workspaceId: session.workspaceId,
+                profile: input.profileId ? this.requireProfile(input.profileId) : undefined,
+                fallbackModels: (session as any).fallbackModels ?? this.deps.cfg().orchestrator?.fallbackModels,
+                onFallbackModelUsed: fb => {
+                  resolvedModel = fb;
+                  resolvedProvider = this.deps.providerForModel(fb) || input.provider;
+                },
+                onDelta: delta => { captureDelta(delta); if (stream) send({ type: 'delta', delta }); },
+              });
+              return { content, model: resolvedModel, provider: resolvedProvider };
+            });
             if (stream) { send({ type: 'done', ...result }); res.end(); } else response(res, 200, result);
           } finally { res.off('close', abort); if (this.sessionControllers.get(id) === controller) this.sessionControllers.delete(id); release(); }
         } else throw new PlatformContentError('Unknown session operation', 404);
@@ -468,9 +487,10 @@ export class PlatformApi {
         }
         const capability = action === 'actions' && ['approve', 'reject'].includes(body.action) ? 'review' : method === 'GET' ? 'view' : 'operate';
         const run = this.authorizeRun(operator, this.runs.get(id), capability);
-        if (method === 'GET') response(res, 200, { run: publicRun(run) });
+        if (method === 'GET' && action === 'events') response(res, 200, { data: run.steps.flatMap(s => s.events || []) });
+        else if (method === 'GET' && !action) response(res, 200, { run: publicRun(run) });
         else if (method === 'POST' && action === 'actions') response(res, 200, { run: publicRun(await this.runs.action(id, body.action, operator.operatorId, body.feedback)) });
-        else if (method === 'DELETE') { await this.runs.delete(id); response(res, 200, { deleted: true }); }
+        else if (method === 'DELETE' && !action) { await this.runs.delete(id); response(res, 200, { deleted: true }); }
         else throw new PlatformContentError('Unknown run operation', 404);
         return true;
       }

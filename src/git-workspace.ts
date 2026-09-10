@@ -287,6 +287,8 @@ export class GitWorkspaceService {
     return result;
   }
 
+  isMutating(): boolean { return this.mutating; }
+
   /** Called only after the host authorizes an explicit user action. Never runs automatically. */
   async action(input: { action: GitWorkspaceAction; worktree?: string; name?: string }): Promise<{ ok: true; message: string }> {
     if (this.mutating) throw new GitWorkspaceError('Another Git operation is running. Try again when it completes.', 409);

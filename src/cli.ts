@@ -117,6 +117,46 @@ switch (cmd) {
     break;
   }
 
+  case 'run': {
+    const { handleRunCommand } = await import('./cli-commands.js');
+    const prompt = args.slice(1).filter(a => !a.startsWith('--')).join(' ');
+    const code = await handleRunCommand(cfg, prompt, flags);
+    process.exit(code);
+    break;
+  }
+
+  case 'runs': {
+    const { handleRunsCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleRunsCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
+
+  case 'sessions': {
+    const { handleSessionsCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleSessionsCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
+
+  case 'workspaces': {
+    const { handleWorkspacesCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleWorkspacesCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
+
+  case 'models': {
+    const { handleModelsCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleModelsCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
+
   default:
     console.log(`conduit-bridge v${CLI_VERSION}
 
@@ -126,6 +166,16 @@ Usage:
   conduit-bridge chat | tui  [--model=<id>] [--port=31338] [--host=127.0.0.1]
                        Full-screen terminal workspace: chat, sessions, models,
                        runs and git. Ctrl+K opens the command palette.
+  conduit-bridge run "<prompt>" [--mode=chat|plan|agent] [--model=<id>] [--workspace=<id>] [--json]
+                       Execute an agent or plan run directly from terminal
+  conduit-bridge runs [list | get <id> | approve <id> | cancel <id> | continue <id> [feedback] | retry <id>]
+                       Inspect, approve, continue, or cancel execution runs
+  conduit-bridge sessions [list | get <id> | delete <id>]
+                       Manage conversational sessions and transcripts
+  conduit-bridge workspaces [list]
+                       List registered workspaces
+  conduit-bridge models [list]
+                       List available models
   conduit-bridge status
   conduit-bridge config [key] [value]
 

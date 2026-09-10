@@ -225,6 +225,55 @@ export interface ProviderCapability {
   streaming: 'token' | 'turn' | 'none';
   nativeResume: boolean;
   local: boolean;
+  tools?: string[];
+  executionEvents?: Array<'command' | 'message' | 'plan' | 'file'>;
+  interactiveApproval?: boolean;
+  steering?: boolean;
+}
+
+export interface ModelDescriptor extends ModelDefinition {
+  capabilities: ProviderCapability;
+  cost?: { estimator: 'bridge-estimate-v2'; local: boolean };
+  auth?: 'api-key' | 'cli' | 'local' | 'none';
+  local?: { runtime: 'lmstudio' | 'bitnet'; installed?: boolean; loaded?: boolean };
+}
+
+export interface RuntimeSession {
+  id: string;
+  sessionId?: string;
+  adapter: ProviderName;
+  modelId: string;
+  nativeSessionId?: string;
+  cwd?: string;
+  mode: 'chat' | 'plan' | 'agent';
+  startedAt: number;
+  lastActiveAt?: number;
+}
+
+export interface SessionState {
+  id: string;
+  revision: number;
+  workspaceId: string;
+  messages: Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    provider: string;
+    model: string;
+    createdAt: number;
+    nativeSessionId?: string;
+    status?: 'pending' | 'complete' | 'failed' | 'interrupted';
+  }>;
+  summary?: { content: string; throughMessageId: string; updatedAt: number };
+  memories?: string[];
+  skills?: Array<{ id: string; version: number }>;
+  agentId?: string;
+  profileId?: string;
+  taskId?: string;
+  runtime?: RuntimeSession;
+  permission: { mode: string; disallowedTools?: string };
+  fallbackModels?: string[];
+  swapHistory?: Array<{ fromModel?: string; toModel: string; timestamp: number; reason?: string }>;
 }
 
 // ── Provider interface — each provider implements this ───────────────────────

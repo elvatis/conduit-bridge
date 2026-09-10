@@ -7,7 +7,7 @@ import { bearerAuthorization } from './config.js';
 import type { BridgeConfig } from './types.js';
 import { logger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
-import { applyTuiKey, decodeKey, renderTui, type TuiKey, type TuiMessage, type TuiState } from './tui-render.js';
+import { applyTuiKey, decodeKey, renderTui, type TuiKey, type TuiMessage, type TuiRunDetail, type TuiRunRow, type TuiState, type TuiWorkspaceRow } from './tui-render.js';
 
 export type ChatCommand =
   | { type: 'help' }
@@ -16,6 +16,12 @@ export type ChatCommand =
   | { type: 'models' }
   | { type: 'model'; id: string }
   | { type: 'stop' }
+  | { type: 'run'; prompt: string }
+  | { type: 'continue'; prompt: string; runId?: string }
+  | { type: 'approve'; runId?: string }
+  | { type: 'cancel'; runId?: string }
+  | { type: 'workspaces' }
+  | { type: 'status' }
   | { type: 'prompt'; text: string }
   | { type: 'empty' }
   | { type: 'unknown'; text: string };
@@ -28,8 +34,12 @@ export interface ChatTurnClient {
   createSession(model: string): Promise<ChatSession>;
   listSessions(): Promise<ChatSessionRow[]>;
   getSession(id: string): Promise<ChatSession & { messages: TuiMessage[] }>;
-  listRuns(): Promise<Array<{ id: string; status: string; model?: string; prompt: string }>>;
-  gitSnapshot(): Promise<{ detected: boolean; branch: string; files: number; name: string }>;
+  listRuns(): Promise<TuiRunRow[]>;
+  getRun(id: string): Promise<TuiRunDetail>;
+  runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string): Promise<void>;
+  createRun(prompt: string, model?: string, mode?: 'chat' | 'plan' | 'agent', workspaceId?: string): Promise<{ id: string }>;
+  listWorkspaces(): Promise<TuiWorkspaceRow[]>;
+  gitSnapshot(workspaceId?: string): Promise<{ detected: boolean; branch: string; files: number; name: string }>;
   status(): Promise<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>;
   send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void): Promise<string>;
   cancel(sessionId: string): Promise<void>;
@@ -56,6 +66,18 @@ export function parseChatCommand(raw: string): ChatCommand {
   if (name === 'stop') return { type: 'stop' };
   if (name === 'models') return { type: 'models' };
   if (name === 'model') return arg ? { type: 'model', id: arg } : { type: 'models' };
+  if (name === 'run') return arg ? { type: 'run', prompt: arg } : { type: 'help' };
+  if (name === 'continue') {
+    const parts = arg.split(/\s+/);
+    if (parts[0]?.startsWith('run-')) {
+      return { type: 'continue', runId: parts[0], prompt: parts.slice(1).join(' ') };
+    }
+    return { type: 'continue', prompt: arg };
+  }
+  if (name === 'approve') return { type: 'approve', runId: arg || undefined };
+  if (name === 'cancel') return { type: 'cancel', runId: arg || undefined };
+  if (name === 'workspaces') return { type: 'workspaces' };
+  if (name === 'status') return { type: 'status' };
   return { type: 'unknown', text };
 }
 
@@ -139,16 +161,70 @@ export function createHttpChatClient(baseUrl: string, headers: Record<string, st
       return { id: body.session.id, title: body.session.title, model: body.session.model || '', messages: (body.session.messages || []).map(message => ({ role: message.role, content: message.content, model: message.model, status: message.status })) };
     },
     async listRuns() {
-      const body = await requestJson<{ data?: Array<{ id: string; status: string; input?: { prompt?: string; model?: string }; model?: string }> }>(new URL(`${root}/v1/platform/runs`), { headers });
-      return (body.data || []).map(run => ({ id: run.id, status: run.status, model: run.input?.model || run.model, prompt: run.input?.prompt || '' }));
+      const body = await requestJson<{ data?: Array<{ id: string; status: string; input?: { prompt?: string; model?: string }; model?: string; steps?: unknown[]; costUsd?: number; tokensConsumed?: number; error?: string }> }>(new URL(`${root}/v1/platform/runs`), { headers });
+      return (body.data || []).map(run => ({
+        id: run.id,
+        status: run.status,
+        model: run.input?.model || run.model,
+        prompt: run.input?.prompt || '',
+        stepsCount: run.steps?.length,
+        costUsd: run.costUsd,
+        tokensConsumed: run.tokensConsumed,
+        error: run.error,
+      }));
     },
-    async gitSnapshot() {
+    async getRun(id: string) {
+      const body = await requestJson<{ run: any }>(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}`), { headers });
+      const r = body.run;
+      return {
+        id: r.id,
+        status: r.status,
+        model: r.input?.model || r.model || '',
+        prompt: r.input?.prompt || '',
+        createdAt: r.createdAt || Date.now(),
+        costUsd: r.costUsd || 0,
+        tokensConsumed: r.tokensConsumed || 0,
+        error: r.error,
+        steps: (r.steps || []).map((s: any) => ({
+          iteration: s.iteration,
+          status: s.status,
+          content: s.content,
+          error: s.error,
+          events: s.events,
+        })),
+        artifacts: r.artifacts,
+      };
+    },
+    async runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string) {
+      await requestJson(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}/actions`), {
+        method: 'POST',
+        headers,
+        body: { action, feedback, operator: 'cli' },
+      });
+    },
+    async createRun(prompt: string, model?: string, mode: 'chat' | 'plan' | 'agent' = 'agent', workspaceId?: string) {
+      const body = await requestJson<{ run: { id: string } }>(new URL(`${root}/v1/platform/runs`), {
+        method: 'POST',
+        headers,
+        body: { prompt, model, mode, workspaceId },
+      });
+      return { id: body.run.id };
+    },
+    async listWorkspaces() {
+      const body = await requestJson<{ data?: Array<{ id: string; name: string; path: string; isDefault?: boolean }> }>(new URL(`${root}/v1/platform/workspaces`), { headers });
+      return (body.data || []).map(w => ({ id: w.id, name: w.name || w.id, path: w.path || '', isDefault: w.isDefault }));
+    },
+    async gitSnapshot(workspaceId?: string) {
       try {
-        const spaces = await requestJson<{ data?: Array<{ id: string; name?: string; isDefault?: boolean }> }>(new URL(`${root}/v1/platform/workspaces`), { headers });
-        const workspace = spaces.data?.find(item => item.isDefault) || spaces.data?.[0];
-        if (!workspace) return { detected: false, branch: '', files: 0, name: '' };
-        const snap = await requestJson<{ detected?: boolean; branch?: string; name?: string; files?: unknown[] }>(new URL(`${root}/api/git-workspace/snapshot?workspaceId=${encodeURIComponent(workspace.id)}`), { headers });
-        return { detected: Boolean(snap.detected), branch: snap.branch || '', files: Array.isArray(snap.files) ? snap.files.length : 0, name: snap.name || workspace.name || '' };
+        let spaceId = workspaceId;
+        if (!spaceId) {
+          const spaces = await requestJson<{ data?: Array<{ id: string; name?: string; isDefault?: boolean }> }>(new URL(`${root}/v1/platform/workspaces`), { headers });
+          const workspace = spaces.data?.find(item => item.isDefault) || spaces.data?.[0];
+          spaceId = workspace?.id;
+        }
+        if (!spaceId) return { detected: false, branch: '', files: 0, name: '' };
+        const snap = await requestJson<{ detected?: boolean; branch?: string; name?: string; files?: unknown[] }>(new URL(`${root}/api/git-workspace/snapshot?workspaceId=${encodeURIComponent(spaceId)}`), { headers });
+        return { detected: Boolean(snap.detected), branch: snap.branch || '', files: Array.isArray(snap.files) ? snap.files.length : 0, name: snap.name || spaceId };
       } catch {
         return { detected: false, branch: '', files: 0, name: '' };
       }
@@ -213,12 +289,14 @@ function paint(terminal: TuiTerminal, state: TuiState): void {
 }
 
 async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<TuiState> {
-  const [sessions, runs, git] = await Promise.all([
-    client.listSessions().catch(() => state.sessions),
-    client.listRuns().catch(() => state.runs),
-    client.gitSnapshot().catch(() => state.git),
+  const [sessions, runs, workspaces, git] = await Promise.all([
+    client.listSessions ? client.listSessions().catch(() => state.sessions) : Promise.resolve(state.sessions),
+    client.listRuns ? client.listRuns().catch(() => state.runs) : Promise.resolve(state.runs),
+    client.listWorkspaces ? client.listWorkspaces().catch(() => state.workspaces) : Promise.resolve(state.workspaces),
+    client.gitSnapshot ? client.gitSnapshot(state.activeWorkspaceId).catch(() => state.git) : Promise.resolve(state.git),
   ]);
-  return { ...state, sessions, runs, git };
+  const activeWorkspaceId = state.activeWorkspaceId || workspaces?.find(w => w.isDefault)?.id || workspaces?.[0]?.id;
+  return { ...state, sessions: sessions || state.sessions, runs: runs || state.runs, workspaces: workspaces || state.workspaces, git: git || state.git, activeWorkspaceId };
 }
 
 export async function runInteractiveChat(options: { client: ChatTurnClient; model?: string; terminal: TuiTerminal }): Promise<void> {
@@ -232,6 +310,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
   let state: TuiState = {
     view: 'chat', overlay: 'none', model, sessionId: created.id, sessionTitle: created.title || 'CLI chat',
     messages: [], input: '', cursor: 0, filter: '', selected: 0, models, sessions: [], runs: [],
+    workspaces: [], runSelectedIndex: 0,
     git: { detected: false, branch: '', files: 0, name: '' }, host: '', notice: 'Ready', busy: false, streaming: '',
     width: terminal.columns, height: terminal.rows,
   };
@@ -287,6 +366,68 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         messages: opened.messages, view: 'chat', notice: `Resumed ${opened.title || opened.id}`,
       };
     }
+    if (next.action === 'view-run' && next.payload) {
+      try {
+        const detail = await client.getRun(next.payload);
+        state = { ...state, selectedRunDetail: detail, view: 'run-detail', notice: `Run ${detail.id}` };
+      } catch (err) {
+        state = { ...state, notice: `Failed to load run: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    if (next.action === 'approve-run' && next.payload) {
+      try {
+        await client.runAction(next.payload, 'approve');
+        state = { ...state, notice: `Approved run ${next.payload}` };
+        state = await refreshExtras(client, state);
+        if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
+          state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
+        }
+      } catch (err) {
+        state = { ...state, notice: `Approval failed: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    if (next.action === 'cancel-run' && next.payload) {
+      try {
+        await client.runAction(next.payload, 'cancel');
+        state = { ...state, notice: `Cancelled run ${next.payload}` };
+        state = await refreshExtras(client, state);
+        if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
+          state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
+        }
+      } catch (err) {
+        state = { ...state, notice: `Cancel failed: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    if (next.action === 'retry-run' && next.payload) {
+      try {
+        await client.runAction(next.payload, 'retry');
+        state = { ...state, notice: `Retried run ${next.payload}` };
+        state = await refreshExtras(client, state);
+        if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
+          state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
+        }
+      } catch (err) {
+        state = { ...state, notice: `Retry failed: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    if (next.action === 'continue-run' && next.payload) {
+      try {
+        await client.runAction(next.payload, 'continue', 'Continue execution');
+        state = { ...state, notice: `Continued run ${next.payload}` };
+        state = await refreshExtras(client, state);
+        if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
+          state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
+        }
+      } catch (err) {
+        state = { ...state, notice: `Continue failed: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    if (next.action === 'select-workspace' && next.payload) {
+      state.activeWorkspaceId = next.payload;
+      try {
+        state.git = await client.gitSnapshot(next.payload);
+      } catch { /* ignore */ }
+    }
     if (next.action === 'send') {
       const raw = next.payload ?? previous;
       const command = parseChatCommand(raw);
@@ -296,6 +437,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         const session = await client.createSession(state.model);
         state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation' };
       } else if (command.type === 'models') state = { ...state, overlay: 'models', filter: '', selected: 0 };
+      else if (command.type === 'workspaces') state = { ...state, overlay: 'workspaces', filter: '', selected: 0 };
       else if (command.type === 'stop') {
         inFlight?.abort();
         await client.cancel(state.sessionId).catch(() => {});
@@ -303,6 +445,82 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       } else if (command.type === 'model') {
         if (!state.models.some(item => item.id === command.id)) state = { ...state, notice: `Unknown model ${command.id}` };
         else state = { ...state, model: command.id, notice: `Next reply uses ${command.id}` };
+      } else if (command.type === 'status') {
+        try {
+          const st = await client.status();
+          const provs = st.providers.map(p => `${p.connected ? '✓' : '✗'} ${p.name}`).join('  ');
+          state = {
+            ...state,
+            notice: `conduit-bridge v${st.version || '0.10.0'}`,
+            messages: [...state.messages, { role: 'user', content: '/status' }, { role: 'assistant', content: `conduit-bridge v${st.version || '0.10.0'}\nProviders: ${provs || 'None'}` }],
+          };
+        } catch (err) {
+          state = { ...state, notice: `Status failed: ${err instanceof Error ? err.message : String(err)}` };
+        }
+      } else if (command.type === 'run') {
+        try {
+          const created = await client.createRun(command.prompt, state.model, 'agent', state.activeWorkspaceId);
+          state = {
+            ...state,
+            notice: `Started run ${created.id}`,
+            messages: [...state.messages, { role: 'user', content: `/run ${command.prompt}` }, { role: 'assistant', content: `Created run ${created.id}. Press Ctrl+R to inspect runs.` }],
+          };
+          state = await refreshExtras(client, state);
+        } catch (err) {
+          state = { ...state, notice: `Failed to create run: ${err instanceof Error ? err.message : String(err)}` };
+        }
+      } else if (command.type === 'continue') {
+        const targetId = command.runId || state.selectedRunDetail?.id || state.runs[state.runSelectedIndex]?.id || state.runs[0]?.id;
+        if (!targetId) {
+          state = { ...state, notice: 'No run selected to continue' };
+        } else {
+          try {
+            await client.runAction(targetId, 'continue', command.prompt || 'Continue execution');
+            state = {
+              ...state,
+              notice: `Continued run ${targetId}`,
+              messages: [...state.messages, { role: 'user', content: `/continue ${command.prompt || ''}`.trim() }, { role: 'assistant', content: `Resumed execution for ${targetId}.` }],
+            };
+            state = await refreshExtras(client, state);
+            if (state.selectedRunDetail?.id === targetId) {
+              state.selectedRunDetail = await client.getRun(targetId).catch(() => state.selectedRunDetail);
+            }
+          } catch (err) {
+            state = { ...state, notice: `Continue failed: ${err instanceof Error ? err.message : String(err)}` };
+          }
+        }
+      } else if (command.type === 'approve') {
+        const targetId = command.runId || state.runs.find(r => r.status === 'waiting_approval')?.id || state.selectedRunDetail?.id || state.runs[state.runSelectedIndex]?.id;
+        if (!targetId) {
+          state = { ...state, notice: 'No run awaiting approval' };
+        } else {
+          try {
+            await client.runAction(targetId, 'approve');
+            state = { ...state, notice: `Approved run ${targetId}` };
+            state = await refreshExtras(client, state);
+            if (state.selectedRunDetail?.id === targetId) {
+              state.selectedRunDetail = await client.getRun(targetId).catch(() => state.selectedRunDetail);
+            }
+          } catch (err) {
+            state = { ...state, notice: `Approve failed: ${err instanceof Error ? err.message : String(err)}` };
+          }
+        }
+      } else if (command.type === 'cancel') {
+        const targetId = command.runId || state.runs.find(r => r.status === 'running')?.id || state.selectedRunDetail?.id || state.runs[state.runSelectedIndex]?.id;
+        if (!targetId) {
+          state = { ...state, notice: 'No active run to cancel' };
+        } else {
+          try {
+            await client.runAction(targetId, 'cancel');
+            state = { ...state, notice: `Cancelled run ${targetId}` };
+            state = await refreshExtras(client, state);
+            if (state.selectedRunDetail?.id === targetId) {
+              state.selectedRunDetail = await client.getRun(targetId).catch(() => state.selectedRunDetail);
+            }
+          } catch (err) {
+            state = { ...state, notice: `Cancel failed: ${err instanceof Error ? err.message : String(err)}` };
+          }
+        }
       } else if (command.type === 'unknown') state = { ...state, notice: `Unknown command ${command.text}` };
       else if (command.type === 'prompt') void sendPrompt(command.text);
     }

@@ -1008,31 +1008,97 @@ ${EXECUTION_TREE_HTML}
     ${REPOSITORY_ANALYTICS_HTML}
     ${INSIGHTS_HTML}
 
-    <!-- Overview Section -->
+    <!-- Overview Section / Home Cockpit -->
     <div id="overview-section" class="page-section">
-      <header id="overview" class="anchor">
+      <header id="overview" class="anchor" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
         <div>
-          <h1 data-i18n="h_overview">Operational Dashboard</h1>
+          <h1 style="margin: 0 0 6px;" data-i18n="h_overview">Home Cockpit</h1>
           <div class="muted" id="version" data-i18n="ui_loading">Loading...</div>
         </div>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" id="btn-cockpit-new-task" class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="action-label">New Task</span></button>
+          <button type="button" id="btn-cockpit-chat" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
+            <span>Open Chat</span>
+          </button>
+        </div>
       </header>
+
+      <!-- Attention Required Banner -->
+      <div id="cockpit-attention" style="display: none; background: rgba(245,184,61,0.12); border: 1px solid rgba(245,184,61,0.45); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="color: var(--warn); font-size: 1.2rem;">⚠️</span>
+          <div>
+            <strong style="color: var(--text);" id="cockpit-attention-title">Action Required</strong>
+            <div class="muted" style="font-size: 0.8571rem;" id="cockpit-attention-msg">Execution runs are waiting for approval.</div>
+          </div>
+        </div>
+        <button type="button" id="btn-cockpit-review" class="primary" style="background: var(--copper); color: #1B0E03; font-weight: 600;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label">Review in Execution Workspace</span></button>
+      </div>
+
+      <!-- KPI Summary Cards -->
       <div class="summary" aria-label="Runtime summary" data-i18n-aria="ui_runtime_summary">
         <div class="summary-item"><strong id="summary-connected">-</strong><span data-i18n="ui_connected_providers">Connected providers</span></div>
         <div class="summary-item"><strong id="summary-models">-</strong><span data-i18n="ui_registered_models">Registered models</span></div>
-        <div class="summary-item"><strong id="summary-requests">-</strong><span data-i18n="ui_requests_handled">Requests handled</span></div>
-        <div class="summary-item"><strong id="summary-active">-</strong><span data-i18n="ui_active_requests">Active requests</span></div>
+        <div class="summary-item"><strong id="summary-active-runs">-</strong><span>Active Runs & Tasks</span></div>
+        <div class="summary-item"><strong id="summary-workspaces">-</strong><span>Workspaces</span></div>
       </div>
+
+      <!-- Active & Recent Runs -->
+      <section style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin: 0; font-size: 1.1429rem;">Execution Workspace Overview</h2>
+          <button type="button" id="btn-cockpit-view-all-runs" style="background: none; border: 0; color: var(--blue); cursor: pointer; font-size: 0.8571rem; padding: 0;">Open Execution Workspace →</button>
+        </div>
+        <div id="cockpit-runs-container">
+          <div class="muted" style="padding: 12px 0;">Loading recent runs...</div>
+        </div>
+      </section>
+
+      <!-- Workspaces & Repositories Status -->
+      <section style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin: 0; font-size: 1.1429rem;">Workspaces & Repository Status</h2>
+          <button type="button" id="btn-cockpit-view-git" style="background: none; border: 0; color: var(--blue); cursor: pointer; font-size: 0.8571rem; padding: 0;">Open Git Workspace →</button>
+        </div>
+        <div id="cockpit-workspace-container">
+          <div class="muted" style="padding: 12px 0;">Loading workspace status...</div>
+        </div>
+      </section>
+
+      <!-- Provider & Runtime Connectivity Architecture -->
       <div class="grid">
-        <article class="transport"><strong>api-*</strong><h3 data-i18n="ui_direct_apis">Direct APIs</h3><p data-i18n="ui_direct_apis_description">Requests use provider SDK or REST endpoints. Independent API keys managed via protected Bridge settings.</p></article>
-        <article class="transport"><strong>cli-*</strong><h3 data-i18n="ui_local_clis">Local coding CLIs</h3><p data-i18n="ui_local_clis_description">Requests route to Claude Code, OpenAI Codex, Antigravity Gemini, or Grok CLI with account isolation.</p></article>
-        <article class="transport"><strong>lmstudio/*</strong><h3 data-i18n="ui_local_models">Local models</h3><p data-i18n="ui_local_models_description">Requests route to an OpenAI-compatible LM Studio server on localhost without cloud dependencies.</p></article>
+        <article class="transport">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong>api-*</strong>
+            <span id="badge-api-count" class="setting-badge ok">Connected</span>
+          </div>
+          <h3 data-i18n="ui_direct_apis">Direct APIs</h3>
+          <p data-i18n="ui_direct_apis_description">Requests use provider SDK or REST endpoints. Independent API keys managed via protected Bridge settings.</p>
+        </article>
+        <article class="transport">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong>cli-*</strong>
+            <span id="badge-cli-count" class="setting-badge ok">Connected</span>
+          </div>
+          <h3 data-i18n="ui_local_clis">Local coding CLIs</h3>
+          <p data-i18n="ui_local_clis_description">Requests route to Claude Code, OpenAI Codex, Antigravity Gemini, or Grok CLI with account isolation.</p>
+        </article>
+        <article class="transport">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong>lmstudio/*</strong>
+            <span id="badge-local-count" class="setting-badge muted">Local</span>
+          </div>
+          <h3 data-i18n="ui_local_models">Local models</h3>
+          <p data-i18n="ui_local_models_description">Requests route to an OpenAI-compatible LM Studio server on localhost without cloud dependencies.</p>
+        </article>
       </div>
     </div>
 
-    <!-- Playground Section -->
+    <!-- Playground Section (API Proxy Console) -->
     <section id="playground-section" class="playground page-section">
-      <h2 data-i18n="h_playground">Local Playground</h2>
-      <p class="muted" data-i18n="ui_playground_description">Send interactive test requests through the OpenAI-compatible proxy interface.</p>
+      <h2 data-i18n="h_playground">API Proxy Console (/v1/chat)</h2>
+      <p class="muted" data-i18n="ui_playground_description">Interactive debug console for testing the OpenAI-compatible HTTP proxy interface (<code>/v1/chat/completions</code>).</p>
       <label><span data-i18n="lbl_model">Model</span><select id="play-model"></select></label>
       <label><span data-i18n="lbl_mode">Mode</span>
         <select id="play-mode">
@@ -1847,6 +1913,101 @@ ${GETTING_STARTED_HTML}
     renderProviderGroup(items, 'api-key', 'api-provider-list');
     renderProviderGroup(items, 'cli', 'cli-provider-list');
     renderProviderGroup(items, 'local', 'local-provider-list');
+  }
+
+  function renderOverviewCockpit(status, wsData, platformRunsData, modelData) {
+    const runs = platformRunsData?.data || [];
+    const workspaces = wsData?.data || [];
+    const waitingRuns = runs.filter(r => r.status === 'waiting_approval');
+    const runningRuns = runs.filter(r => r.status === 'running');
+
+    // Attention banner
+    const attentionEl = $('cockpit-attention');
+    if (attentionEl) {
+      if (waitingRuns.length > 0) {
+        attentionEl.style.display = 'flex';
+        attentionEl.style.background = 'rgba(245,184,61,0.12)';
+        attentionEl.style.borderColor = 'rgba(245,184,61,0.45)';
+        if ($('cockpit-attention-title')) $('cockpit-attention-title').textContent = waitingRuns.length + ' Run(s) Awaiting Operator Approval';
+        if ($('cockpit-attention-msg')) $('cockpit-attention-msg').textContent = 'Actions require confirmation before tools or filesystem changes can proceed.';
+      } else if (runningRuns.length > 0) {
+        attentionEl.style.display = 'flex';
+        attentionEl.style.background = 'rgba(34,180,255,0.08)';
+        attentionEl.style.borderColor = 'rgba(34,180,255,0.3)';
+        if ($('cockpit-attention-title')) $('cockpit-attention-title').textContent = runningRuns.length + ' Task(s) Actively Executing';
+        if ($('cockpit-attention-msg')) $('cockpit-attention-msg').textContent = 'Agents are actively running in the background.';
+      } else {
+        attentionEl.style.display = 'none';
+      }
+    }
+
+    // KPIs
+    if ($('summary-active-runs')) {
+      $('summary-active-runs').textContent = (runningRuns.length + waitingRuns.length) + ' / ' + runs.length;
+    }
+    if ($('summary-workspaces')) {
+      $('summary-workspaces').textContent = String(workspaces.length);
+    }
+
+    // Runs table
+    const runsContainer = $('cockpit-runs-container');
+    if (runsContainer) {
+      if (!runs.length) {
+        runsContainer.innerHTML = '<div class="muted" style="padding: 14px 0;">No recent execution runs. Start one in the Execution Workspace.</div>';
+      } else {
+        const statusBadge = s => {
+          const cls = s === 'completed' ? 'ok' : s === 'running' ? 'info' : s === 'waiting_approval' ? 'warn' : 'bad';
+          return '<span class="setting-badge ' + cls + '">' + esc(s.toUpperCase()) + '</span>';
+        };
+        runsContainer.innerHTML = '<table class="data-table"><thead><tr>' +
+          '<th>Run ID</th><th>Status</th><th>Model</th><th>Prompt</th><th>Tokens / Cost</th><th>Action</th>' +
+          '</tr></thead><tbody>' +
+          runs.slice(0, 5).map(r =>
+            '<tr>' +
+              '<td><code>' + esc((r.id || '').slice(0, 12)) + '</code></td>' +
+              '<td>' + statusBadge(r.status || 'unknown') + '</td>' +
+              '<td><code>' + esc(r.input?.model || r.model || '-') + '</code></td>' +
+              '<td style="max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + esc(r.input?.prompt || r.prompt || '-') + '</td>' +
+              '<td><span class="muted">' + (r.tokensConsumed ? r.tokensConsumed + ' tok ($' + (r.costUsd || 0).toFixed(4) + ')' : '-') + '</span></td>' +
+              '<td><button type="button" class="btn-jump-run" data-run-id="' + esc(r.id) + '" style="padding: 3px 8px; font-size: 0.8rem;">Open</button></td>' +
+            '</tr>'
+          ).join('') +
+          '</tbody></table>';
+      }
+    }
+
+    // Workspaces container
+    const wsContainer = $('cockpit-workspace-container');
+    if (wsContainer) {
+      if (!workspaces.length) {
+        wsContainer.innerHTML = '<div class="muted" style="padding: 14px 0;">No registered workspaces.</div>';
+      } else {
+        wsContainer.innerHTML = '<table class="data-table"><thead><tr>' +
+          '<th>Name</th><th>Path</th><th>Default</th><th>Permissions</th>' +
+          '</tr></thead><tbody>' +
+          workspaces.map(w =>
+            '<tr>' +
+              '<td><strong>' + esc(w.name || w.id) + '</strong></td>' +
+              '<td style="font-family: monospace; font-size: 0.8571rem;">' + esc(w.path) + '</td>' +
+              '<td>' + (w.isDefault ? '<span class="setting-badge ok">Default</span>' : '<span class="muted">-</span>') + '</td>' +
+              '<td><span class="setting-badge ' + (w.isWritable || w.writable ? 'ok' : 'warn') + '">' + (w.isWritable || w.writable ? 'Read / Write' : 'Read Only') + '</span></td>' +
+            '</tr>'
+          ).join('') +
+          '</tbody></table>';
+      }
+    }
+
+    // Provider Badges
+    const provs = status?.providers || [];
+    const apiCount = provs.filter(p => p.name.startsWith('api-') && p.connected).length;
+    const cliCount = provs.filter(p => p.name.startsWith('cli-') && p.connected).length;
+    const localCount = provs.filter(p => (p.name.startsWith('lmstudio') || p.name.startsWith('bitnet')) && p.connected).length;
+    if ($('badge-api-count')) $('badge-api-count').textContent = apiCount + ' active';
+    if ($('badge-cli-count')) $('badge-cli-count').textContent = cliCount + ' active';
+    if ($('badge-local-count')) {
+      $('badge-local-count').textContent = localCount ? localCount + ' active' : 'offline';
+      $('badge-local-count').className = 'setting-badge ' + (localCount ? 'ok' : 'muted');
+    }
   }
 
   function renderModels(items) {
@@ -3083,6 +3244,12 @@ ${GETTING_STARTED_HTML}
           setLocalizedText($('summary-requests'), () => rows.reduce((sum, model) => sum + model.requests, 0));
           setLocalizedText($('summary-active'), () => rows.reduce((sum, model) => sum + model.inFlight, 0));
         }));
+        jobs.push(Promise.all([
+          request('/v1/status'),
+          request('/v1/workspaces').catch(() => ({ data: [] })),
+          request('/v1/platform/runs').catch(() => ({ data: [] })),
+          request('/v1/models').catch(() => ({ data: [] })),
+        ]).then(([st, ws, pr, md]) => renderOverviewCockpit(st, ws, pr, md)));
       }
       if (activeSection === 'activity') jobs.push(request('/v1/activity').then(renderActivity));
       if (activeSection === 'budgets') jobs.push(request('/v1/budgets').then(renderBudgets));
@@ -3113,7 +3280,7 @@ ${GETTING_STARTED_HTML}
       const [
         status, modelData, capabilityData, metricData, settings, activity,
         orchestrator, agentPolicyData, toolsData, pipelinesData, runsData,
-        reposData, budgetData, wsData, auditData, analyticsData
+        reposData, budgetData, wsData, auditData, analyticsData, platformRunsData
       ] = await Promise.all([
         request('/v1/status'),
         request('/v1/models'),
@@ -3131,6 +3298,7 @@ ${GETTING_STARTED_HTML}
         request('/v1/workspaces').catch(() => ({ data: [] })),
         request('/v1/governance/audit').catch(() => ({ data: [] })),
         request('/v1/analytics/overview').catch(() => ({})),
+        request('/v1/platform/runs').catch(() => ({ data: [] })),
       ]);
 
       capabilities = capabilityData.effort || {};
@@ -3144,6 +3312,7 @@ ${GETTING_STARTED_HTML}
       setLocalizedText($('summary-requests'), () => metricRows.reduce((n, m) => n + m.requests, 0));
       setLocalizedText($('summary-active'), () => metricRows.reduce((n, m) => n + m.inFlight, 0));
 
+      renderOverviewCockpit(status, wsData, platformRunsData, modelData);
       renderProviders(status.providers);
       renderModels(modelData.data || []);
       renderMetrics(metricData);
@@ -3170,6 +3339,21 @@ ${GETTING_STARTED_HTML}
       setNotice(() => error.message, 'error');
     } finally { finishRefresh(); }
   }
+
+  $('btn-cockpit-new-task')?.addEventListener('click', () => {
+    showSection('execution');
+    $('ex-new-task')?.click();
+  });
+  $('btn-cockpit-chat')?.addEventListener('click', () => showSection('platform'));
+  $('btn-cockpit-review')?.addEventListener('click', () => showSection('execution'));
+  $('btn-cockpit-view-all-runs')?.addEventListener('click', () => showSection('execution'));
+  $('btn-cockpit-view-git')?.addEventListener('click', () => showSection('git-workspace'));
+  document.addEventListener('click', event => {
+    const jump = event.target.closest('[data-run-id]');
+    if (jump && jump.classList.contains('btn-jump-run')) {
+      showSection('execution');
+    }
+  });
 
   $('model-list').addEventListener('click', event => {
     const use = event.target.closest('[data-use-model]');

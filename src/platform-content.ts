@@ -426,7 +426,9 @@ export class PlatformContentService {
         const result = await abortable(execute({ provider: input.provider, model: input.model, profileId: input.profileId, sessionId: id, requestId, messages: context.messages, max_tokens: context.maxOutputTokens, effort: input.effort, fastMode: input.fastMode, mode: input.mode || 'chat', cwd: input.cwd, signal }, context, delta => { partial = (partial + delta).slice(0, MAX_MESSAGE_CHARS); }), signal);
         signal.throwIfAborted();
         const content = text(typeof result === 'string' ? result : result.content, 'provider response', MAX_MESSAGE_CHARS);
-        assistantMessage = { ...userMessage, id: `message-${randomUUID()}`, role: 'assistant', status: 'complete', content, createdAt: this.now(), nativeSessionId: typeof result === 'string' || result.nativeSessionId === undefined ? undefined : text(result.nativeSessionId, 'nativeSessionId', 300) };
+        const resolvedModel = typeof result === 'object' && (result as any).model ? (result as any).model : userMessage.model;
+        const resolvedProvider = typeof result === 'object' && (result as any).provider ? (result as any).provider : userMessage.provider;
+        assistantMessage = { ...userMessage, id: `message-${randomUUID()}`, role: 'assistant', status: 'complete', content, model: resolvedModel, provider: resolvedProvider, createdAt: this.now(), nativeSessionId: typeof result === 'string' || result.nativeSessionId === undefined ? undefined : text(result.nativeSessionId, 'nativeSessionId', 300) };
         userMessage.status = 'complete';
         session = { ...pending, revision: pending.revision + 1, updatedAt: this.now(), messages: [...previous.messages, userMessage, assistantMessage] };
         await this.persist(session, pending);

@@ -64,7 +64,18 @@ export class RepositoryApi {
       this.deps.authorize(actor, workspace.id, write);
       const key = workspace.id + '\0' + workspace.path;
       let service = this.git.get(key);
-      if (!service) { service = new GitWorkspaceService(workspace.path); if (this.git.size >= 16) this.git.delete(this.git.keys().next().value!); this.git.set(key, service); }
+      if (!service) {
+        service = new GitWorkspaceService(workspace.path);
+        if (this.git.size >= 16) {
+          for (const [k, s] of this.git.entries()) {
+            if (!s.isMutating()) {
+              this.git.delete(k);
+              break;
+            }
+          }
+        }
+        this.git.set(key, service);
+      }
       const worktree = text('worktree', 20);
       if (worktree && !/^[a-f0-9]{20}$/.test(worktree)) throw new GitWorkspaceError('Invalid worktree identifier.');
       if (write) {

@@ -8,7 +8,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest } from './types.js';
+import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest, ProviderAdapter } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
@@ -593,36 +593,72 @@ export class BridgeServer {
     if (mode === 'agent' && workspace.requiresApproval) throw new PlatformContentError('This repository requires governed pipeline execution. Use its assigned pipeline and required gates.', 403);
     const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile?.id ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }), fastMode: parseFastMode(original.fastMode) ?? context.profile?.defaultFastMode };
     const cwdError = agentModeCwdError(mode, request.cwd); if (cwdError) throw new PlatformContentError(cwdError, 400);
-    if (!await provider.checkSession()) throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
     const runId = context.runId || `chat-${randomUUID()}`;
-    let execution: ReturnType<typeof openExecution> | undefined;
-    let output = '';
-    const started = Date.now();
+    const executeAttempt = async (targetModel: string, targetProvider: ProviderAdapter): Promise<string> => {
+      let execution: ReturnType<typeof openExecution> | undefined;
+      let out = '';
+      const started = Date.now();
+      const targetReq = { ...request, model: targetModel };
+      try {
+        execution = openExecution(targetProvider, targetReq, { budgetManager: this._budgetManager, metrics: this._metrics, runId });
+        if (context.onDelta) {
+          const iterator = targetProvider.chatStream(execution.request);
+          try {
+            for (;;) {
+              const chunk = await abortable(iterator.next(), execution.request.signal) as IteratorResult<string>;
+              if (chunk.done) break;
+              if (out.length + chunk.value.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+              out += chunk.value; context.onDelta(chunk.value);
+            }
+          } finally { if (execution.request.signal?.aborted) void iterator.return(undefined).catch(() => {}); }
+        } else {
+          out = await abortable(targetProvider.chat(execution.request), execution.request.signal);
+          if (out.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+        }
+        execution.finish(out);
+        this._activity.add('success', 'platform', 'Model request completed', { runId, provider: targetProvider.name, model: targetModel, durationMs: Date.now() - started, status: 'completed' });
+        return out;
+      } catch (error) {
+        execution?.finish(out, error);
+        this._activity.add('error', 'platform', 'Model request failed', { runId, provider: targetProvider.name, model: targetModel, durationMs: Date.now() - started, status: 'failed' });
+        throw error;
+      } finally {
+        execution?.dispose();
+      }
+    };
+
     try {
       this._budgetManager.beginRun(runId, { maxCostUsd: repository?.overrides?.maxCostPerRunUsd });
-      execution = openExecution(provider, request, { budgetManager: this._budgetManager, metrics: this._metrics, runId });
-      if (context.onDelta) {
-        const iterator = provider.chatStream(execution.request);
+      let primaryConnected = false;
+      try { primaryConnected = await provider.checkSession(); } catch { primaryConnected = false; }
+      if (primaryConnected) {
         try {
-          for (;;) {
-            const chunk = await abortable(iterator.next(), execution.request.signal);
-            if (chunk.done) break;
-            if (output.length + chunk.value.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
-            output += chunk.value; context.onDelta(chunk.value);
-          }
-        } finally { if (execution.request.signal?.aborted) void iterator.return(undefined).catch(() => {}); }
-      } else {
-        output = await abortable(provider.chat(execution.request), execution.request.signal);
-        if (output.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+          return await executeAttempt(original.model, provider);
+        } catch (error) {
+          if (mode === 'agent' || !context.fallbackModels?.length) throw error;
+        }
+      } else if (mode === 'agent' || !context.fallbackModels?.length) {
+        throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
       }
-      execution.finish(output);
-      this._activity.add('success', 'platform', 'Model request completed', { runId, provider: provider.name, model: original.model, durationMs: Date.now() - started, status: 'completed' });
-      return output;
-    } catch (error) {
-      execution?.finish(output, error);
-      this._activity.add('error', 'platform', 'Model request failed', { runId, provider: provider.name, model: original.model, durationMs: Date.now() - started, status: 'failed' });
-      throw error;
-    } finally { execution?.dispose(); if (!context.runId) this._budgetManager.finishRun(runId); }
+
+      if (mode === 'chat' && context.fallbackModels?.length) {
+        for (const candidate of context.fallbackModels) {
+          if (candidate === original.model) continue;
+          const candidateProvider = registry.providerForModel(candidate);
+          if (!candidateProvider) continue;
+          let candidateConnected = false;
+          try { candidateConnected = await candidateProvider.checkSession(); } catch { candidateConnected = false; }
+          if (!candidateConnected) continue;
+          context.onFallbackModelUsed?.(candidate);
+          this._activity.add('info', 'platform', `Chat request fell back from ${original.model} to ${candidate}`, { runId, model: candidate, provider: candidateProvider.name });
+          return await executeAttempt(candidate, candidateProvider);
+        }
+      }
+
+      throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
+    } finally {
+      if (!context.runId) this._budgetManager.finishRun(runId);
+    }
   }
 
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {

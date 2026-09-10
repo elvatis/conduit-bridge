@@ -13,5 +13,9 @@ export function capabilitiesFor(provider: ProviderName, modelId: string): Provid
     streaming: cli ? 'turn' : 'token',
     nativeResume: cli,
     local,
+    tools: cli ? ['bash', 'edit', 'glob', 'grep'] : [],
+    executionEvents: cli ? ['command', 'message', 'plan'] : ['message'],
+    interactiveApproval: cli,
+    steering: false,
   };
 }
