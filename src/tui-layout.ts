@@ -1,4 +1,5 @@
 import { sanitizeCellText } from './tui-sanitize.js';
+import { codePointWidth, stringWidth } from './tui-width.js';
 
 const SGR_RE = /^\x1b\[([0-9;]*)m/;
 
@@ -19,7 +20,12 @@ export function stripAnsi(value: string): string {
 }
 
 export function visibleWidth(value: string): number {
-  return stripAnsi(value).length;
+  // Columns, not UTF-16 code units. The two disagree on East Asian glyphs and
+  // emoji (two columns, one unit), on combining marks (no column, one unit) and
+  // on astral code points (one glyph, two units). Measured against the old
+  // definition, a CJK sentence reported 19 for 38 real columns, and padVisible
+  // then padded a line that was already overfull.
+  return stringWidth(stripAnsi(value));
 }
 
 export function layoutProfile(width: number, height: number): LayoutProfile {
@@ -59,6 +65,8 @@ export function tooSmallOverlay(cols: number, rows: number): string[] {
 interface Cell {
   ch: string;
   open: string;
+  /** Second column of a wide glyph. Emits nothing; holds the column open. */
+  continuation?: boolean;
 }
 
 function applySgr(open: string, codes: string): string {
@@ -84,8 +92,24 @@ function cellsFrom(rawValue: string): Cell[] {
       i += match[0].length;
       continue;
     }
-    cells.push({ ch: value[i], open });
-    i += 1;
+    // One cell is one COLUMN, matching tokenizeLine. Every consumer here
+    // (wrapAnsi, middleTruncate, fitLine) measures with cells.length, so a
+    // two-column glyph held in one cell made all of them under-count and let
+    // lines run past the panel border.
+    const point = String.fromCodePoint(value.codePointAt(i) as number);
+    const cols = codePointWidth(point.codePointAt(0) as number);
+    i += point.length;
+
+    if (cols === 0) {
+      // Combining marks ride along with the glyph they modify.
+      if (cells.length) cells[cells.length - 1].ch += point;
+      continue;
+    }
+
+    cells.push({ ch: point, open });
+    // The continuation holds the second column and emits nothing, so slicing a
+    // run of cells stays a slice of columns.
+    if (cols === 2) cells.push({ ch: '', open, continuation: true });
   }
   return cells;
 }
@@ -95,6 +119,8 @@ function cellsToString(cells: Cell[]): string {
   let out = '';
   let style = '';
   for (const cell of cells) {
+    // The preceding cell already drew both columns of this glyph.
+    if (cell.continuation) continue;
     if (cell.open !== style) {
       out += `\x1b[0m${cell.open}`;
       style = cell.open;

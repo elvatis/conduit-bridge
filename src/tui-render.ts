@@ -9,6 +9,7 @@ import {
   wrapAnsi,
 } from './tui-layout.js';
 import { sanitizeCellText } from './tui-sanitize.js';
+import { codePointWidth } from './tui-width.js';
 export { stripAnsi, visibleWidth as visible, wrapAnsi, middleTruncate, layoutProfile, tooSmallMessage } from './tui-layout.js';
 
 export type TuiView = 'chat' | 'runs' | 'run-detail' | 'workspaces' | 'insights' | 'git' | 'help';
@@ -295,7 +296,7 @@ export interface TuiTerminalWriter {
  * Completely eliminates cursor flicker and screen tearing by diffing
  * the virtual screen buffer and updating only modified lines in place.
  */
-type Cell = { ch: string; style: string };
+type Cell = { ch: string; style: string; continuation?: boolean };
 
 function tokenizeLine(rawLine: string, width: number): Cell[] {
   // Non-SGR escapes and control bytes are removed here, before anything can
@@ -316,8 +317,37 @@ function tokenizeLine(rawLine: string, width: number): Cell[] {
         continue;
       }
     }
-    cells.push({ ch: line[i], style });
-    i += 1;
+
+    // One CELL is one COLUMN. Holding a two-column glyph in a single cell was
+    // what made the cell index stop being a column, so the diff addressed
+    // `\x1b[row;col+1H` at the wrong place and the cursor landed mid-glyph.
+    const point = String.fromCodePoint(line.codePointAt(i) as number);
+    const cols = codePointWidth(point.codePointAt(0) as number);
+    i += point.length;
+
+    if (cols === 0) {
+      // A combining mark belongs to the glyph before it and takes no column of
+      // its own. Appending it keeps the pair in one cell so the diff replaces
+      // them together; a base with an accent is one visual unit.
+      if (cells.length) cells[cells.length - 1].ch += point;
+      continue;
+    }
+
+    if (cols === 2) {
+      // Never split a wide glyph across the right edge: half of it would be
+      // drawn and the terminal would wrap the other half onto the next row.
+      if (cells.length + 2 > width) {
+        cells.push({ ch: ' ', style });
+        break;
+      }
+      cells.push({ ch: point, style });
+      // The continuation carries no output. It exists so the array index stays
+      // equal to the physical column, and cellsToAnsi skips it.
+      cells.push({ ch: '', style, continuation: true });
+      continue;
+    }
+
+    cells.push({ ch: point, style });
   }
   while (cells.length < width) cells.push({ ch: ' ', style: '' });
   return cells;
@@ -327,6 +357,10 @@ function cellsToAnsi(cells: Cell[]): string {
   let out = '';
   let style = '';
   for (const cell of cells) {
+    // A continuation cell is the second column of a wide glyph. The glyph
+    // was already emitted by the cell before it, so writing anything here
+    // would push the rest of the line one column to the right.
+    if (cell.continuation) continue;
     if (cell.style !== style) {
       out += `\x1b[0m${cell.style}`;
       style = cell.style;
