@@ -4,7 +4,7 @@ import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { join } from 'node:path';
 import { bearerAuthorization } from './config.js';
-import type { BridgeConfig } from './types.js';
+import type { BridgeConfig, ExecutionEvent } from './types.js';
 import { logger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
 import { cliEntryPath, ensureBridgeListener, spawnBridgeDaemon } from './bridge-listener.js';
@@ -65,7 +65,7 @@ export interface ChatTurnClient {
   gitSnapshot(workspaceId?: string): Promise<{ detected: boolean; branch: string; files: number; name: string }>;
   listInsights?(): Promise<TuiInsightRow[]>;
   status(): Promise<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>;
-  send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void): Promise<string>;
+  send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void, onEvent?: (event: ExecutionEvent) => void): Promise<string>;
   cancel(sessionId: string): Promise<void>;
 }
 
@@ -112,8 +112,9 @@ export function preferredChatModel(models: ChatModelRow[]): string | undefined {
   return [...models].sort((a, b) => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id))[0]?.id;
 }
 
-export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assistantMessage?: { content?: string } }; rest: string } {
+export function parseSseChunk(chunk: string): { deltas: string[]; events: ExecutionEvent[]; done?: { assistantMessage?: { content?: string } }; rest: string } {
   const deltas: string[] = [];
+  const events: ExecutionEvent[] = [];
   let done: { assistantMessage?: { content?: string } } | undefined;
   const parts = chunk.split('\n\n');
   const rest = parts.pop() ?? '';
@@ -136,7 +137,14 @@ export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assis
         delta?: string;
         assistantMessage?: { content?: string };
         choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+        executionEvent?: ExecutionEvent;
+        event?: ExecutionEvent;
       };
+
+      const ev = event.executionEvent || (event.type === 'execution_event' ? event.event : undefined);
+      if (ev && typeof ev === 'object' && typeof ev.kind === 'string') {
+        events.push(ev);
+      }
 
       // Two wire formats reach this parser and both must work. The platform
       // session endpoint sends {type:'delta', delta}; the chat endpoint at
@@ -160,7 +168,7 @@ export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assis
       }
     } catch { /* ignore a truncated or non-JSON frame */ }
   }
-  return { deltas, done, rest };
+  return { deltas, events, done, rest };
 }
 
 /** A short, human-readable form of whatever a rejected request threw. */
@@ -377,7 +385,7 @@ export function createHttpChatClient(
         }
       }
     },
-    send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void) {
+    send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void, onEvent?: (event: ExecutionEvent) => void) {
       return new Promise((resolve, reject) => {
         const payload = JSON.stringify({
           sessionId,
@@ -416,6 +424,9 @@ export function createHttpChatClient(
               buffer += chunk;
               const parsed = parseSseChunk(buffer);
               buffer = parsed.rest;
+              for (const ev of parsed.events || []) {
+                onEvent?.(ev);
+              }
               for (const delta of parsed.deltas) {
                 reply += delta;
                 onDelta?.(delta);
@@ -464,14 +475,15 @@ export async function probeHealth(baseUrl: string, authHeaders: Record<string, s
   });
 }
 
-async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<TuiState> {
+async function refreshExtras(client: ChatTurnClient, state: TuiState, options?: { light?: boolean }): Promise<TuiState> {
   const startProbe = Date.now();
+  const light = options?.light === true;
   const [sessions, runs, workspaces, git, insights] = await Promise.all([
-    client.listSessions ? client.listSessions().catch(() => state.sessions) : Promise.resolve(state.sessions),
+    !light && client.listSessions ? client.listSessions().catch(() => state.sessions) : Promise.resolve(state.sessions),
     client.listRuns ? client.listRuns().catch(() => state.runs) : Promise.resolve(state.runs),
-    client.listWorkspaces ? client.listWorkspaces().catch(() => state.workspaces) : Promise.resolve(state.workspaces),
-    client.gitSnapshot ? client.gitSnapshot(state.activeWorkspaceId).catch(() => state.git) : Promise.resolve(state.git),
-    client.listInsights ? client.listInsights().catch(() => state.insights || []) : Promise.resolve(state.insights || []),
+    !light && client.listWorkspaces ? client.listWorkspaces().catch(() => state.workspaces) : Promise.resolve(state.workspaces),
+    !light && client.gitSnapshot ? client.gitSnapshot(state.activeWorkspaceId).catch(() => state.git) : Promise.resolve(state.git),
+    !light && client.listInsights ? client.listInsights().catch(() => state.insights || []) : Promise.resolve(state.insights || []),
   ]);
   const latencyMs = Math.max(8, Math.min(250, Date.now() - startProbe));
   const activeWorkspaceId = state.activeWorkspaceId || workspaces?.find(w => w.isDefault)?.id || workspaces?.[0]?.id;
@@ -647,6 +659,31 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     startBusyTimer();
 
     try {
+      const onEvent = (ev: ExecutionEvent) => {
+        let currentTool = state.currentTool;
+        let status: TuiInferenceStatus = state.status || 'streaming';
+        if (ev.kind === 'command') {
+          status = 'tool_execution';
+          const toolName = ev.command ? ev.command.trim().split(/\s+/)[0] : 'command';
+          currentTool = {
+            name: toolName,
+            target: ev.command,
+            status: ev.status === 'completed' ? 'completed' : ev.status === 'failed' ? 'failed' : 'running',
+          };
+        }
+        state = {
+          ...state,
+          status: status === 'tool_execution' || status === 'diff_apply' ? status : (state.status || 'streaming'),
+          currentTool,
+          notice: status === 'tool_execution'
+            ? `Tool: ${currentTool?.name || 'execution'}...`
+            : status === 'diff_apply'
+            ? 'Applying diff...'
+            : state.notice,
+        };
+        requestPaint();
+      };
+
       const answer = await client.send(state.sessionId, text, state.model, inFlight.signal, delta => {
         const chunkTokens = Math.max(1, Math.round(delta.length / 4));
         tokenCount += chunkTokens;
@@ -654,18 +691,20 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         const tps = parseFloat(((tokenCount / elapsed) * 1000).toFixed(1));
 
         let currentTool = state.currentTool;
-        let status: TuiInferenceStatus = 'streaming';
-        if (delta.includes('TOOL:') || delta.includes('Executing tool:')) {
-          status = 'tool_execution';
-          const match = delta.match(/(?:TOOL:|Executing tool:)\s*([a-zA-Z0-9_-]+)/);
-          if (match) currentTool = { name: match[1], status: 'running' };
-        } else if (delta.includes('<<<DIFF') || delta.includes('--- a/') || delta.includes('+++ b/')) {
-          status = 'diff_apply';
+        let status: TuiInferenceStatus = state.status || 'streaming';
+        if (!currentTool || currentTool.status === 'completed') {
+          if (delta.includes('TOOL:') || delta.includes('Executing tool:')) {
+            status = 'tool_execution';
+            const match = delta.match(/(?:TOOL:|Executing tool:)\s*([a-zA-Z0-9_-]+)/);
+            if (match) currentTool = { name: match[1], status: 'running' };
+          } else if (delta.includes('<<<DIFF') || delta.includes('--- a/') || delta.includes('+++ b/')) {
+            status = 'diff_apply';
+          }
         }
 
         state = {
           ...state,
-          status,
+          status: status === 'tool_execution' || status === 'diff_apply' ? status : 'streaming',
           tokenCount,
           tokensPerSec: tps,
           streaming: state.streaming + delta,
@@ -677,7 +716,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
             : `Streaming [${state.model} | ${(elapsed / 1000).toFixed(1)}s | ${tps} t/s]`,
         };
         requestPaint();
-      });
+      }, onEvent);
       stopBusyTimer();
       const elapsed = Date.now() - startTime;
       const tps = tokenCount > 0 && elapsed > 0 ? parseFloat(((tokenCount / elapsed) * 1000).toFixed(1)) : 0;
@@ -726,7 +765,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     if (polling) return; // a previous tick is still in flight
     polling = true;
     const before = state;
-    void refreshExtras(client, state)
+    void refreshExtras(client, state, { light: true })
       .then(fresh => {
         // The keyboard loop may have replaced state while the five requests
         // were in flight. refreshExtras returns a whole state derived from

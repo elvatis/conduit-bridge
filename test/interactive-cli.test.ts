@@ -344,6 +344,47 @@ describe('runInteractiveChat', () => {
     expect(last).toContain('ok');
   });
 
+  it('updates tool execution card when receiving structured ExecutionEvent', async () => {
+    const frames: string[] = [];
+    const keys = [
+      { type: 'char' as const, value: 'r' },
+      { type: 'char' as const, value: 'u' },
+      { type: 'char' as const, value: 'n' },
+      { type: 'enter' as const },
+      { type: 'ctrl' as const, key: 'q' },
+    ];
+    let capturedToolDuringInference = '';
+    const client = {
+      listModels: async () => [{ id: 'cli-codex/first' }],
+      createSession: async (model: string) => ({ id: 'session-1', model }),
+      listSessions: async () => [],
+      getSession: async (id: string) => ({ id, title: 'CLI chat', model: 'cli-codex/first', messages: [] }),
+      listRuns: async () => [],
+      gitSnapshot: async () => ({ detected: false, branch: '', files: 0, name: '' }),
+      status: async () => ({ version: '0.10.0', providers: [] }),
+      send: async (_sessionId: string, _content: string, _model: string, _signal?: AbortSignal, onDelta?: (delta: string) => void, onEvent?: (ev: any) => void) => {
+        onEvent?.({ kind: 'command', command: 'pytest -v', status: 'running' });
+        onDelta?.('Testing in progress...');
+        return 'Done';
+      },
+      cancel: async () => {},
+    };
+    await runInteractiveChat({
+      client,
+      terminal: {
+        columns: 80,
+        rows: 24,
+        color: true,
+        write: frame => {
+          frames.push(frame);
+          if (frame.includes('pytest')) capturedToolDuringInference = frame;
+        },
+        readKey: async () => keys.shift() ?? null,
+      },
+    });
+    expect(capturedToolDuringInference).toContain('⚡ Executing tool: pytest (pytest -v)');
+  });
+
   it('rejects an unknown model id without sending a turn', async () => {
     const frames: string[] = [];
     const keys = [

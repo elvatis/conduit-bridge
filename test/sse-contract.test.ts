@@ -81,4 +81,25 @@ describe('parseSseChunk against the frames this server actually writes', () => {
   it('control: an empty delta contributes nothing', () => {
     expect(parseSseChunk(serverChunk('')).deltas).toEqual([]);
   });
+
+  it('extracts structured executionEvent from server SSE frames', () => {
+    const frame = `data: ${JSON.stringify({
+      id: 'chatcmpl-1',
+      object: 'chat.completion.chunk',
+      model: 'cli-codex/gpt-5.6-sol',
+      choices: [],
+      executionEvent: { kind: 'command', id: 'cmd-1', command: 'git status', status: 'running' },
+    })}\n\n`;
+    const { events } = parseSseChunk(frame);
+    expect(events).toEqual([{ kind: 'command', id: 'cmd-1', command: 'git status', status: 'running' }]);
+  });
+
+  it('extracts structured execution_event from platform SSE frames', () => {
+    const frame = `data: ${JSON.stringify({
+      type: 'execution_event',
+      event: { kind: 'message', id: 'msg-1', text: 'analyzing workspace', at: 1720000000000 },
+    })}\n\n`;
+    const { events } = parseSseChunk(frame);
+    expect(events).toEqual([{ kind: 'message', id: 'msg-1', text: 'analyzing workspace', at: 1720000000000 }]);
+  });
 });

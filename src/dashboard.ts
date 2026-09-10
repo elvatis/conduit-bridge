@@ -3524,9 +3524,9 @@ ${GETTING_STARTED_HTML}
           hardStop: $('cfg-hard-stop').value === 'true'
         })
       });
-      if (note) setLocalizedText(note, () => t('ui_limits_saved'));
       dirtySections.delete('budgets-section');
       await refresh();
+      if (note) setLocalizedText(note, () => t('ui_limits_saved'));
     } catch (err) {
       if (note) setLocalizedText(note, () => err.message);
     }

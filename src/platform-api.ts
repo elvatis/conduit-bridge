@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID, createHash } from 'node:crypto';
 import { join, isAbsolute } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
-import type { BridgeConfig, ChatRequest, ModelDefinition, ProviderName, WorkspaceEntry, SecretReference } from './types.js';
+import type { BridgeConfig, ChatRequest, ModelDefinition, ProviderName, WorkspaceEntry, SecretReference, ExecutionEvent } from './types.js';
 import { runtimeDir, saveConfig, secureStorageStatus } from './config.js';
 import { createContentCipher, openSecretVault, type ContentCipher } from './secrets.js';
 import { FileSnapshotBackend, SqliteSnapshotBackend, TransactionalStateStore, type SnapshotCodec } from './storage.js';
@@ -29,6 +29,7 @@ export interface PlatformExecutionContext {
   operator: PlatformOperatorContext;
   fallbackModels?: string[];
   onDelta?: (delta: string) => void;
+  onExecutionEvent?: (event: ExecutionEvent) => void;
   onFallbackModelUsed?: (fallbackModel: string) => void;
 }
 export interface PlatformApiDependencies {
@@ -402,6 +403,7 @@ export class PlatformApi {
                   resolvedProvider = this.deps.providerForModel(fb) || input.provider;
                 },
                 onDelta: delta => { captureDelta(delta); if (stream) send({ type: 'delta', delta }); },
+                onExecutionEvent: event => { if (stream) send({ type: 'execution_event', event }); },
               });
               return { content, model: resolvedModel, provider: resolvedProvider };
             });

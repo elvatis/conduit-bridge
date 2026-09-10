@@ -146,6 +146,7 @@ test('all budget fields save, dirty values survive refresh, invalid input is rej
   await page.locator('#budget-config-form button[type="submit"]').click();
   await expect.poll(()=>fixture.requests.filter(r=>r.method==='POST').length).toBe(1);
   expect(fixture.requests.find(r=>r.method==='POST')!.body).toEqual({dailyBudgetUsd:25,monthlyBudgetUsd:200,maxCostPerRunUsd:1.5,maxTokensPerRun:150000,warningThresholdPercent:75,hardStop:false});
+  await expect(page.locator('#budget-save-note')).toHaveText(/saved/i);
   await page.locator('#cfg-warn-threshold').fill('100');await page.locator('#budget-config-form button[type="submit"]').click();expect(fixture.requests.filter(r=>r.method==='POST')).toHaveLength(1);
   expect(fixture.errors).toEqual([]);expect(fixture.unexpected).toEqual([]);
 });

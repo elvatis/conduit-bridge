@@ -9,7 +9,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest, ProviderAdapter } from './types.js';
+import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest, ProviderAdapter, ExecutionEvent } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
@@ -613,7 +613,7 @@ export class BridgeServer {
       let execution: ReturnType<typeof openExecution> | undefined;
       let out = '';
       const started = Date.now();
-      const targetReq = { ...request, model: targetModel };
+      const targetReq = { ...request, model: targetModel, onExecutionEvent: context.onExecutionEvent };
       try {
         execution = openExecution(targetProvider, targetReq, { budgetManager: this._budgetManager, metrics: this._metrics, runId });
         if (context.onDelta) {
@@ -2065,6 +2065,25 @@ export class BridgeServer {
           json(res, budget ? 402 : 400, { error: { message: (error as Error).message, type: budget ? 'budget_exceeded' : 'invalid_request' } });
           return;
         }
+        const id = `chatcmpl-${Date.now()}`;
+        const earlyEvents: ExecutionEvent[] = [];
+        let streamHeaderSent = false;
+        const emitExecutionEvent = (event: ExecutionEvent, currentModel = selectedModel) => {
+          if (res.writableEnded || res.destroyed) return;
+          if (!streamHeaderSent) {
+            earlyEvents.push(event);
+            return;
+          }
+          const eventChunk = JSON.stringify({
+            id,
+            object: 'chat.completion.chunk',
+            model: currentModel,
+            choices: [],
+            executionEvent: event,
+          });
+          res.write(`data: ${eventChunk}\n\n`);
+        };
+        accounting.request.onExecutionEvent = ev => emitExecutionEvent(ev, selectedModel);
         let streamIterator: AsyncGenerator<string> = provider.chatStream(accounting.request);
         let firstChunk: IteratorResult<string> = { done: true, value: undefined };
         try {
@@ -2080,6 +2099,7 @@ export class BridgeServer {
             let fallbackAccounting;
             try {
               fallbackAccounting = openExecution(fallback, fallbackRequest.request, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
+              fallbackAccounting.request.onExecutionEvent = ev => emitExecutionEvent(ev, candidate);
               streamIterator = fallback.chatStream(fallbackAccounting.request);
               firstChunk = await streamIterator.next();
               accounting = fallbackAccounting;
@@ -2107,7 +2127,8 @@ export class BridgeServer {
           Connection: 'keep-alive',
         });
 
-        const id = `chatcmpl-${Date.now()}`;
+        streamHeaderSent = true;
+        for (const ev of earlyEvents) emitExecutionEvent(ev, selectedModel);
         let streamedText = firstChunk.done ? '' : (firstChunk.value ?? '');
         let streamFailed = false;
         try {
