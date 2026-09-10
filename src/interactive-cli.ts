@@ -711,6 +711,29 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     }
   };
 
+  // See the note on POLL_INTERVAL_MS: without this a pending approval is
+  // invisible until the user happens to press a key.
+  const POLL_INTERVAL_MS = 2500;
+  let polling = false;
+  const pollTimer = setInterval(() => {
+    if (polling) return; // a previous tick is still in flight
+    polling = true;
+    const before = state;
+    void refreshExtras(client, state)
+      .then(fresh => {
+        // The keyboard loop may have replaced state while the five requests
+        // were in flight. refreshExtras returns a whole state derived from
+        // the one it was given, so assigning it now would drop whatever the
+        // user typed in the meantime. Skipping costs one interval.
+        if (state !== before) return;
+        state = fresh;
+        requestPaint();
+      })
+      .catch(() => { /* a failed poll is not worth interrupting the session */ })
+      .finally(() => { polling = false; });
+  }, POLL_INTERVAL_MS);
+  pollTimer.unref?.();
+
   while (true) {
     flushPaint();
     const key = await terminal.readKey();
@@ -902,6 +925,9 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     }
     requestPaint();
   }
+  // unref keeps the timer from holding the process open; it does not stop it
+  // firing while something else does. The session is over, so it must go.
+  clearInterval(pollTimer);
   stopBusyTimer();
   stopResize?.();
   flushPaint();
