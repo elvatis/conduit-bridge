@@ -1276,23 +1276,41 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
 
       // Live status indicators: Thinking Spinner / Tool execution / Streaming
       if (state.busy) {
+        // Streaming and thinking are the two ways of waiting, so they are
+        // alternatives. A tool card and a diff card are NOT: a tool runs while
+        // text is arriving, and both used to live in the else branch.
+        //
+        // That made them unreachable. currentTool is assigned in exactly one
+        // place, and the same state update appends the delta to state.streaming,
+        // so `currentTool` set implied `streaming` non-empty, which always took
+        // the first branch. The tests only ever produced the combination because
+        // their base state pins streaming to the empty string.
+        //
+        // Latent until now, because the return channel delivered no deltas at
+        // all. Repairing that is what makes this visible, which is why it is
+        // fixed in the same series.
         if (state.status === 'streaming' || state.streaming) {
           transcript.push(`${CYAN}conduit${RESET}  ${MUTED}streaming · [${telemetry}]${RESET}`);
           for (const line of wrap(state.streaming, rightWidth - 4)) transcript.push(`  ${TEXT}${line}${RESET}`);
           transcript.push(`${CYAN}${spinner}${RESET} ${MUTED}Receiving tokens (${state.tokenCount || 0} tokens${tps ? ` | ${tps}` : ''})...${RESET}`);
         } else {
           transcript.push(`${CYAN}conduit${RESET}  ${YELLOW}${spinner} Thinking (${elapsed}ms)...${RESET}`);
-          if (state.currentTool) {
-            transcript.push(`  ${COPPER}⚡ Executing tool: ${state.currentTool.name} ${state.currentTool.target ? `(${state.currentTool.target})` : ''}...${RESET}`);
-            transcript.push(`  ${COPPER}┌─ ⚡ Tool Invocation: ${state.currentTool.name} ${state.currentTool.target ? `(${state.currentTool.target})` : ''} ────────────────────${RESET}`);
-            transcript.push(`  ${COPPER}│${RESET} ${DIM}Status:${RESET} ${YELLOW}running${RESET}  ${DIM}Duration:${RESET} ${elapsed}ms`);
-            transcript.push(`  ${COPPER}└─────────────────────────────────────────────────────${RESET}`);
-          }
-          if (state.status === 'diff_apply') {
-            transcript.push(`  ${GREEN}┌─ 📝 Applying Diff / Workspace Mutation ───────────────────────${RESET}`);
-            transcript.push(`  ${GREEN}│${RESET} Status: ${YELLOW}patching workspace files...${RESET}`);
-            transcript.push(`  ${GREEN}└─────────────────────────────────────────────────────────────${RESET}`);
-          }
+        }
+
+        if (state.currentTool) {
+          const target = state.currentTool.target ? `(${state.currentTool.target})` : '';
+          const status = state.currentTool.status || 'running';
+          const colour = status === 'failed' ? RED : status === 'completed' ? GREEN : YELLOW;
+          transcript.push(`  ${COPPER}⚡ Executing tool: ${state.currentTool.name} ${target}...${RESET}`);
+          transcript.push(`  ${COPPER}┌─ ⚡ Tool Invocation: ${state.currentTool.name} ${target} ────────────────────${RESET}`);
+          transcript.push(`  ${COPPER}│${RESET} ${DIM}Status:${RESET} ${colour}${status}${RESET}  ${DIM}Duration:${RESET} ${elapsed}ms`);
+          transcript.push(`  ${COPPER}└─────────────────────────────────────────────────────${RESET}`);
+        }
+
+        if (state.status === 'diff_apply') {
+          transcript.push(`  ${GREEN}┌─ 📝 Applying Diff / Workspace Mutation ───────────────────────${RESET}`);
+          transcript.push(`  ${GREEN}│${RESET} Status: ${YELLOW}patching workspace files...${RESET}`);
+          transcript.push(`  ${GREEN}└─────────────────────────────────────────────────────────────${RESET}`);
         }
       }
 
