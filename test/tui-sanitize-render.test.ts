@@ -24,8 +24,14 @@ function captureFrames(): { term: TuiTerminalWriter; frames: string[] } {
   };
 }
 
-/** Escapes the renderer emits itself, which must not be confused with leaked ones. */
-const RENDERER_OWN = /\x1b\[\?25[lh]|\x1b\[\d+;\d+H|\x1b\[[0-9;]*m/g;
+/**
+ * Escapes the renderer emits itself, which must not be confused with leaked
+ * ones. This list is deliberately explicit rather than a catch-all for private
+ * modes: when the renderer gained Synchronized Output these assertions went
+ * red, which is the behaviour wanted. A new escape in a frame should have to be
+ * declared here, because the whole point is noticing escapes nobody declared.
+ */
+const RENDERER_OWN = /\x1b\[\?2026[lh]|\x1b\[\?25[lh]|\x1b\[\d+;\d+H|\x1b\[[0-9;]*m/g;
 
 function leakedControlBytes(frame: string): string[] {
   const rest = frame.replace(RENDERER_OWN, '');

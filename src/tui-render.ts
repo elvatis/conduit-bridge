@@ -149,6 +149,14 @@ export interface TuiState {
 
 export type TuiKey =
   | { type: 'char'; value: string }
+  /**
+   * A whole bracketed-paste block, delivered as one key.
+   *
+   * Without this a paste arrives as ordinary keystrokes, so every newline
+   * in it becomes `enter`, and `enter` sends. A three-line paste therefore
+   * fired two sends and left the third line sitting in the composer.
+   */
+  | { type: 'paste'; value: string }
   | { type: 'enter' }
   | { type: 'newline' }
   | { type: 'escape' }
@@ -379,7 +387,20 @@ export class TuiDifferentialRenderer {
     const width = terminal.columns;
     const height = terminal.rows;
     const next = Array.from({ length: height }, (_, row) => tokenizeLine(lines[row] ?? '', width));
-    let out = '\x1b[?25l';
+
+    // Synchronized Output (DEC private mode 2026). Between BSU and ESU the
+    // terminal holds back presentation, so a frame arrives as one visual unit
+    // instead of being drawn as the bytes trickle in.
+    //
+    // Hiding the cursor is not a substitute for this. A frame here averages 722
+    // bytes but reaches 12025 at the 400-frame maximum, and 27 of those 400
+    // exceeded 4096, which is a common pipe buffer: those arrive in instalments
+    // and the terminal paints each instalment. That is the tearing left over
+    // once full repaints are gone.
+    //
+    // Terminals that do not implement 2026 ignore an unknown private mode, so
+    // this needs no capability probe and cannot make anything worse.
+    let out = '\x1b[?2026h\x1b[?25l';
     const resized = this.prevWidth !== width || this.prevHeight !== height || this.prev.length !== height;
     if (resized) {
       if (this.prevWidth > 0 && this.prevHeight > 0 && (this.prevWidth !== width || this.prevHeight !== height)) {
@@ -406,6 +427,10 @@ export class TuiDifferentialRenderer {
       }
     }
     out += cursor ? `\x1b[${cursor.row};${cursor.col}H\x1b[?25h` : '\x1b[?25l';
+    // End Synchronized Update: everything above is presented at once. This must
+    // be the last thing in the frame, after the cursor is placed, or the cursor
+    // move becomes visible on its own.
+    out += '\x1b[?2026l';
     this.prev = next;
     this.prevWidth = width;
     this.prevHeight = height;
@@ -614,7 +639,24 @@ function filteredWorkspaces(state: TuiState): TuiWorkspaceRow[] {
   return state.workspaces.filter(w => fuzzyMatch(state.filter, w.name) || fuzzyMatch(state.filter, w.id) || fuzzyMatch(state.filter, w.path));
 }
 
+/**
+ * Flatten a pasted block into something a single-line composer can hold.
+ *
+ * The composer is one line with horizontal scrolling, and the cell
+ * sanitiser removes control characters, so a literal newline would vanish
+ * without a trace. Turning line breaks into single spaces keeps every word
+ * the user pasted and loses only the line structure, which is the smaller
+ * loss and the visible one. A multi-line composer is separate work.
+ */
+export function normalizePaste(value: string): string {
+  return value.replace(/\r\n?|\n/g, ' ').replace(/\s{2,}/g, ' ');
+}
+
 export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; action: TuiAction; payload?: string } {
+  if (key.type === 'paste') {
+    const text = normalizePaste(key.value);
+    return text ? { state: insertChar(state, text), action: 'none' } : { state, action: 'none' };
+  }
   if (key.type === 'ctrl') {
     if (key.key === 'q' || key.key === 'c') return { state, action: 'quit' };
     if (key.key === 'k') return { state: { ...state, overlay: state.overlay === 'palette' ? 'none' : 'palette', filter: '', selected: 0 }, action: 'none' };

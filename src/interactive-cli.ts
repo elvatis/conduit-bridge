@@ -915,7 +915,11 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
   input.setRawMode(true);
   input.resume();
   input.setEncoding('utf8');
-  output.write('\x1b[?1049h\x1b[?1006h\x1b[?1000h');
+  // 2004 is bracketed paste. With it the terminal wraps pasted text in
+  // ESC [ 200 ~ and ESC [ 201 ~, which is the only way to tell a paste from
+  // typing. Without it every newline in a paste is indistinguishable from
+  // pressing enter, and enter sends.
+  output.write('\x1b[?1049h\x1b[?1006h\x1b[?1000h\x1b[?2004h');
   let buffer = '';
   const pending: TuiKey[] = [];
   let waiting: ((key: TuiKey | null) => void) | undefined;
@@ -927,6 +931,17 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
   const onData = (chunk: string) => {
     buffer += chunk;
     while (buffer) {
+      if (buffer.startsWith('\x1b[200~')) {
+        const end = buffer.indexOf('\x1b[201~');
+        // Without the terminator the paste is still arriving. Waiting is
+        // required: splitting it here would deliver half a paste and then
+        // treat the rest as typing, which is the bug this prevents.
+        if (end === -1) break;
+        const pasted = buffer.slice(6, end);
+        buffer = buffer.slice(end + '\x1b[201~'.length);
+        if (pasted) push({ type: 'paste', value: pasted });
+        continue;
+      }
       if (buffer.startsWith('\x1b[<')) {
         const match = buffer.match(/^\x1b\[<\d+;\d+;\d+[Mm]/);
         if (match) {
@@ -1006,7 +1021,7 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
       if (timer.id) clearTimeout(timer.id);
       waiting?.(null);
       try { input.setRawMode(false); } catch { /* already closed */ }
-      output.write('\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l');
+      output.write('\x1b[?2004l\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l');
     },
   };
 }
