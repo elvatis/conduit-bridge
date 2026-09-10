@@ -8,6 +8,7 @@ import {
   visibleWidth,
   wrapAnsi,
 } from './tui-layout.js';
+import { sanitizeCellText } from './tui-sanitize.js';
 export { stripAnsi, visibleWidth as visible, wrapAnsi, middleTruncate, layoutProfile, tooSmallMessage } from './tui-layout.js';
 
 export type TuiView = 'chat' | 'runs' | 'run-detail' | 'workspaces' | 'insights' | 'git' | 'help';
@@ -296,7 +297,13 @@ export interface TuiTerminalWriter {
  */
 type Cell = { ch: string; style: string };
 
-function tokenizeLine(line: string, width: number): Cell[] {
+function tokenizeLine(rawLine: string, width: number): Cell[] {
+  // Non-SGR escapes and control bytes are removed here, before anything can
+  // become a cell. cellsToAnsi writes cell content back to the terminal
+  // verbatim, so a cell holding ESC [ 2 J would clear the screen while `prev`
+  // still claimed it was painted, and every later diff would build on that
+  // fiction. Model output reaches this function unfiltered via bubble().
+  const line = sanitizeCellText(rawLine);
   const cells: Cell[] = [];
   let style = '';
   let i = 0;

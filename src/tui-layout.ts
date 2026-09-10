@@ -1,3 +1,5 @@
+import { sanitizeCellText } from './tui-sanitize.js';
+
 const SGR_RE = /^\x1b\[([0-9;]*)m/;
 
 export type LayoutMode = 'tiny' | 'small' | 'medium' | 'large';
@@ -66,7 +68,12 @@ function applySgr(open: string, codes: string): string {
   return `${open}\x1b[${codes}m`;
 }
 
-function cellsFrom(value: string): Cell[] {
+function cellsFrom(rawValue: string): Cell[] {
+  // Same invariant as tokenizeLine in tui-render.ts: a cell never holds a
+  // control character, because cellsToString writes cell content straight
+  // back to the terminal. Both tokenisers share one definition so they
+  // cannot drift apart.
+  const value = sanitizeCellText(rawValue);
   const cells: Cell[] = [];
   let open = '';
   let i = 0;
