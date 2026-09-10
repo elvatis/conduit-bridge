@@ -7,7 +7,19 @@ import { bearerAuthorization } from './config.js';
 import type { BridgeConfig } from './types.js';
 import { logger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
-import { applyTuiKey, decodeKey, renderTui, type TuiKey, type TuiMessage, type TuiRunDetail, type TuiRunRow, type TuiState, type TuiWorkspaceRow } from './tui-render.js';
+import {
+  applyTuiKey,
+  decodeKey,
+  renderTui,
+  type TuiInsightRow,
+  type TuiKey,
+  type TuiMessage,
+  type TuiModelRow,
+  type TuiRunDetail,
+  type TuiRunRow,
+  type TuiState,
+  type TuiWorkspaceRow,
+} from './tui-render.js';
 
 export type ChatCommand =
   | { type: 'help' }
@@ -21,6 +33,7 @@ export type ChatCommand =
   | { type: 'approve'; runId?: string }
   | { type: 'cancel'; runId?: string }
   | { type: 'workspaces' }
+  | { type: 'insights' }
   | { type: 'status' }
   | { type: 'prompt'; text: string }
   | { type: 'empty' }
@@ -40,6 +53,7 @@ export interface ChatTurnClient {
   createRun(prompt: string, model?: string, mode?: 'chat' | 'plan' | 'agent', workspaceId?: string): Promise<{ id: string }>;
   listWorkspaces(): Promise<TuiWorkspaceRow[]>;
   gitSnapshot(workspaceId?: string): Promise<{ detected: boolean; branch: string; files: number; name: string }>;
+  listInsights?(): Promise<TuiInsightRow[]>;
   status(): Promise<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>;
   send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void): Promise<string>;
   cancel(sessionId: string): Promise<void>;
@@ -77,6 +91,7 @@ export function parseChatCommand(raw: string): ChatCommand {
   if (name === 'approve') return { type: 'approve', runId: arg || undefined };
   if (name === 'cancel') return { type: 'cancel', runId: arg || undefined };
   if (name === 'workspaces') return { type: 'workspaces' };
+  if (name === 'insights') return { type: 'insights' };
   if (name === 'status') return { type: 'status' };
   return { type: 'unknown', text };
 }
@@ -229,6 +244,19 @@ export function createHttpChatClient(baseUrl: string, headers: Record<string, st
         return { detected: false, branch: '', files: 0, name: '' };
       }
     },
+    async listInsights() {
+      try {
+        const body = await requestJson<{ report?: { items?: Array<{ id: string; kind: string; text: string; sources?: Array<{ title?: string }> }> } }>(new URL(`${root}/v1/platform/insights`), { headers });
+        return (body.report?.items || []).map(item => ({
+          id: item.id,
+          kind: item.kind,
+          text: item.text,
+          title: item.sources?.[0]?.title,
+        }));
+      } catch {
+        return [];
+      }
+    },
     async status() {
       try {
         return await requestJson<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>(new URL(`${root}/v1/status`), { headers });
@@ -289,14 +317,26 @@ function paint(terminal: TuiTerminal, state: TuiState): void {
 }
 
 async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<TuiState> {
-  const [sessions, runs, workspaces, git] = await Promise.all([
+  const startProbe = Date.now();
+  const [sessions, runs, workspaces, git, insights] = await Promise.all([
     client.listSessions ? client.listSessions().catch(() => state.sessions) : Promise.resolve(state.sessions),
     client.listRuns ? client.listRuns().catch(() => state.runs) : Promise.resolve(state.runs),
     client.listWorkspaces ? client.listWorkspaces().catch(() => state.workspaces) : Promise.resolve(state.workspaces),
     client.gitSnapshot ? client.gitSnapshot(state.activeWorkspaceId).catch(() => state.git) : Promise.resolve(state.git),
+    client.listInsights ? client.listInsights().catch(() => state.insights || []) : Promise.resolve(state.insights || []),
   ]);
+  const latencyMs = Math.max(8, Math.min(250, Date.now() - startProbe));
   const activeWorkspaceId = state.activeWorkspaceId || workspaces?.find(w => w.isDefault)?.id || workspaces?.[0]?.id;
-  return { ...state, sessions: sessions || state.sessions, runs: runs || state.runs, workspaces: workspaces || state.workspaces, git: git || state.git, activeWorkspaceId };
+  return {
+    ...state,
+    sessions: sessions || state.sessions,
+    runs: runs || state.runs,
+    workspaces: workspaces || state.workspaces,
+    git: git || state.git,
+    insights: (insights && insights.length ? insights : state.insights) || [],
+    latencyMs,
+    activeWorkspaceId,
+  };
 }
 
 export async function runInteractiveChat(options: { client: ChatTurnClient; model?: string; terminal: TuiTerminal }): Promise<void> {
@@ -307,37 +347,83 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
   if (!model) throw new Error('No models are advertised. Connect a provider, then try again.');
   const created = await client.createSession(model);
   let inFlight: AbortController | undefined;
+  let busyTimer: NodeJS.Timeout | undefined;
+
   let state: TuiState = {
     view: 'chat', overlay: 'none', model, sessionId: created.id, sessionTitle: created.title || 'CLI chat',
     messages: [], input: '', cursor: 0, filter: '', selected: 0, models, sessions: [], runs: [],
     workspaces: [], runSelectedIndex: 0,
     git: { detected: false, branch: '', files: 0, name: '' }, host: '', notice: 'Ready', busy: false, streaming: '',
+    latencyMs: 22,
     width: terminal.columns, height: terminal.rows,
   };
   state = await refreshExtras(client, state);
   paint(terminal, state);
 
+  const startBusyTimer = () => {
+    if (busyTimer) clearInterval(busyTimer);
+    busyTimer = setInterval(() => {
+      if (!state.busy) {
+        if (busyTimer) clearInterval(busyTimer);
+        return;
+      }
+      state = { ...state, spinnerFrame: (state.spinnerFrame || 0) + 1 };
+      paint(terminal, state);
+    }, 80);
+    busyTimer.unref?.();
+  };
+
+  const stopBusyTimer = () => {
+    if (busyTimer) {
+      clearInterval(busyTimer);
+      busyTimer = undefined;
+    }
+  };
+
   const sendPrompt = async (text: string) => {
     inFlight = new AbortController();
+    const startTime = Date.now();
     state = {
-      ...state, busy: true, streaming: '', notice: 'Sending',
+      ...state,
+      busy: true,
+      busyStartTime: startTime,
+      spinnerFrame: 0,
+      streaming: '',
+      currentTool: undefined,
+      notice: 'Thinking...',
       messages: [...state.messages, { role: 'user', content: text }],
     };
     paint(terminal, state);
+    startBusyTimer();
+
     try {
       const answer = await client.send(state.sessionId, text, state.model, inFlight.signal, delta => {
-        state = { ...state, streaming: state.streaming + delta };
+        let currentTool = state.currentTool;
+        if (delta.includes('TOOL:') || delta.includes('Executing tool:')) {
+          const match = delta.match(/(?:TOOL:|Executing tool:)\s*([a-zA-Z0-9_-]+)/);
+          if (match) currentTool = { name: match[1], status: 'running' };
+        }
+        state = { ...state, streaming: state.streaming + delta, currentTool };
         paint(terminal, state);
       });
+      stopBusyTimer();
+      const elapsed = Date.now() - startTime;
       state = {
-        ...state, busy: false, streaming: '', notice: 'Ready',
+        ...state,
+        busy: false,
+        busyStartTime: undefined,
+        currentTool: undefined,
+        streaming: '',
+        notice: `Completed in ${elapsed}ms`,
         messages: [...state.messages, { role: 'assistant', content: answer, model: state.model }],
       };
     } catch (error) {
+      stopBusyTimer();
       const message = inFlight.signal.aborted ? 'Cancelled' : error instanceof Error ? error.message : String(error);
-      state = { ...state, busy: false, streaming: '', notice: message };
+      state = { ...state, busy: false, busyStartTime: undefined, currentTool: undefined, streaming: '', notice: message };
     } finally {
       inFlight = undefined;
+      stopBusyTimer();
       paint(terminal, state);
     }
   };
@@ -350,9 +436,10 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     state = { ...next.state, width: terminal.columns, height: terminal.rows };
     if (next.action === 'quit') break;
     if (next.action === 'cancel') {
+      stopBusyTimer();
       inFlight?.abort();
       await client.cancel(state.sessionId).catch(() => {});
-      state = { ...state, busy: false, notice: 'Cancelled' };
+      state = { ...state, busy: false, busyStartTime: undefined, currentTool: undefined, streaming: '', notice: 'Cancelled' };
     }
     if (next.action === 'new') {
       const session = await client.createSession(state.model);
@@ -438,10 +525,14 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation' };
       } else if (command.type === 'models') state = { ...state, overlay: 'models', filter: '', selected: 0 };
       else if (command.type === 'workspaces') state = { ...state, overlay: 'workspaces', filter: '', selected: 0 };
-      else if (command.type === 'stop') {
+      else if (command.type === 'insights') {
+        state = { ...state, view: 'insights', selectedInsightIndex: 0 };
+        state = await refreshExtras(client, state);
+      } else if (command.type === 'stop') {
+        stopBusyTimer();
         inFlight?.abort();
         await client.cancel(state.sessionId).catch(() => {});
-        state = { ...state, busy: false, notice: 'Cancelled' };
+        state = { ...state, busy: false, busyStartTime: undefined, currentTool: undefined, streaming: '', notice: 'Cancelled' };
       } else if (command.type === 'model') {
         if (!state.models.some(item => item.id === command.id)) state = { ...state, notice: `Unknown model ${command.id}` };
         else state = { ...state, model: command.id, notice: `Next reply uses ${command.id}` };
@@ -526,6 +617,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     }
     paint(terminal, state);
   }
+  stopBusyTimer();
 }
 
 function createStdinTerminal(): TuiTerminal & { close(): void } {

@@ -6,7 +6,14 @@ import {
   runInteractiveChat,
   type ChatTurnClient,
 } from '../src/interactive-cli.js';
-import { applyTuiKey, decodeKey, renderTui, type TuiState } from '../src/tui-render.js';
+import {
+  applyTuiKey,
+  decodeKey,
+  enrichModel,
+  fuzzyMatch,
+  renderTui,
+  type TuiState,
+} from '../src/tui-render.js';
 
 function baseState(over: Partial<TuiState> = {}): TuiState {
   return {
@@ -26,6 +33,7 @@ function baseState(over: Partial<TuiState> = {}): TuiState {
     models: [{ id: 'cli-codex/first' }, { id: 'cli-claude/second' }, { id: 'bitnet/auto' }],
     sessions: [{ id: 'session-1', title: 'CLI chat', model: 'cli-codex/first', updatedAt: 1 }],
     runs: [{ id: 'run-1', status: 'completed', model: 'cli-codex/first', prompt: 'Review the diff' }],
+    workspaces: [{ id: 'ws-1', name: 'conduit-workspace', path: '~/dev/conduit-bridge', isDefault: true }],
     git: { detected: true, branch: 'main', files: 3, name: 'conduit-bridge' },
     host: '127.0.0.1:31338',
     notice: 'Attached to existing listener',
@@ -54,6 +62,7 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('/cancel')).toEqual({ type: 'cancel', runId: undefined });
     expect(parseChatCommand('/cancel run-101')).toEqual({ type: 'cancel', runId: 'run-101' });
     expect(parseChatCommand('/workspaces')).toEqual({ type: 'workspaces' });
+    expect(parseChatCommand('/insights')).toEqual({ type: 'insights' });
     expect(parseChatCommand('/status')).toEqual({ type: 'status' });
     expect(parseChatCommand('/stop')).toEqual({ type: 'stop' });
     expect(parseChatCommand('hello there')).toEqual({ type: 'prompt', text: 'hello there' });
@@ -103,6 +112,80 @@ describe('terminal workspace render', () => {
     expect(renderTui(baseState({ view: 'runs' }))).toContain('Review the diff');
     expect(renderTui(baseState({ overlay: 'palette' }))).toContain('New conversation');
   });
+
+  it('renders a split 3-zone layout with navigation tree and main pane in wide terminals', () => {
+    const frame = renderTui(baseState({ width: 90, height: 26 }));
+    expect(frame).toContain('Chat Sessions');
+    expect(frame).toContain('Agent Runs');
+    expect(frame).toContain('WORKSPACES');
+    expect(frame).toContain('Local Insights');
+    expect(frame).toContain('Git');
+    expect(frame).toContain('│');
+  });
+
+  it('displays live thinking spinner with elapsed timer and tool execution breadcrumbs during inference', () => {
+    const frame = renderTui(baseState({
+      busy: true,
+      busyStartTime: Date.now() - 1420,
+      spinnerFrame: 2,
+      currentTool: { name: 'bash', target: 'npm test', status: 'running' },
+    }));
+    expect(frame).toContain('Thinking (');
+    expect(frame).toContain('⚡ Executing tool: bash (npm test)');
+  });
+
+  it('fuzzy-filters models and renders rich metadata badges (CLI, Local, API)', () => {
+    const frame = renderTui(baseState({
+      overlay: 'models',
+      filter: 'codex',
+      models: [
+        { id: 'cli-codex/orchestrator' },
+        { id: 'bitnet/1.58b' },
+        { id: 'claude-3-5-sonnet' },
+      ],
+    }));
+    expect(frame).toContain('cli-codex/orchestrator');
+    expect(frame).toContain('[CLI]');
+    expect(frame).not.toContain('claude-3-5-sonnet');
+  });
+
+  it('renders Local Insights dashboard with categorized items', () => {
+    const frame = renderTui(baseState({
+      view: 'insights',
+      width: 100,
+      insights: [
+        { id: 'i-1', kind: 'Architecture', text: 'Stateful session continuity preserves tool context' },
+        { id: 'i-2', kind: 'Security', text: 'Fail-closed agent routing guards against credential leak' },
+      ],
+    }));
+    expect(frame).toContain('Local Insights Dashboard');
+    expect(frame).toContain('Architecture');
+    expect(frame).toContain('Stateful session continuity');
+    expect(frame).toContain('Fail-closed agent routing');
+  });
+});
+
+describe('fuzzyMatch and enrichModel', () => {
+  it('correctly matches substrings and subsequence characters', () => {
+    expect(fuzzyMatch('cod', 'cli-codex/orchestrator')).toBe(true);
+    expect(fuzzyMatch('bit', 'bitnet/auto')).toBe(true);
+    expect(fuzzyMatch('cld', 'claude-3-sonnet')).toBe(true);
+    expect(fuzzyMatch('xyz', 'claude-3-sonnet')).toBe(false);
+  });
+
+  it('enriches model with context limits, latency, and provider type badges', () => {
+    const codex = enrichModel({ id: 'cli-codex/agent' });
+    expect(codex.providerType).toBe('cli');
+    expect(codex.contextWindow).toBe('128k');
+
+    const bitnet = enrichModel({ id: 'bitnet/auto' });
+    expect(bitnet.providerType).toBe('local');
+    expect(bitnet.latency).toContain('instant');
+
+    const claude = enrichModel({ id: 'claude-3-5-sonnet' });
+    expect(claude.providerType).toBe('api');
+    expect(claude.contextWindow).toBe('200k');
+  });
 });
 
 describe('decodeKey', () => {
@@ -138,6 +221,22 @@ describe('applyTuiKey', () => {
     const palette = applyTuiKey(baseState(), { type: 'ctrl', key: 'k' }).state;
     const quit = applyTuiKey({ ...palette, filter: 'quit', selected: 0 }, { type: 'enter' });
     expect(quit.action).toBe('quit');
+  });
+
+  it('cycles views with Tab key through chat, runs, workspaces, insights, git, help', () => {
+    let s = baseState({ view: 'chat' });
+    s = applyTuiKey(s, { type: 'tab' }).state;
+    expect(s.view).toBe('runs');
+    s = applyTuiKey(s, { type: 'tab' }).state;
+    expect(s.view).toBe('workspaces');
+    s = applyTuiKey(s, { type: 'tab' }).state;
+    expect(s.view).toBe('insights');
+    s = applyTuiKey(s, { type: 'tab' }).state;
+    expect(s.view).toBe('git');
+    s = applyTuiKey(s, { type: 'tab' }).state;
+    expect(s.view).toBe('help');
+    s = applyTuiKey(s, { type: 'tab' }).state;
+    expect(s.view).toBe('chat');
   });
 });
 
@@ -330,5 +429,43 @@ describe('runInteractiveChat', () => {
       { id: 'run-99', action: 'continue', feedback: 'Continue execution' },
       { id: 'run-99', action: 'cancel', feedback: undefined },
     ]);
+  });
+
+  it('navigates to Local Insights via /insights command and displays extracted report', async () => {
+    const toType = (str: string) => [...str].map(c => ({ type: 'char' as const, value: c }));
+    const frames: string[] = [];
+
+    const keys = [
+      ...toType('/insights'),
+      { type: 'enter' as const },
+      { type: 'ctrl' as const, key: 'q' },
+    ];
+
+    await runInteractiveChat({
+      client: {
+        listModels: async () => [{ id: 'cli-codex/first' }],
+        createSession: async model => ({ id: 'session-1', model }),
+        listSessions: async () => [],
+        getSession: async id => ({ id, title: 'CLI chat', model: 'cli-codex/first', messages: [] }),
+        listRuns: async () => [],
+        listWorkspaces: async () => [{ id: 'ws-1', name: 'default', path: '/repo' }],
+        gitSnapshot: async () => ({ detected: false, branch: '', files: 0, name: '' }),
+        listInsights: async () => [
+          { id: 'ins-1', kind: 'Architecture', text: 'Decoupled session state with persistent store' },
+        ],
+        status: async () => ({ version: '0.10.0', providers: [] }),
+        send: async () => 'ok',
+        cancel: async () => {},
+      },
+      terminal: {
+        columns: 85, rows: 24, color: true,
+        write: frame => { frames.push(frame); },
+        readKey: async () => keys.shift() ?? null,
+      },
+    });
+
+    const output = frames.join('');
+    expect(output).toContain('Local Insights Dashboard');
+    expect(output).toContain('Decoupled session state');
   });
 });
