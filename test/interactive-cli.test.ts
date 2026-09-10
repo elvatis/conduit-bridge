@@ -22,6 +22,7 @@ import {
   stripAnsi,
   TuiDifferentialRenderer,
   type TuiState,
+  visible,
 } from '../src/tui-render.js';
 import { renderCliHelp } from '../src/cli-help.js';
 import { loadConfig } from '../src/config.js';
@@ -240,6 +241,10 @@ describe('decodeKey', () => {
     expect(decodeKey('\x0e')).toEqual({ type: 'ctrl', key: 'n' });
     expect(decodeKey('\x10')).toEqual({ type: 'ctrl', key: 'p' });
     expect(decodeKey('a')).toEqual({ type: 'char', value: 'a' });
+    expect(decodeKey('\x1b[5~')).toEqual({ type: 'pageup' });
+    expect(decodeKey('\x1b[6~')).toEqual({ type: 'pagedown' });
+    expect(decodeKey('\x1b[<64;1;1M')).toEqual({ type: 'scroll-up' });
+    expect(decodeKey('\x1b[<65;4;8M')).toEqual({ type: 'scroll-down' });
   });
 });
 
@@ -280,6 +285,18 @@ describe('applyTuiKey', () => {
     expect(s.view).toBe('help');
     s = applyTuiKey(s, { type: 'tab' }).state;
     expect(s.view).toBe('chat');
+  });
+
+  it('pages the chat transcript instead of leaving the visible box', () => {
+    const scrolled = applyTuiKey(baseState({ height: 24, chatScroll: 0, chatStickToBottom: true }), { type: 'pageup' }).state;
+    expect(scrolled.chatStickToBottom).toBe(false);
+    expect(scrolled.chatScroll).toBeGreaterThan(0);
+    const back = applyTuiKey(scrolled, { type: 'pagedown' }).state;
+    expect(back.chatScroll).toBe(0);
+    expect(back.chatStickToBottom).toBe(true);
+    const wheel = applyTuiKey(baseState(), { type: 'scroll-up' }).state;
+    expect(wheel.chatScroll).toBe(3);
+    expect(wheel.chatStickToBottom).toBe(false);
   });
 });
 
@@ -562,6 +579,16 @@ describe('TuiDifferentialRenderer', () => {
     renderer.render(term, ['a', 'b', 'c']);
     expect(writes[0]).not.toContain('\x1b[2J');
     expect(writes[0]).toContain('a');
+  });
+
+  it('clears only when the terminal size changes', () => {
+    const renderer = new TuiDifferentialRenderer();
+    const writes: string[] = [];
+    renderer.render({ columns: 80, rows: 3, write: (f: string) => writes.push(f) }, ['a', 'b', 'c']);
+    expect(writes[0]).not.toContain('\x1b[2J');
+    writes.length = 0;
+    renderer.render({ columns: 40, rows: 3, write: (f: string) => writes.push(f) }, ['a', 'b', 'c']);
+    expect(writes[0]).toContain('\x1b[2J');
   });
 });
 
@@ -939,6 +966,122 @@ describe('Multi-Step Task Runner Progress & Turn Metrics', () => {
     expect(frame).toContain('50%');
     expect(frame).toContain('75/150 files');
     expect(frame).toContain('indexing AST');
+  });
+});
+
+describe('responsive TUI layout', () => {
+  it('clamps every painted line to the terminal box at each breakpoint', () => {
+    const long = 'The orchestrator keeps session continuity across provider swaps while streaming tokens from src/modules/runtime/orchestrator.ts into the chat buffer.';
+    const sizes: Array<[number, number]> = [[140, 40], [90, 30], [70, 24], [80, 20], [50, 12], [60, 15]];
+    for (const [width, height] of sizes) {
+      const { lines } = renderTuiLines(baseState({
+        width,
+        height,
+        messages: [
+          { role: 'user', content: long },
+          { role: 'assistant', content: long, model: 'cli-codex/first' },
+        ],
+      }));
+      expect(lines).toHaveLength(height);
+      for (const line of lines) expect(visible(line)).toBeLessThanOrEqual(width);
+    }
+  });
+
+  it('shows a centered minimum-size overlay instead of a broken layout', () => {
+    const { lines } = renderTuiLines(baseState({ width: 40, height: 10 }));
+    const plain = lines.map(stripAnsi).join(' ').replace(/\s+/g, ' ');
+    expect(plain).toContain('Terminal window too small: 40x10. Please resize to at least 60x15.');
+    expect(plain).not.toContain('PROMPT');
+    expect(lines).toHaveLength(10);
+  });
+
+  it('uses a tab strip instead of a sidebar below 80 columns', () => {
+    const frame = stripAnsi(renderTui(baseState({ width: 70, height: 24 })));
+    expect(frame).toContain('Tab');
+    expect(frame).toContain('Chat');
+    expect(frame).toContain('Spaces');
+    expect(frame).toContain('Ctrl+W');
+    expect(frame).not.toContain('WORKSPACES & SESSIONS');
+  });
+
+  it('keeps a 25-28 column sidebar on large viewports and compact tags on medium', () => {
+    const large = renderTuiLines(baseState({ width: 140, height: 40 }));
+    const largePlain = large.lines.map(stripAnsi);
+    expect(largePlain.some(line => line.includes('WORKSPACES'))).toBe(true);
+    expect(largePlain.some(line => line.includes('Workspace:'))).toBe(true);
+    const split = largePlain.find(line => line.includes('│') && line.includes('you'));
+    expect(split).toBeTruthy();
+    const bar = split!.indexOf('│');
+    expect(bar).toBeGreaterThanOrEqual(25);
+    expect(bar).toBeLessThanOrEqual(28);
+
+    const medium = stripAnsi(renderTui(baseState({ width: 90, height: 30 })));
+    expect(medium).toContain('WORKSPACES');
+    expect(medium).toContain('Ctx:');
+  });
+
+  it('collapses header and footer under 25 rows', () => {
+    const frame = stripAnsi(renderTui(baseState({ width: 100, height: 20 })));
+    expect(frame).toContain('CONDUIT BRIDGE');
+    expect(frame).toContain('Ctrl+K');
+    expect(frame).toContain('Ctrl+Q');
+    expect(frame).not.toContain('Ctrl+I Insights');
+  });
+
+  it('wraps chat words on boundaries and middle-truncates unsplittable paths', () => {
+    const { lines } = renderTuiLines(baseState({
+      width: 60,
+      height: 20,
+      messages: [{ role: 'user', content: 'hello world from src/modules/runtime/orchestrator.ts tokenhash' }],
+    }));
+    const plain = lines.map(stripAnsi).join('\n');
+    expect(plain).toContain('hello');
+    expect(plain).toContain('world');
+    expect(plain.includes('helloworld') || /\bhel\nlo\b/.test(plain)).toBe(false);
+    expect(plain).toMatch(/orchestrator\.ts|orche|\.\.\./);
+    for (const line of lines) expect(visible(line)).toBe(60);
+  });
+
+  it('reflows through onResize and paints the tiny overlay', async () => {
+    let columns = 100;
+    let rows = 30;
+    let resize: (() => void) | undefined;
+    const frames: string[] = [];
+    const client: ChatTurnClient = {
+      listModels: async () => [{ id: 'cli-codex/first' }],
+      createSession: async model => ({ id: 'session-1', model }),
+      listSessions: async () => [],
+      getSession: async id => ({ id, title: 'CLI chat', model: 'cli-codex/first', messages: [] }),
+      listRuns: async () => [],
+      getRun: async id => ({ id, status: 'completed', model: 'cli-codex/first', prompt: '', createdAt: 1, costUsd: 0, tokensConsumed: 0, steps: [] }),
+      runAction: async () => {},
+      createRun: async () => ({ id: 'run-1' }),
+      listWorkspaces: async () => [],
+      gitSnapshot: async () => ({ detected: false, branch: '', files: 0, name: '' }),
+      status: async () => ({ version: '0.10.0', providers: [] }),
+      send: async () => 'ok',
+      cancel: async () => {},
+    };
+    await runInteractiveChat({
+      client,
+      terminal: {
+        get columns() { return columns; },
+        get rows() { return rows; },
+        color: true,
+        write: frame => { frames.push(frame); },
+        readKey: async () => {
+          columns = 48;
+          rows = 12;
+          resize?.();
+          return { type: 'ctrl', key: 'q' };
+        },
+        onResize: handler => {
+          resize = handler;
+          return () => { resize = undefined; };
+        },
+      },
+    });
+    expect(stripAnsi(frames.join('')).replace(/\s+/g, ' ')).toContain('Terminal window too small: 48x12. Please resize to at least 60x15.');
   });
 });
 

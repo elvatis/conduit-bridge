@@ -75,6 +75,7 @@ export interface TuiTerminal {
   write(frame: string): void;
   readKey(): Promise<TuiKey | null>;
   close?(): void;
+  onResize?(handler: () => void): () => void;
 }
 
 export function parseChatCommand(raw: string): ChatCommand {
@@ -468,6 +469,8 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     latencyMs: 22,
     history: [],
     historyIndex: -1,
+    chatScroll: 0,
+    chatStickToBottom: true,
     width: terminal.columns,
     height: terminal.rows,
   };
@@ -502,6 +505,12 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       paintTimer.unref?.();
     }
   };
+
+  const stopResize = terminal.onResize?.(() => {
+    state = { ...state, width: terminal.columns, height: terminal.rows };
+    screenBuffer.reset();
+    requestPaint(true);
+  });
 
   state = await refreshExtras(client, state);
   requestPaint(true);
@@ -554,6 +563,8 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       history,
       historyIndex: -1,
       draftInput: undefined,
+      chatScroll: 0,
+      chatStickToBottom: true,
     };
     requestPaint(true);
     startBusyTimer();
@@ -646,7 +657,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     }
     if (next.action === 'new') {
       const session = await client.createSession(state.model);
-      state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation' };
+      state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation', chatScroll: 0, chatStickToBottom: true };
     }
     if (next.action === 'refresh') state = await refreshExtras(client, state);
     if (next.action === 'open-session') {
@@ -725,7 +736,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       if (command.type === 'help') state = { ...state, view: 'help' };
       else if (command.type === 'new') {
         const session = await client.createSession(state.model);
-        state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation' };
+        state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation', chatScroll: 0, chatStickToBottom: true };
       } else if (command.type === 'models') state = { ...state, overlay: 'models', filter: '', selected: 0 };
       else if (command.type === 'workspaces') state = { ...state, overlay: 'workspaces', filter: '', selected: 0 };
       else if (command.type === 'insights') {
@@ -822,6 +833,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     requestPaint();
   }
   stopBusyTimer();
+  stopResize?.();
   flushPaint();
   screenBuffer.reset();
 }
@@ -833,7 +845,7 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
   input.setRawMode(true);
   input.resume();
   input.setEncoding('utf8');
-  output.write('\x1b[?1049h');
+  output.write('\x1b[?1049h\x1b[?1006h\x1b[?1000h');
   let buffer = '';
   const pending: TuiKey[] = [];
   let waiting: ((key: TuiKey | null) => void) | undefined;
@@ -845,6 +857,18 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
   const onData = (chunk: string) => {
     buffer += chunk;
     while (buffer) {
+      if (buffer.startsWith('\x1b[<')) {
+        const match = buffer.match(/^\x1b\[<\d+;\d+;\d+[Mm]/);
+        if (match) {
+          const key = decodeKey(match[0]);
+          buffer = buffer.slice(match[0].length);
+          if (key) push(key);
+          continue;
+        }
+        if (buffer.length < 16) break;
+        buffer = buffer.slice(3);
+        continue;
+      }
       if (buffer.startsWith('\x1b[')) {
         const match = buffer.match(/^\x1b\[[0-9;]*[a-zA-Z~]/);
         if (match) {
@@ -899,12 +923,16 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
       if (pending.length) resolve(pending.shift()!);
       else waiting = resolve;
     }),
+    onResize(handler) {
+      output.on('resize', handler);
+      return () => { output.off('resize', handler); };
+    },
     close() {
       input.off('data', onData);
       if (timer.id) clearTimeout(timer.id);
       waiting?.(null);
       try { input.setRawMode(false); } catch { /* already closed */ }
-      output.write('\x1b[?25h\x1b[?1049l');
+      output.write('\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l');
     },
   };
 }

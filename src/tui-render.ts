@@ -1,3 +1,15 @@
+import {
+  clampBox,
+  fitLine,
+  layoutProfile,
+  padVisible,
+  sliceTranscript,
+  tooSmallOverlay,
+  visibleWidth,
+  wrapAnsi,
+} from './tui-layout.js';
+export { stripAnsi, visibleWidth as visible, wrapAnsi, middleTruncate, layoutProfile, tooSmallMessage } from './tui-layout.js';
+
 export type TuiView = 'chat' | 'runs' | 'run-detail' | 'workspaces' | 'insights' | 'git' | 'help';
 export type TuiOverlay = 'none' | 'palette' | 'models' | 'sessions' | 'workspaces';
 export type TuiInferenceStatus = 'idle' | 'thinking' | 'streaming' | 'tool_execution' | 'diff_apply' | 'waiting_approval' | 'done' | 'error';
@@ -127,6 +139,8 @@ export interface TuiState {
   history?: string[];
   historyIndex?: number;
   draftInput?: string;
+  chatScroll?: number;
+  chatStickToBottom?: boolean;
   width: number;
   height: number;
 }
@@ -146,6 +160,10 @@ export type TuiKey =
   | { type: 'word-right' }
   | { type: 'home' }
   | { type: 'end' }
+  | { type: 'pageup' }
+  | { type: 'pagedown' }
+  | { type: 'scroll-up' }
+  | { type: 'scroll-down' }
   | { type: 'ctrl'; key: string };
 
 export type TuiAction =
@@ -203,10 +221,6 @@ export const TUI_COLORS = {
 };
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-export function stripAnsi(value: string): string {
-  return value.replace(/\x1b\[[0-9;]*[a-zA-Z~]?/g, '');
-}
 
 /**
  * Render an ANSI-styled dynamic progress bar with filled block characters,
@@ -327,6 +341,9 @@ export class TuiDifferentialRenderer {
     let out = '\x1b[?25l';
     const resized = this.prevWidth !== width || this.prevHeight !== height || this.prev.length !== height;
     if (resized) {
+      if (this.prevWidth > 0 && this.prevHeight > 0 && (this.prevWidth !== width || this.prevHeight !== height)) {
+        out += '\x1b[2J\x1b[H';
+      }
       for (let row = 0; row < height; row++) {
         out += `\x1b[${row + 1};1H${cellsToAnsi(next[row])}`;
       }
@@ -440,33 +457,18 @@ export function paletteCommands(): Array<{ id: string; label: string; hint: stri
   ];
 }
 
-function visible(value: string): number { return stripAnsi(value).length; }
+function visible(value: string): number { return visibleWidth(value); }
 
 function pad(value: string, width: number): string {
-  const extra = width - visible(value);
-  return extra > 0 ? value + ' '.repeat(extra) : value;
+  return padVisible(value, width);
 }
 
 function clip(value: string, width: number): string {
-  const plain = stripAnsi(value);
-  if (plain.length <= width) return pad(value, width);
-  return plain.slice(0, Math.max(0, width - 1)) + '…';
+  return fitLine(value, Math.max(0, width));
 }
 
 function wrap(value: string, width: number): string[] {
-  const lines: string[] = [];
-  for (const paragraph of value.split('\n')) {
-    if (!paragraph) { lines.push(''); continue; }
-    let rest = paragraph;
-    while (rest.length > width) {
-      let cut = rest.lastIndexOf(' ', width);
-      if (cut < 1) cut = width;
-      lines.push(rest.slice(0, cut));
-      rest = rest.slice(cut).trimStart();
-    }
-    lines.push(rest);
-  }
-  return lines.length ? lines : [''];
+  return wrapAnsi(value, Math.max(1, width));
 }
 
 export function decodeKey(seq: string): TuiKey | undefined {
@@ -484,6 +486,14 @@ export function decodeKey(seq: string): TuiKey | undefined {
   if (seq === '\x1b[1;5C' || seq === '\x1b[5C' || seq === '\x1bf') return { type: 'word-right' };
   if (seq === '\x1b[H' || seq === '\x1b[1~' || seq === '\x1bOH') return { type: 'home' };
   if (seq === '\x1b[F' || seq === '\x1b[4~' || seq === '\x1bOF') return { type: 'end' };
+  if (seq === '\x1b[5~' || seq === '\x1b[5;2~') return { type: 'pageup' };
+  if (seq === '\x1b[6~' || seq === '\x1b[6;2~') return { type: 'pagedown' };
+  if (seq.startsWith('\x1b[<')) {
+    const button = Number((seq.match(/^\x1b\[<(\d+);/) || [])[1]);
+    if (button === 64) return { type: 'scroll-up' };
+    if (button === 65) return { type: 'scroll-down' };
+    return undefined;
+  }
   if (seq === '\x0b') return { type: 'ctrl', key: 'k' };
   if (seq === '\x0e') return { type: 'ctrl', key: 'n' };
   if (seq === '\x10') return { type: 'ctrl', key: 'p' };
@@ -694,6 +704,18 @@ export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; ac
     return { state: { ...state, view: next }, action: next === 'runs' || next === 'git' || next === 'workspaces' || next === 'insights' ? 'refresh' : 'none' };
   }
 
+  if (state.view === 'chat' && state.overlay === 'none') {
+    if (key.type === 'pageup' || key.type === 'scroll-up') {
+      const step = key.type === 'pageup' ? Math.max(1, (state.height || 24) - 10) : 3;
+      return { state: { ...state, chatScroll: (state.chatScroll || 0) + step, chatStickToBottom: false }, action: 'none' };
+    }
+    if (key.type === 'pagedown' || key.type === 'scroll-down') {
+      const step = key.type === 'pagedown' ? Math.max(1, (state.height || 24) - 10) : 3;
+      const next = Math.max(0, (state.chatScroll || 0) - step);
+      return { state: { ...state, chatScroll: next, chatStickToBottom: next === 0 }, action: 'none' };
+    }
+  }
+
   // Prompt History Navigation (Up / Down arrow in Chat view)
   if (state.view === 'chat' && state.overlay === 'none') {
     if (key.type === 'up' && state.history && state.history.length > 0) {
@@ -897,9 +919,40 @@ function bubble(role: 'user' | 'assistant', body: string, width: number, meta = 
   return [head, ...rows, foot];
 }
 
+function renderTabStrip(state: TuiState, width: number): string {
+  const tabs: Array<[TuiView, string]> = [
+    ['chat', 'Chat'],
+    ['runs', 'Runs'],
+    ['workspaces', 'Spaces'],
+    ['insights', 'Insights'],
+    ['git', 'Git'],
+    ['help', 'Help'],
+  ];
+  const painted = tabs.map(([id, label]) => {
+    const active = state.view === id || (id === 'runs' && state.view === 'run-detail');
+    return active ? `${REVERSE}${CYAN} ${label} ${RESET}` : `${MUTED} ${label} ${RESET}`;
+  }).join('');
+  return fitLine(`${MUTED}Tab${RESET}${painted}  ${DIM}Ctrl+W sidebar${RESET}`, width);
+}
+
+function composerLine(state: TuiState, inner: number): string {
+  if (state.overlay !== 'none') return `${MUTED}filter:${RESET} ${state.filter}`;
+  if (state.view !== 'chat') return `${MUTED}${state.view}  Esc returns to chat${RESET}`;
+  const prefix = `${COPPER}>${RESET} `;
+  const avail = Math.max(1, inner - 3);
+  const text = state.input;
+  let start = 0;
+  if (text.length + 1 > avail) start = Math.max(0, state.cursor - avail + 1);
+  const before = text.slice(start, state.cursor);
+  const after = text.slice(state.cursor, start + avail);
+  return `${prefix}${before}${REVERSE} ${RESET}${after}`;
+}
+
 export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { row: number; col: number } } {
-  const width = Math.max(40, state.width || 80);
-  const height = Math.max(16, state.height || 24);
+  const width = Math.max(1, state.width || 80);
+  const height = Math.max(1, state.height || 24);
+  const profile = layoutProfile(width, height);
+  if (profile.tooSmall) return { lines: tooSmallOverlay(width, height) };
 
   const activeWs = state.workspaces.find(w => w.id === state.activeWorkspaceId) || state.workspaces[0];
   const wsLabel = activeWs ? activeWs.name : 'default';
@@ -912,21 +965,26 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
   const tps = state.tokensPerSec !== undefined ? `${state.tokensPerSec} t/s` : '';
   const telemetry = [state.model, `${elapsedSec}s`, tps].filter(Boolean).join(' | ');
 
-  // Header Context Window Progressbar
   const contextTokens = state.contextTokens ?? state.messages.reduce((acc, m) => acc + estimateTokens(m.content), 0);
   const contextLimit = state.contextWindowLimit ?? 128_000;
   const contextPct = Math.min(100, Math.round((contextTokens / contextLimit) * 100));
-  const contextBar = renderProgressBar(contextPct, 8);
-
+  const contextBar = renderProgressBar(contextPct, profile.mode === 'large' && profile.headerRows === 2 ? 8 : 4);
+  const noticeBit = state.notice && state.notice !== 'Ready' ? `  ${COPPER}${clip(state.notice, 24)}${RESET}` : '';
   const connected = `${GREEN}●${RESET} Connected: ${state.host || '127.0.0.1:31338'}`;
-  const header = boxTop(width, `${BOLD}${CYAN}CONDUIT BRIDGE${RESET} ${DIM}v0.10${RESET}`, connected);
-  const nav = boxRow(width, `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}  ${TEXT}Workspace:${RESET} ${COPPER}${clip(wsLabel, 12)}${RESET} [git:${GREEN}${clip(gitLabel, 12)}${RESET}]  ${TEXT}Model:${RESET} ${COPPER}${clip(state.model, 18)}${RESET}  ${latency}${state.notice && state.notice !== 'Ready' ? `  ${COPPER}${clip(state.notice, 24)}${RESET}` : ''}`);
+  const compactTags = `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}  ${COPPER}${clip(state.model, 16).trim()}${RESET}  ${latency}`;
+  const fullNav = `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}  ${TEXT}Workspace:${RESET} ${COPPER}${clip(wsLabel, 12)}${RESET} [git:${GREEN}${clip(gitLabel, 12)}${RESET}]  ${TEXT}Model:${RESET} ${COPPER}${clip(state.model, 18)}${RESET}  ${latency}${noticeBit}`;
+  const headerLines = profile.headerRows === 1
+    ? [boxTop(width, `${BOLD}${CYAN}CONDUIT BRIDGE${RESET}`, compactTags)]
+    : [
+      boxTop(width, `${BOLD}${CYAN}CONDUIT BRIDGE${RESET} ${DIM}v0.10${RESET}`, connected),
+      boxRow(width, profile.mode === 'large' ? fullNav : compactTags + noticeBit),
+    ];
 
-  // Layout calculation
-  const useSplitLayout = width >= 75;
-  const leftWidth = useSplitLayout ? Math.min(26, Math.floor(width * 0.28)) : 0;
-  const rightWidth = useSplitLayout ? width - leftWidth - 1 : width;
-  const availableHeight = Math.max(5, height - 7);
+  const useSplitLayout = profile.sidebar > 0;
+  const leftWidth = profile.sidebar;
+  const rightWidth = useSplitLayout ? Math.max(8, width - leftWidth - 1) : width;
+  const tabLines = profile.mode === 'small' ? [renderTabStrip(state, width)] : [];
+  const availableHeight = Math.max(1, height - headerLines.length - tabLines.length - 3);
 
   let bodyLines: string[] = [];
 
@@ -1103,34 +1161,32 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
         transcript.push(`${BOLD}${TEXT}Start from the keyboard.${RESET}`);
         transcript.push(`${MUTED}Ctrl+K opens the palette. Ctrl+P picks a model. Type to chat. /run <task> to execute.${RESET}`);
       }
-      rightLines = transcript.slice(-availableHeight);
+      const scrollOffset = state.chatStickToBottom === false ? (state.chatScroll || 0) : 0;
+      rightLines = sliceTranscript(transcript, availableHeight, scrollOffset).view;
     }
 
     if (useSplitLayout) {
       const leftTree: string[] = [
-        `${BOLD}${TEXT}WORKSPACES & SESSIONS${RESET}`,
+        `${BOLD}${TEXT}${profile.mode === 'large' ? 'WORKSPACES & SESSIONS' : 'WORKSPACES'}${RESET}`,
         `${MUTED}▼ Workspaces${RESET}`,
-        `  ${GREEN}●${RESET} ${clip(wsLabel, leftWidth - 6)}`,
+        `  ${GREEN}●${RESET} ${clip(wsLabel, Math.max(4, leftWidth - 6))}`,
         `${MUTED}▼ Active Runs (${state.runs.length})${RESET}`,
         `  ${state.busy ? `${CYAN}◐${RESET}` : `${GREEN}●${RESET}`} ${state.busy ? 'running' : 'idle'}`,
         `${MUTED}▼ Local Insights${RESET}`,
-        `  ${clip(`${state.insights?.length || 0} items`, leftWidth - 4)}`,
+        `  ${clip(`${state.insights?.length || 0} items`, Math.max(4, leftWidth - 4))}`,
         `${MUTED}▼ Chat Sessions${RESET}`,
-        `  ${CYAN}›${RESET} ${clip(state.sessionTitle || 'CLI chat', leftWidth - 6)}`,
+        `  ${CYAN}›${RESET} ${clip(state.sessionTitle || 'CLI chat', Math.max(4, leftWidth - 6))}`,
         `${MUTED}▼ Git [${clip(state.git.branch || 'main', 8)}]${RESET}`,
         `  ${state.git.files ? `${COPPER}[+${state.git.files} ~0 -0]${RESET}` : `${GREEN}clean${RESET}`}`,
         `${MUTED}Agent Runs${RESET}`,
         `  ${clip(String(state.runs.length), 4)} queued/live`,
       ];
 
-      const maxLines = Math.max(availableHeight, rightLines.length);
-      for (let i = 0; i < maxLines; i++) {
-        const left = i < leftTree.length ? leftTree[i] : ' '.repeat(leftWidth);
-        const right = i < rightLines.length ? rightLines[i] : '';
-        bodyLines.push(clip(left, leftWidth) + `${NORD_BORDER}│${RESET}` + clip(' ' + right, rightWidth));
-      }
+      bodyLines = Array.from({ length: availableHeight }, (_, i) => (
+        clip(leftTree[i] ?? '', leftWidth) + `${NORD_BORDER}│${RESET}` + clip(' ' + (rightLines[i] ?? ''), rightWidth)
+      ));
     } else {
-      bodyLines = rightLines;
+      bodyLines = clampBox(rightLines, rightWidth, availableHeight);
     }
   }
 
@@ -1142,27 +1198,31 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
     : state.notice && state.notice !== 'Ready'
       ? clip(state.notice, 42)
       : `${state.busy ? 'streaming' : 'idle'}`;
-  const inputBody = state.overlay === 'none' && state.view === 'chat'
-    ? `${COPPER}>${RESET} ${state.input.slice(0, state.cursor)}${REVERSE} ${RESET}${state.input.slice(state.cursor)}`
-    : state.overlay === 'none' ? `${MUTED}${state.view}  Esc returns to chat${RESET}` : `${MUTED}filter:${RESET} ${state.filter}`;
+  const inputBody = composerLine(state, Math.max(1, width - 2));
   const footerTop = boxTop(width, `PROMPT [Mode: ${state.view === 'chat' ? 'Chat' : state.view}]`, promptMeta);
   const footerMid = boxRow(width, inputBody);
-  const footerBot = boxBottom(width, `${CYAN}Ctrl+K${RESET} Palette  ${CYAN}Ctrl+P${RESET} Model  ${CYAN}Ctrl+W${RESET} Spaces  ${CYAN}Ctrl+R${RESET} Runs  ${CYAN}Ctrl+I${RESET} Insights`);
+  const footerHints = profile.footerHints === 'compact'
+    ? `${CYAN}Ctrl+K${RESET} Palette  ${CYAN}Ctrl+P${RESET} Model  ${CYAN}Ctrl+Q${RESET} Quit`
+    : `${CYAN}Ctrl+K${RESET} Palette  ${CYAN}Ctrl+P${RESET} Model  ${CYAN}Ctrl+W${RESET} Spaces  ${CYAN}Ctrl+R${RESET} Runs  ${CYAN}Ctrl+I${RESET} Insights`;
+  const footerBot = boxBottom(width, footerHints);
 
-  const lines = [
-    clip(header, width),
-    clip(nav, width),
-    ...bodyLines.map(line => clip(line, width)),
+  const assembled = [
+    ...headerLines,
+    ...tabLines,
+    ...clampBox(bodyLines, width, availableHeight),
+    footerTop,
+    footerMid,
+    footerBot,
   ];
-  while (lines.length < height - 3) lines.push(boxRow(width, ''));
-  lines.push(clip(footerTop, width));
-  lines.push(clip(footerMid, width));
-  lines.push(clip(footerBot, width));
+  const lines = clampBox(assembled, width, height);
 
   const cursorRow = height - 1;
-  const cursorCol = state.overlay === 'none' && state.view === 'chat' ? state.cursor + 5 : 3;
+  const avail = Math.max(1, width - 5);
+  let start = 0;
+  if (state.input.length + 1 > avail) start = Math.max(0, state.cursor - avail + 1);
+  const cursorCol = state.overlay === 'none' && state.view === 'chat' ? 5 + (state.cursor - start) : 3;
 
-  return { lines: lines.slice(0, height), cursor: { row: cursorRow, col: Math.min(width, cursorCol) } };
+  return { lines, cursor: { row: cursorRow, col: Math.min(width, Math.max(1, cursorCol)) } };
 }
 
 export function renderTui(state: TuiState): string {
