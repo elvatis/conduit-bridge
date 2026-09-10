@@ -813,6 +813,22 @@ export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; ac
   }
 
   if (key.type === 'tab') {
+    if (state.view === 'chat' && state.overlay === 'none' && state.input.startsWith('/')) {
+      const known = ['/run', '/runs', '/continue', '/approve', '/cancel', '/rollback', '/retry', '/workspaces', '/models', '/model', '/sessions', '/insights', '/git', '/status', '/help', '/clear', '/stop'];
+      const raw = state.input.slice(0, state.cursor);
+      const match = known.find(k => k.startsWith(raw));
+      if (match) {
+        const completed = match + ' ';
+        return {
+          state: {
+            ...state,
+            input: completed + state.input.slice(state.cursor),
+            cursor: completed.length,
+          },
+          action: 'none',
+        };
+      }
+    }
     const order: TuiView[] = ['chat', 'runs', 'workspaces', 'insights', 'git', 'help'];
     const next = order[(order.indexOf(state.view) + 1) % order.length];
     return { state: { ...state, view: next }, action: next === 'runs' || next === 'git' || next === 'workspaces' || next === 'insights' ? 'refresh' : 'none' };
@@ -1118,7 +1134,8 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
   const noticeBit = state.notice && state.notice !== 'Ready' ? `  ${COPPER}${clip(state.notice, 24)}${RESET}` : '';
   const connected = `${GREEN}●${RESET} Connected: ${state.host || '127.0.0.1:31338'}`;
   const compactTags = `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}  ${COPPER}${clip(state.model, 16).trim()}${RESET}  ${latency}`;
-  const fullNav = `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}  ${TEXT}Workspace:${RESET} ${COPPER}${clip(wsLabel, 12)}${RESET} [git:${GREEN}${clip(gitLabel, 12)}${RESET}]  ${TEXT}Model:${RESET} ${COPPER}${clip(state.model, 18)}${RESET}  ${latency}${noticeBit}`;
+  const maxNavWidth = profile.mode === 'large' ? Math.max(16, Math.floor((width - 80) / 3)) : 12;
+  const fullNav = `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}  ${TEXT}Workspace:${RESET} ${COPPER}${clip(wsLabel, maxNavWidth)}${RESET} [git:${GREEN}${clip(gitLabel, maxNavWidth)}${RESET}]  ${TEXT}Model:${RESET} ${COPPER}${clip(state.model, maxNavWidth + 6)}${RESET}  ${latency}${noticeBit}`;
   const headerLines = profile.headerRows === 1
     ? [boxTop(width, `${BOLD}${CYAN}CONDUIT BRIDGE${RESET}`, compactTags)]
     : [
@@ -1247,9 +1264,13 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
         `/continue <prompt>     - Continue selected or latest run`,
         `/approve [runId]       - Approve pending run`,
         `/cancel [runId]        - Cancel running execution`,
+        `/retry [runId]         - Retry failed execution run`,
+        `/rollback [runId]      - Rollback execution run changes`,
         `/workspaces            - List and switch workspaces`,
         `/insights              - Open Local Insights dashboard`,
+        `/models                - Select active AI model`,
         `/status                - Inspect runtime and provider connectivity`,
+        `/help                  - Show keyboard help`,
       ];
     } else {
       // Chat view
@@ -1357,11 +1378,42 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
   const promptTok = estimateTokens(state.input);
   const projTok = contextTokens + promptTok;
   const projPct = Math.min(100, Math.round((projTok / contextLimit) * 100));
-  const promptMeta = state.input.trim()
+  let promptMeta = state.input.trim()
     ? `Prompt: ~${promptTok} tok | Projected: ~${formatTokenCount(projTok)} (${projPct}%)`
     : state.notice && state.notice !== 'Ready'
       ? clip(state.notice, 42)
       : `${state.busy ? 'streaming' : 'idle'}`;
+
+  if (state.input.startsWith('/')) {
+    const cmdToken = state.input.trim().split(/\s+/)[0].toLowerCase();
+    const descriptions: Record<string, string> = {
+      '/run': 'Start an agent task',
+      '/runs': 'Inspect execution runs',
+      '/continue': 'Continue run execution',
+      '/approve': 'Approve pending checkpoint',
+      '/cancel': 'Cancel active execution',
+      '/retry': 'Retry failed execution run',
+      '/rollback': 'Rollback workspace changes',
+      '/workspaces': 'List and switch workspaces',
+      '/models': 'Fuzzy search AI models',
+      '/model': 'Switch active model',
+      '/sessions': 'Switch chat session',
+      '/insights': 'Open BitNet insights',
+      '/git': 'Inspect git status',
+      '/status': 'Server & provider health',
+      '/help': 'Display keyboard help',
+      '/stop': 'Stop current reply',
+    };
+    const exact = descriptions[cmdToken];
+    if (exact) {
+      promptMeta = `${CYAN}${cmdToken}${RESET}: ${exact}`;
+    } else {
+      const candidates = Object.keys(descriptions).filter(k => k.startsWith(cmdToken));
+      if (candidates.length) {
+        promptMeta = `${CYAN}Tab completes:${RESET} ${candidates.slice(0, 4).join(', ')}`;
+      }
+    }
+  }
   const inputBody = composerLine(state, Math.max(1, width - 2));
   const footerTop = boxTop(width, `PROMPT [Mode: ${state.view === 'chat' ? 'Chat' : state.view}]`, promptMeta);
   const footerMid = boxRow(width, inputBody);

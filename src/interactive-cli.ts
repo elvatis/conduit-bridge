@@ -1002,7 +1002,17 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
             state = { ...state, notice: `Rollback failed: ${err instanceof Error ? err.message : String(err)}` };
           }
         }
-      } else if (command.type === 'unknown') state = { ...state, notice: `Unknown command ${command.text}` };
+      } else if (command.type === 'unknown') {
+        const known = ['/run', '/continue', '/approve', '/cancel', '/rollback', '/retry', '/workspaces', '/models', '/model', '/sessions', '/insights', '/status', '/help', '/quit', '/new', '/stop'];
+        const name = command.text.slice(1).trim().split(/\s+/)[0].toLowerCase();
+        const match = known.find(k => k.slice(1).startsWith(name) || name.startsWith(k.slice(1)));
+        state = {
+          ...state,
+          notice: match
+            ? `Unknown command ${command.text}. Did you mean ${match}?`
+            : `Unknown command ${command.text}. Type /help for all commands.`,
+        };
+      }
       else if (command.type === 'prompt') void sendPrompt(command.text);
     }
     requestPaint();

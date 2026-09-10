@@ -16,7 +16,8 @@ const CLI_VERSION = (() => {
 })();
 
 const args = process.argv.slice(2);
-const cmd = args[0] ?? 'start';
+const isInteractiveTerminal = Boolean(process.stdin.isTTY && process.stdout.isTTY && !process.env.CI);
+const cmd = args[0] ?? (isInteractiveTerminal ? 'menu' : 'start');
 const flags: Record<string, string> = {};
 for (let i = 1; i < args.length; i++) {
   const match = args[i].match(/^--([a-z-]+)=(.+)$/);
@@ -78,7 +79,7 @@ switch (cmd) {
       res.on('end', () => {
         try {
           const status = JSON.parse(data);
-          console.log(`conduit-bridge v${status.version} — uptime ${status.uptime}s`);
+          console.log(`conduit-bridge v${status.version} - uptime ${status.uptime}s`);
           for (const provider of status.providers) {
             console.log(`  ${provider.connected ? '✅' : '❌'} ${provider.name.padEnd(16)} ${provider.connected ? 'connected' : 'not connected'}`);
           }
@@ -88,6 +89,12 @@ switch (cmd) {
       console.log(`conduit-bridge is NOT running on ${cfg.host}:${cfg.port}`);
       process.exit(1);
     });
+    break;
+  }
+
+  case 'menu': {
+    const { runCliMenu } = await import('./cli-menu.js');
+    await runCliMenu(CLI_VERSION, cfg);
     break;
   }
 
@@ -175,15 +182,25 @@ switch (cmd) {
 
   case 'help':
   case '--help': {
+    const topic = args[1];
     const { renderCliHelp } = await import('./cli-help.js');
-    console.log(renderCliHelp(CLI_VERSION, cfg));
+    console.log(renderCliHelp(CLI_VERSION, cfg, topic));
     process.exit(0);
     break;
   }
 
   default: {
+    const validCommands = ['start', 'status', 'chat', 'tui', 'menu', 'config', 'run', 'runs', 'sessions', 'workspaces', 'models', 'help'];
     const { renderCliHelp } = await import('./cli-help.js');
+    const input = cmd.toLowerCase();
+    const match = validCommands.find(c => c.startsWith(input) || input.startsWith(c));
+    if (match) {
+      console.error(`Unknown command: "${cmd}". Did you mean "conduit-bridge ${match}"?\n`);
+    } else {
+      console.error(`Unknown command: "${cmd}".\n`);
+    }
     console.log(renderCliHelp(CLI_VERSION, cfg));
+    process.exit(1);
     break;
   }
 }

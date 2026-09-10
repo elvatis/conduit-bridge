@@ -22,6 +22,7 @@ function pad(value: string, width: number): string {
 }
 
 function wrapPlain(value: string, width: number): string[] {
+  if (visible(value) <= width) return [value];
   const words = value.split(/\s+/);
   const lines: string[] = [];
   let current = '';
@@ -44,7 +45,7 @@ function box(title: string, rows: string[], width: number): string[] {
   return [head, ...body, foot];
 }
 
-export function renderCliHelp(version: string, cfg: BridgeConfig): string {
+export function renderCliHelp(version: string, cfg: BridgeConfig, topic?: string): string {
   const width = Math.min(Math.max(process.stdout.columns || 80, 72), 100);
   const cliProviders: Array<{ id: 'cli-gemini' | 'cli-claude' | 'cli-codex' | 'cli-grok'; name: string; binaries: string[] }> = [
     { id: 'cli-gemini', name: 'Gemini CLI', binaries: ['agy', 'gemini', 'antigravity'] },

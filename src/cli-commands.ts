@@ -112,13 +112,20 @@ export async function handleRunCommand(
       let lastStepCount = 0;
       let finished = false;
       const timeoutAt = Date.now() + 60000;
+      const isInteractive = Boolean(process.stderr.isTTY && out === defaultCliOutput);
+      const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+      let spinIdx = 0;
       while (!finished && Date.now() < timeoutAt) {
+        if (isInteractive) {
+          process.stderr.write(`\r${spinnerChars[spinIdx++ % spinnerChars.length]} Polling execution run...`);
+        }
         await new Promise(r => setTimeout(r, 400));
         try {
           const check = await requestBridgeJson<{ run: any }>(cfg, `/v1/platform/runs/${encodeURIComponent(runId)}`);
           const r = check.run;
           const steps = r?.steps || [];
           if (steps.length > lastStepCount) {
+            if (isInteractive) process.stderr.write('\r\x1b[2K');
             for (let i = lastStepCount; i < steps.length; i++) {
               const step = steps[i];
               out.log(`  Step ${step.iteration}: [${step.status}]`);
@@ -130,20 +137,24 @@ export async function handleRunCommand(
           }
 
           if (r?.status === 'waiting_approval') {
+            if (isInteractive) process.stderr.write('\r\x1b[2K');
             out.log(`\n[WAITING APPROVAL] Run ${runId} is awaiting approval.`);
             out.log(`To approve: conduit-bridge runs approve ${runId}`);
             out.log(`To cancel:  conduit-bridge runs cancel ${runId}`);
             finished = true;
           } else if (r && ['completed', 'failed', 'cancelled', 'interrupted'].includes(r.status)) {
+            if (isInteractive) process.stderr.write('\r\x1b[2K');
             out.log(`\nRun ${runId} finished with status: ${r.status}`);
             if (r.error) out.log(`Error: ${r.error}`);
             if (r.tokensConsumed) out.log(`Tokens: ${r.tokensConsumed} ($${(r.costUsd || 0).toFixed(4)})`);
             finished = true;
           }
         } catch {
+          if (isInteractive) process.stderr.write('\r\x1b[2K');
           finished = true;
         }
       }
+      if (isInteractive) process.stderr.write('\r\x1b[2K');
     }
     return 0;
   } catch (err: any) {
@@ -179,8 +190,8 @@ export async function handleRunsCommand(
       for (const r of runs) {
         const id = (r.id || '').padEnd(20);
         const status = (r.status || '').padEnd(18);
-        const model = (r.input?.model || r.model || '-').slice(0, 22).padEnd(24);
-        const prompt = (r.input?.prompt || r.prompt || '').replace(/\s+/g, ' ').slice(0, 36);
+        const model = (r.input?.model || r.model || '-').padEnd(24);
+        const prompt = (r.input?.prompt || r.prompt || '').replace(/\s+/g, ' ');
         out.log(`${id} ${status} ${model} ${prompt}`);
       }
       return 0;
@@ -207,7 +218,7 @@ export async function handleRunsCommand(
         out.log('\nSteps:');
         for (const s of r.steps) {
           out.log(`  [Step ${s.iteration}] [${s.status}]`);
-          if (s.content) out.log(`    Output: ${s.content.slice(0, 120)}`);
+          if (s.content) out.log(`    Output: ${s.content}`);
           if (s.events && s.events.length) {
             for (const ev of s.events) {
               if (ev.command) out.log(`    $ ${ev.command} [${ev.status || 'done'}]`);
@@ -283,7 +294,13 @@ export async function handleRunsCommand(
       return 0;
     }
 
-    out.error(`Unknown runs command '${sub}'. Available: list, get, approve, cancel, continue, retry, rollback`);
+    const validSubs = ['list', 'get', 'approve', 'cancel', 'continue', 'retry', 'rollback'];
+    const match = validSubs.find(s => s.startsWith(sub.toLowerCase()) || sub.toLowerCase().startsWith(s));
+    if (match) {
+      out.error(`Unknown runs command '${sub}'. Did you mean '${match}'? Available: ${validSubs.join(', ')}`);
+    } else {
+      out.error(`Unknown runs command '${sub}'. Available: ${validSubs.join(', ')}`);
+    }
     return 1;
   } catch (err: any) {
     out.error(`Error: ${err.message}`);
@@ -316,8 +333,8 @@ export async function handleSessionsCommand(
       out.log('-'.repeat(70));
       for (const s of sessions) {
         const id = (s.id || '').padEnd(24);
-        const model = (s.model || '-').slice(0, 22).padEnd(24);
-        const title = (s.title || 'Untitled').slice(0, 30);
+        const model = (s.model || '-').padEnd(24);
+        const title = s.title || 'Untitled';
         out.log(`${id} ${model} ${title}`);
       }
       return 0;
@@ -355,7 +372,13 @@ export async function handleSessionsCommand(
       return 0;
     }
 
-    out.error(`Unknown sessions command '${sub}'. Available: list, get, delete`);
+    const validSubs = ['list', 'get', 'delete'];
+    const match = validSubs.find(s => s.startsWith(sub.toLowerCase()) || sub.toLowerCase().startsWith(s));
+    if (match) {
+      out.error(`Unknown sessions command '${sub}'. Did you mean '${match}'? Available: ${validSubs.join(', ')}`);
+    } else {
+      out.error(`Unknown sessions command '${sub}'. Available: ${validSubs.join(', ')}`);
+    }
     return 1;
   } catch (err: any) {
     out.error(`Error: ${err.message}`);

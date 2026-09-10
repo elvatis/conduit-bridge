@@ -260,6 +260,55 @@ const SHARED_STYLE = `
     font: 700 0.9286rem var(--font-sans);
     letter-spacing: .08em;
   }
+  .appbar-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9286rem;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .breadcrumb-link {
+    background: transparent;
+    border: 0;
+    padding: 3px 6px;
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    transition: all .12s ease;
+  }
+  .breadcrumb-link:hover {
+    color: var(--text);
+    background: rgba(34, 180, 255, 0.12);
+  }
+  .breadcrumb-sep {
+    color: var(--line-2);
+    font-size: 0.8rem;
+    user-select: none;
+    padding: 0 1px;
+  }
+  .breadcrumb-current {
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 3px 6px;
+  }
+  .btn-cue {
+    transition: all .15s ease;
+  }
+  .btn-cue:hover {
+    background: var(--panel-3) !important;
+    border-color: var(--blue) !important;
+    color: var(--blue-soft) !important;
+  }
   .header-actions {
     display: flex;
     align-items: center;
@@ -987,9 +1036,21 @@ ${EXECUTION_TREE_HTML}
   ${SIDEBAR_RESIZE_HTML}
   <div class="workspace" id="workspace-content" tabindex="-1">
     <nav class="appbar" aria-label="Dashboard controls" data-i18n-aria="ui_dashboard_controls">
-      <div style="display: flex; align-items: center; gap: 10px;">
+      <div class="appbar-nav-context" style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
         <button id="menu-toggle" type="button" aria-label="Toggle navigation" data-i18n-aria="ui_toggle_navigation" title="Toggle navigation" data-i18n-title="ui_toggle_navigation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-        <span class="appbrand" id="page-title" data-i18n="nav_platform">Chat</span>
+        <nav class="appbar-breadcrumbs" id="app-breadcrumbs" aria-label="Location hierarchy">
+          <button type="button" class="breadcrumb-link" id="bc-root" title="Go to section root">
+            <span class="appbrand" id="page-title" data-i18n="nav_platform">Chat</span>
+          </button>
+          <span class="breadcrumb-sep" id="bc-sep-1" hidden aria-hidden="true">/</span>
+          <button type="button" class="breadcrumb-link" id="bc-sub" hidden title="Go to sub-view">
+            <span id="bc-sub-text"></span>
+          </button>
+          <span class="breadcrumb-sep" id="bc-sep-2" hidden aria-hidden="true">/</span>
+          <span class="breadcrumb-current" id="bc-item" hidden aria-current="page">
+            <span id="bc-item-text"></span>
+          </span>
+        </nav>
       </div>
       <div class="header-actions">
         ${NAV_SEARCH_BUTTON}
@@ -1023,6 +1084,16 @@ ${EXECUTION_TREE_HTML}
           </button>
         </div>
       </header>
+
+      <!-- Contextual Quick-Navigation Bar -->
+      <nav class="cockpit-nav-cues" aria-label="Contextual navigation" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; padding: 10px 14px; background: rgba(34, 180, 255, 0.04); border: 1px solid rgba(34, 180, 255, 0.15); border-radius: 8px; font-size: 0.8571rem;">
+        <span class="muted" style="font-weight: 500;">Quick Navigation:</span>
+        <button type="button" class="btn-cue" id="cue-chat" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">💬 Open Webchat</button>
+        <button type="button" class="btn-cue" id="cue-execution" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">⚡ Execution Workspace</button>
+        <button type="button" class="btn-cue" id="cue-git" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">⑂ Git Workspace</button>
+        <button type="button" class="btn-cue" id="cue-analytics" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">📊 Repository Analytics</button>
+        <button type="button" class="btn-cue" id="cue-insights" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">💡 Local Insights</button>
+      </nav>
 
       <!-- Attention Required Banner -->
       <div id="cockpit-attention" style="display: none; background: rgba(245,184,61,0.12); border: 1px solid rgba(245,184,61,0.45); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
@@ -1795,10 +1866,57 @@ ${GETTING_STARTED_HTML}
   };
 
   let activeSection = 'platform';
+  function updateBreadcrumbs(sectionKey, subviewName, entityName, onSubClick) {
+    const rootLink = $('bc-root');
+    const rootText = $('page-title');
+    const sep1 = $('bc-sep-1');
+    const subBtn = $('bc-sub');
+    const subText = $('bc-sub-text');
+    const sep2 = $('bc-sep-2');
+    const itemSpan = $('bc-item');
+    const itemText = $('bc-item-text');
+    if (!rootLink || !rootText) return;
+
+    const section = NAV_SECTIONS.find(item => item.key === sectionKey);
+    const rootLabel = section ? t(section.label) : (sectionKey ? sectionKey.toUpperCase() : 'Conduit');
+    setLocalizedText(rootText, () => rootLabel);
+    rootLink.onclick = () => { showSection(sectionKey); if (sectionKey === 'platform') pfTab('chat'); };
+
+    if (subviewName) {
+      if (sep1) sep1.hidden = false;
+      if (subBtn && subText) {
+        subBtn.hidden = false;
+        subText.textContent = subviewName;
+        subBtn.onclick = onSubClick || null;
+      }
+    } else {
+      if (sep1) sep1.hidden = true;
+      if (subBtn) subBtn.hidden = true;
+    }
+
+    if (entityName) {
+      if (sep2) sep2.hidden = false;
+      if (itemSpan && itemText) {
+        itemSpan.hidden = false;
+        itemText.textContent = entityName;
+      }
+    } else {
+      if (sep2) sep2.hidden = true;
+      if (itemSpan) itemSpan.hidden = true;
+    }
+  }
+  window.updateBreadcrumbs = updateBreadcrumbs;
+
   function showSection(name, updateLocation = true) {
     if (!Object.hasOwn(sectionIds, name)) return;
     if (updateLocation && window.location && window.location.hash !== '#' + name) window.history?.pushState(null, '', '#' + name);
     activeSection = name;
+    updateBreadcrumbs(name);
+    const activeBtn = document.querySelector('[data-section="' + name + '"]');
+    if (activeBtn) {
+      const parentDetails = activeBtn.closest('details');
+      if (parentDetails && !parentDetails.open) parentDetails.open = true;
+    }
     $('ex-sidebar').hidden = name !== 'execution';
     $('ex-create-task').hidden = name !== 'execution';
     $('pf-new-chat').hidden = name === 'execution';
@@ -1825,6 +1943,13 @@ ${GETTING_STARTED_HTML}
   document.querySelectorAll('[data-section]').forEach(button => {
     button.addEventListener('click', () => { showSection(button.dataset.section); if (button.dataset.section === 'platform') pfTab('chat'); });
   });
+
+  $('cue-chat')?.addEventListener('click', () => { showSection('platform'); pfTab('chat'); });
+  $('cue-execution')?.addEventListener('click', () => showSection('execution'));
+  $('cue-git')?.addEventListener('click', () => showSection('git-workspace'));
+  $('cue-analytics')?.addEventListener('click', () => showSection('repository-analytics'));
+  $('cue-insights')?.addEventListener('click', () => showSection('insights'));
+  $('bc-root')?.addEventListener('click', () => { showSection(activeSection); if (activeSection === 'platform') pfTab('chat'); });
 
   $('menu-toggle').addEventListener('click', () => { sidebar.classList.toggle('open'); syncSidebarExpanded(); });
   document.addEventListener('keydown', event => {
@@ -1964,10 +2089,10 @@ ${GETTING_STARTED_HTML}
           '</tr></thead><tbody>' +
           runs.slice(0, 5).map(r =>
             '<tr>' +
-              '<td><code>' + esc((r.id || '').slice(0, 12)) + '</code></td>' +
+              '<td><code title="' + esc(r.id || '') + '">' + esc((r.id || '').slice(0, 12)) + '</code></td>' +
               '<td>' + statusBadge(r.status || 'unknown') + '</td>' +
-              '<td><code>' + esc(r.input?.model || r.model || '-') + '</code></td>' +
-              '<td style="max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + esc(r.input?.prompt || r.prompt || '-') + '</td>' +
+              '<td><code title="' + esc(r.input?.model || r.model || '-') + '">' + esc(r.input?.model || r.model || '-') + '</code></td>' +
+              '<td style="line-height: 1.45; word-break: break-word; overflow-wrap: anywhere;" title="' + esc(r.input?.prompt || r.prompt || '') + '">' + esc(r.input?.prompt || r.prompt || '-') + '</td>' +
               '<td><span class="muted">' + (r.tokensConsumed ? r.tokensConsumed + ' tok ($' + (r.costUsd || 0).toFixed(4) + ')' : '-') + '</span></td>' +
               '<td><button type="button" class="btn-jump-run" data-run-id="' + esc(r.id) + '" style="padding: 3px 8px; font-size: 0.8rem;">Open</button></td>' +
             '</tr>'
@@ -1988,7 +2113,7 @@ ${GETTING_STARTED_HTML}
           workspaces.map(w =>
             '<tr>' +
               '<td><strong>' + esc(w.name || w.id) + '</strong></td>' +
-              '<td style="font-family: monospace; font-size: 0.8571rem;">' + esc(w.path) + '</td>' +
+              '<td style="font-family: monospace; font-size: 0.8571rem; word-break: break-all; overflow-wrap: anywhere;" title="' + esc(w.path) + '">' + esc(w.path) + '</td>' +
               '<td>' + (w.isDefault ? '<span class="setting-badge ok">Default</span>' : '<span class="muted">-</span>') + '</td>' +
               '<td><span class="setting-badge ' + (w.isWritable || w.writable ? 'ok' : 'warn') + '">' + (w.isWritable || w.writable ? 'Read / Write' : 'Read Only') + '</span></td>' +
             '</tr>'
@@ -2686,7 +2811,7 @@ ${GETTING_STARTED_HTML}
             '<strong>' + esc(systemToolText(displayName)) + '</strong>' +
             '<span class="setting-badge ' + (isAvail ? 'ok' : 'bad') + '">' + (isAvail ? t('status_available') : t('status_missing')) + '</span>' +
           '</div>' +
-          '<div class="muted" style="font-size: 0.8571rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
+          '<div class="muted" style="font-size: 0.8571rem; font-family: monospace; word-break: break-all; overflow-wrap: anywhere;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
           '<div style="display: flex; gap: 6px; margin-top: 6px; font-size: 0.8rem;">' +
             '<span class="setting-badge info">' + esc(systemToolText(tool.category || tool.classification || t('group_system'))) + '</span>' +
             '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(risk)) + '</span>' +

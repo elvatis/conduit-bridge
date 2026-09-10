@@ -241,6 +241,12 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
     pfState.tab = name;
     $('pf-view-select').value = name;
     for (const tab of ['chat', 'vault', 'memory', 'library', 'runs', 'system']) { $('pf-pane-' + tab).hidden = tab !== name; $('pf-tab-' + tab).setAttribute('aria-selected', String(tab === name)); }
+    if (typeof window.updateBreadcrumbs === 'function') {
+      const tabLabels = { chat: 'Webchat', vault: 'Security Vault', memory: 'Agent Memory', library: 'Skill Library', runs: 'Execution Runs', system: 'System & Hardware' };
+      const subName = tabLabels[name] || name;
+      const itemName = (name === 'chat' && pfState.session?.title) ? pfState.session.title : null;
+      window.updateBreadcrumbs('platform', subName, itemName, () => pfTab(name));
+    }
     platformRefresh().catch(error => pfStatus(() => error.message, true));
   }
   async function platformRefresh() {
@@ -400,6 +406,9 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
     $('pf-summary-content').value = pfState.session.summary?.content || '';
     $('pf-edit-branch').hidden = true;
     pfRenderSessions(); pfRenderTranscript(); pfContextSummary();
+    if (typeof window.updateBreadcrumbs === 'function') {
+      window.updateBreadcrumbs('platform', 'Webchat', pfState.session?.title || null, () => pfTab('chat'));
+    }
     pfApplyRole();
   }
   function pfPrepareNewChat(projectId = '') {
@@ -410,6 +419,9 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
     }
     pfState.sessionEpoch++;
     pfState.session = null;
+    if (typeof window.updateBreadcrumbs === 'function') {
+      window.updateBreadcrumbs('platform', 'Webchat', null, () => pfTab('chat'));
+    }
     $('pf-chat-project').value = projectId;
     $('pf-chat-effort').value = ''; setEffortFastMode('pf-chat-effort',false);
     $('pf-chat-title').value = ''; $('pf-chat-input').value = ''; $('pf-chat-retention').value = 'retained';
@@ -541,7 +553,7 @@ export const PLATFORM_SCRIPT = EFFORT_SCRIPT + String.raw`
     pfState.vault = result;
     const settings = result.settings || {};
     if (!pfState.vaultSettingsDirty) { $('pf-vault-enabled').value = String(settings.enabled !== false); $('pf-vault-interval').value = String(settings.intervalMinutes || 60); }
-    setLocalizedText($('pf-vault-status'), () => t('ui_vault_status', { messages: result.messages || 0, status: settings.enabled === false ? t('status_disabled') : t('vault_scan_' + (settings.status || 'idle')), next: settings.enabled === false ? '—' : pfDate(settings.nextScanAt) }) + (settings.status === 'error' ? ' · ' + t('ui_vault_scan_error') : ''));
+    setLocalizedText($('pf-vault-status'), () => t('ui_vault_status', { messages: result.messages || 0, status: settings.enabled === false ? t('status_disabled') : t('vault_scan_' + (settings.status || 'idle')), next: settings.enabled === false ? '-' : pfDate(settings.nextScanAt) }) + (settings.status === 'error' ? ' · ' + t('ui_vault_scan_error') : ''));
     $('pf-vault-scan').disabled = settings.status === 'running' || !['admin','operator'].includes(pfState.operator?.role);
     setLocalizedHtml($('pf-vault-suggestions'), () => (result.suggestions || []).map(s => '<article><h4>' + esc(s.title) + '</h4><p>' + esc(s.reason) + '</p><div class="platform-message-content">' + esc(s.prompt) + '</div><div class="platform-message-actions">' + s.sources.map((ref,i) => '<button type="button" data-vault-session="' + esc(ref.sessionId) + '" data-vault-message="' + esc(ref.messageId) + '">' + esc(t('ui_vault_source', { number: i + 1 })) + '</button>').join('') + '<button type="button" data-vault-use="' + esc(s.id) + '">' + esc(t('btn_vault_use')) + '</button><button type="button" data-vault-dismiss="' + esc(s.id) + '">' + esc(t('btn_vault_dismiss')) + '</button></div></article>').join('') || '<p class="platform-empty">' + esc(t('ui_vault_no_suggestions')) + '</p>');
   }
