@@ -268,10 +268,18 @@ const SHARED_STYLE = `
     min-width: 0;
     overflow: hidden;
   }
+  .appbar-breadcrumbs [hidden],
+  .breadcrumb-link[hidden],
+  .breadcrumb-sep[hidden],
+  .breadcrumb-current[hidden] {
+    display: none !important;
+  }
   .breadcrumb-link {
     background: transparent;
     border: 0;
     padding: 3px 6px;
+    min-height: 24px;
+    min-width: 24px;
     border-radius: 6px;
     color: var(--muted);
     cursor: pointer;
@@ -280,6 +288,7 @@ const SHARED_STYLE = `
     font-weight: 500;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     text-decoration: none;
     transition: all .12s ease;
   }
