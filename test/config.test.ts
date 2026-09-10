@@ -38,16 +38,26 @@ function cleanHome() {
   rmSync(TEST_HOME, { recursive: true, force: true });
 }
 
+const PREVIOUS_HOME = process.env.CONDUIT_HOME;
+
 describe('config', () => {
   beforeEach(() => {
     cleanHome();
     process.env.CONDUIT_VAULT_KEY = TEST_VAULT_KEY;
+    // This file mocks homedir() and asserts against the path derived from it,
+    // which is exactly the path CONDUIT_HOME overrides. The global test setup
+    // sets that variable so the rest of the suite does not touch real state;
+    // here it has to be out of the way, because the override is the behaviour
+    // under test.
+    delete process.env.CONDUIT_HOME;
   });
 
   afterAll(() => {
     cleanHome();
     if (PREVIOUS_VAULT_KEY === undefined) delete process.env.CONDUIT_VAULT_KEY;
     else process.env.CONDUIT_VAULT_KEY = PREVIOUS_VAULT_KEY;
+    if (PREVIOUS_HOME === undefined) delete process.env.CONDUIT_HOME;
+    else process.env.CONDUIT_HOME = PREVIOUS_HOME;
   });
 
   describe('loadConfig', () => {
