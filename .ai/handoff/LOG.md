@@ -2,6 +2,108 @@
 
 _Reverse chronological._
 
+## 2026-09-08 - Accompany llama-server and BitNet installation
+
+Added a visible staged installation route to README and expanded the BitNet guide from assumed prerequisites into a Windows x64 walkthrough. It explains llama.cpp/server/model roles, installer components and compiler PATH setup, pinned build revisions, a resumable pinned Microsoft GGUF download with size/SHA-256, generated absolute-path dotenv settings, native versus bridge health, ownership states, first PowerShell/Webchat requests, daily startup, manual lifecycle and failure diagnostics. Linux and other-model paths retain explicit validation limits. Updated getting-started, documentation index and .env.example, and corrected duplicated release copy and stale dashboard styling in README. Cross-checked official Microsoft/llama.cpp/Hugging Face documentation. Download HEAD is 200; existing model is 1,187,801,280 bytes with matching SHA-256. All 17 PowerShell blocks parse under 5.1 and 7; tool preflight/model verification run on both. Actual dotenv loader accepts the eight emitted settings; all 27 inspected section links resolve. Existing focused tests pass 31/31; build/typecheck, secret scan, production dependency audit and configured governance pass. No clean toolchain installation, model redownload, new inference, runtime configuration change or service restart was performed. Updating PR #120; the preceding demo head 37a3fe3 passed all eight hosted checks. No merge or release.
+
+## 2026-09-08 - Refresh the English dashboard demo
+
+Regenerated assets/demo.gif after the insight classification repair. The recording now derives illustrative categories from the production evidence classifier and checks that three noisy messages are omitted while four supported statements keep their categories. Added numbered source links, navigation to the exact original message, introduction re-entry and page search. Moved recording captions into open dialogs so their backdrop cannot obscure them. The recording completed with source/content assertions and no provider or mutation requests. Source frames and decoded final GIF frames were visually checked; FFprobe confirms 1200x800, 407 frames and 40.7 seconds (about 2.01 MiB). Updated README and recording/validation documentation. Application source is unchanged from a059862, whose 690 tests, 57 browser cases and eight hosted checks passed. Updating existing PR #120; no merge or release.
+
+## 2026-09-08 - Correct local insight selection and categories
+
+Reproduced real BitNet failures with 18 fixed English/German cases (7 correct), then separated evidence eligibility from model ranking. Complete sentences receive conservative category checks before chunking; questions, hypothetical or unmade choices, test tokens/echoes and quoted/code examples are omitted. Model output contains only existing statement IDs, keeping wording, category and original sources attached. Added bounded selection/reduction, per-input category coverage, strict ID/count/duplicate checks and format-3 cache invalidation. All 18 native cases and three aggregation/provenance scenarios pass (21 calls). Offline cases cover explicit negative choices, German negation, embedded questions, conditional benefits of recorded choices, repeated failures and transport/encoded-input boundaries. Full tests: 690 in 72 files, 30.82s; nine affected browser/accessibility cases pass in 53.8s. Build, secrets and audit pass. Rebuilt local bridge retains seven chats; all 34 test/help messages produce an empty report instead of five misleading insights. The corrected report's timestamp survives another real restart; bridge and BitNet are healthy. Documented the deliberately conservative English/German gates and reproducible synthetic check. Updated existing PR #120; no merge or release.
+
+## 2026-09-08 - Guided onboarding, accessible navigation and local session insights
+
+Usability and local insights follow-up (2026-09-08): Added a nonblocking first-visit introduction offer with Help re-entry, keyboard page search (Ctrl/Command+K), skip link, accessible compact actions, clearer spacing and a dedicated examples section whose buttons append unsent drafts. Added local BitNet summaries across own accessible complete messages, with encrypted progress, cancellation/resume, strict owner/source/credential revalidation and numbered source links. Native 2B checks exposed unreliable free-form summaries, so final output is restricted to selected original statements, grouped and deduplicated by category with exact source excerpts. Category selection remains fallible and is explained in UI/docs. Final native analysis processed all 34 messages in seven retained chats; five distinct statements survived a real process restart and a source link focused the matching message. Bridge and BitNet health are 200. Full local suites: 633 tests/71 files (28.71s), 57 browser cases (1.6m), final 52 affected contracts and six affected browser cases plus the final source-link test pass. WCAG A/AA automation passes across 23 pages, six panes, expanded navigation and new flows at 320/1280px. Build, secret scan, dependency audit and configured governance pass. Exact scanner 6.0.15 reports zero findings with the existing two reviewed exceptions. English demo regenerated with illustrative insights and examples. Existing PR #120 updated; no merge or release.
+
+## 2026-09-08 - Supply chain isolation and navigation/settings corrections
+
+Supply chain and settings follow-up (2026-09-08): Reviewed PR #120 scanner comment. Isolated provenance into a job with only SHA-pinned GitHub download/attestation actions; build has no write permissions, publishing depends on attestation, checkout does not persist credentials. Added two documented line-specific exceptions for the local UI import false positive and the required isolated OIDC permission. Exact CI scanner 6.0.15 reports zero findings at low minimum, score 0 and two suppressions; removing the comments restores exactly the two findings. actionlint, secret scan and governance checks pass. Expanded navigation is left aligned. Credential forms have 16px input/save-icon gaps, accessible names and usable widths including dynamic tooltips. All 48 browser tests pass (47.0s); 24 rows additionally pass a six-width/two-language geometry audit. Production build passes. Local bridge restarted idle, preserving seven chats; bridge and BitNet return 200. No merge or release.
+
+## 2026-09-08 - Text alignment, German copy and control materials
+
+Text, language and design follow-up (2026-09-08): Centered select labels and balanced pipeline fields. Added Apple-inspired glass navigation/popovers, opaque content, capsule buttons, segmented choices, system type and clearer switches/sliders. German copy now covers dynamic Effort controls and levels, all 17 shipped presets, installed template originals, 23 tool descriptions, Git actions, empty states and chart dates; edited content and wire values are preserved. Complete local suites pass 613 tests/70 files (32.94s) and 48 browser cases (44.3s); the final installed-preset follow-up passes all 45 affected contracts and four language browser cases. Build passes and the English GIF is regenerated. Updating PR #120; previous head 77c34c3 passed every hosted check. No merge or release.
+
+The live UI was reloaded and the German pipeline dialog inspected. Native focus and Escape remain intact. All seven chats and the separate BitNet service are retained.
+
+## 2026-09-08 - Second workspace inspection
+
+- Reproduced and fixed stale accessible width after animated navigation reset.
+- Converted navigation, pipeline and repository overlays to named native
+  dialogs with initial/restored focus and Escape. Kept model menus inside the
+  modal and made Escape close nested Effort popovers first. Named Git dialogs
+  and stacked narrow footer controls; inspected German dialogs at 320 x 480.
+- Reproduced a polling race that erased failed-action messages. Refresh and
+  action errors now clear independently; retry and new-task behavior is covered.
+- Added ten browser regressions. Complete reruns pass 611 Vitest tests in 70
+  files (32.48s), 44 Playwright tests (38.8s) and the production build.
+- A real-Git merge fixture exceeded its 5s default during a parallel load run;
+  only that fixture now allows 15s, with unchanged assertions.
+- Rebuilt the local bridge on 31338, preserved seven chats and checked BitNet
+  health on 8080. Updating existing PR #120; no merge or release.
+
+## 2026-09-08 - PR #120 Windows fixture correction
+
+- Published the requested workspace PR after integrating the MIT main update.
+- Linux, Chromium UI, CodeQL, AAHP and security checks passed. Hosted Windows
+  exposed short-name versus canonical temporary-path assertions in two new tests.
+- Corrected expected paths and strengthened both cases with explicit aliased
+  workspace roots. Production path handling and authorization are unchanged.
+- Both affected test files pass locally: 34 tests, including real Git/worktree
+  actions in isolated repositories and scoped HTTP authorization.
+
+## 2026-09-08 - UI controls, navigation and functional coverage
+
+- Aligned control heights, padding, icon centers, popovers and responsive forms
+  throughout the Elvatis dashboard; execution input stays below run evidence.
+- Added pointer and keyboard navigation resizing, persistence, cancellation
+  and reset, plus short-window scrolling without overlapping navigation links.
+- Fixed Effort positioning/focus-scroll behavior and the analytics identity
+  initialization race exposed by browser regression tests.
+- Added 34 isolated Playwright checks and Linux Chromium CI. All 22 navigation
+  sections and six platform tabs fit five viewport widths in both languages.
+- Reran all 611 Vitest tests in 70 files and the 34 browser tests after the
+  final design corrections; all pass. Production build passes.
+- Added English assets/demo.gif with a reproducible Playwright/FFmpeg script,
+  bounded review/pipeline examples and contributor/validation documentation.
+- Rebuilt and restarted the local bridge on 31338 after confirming every run
+  had finished. Seven retained chats and the separate BitNet service survive.
+- Preparing the user-requested feature PR; release and runtime gap follow-ups
+  remain separate work.
+
+## 2026-09-08 - Execution and repository workspace
+
+- Created codex/agent-orchestrator-dashboard from fetched main cb87534.
+- Added execution task hierarchy, provider event details, plan drawer, shared
+  effort popup and independent Fast-mode transport/settings/accounting support.
+- Integrated registered-repository analytics and Git/worktree browsing with
+  scoped read authorization, admin Git actions and explicit repository policy.
+- Made workspace pages fill available width and height, including responsive
+  chat/execution and direct analytics pages. All provider effects in browser
+  QA were disabled; Git reads used real local history.
+- Added durable operator-owned chat projects, assignment and title search.
+  Browser fixtures verify a moved chat retains its messages and workspace.
+- Corrected wide-screen typography, SVG axis scaling and commit graph row
+  continuity. Git navigation remains visible; the repository toolbar spans the
+  page. Chat history now loads when opening a direct Git/analytics link.
+- Completed Codex and Claude Code gap audits with official sources and
+  acceptance criteria. Current work does not claim task/turn or tool-dialog parity.
+- Completed docs/guides/integration-assessment.md: Canvas/SQLite adapter,
+  durable prompt patterns and scoped GitHub/Akido integration packages. Akido
+  help is reachable with 98 exposed tools; no integration was installed.
+- Added complete PR title/label hold preflight and explicit Git branch starts.
+- Merged separate MIT license PR #119 after required checks; GitHub About and
+  recognized MIT license verified. Restored native BitNet and rebuilt the local
+  bridge on 31338; both health endpoints pass and seven chats remain available.
+- Validation: 611 tests/70 files, 31 final targeted checks, build, Secret Scan
+  and whitespace check pass; nine responsive page/viewport combinations pass.
+  Evidence: docs/validation/execution-workspace.md. No feature push or release.
+- AAHP precommit verification passes in the isolated candidate worktree.
+  Root-directory lint reports an upstream miniaudio documentation arrow as a
+  conflict marker inside ignored BitNet artifacts; see the validation report.
+
 ## 2026-09-07 - GHAS hardening before merge
 
 - Fixed CodeQL findings for incomplete Markdown escaping in governance and

@@ -5,6 +5,12 @@ import { DASHBOARD_HTML, HELP_HTML } from '../src/dashboard.js';
 import { I18N_SCRIPT } from '../src/ui/i18n.js';
 import { TOOLTIP_REGISTRY } from '../src/ui/tooltips.js';
 import { readFileSync } from 'node:fs';
+import { PRESET_PIPELINES } from '../src/pipelines.js';
+import { buildCodingPipelines } from '../src/platform-presets.js';
+import { KNOWN_TOOLS } from '../src/cli-mode.js';
+import { PIPELINE_COPY_DE } from '../src/ui/pipeline-copy.js';
+import { TOOL_COPY_DE } from '../src/ui/tool-copy.js';
+import { EFFORT_LEVELS } from '../src/effort.js';
 
 function languageHarness(storedLanguage?: string) {
   const stored = new Map<string,string>(storedLanguage ? [['conduit_lang',storedLanguage]] : []);
@@ -37,6 +43,26 @@ function languageHarness(storedLanguage?: string) {
 }
 
 describe('interface localization', () => {
+  it('covers all shipped pipeline steps and tool descriptions without changing executable definitions', () => {
+    const coding = buildCodingPipelines({ planner:'model',implementer:'model',reviewer:'model',security:'model' });
+    for (const preset of [...PRESET_PIPELINES,...coding]) {
+      const copy = PIPELINE_COPY_DE[preset.id];
+      expect(copy?.name,preset.id).toBeTruthy(); expect(copy?.description,preset.id).toBeTruthy();
+      for (const step of preset.steps) expect(copy?.steps[step.id],preset.id + '/' + step.id).toBeTruthy();
+    }
+    for (const tool of KNOWN_TOOLS) {
+      expect(TOOL_COPY_DE[tool.name]?.[0],tool.name).toBeTruthy();
+      expect(TOOL_COPY_DE[tool.name]?.[1],tool.name).toBeTruthy();
+    }
+  });
+
+  it('localizes effort levels for display while retaining the provider wire values', () => {
+    const ui = languageHarness(); ui.initialize();
+    const values = ['', ...EFFORT_LEVELS];
+    expect(values.map(value => ui.run('effortLabel(' + JSON.stringify(value) + ')'))).toEqual(['Standard','Keine','Minimal','Niedrig','Mittel','Hoch','Sehr hoch','Maximum','Höchster Aufwand','Maximum (Ultracode)']);
+    ui.run('applyLang("en")');
+    expect(ui.run('effortLabel("high")')).toBe('High');
+  });
   it('keeps browser source and translations valid UTF-8 on Windows', () => {
     for (const file of ['src/i18n.ts', 'src/platform-ui.ts']) expect(() => new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(file))).not.toThrow();
     expect(TRANSLATIONS.de.ui_vault_description).toContain('Gespräche');

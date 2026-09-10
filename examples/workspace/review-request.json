@@ -1,0 +1,15 @@
+{
+  "prompt": "Inspect the registered workspace and propose a focused review plan. Identify the relevant files, existing tests and acceptance criteria. Do not edit files or run an implementation.",
+  "model": "{{model}}",
+  "mode": "plan",
+  "effort": "medium",
+  "fastMode": false,
+  "workspaceId": "{{workspace_id}}",
+  "workingDirectory": "{{workspace_path}}",
+  "requiresApproval": true,
+  "maxIterations": 2,
+  "maxDurationMs": 120000,
+  "maxCostUsd": 0.5,
+  "maxTokens": 8000,
+  "maxOutputTokens": 1024
+}

@@ -11,7 +11,10 @@ import type {
 } from '../types.js';
 
 export const DEFAULT_CLI_TIMEOUT_MS = 300_000; // 5 min
-export const CLI_GRACE_MS = 5_000;
+export /** How long to wait after exit for the stdio streams to close on their own. */
+const CLI_EXIT_GRACE_MS = 250;
+
+const CLI_GRACE_MS = 5_000;
 export const CLI_AUTH_ENV_KEYS: Record<CliProviderName, string[]> = {
   'cli-claude': ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY', 'CLAUDE_CONFIG_DIR'],
   'cli-codex': ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_HOME'],
@@ -251,6 +254,8 @@ export interface RunCliOptions {
   /** Environment names required by this provider; excludes other providers' secrets. */
   envKeys?: string[];
   signal?: AbortSignal;
+  /** Host-only observer for structured output. Observer failures do not stop the child. */
+  onStdout?: (chunk: string) => void;
 }
 
 /** Spawn a CLI with graceful SIGTERM → SIGKILL timeout (Windows taskkill /T). */
@@ -297,6 +302,10 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
         env: { ...buildMinimalEnv(opts.envKeys), ...(opts.env ?? {}) },
           cwd,
           stdio: ['pipe', 'pipe', 'pipe'],
+          // Makes the child a process group leader so the whole group can be
+          // signalled. Without it a cancel reaches the child only, and
+          // whatever the provider started survives it.
+          detached: !isWin,
         });
 
     let stdout = '';
@@ -315,8 +324,16 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
         try { spawn('taskkill', ['/pid', String(proc.pid), '/t', '/f'], { stdio: 'ignore' }); }
         catch { proc.kill(); }
       } else {
-        proc.kill('SIGTERM');
-        killTimer = setTimeout(() => { if (!closed) proc.kill('SIGKILL'); }, CLI_GRACE_MS);
+        // Negative pid means the process group. Falling back to the child
+        // alone is better than not signalling at all, which is what happens
+        // if the group is already gone.
+        const signalGroup = (sig: NodeJS.Signals) => {
+          if (proc.pid === undefined) return;
+          try { process.kill(-proc.pid, sig); }
+          catch { try { proc.kill(sig); } catch { /* already dead */ } }
+        };
+        signalGroup('SIGTERM');
+        killTimer = setTimeout(() => { if (!closed) signalGroup('SIGKILL'); }, CLI_GRACE_MS);
       }
     };
     const timeoutTimer = setTimeout(() => terminate('timeout'), timeoutMs);
@@ -330,8 +347,21 @@ export function runCli(opts: RunCliOptions): Promise<CliRunResult> {
       opts.signal?.removeEventListener('abort', onAbort);
     };
 
-    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.stdout?.setEncoding('utf8');
+    proc.stdout?.on('data', (chunk: string) => { stdout += chunk; try { opts.onStdout?.(chunk); } catch { /* observers cannot fail execution */ } });
     proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+    // 'close' fires when the stdio streams close, not when the child exits.
+    // Anything still holding a pipe keeps the promise unsettled, which shows
+    // up as a request that never returns. 'exit' is the backstop.
+    proc.on('exit', code => {
+      if (closed) return;
+      setTimeout(() => {
+        if (closed) return;
+        closed = true;
+        clearTimers();
+        resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? 0, timedOut, aborted });
+      }, CLI_EXIT_GRACE_MS).unref?.();
+    });
     proc.on('close', code => {
       closed = true;
       clearTimers();

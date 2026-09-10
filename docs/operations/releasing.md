@@ -140,6 +140,7 @@ Goal: cut conduit-bridge vX.Y.Z
 
 ## Related
 
+- [Release permission boundaries and scanner review](supply-chain-review.md)
 - Security: `SECURITY.md`
 - Contributing: `CONTRIBUTING.md`
 - Handoff: `.ai/handoff/STATUS.md`

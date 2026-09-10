@@ -1,3 +1,4 @@
+import { requireFastModeSupport } from '../fast-mode.js';
 import type {
   BridgeConfig,
   ProviderName,
@@ -6,6 +7,7 @@ import type {
   ProviderAdapter,
 } from '../types.js';
 import { logger } from '../logger.js';
+import { codexExecutionEvents } from '../execution-events.js';
 import { withCliSession, parseCliSessionOutput, type CliSessionLease } from '../session-registry.js';
 import {
   diagnoseCliExecutable,
@@ -271,6 +273,8 @@ export class CodexCliProvider implements ProviderAdapter {
 
     const model = stripPrefix(req.model, PREFIX);
     const prompt = flattenMessages(lease?.messages ?? req.messages);
+    requireFastModeSupport(this.name,req.model,req.fastMode);
+    const speedArgs = req.fastMode === undefined ? [] : ['-c',req.fastMode ? 'service_tier=fast' : 'service_tier=default'];
     const effort = toOpenAiEffort(req.effort);
     const mode = req.mode ?? 'chat';
 
@@ -283,18 +287,22 @@ export class CodexCliProvider implements ProviderAdapter {
       'exec', ...(lease.sessionId ? ['resume'] : []), '--ignore-user-config', '--json',
       '-m', model, '--skip-git-repo-check',
       ...(effort ? ['-c', `model_reasoning_effort=${effort}`] : []),
+      ...speedArgs,
       ...(lease.sessionId ? [lease.sessionId] : []), '-',
     ] : [
       'exec',
       '--ignore-user-config',
+      ...(req.onExecutionEvent ? ['--json'] : []),
       '-m', model,
       '--skip-git-repo-check',
       ...cliPermissionArgs('cli-codex', mode),
       ...codexPlatformSandboxArgs(),
       ...(effort ? ['-c', `model_reasoning_effort=${effort}`] : []),
+      ...speedArgs,
       '-',
     ];
 
+    const events = req.onExecutionEvent ? codexExecutionEvents(req.onExecutionEvent, req.cwd) : undefined;
     const result = await runCli({
       binPath,
       args,
@@ -305,7 +313,9 @@ export class CodexCliProvider implements ProviderAdapter {
       label: 'cli-codex',
       log: msg => logger.info(msg),
       signal: req.signal,
+      onStdout: events ? chunk => events.push(chunk) : undefined,
     });
+    events?.finish();
 
     if (result.exitCode !== 0 && result.stdout.length === 0) {
       const detail =
@@ -316,7 +326,7 @@ export class CodexCliProvider implements ProviderAdapter {
           : result.stderr || '(no output)';
       throw new Error(`codex exited ${result.exitCode}: ${detail}`);
     }
-    if (lease) {
+    if (lease || req.onExecutionEvent) {
       const parsed = parseCliSessionOutput('cli-codex', result.stdout);
       if (result.exitCode !== 0 || !parsed.text || result.aborted || result.timedOut) throw new Error('Codex session turn did not complete');
       return parsed;

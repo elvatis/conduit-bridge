@@ -1,20 +1,24 @@
+import { parseFastMode } from './fast-mode.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID, createHash } from 'node:crypto';
 import { join, isAbsolute } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
-import type { BridgeConfig, ChatRequest, ModelDefinition, ProviderName, WorkspaceEntry, SecretReference } from './types.js';
+import type { BridgeConfig, ChatRequest, ModelDefinition, ProviderName, WorkspaceEntry, SecretReference, ExecutionEvent } from './types.js';
 import { runtimeDir, saveConfig, secureStorageStatus } from './config.js';
 import { createContentCipher, openSecretVault, type ContentCipher } from './secrets.js';
 import { FileSnapshotBackend, SqliteSnapshotBackend, TransactionalStateStore, type SnapshotCodec } from './storage.js';
 import { PlatformContentService, PlatformContentError, type ContextInput, type PlatformSession, type PlatformMemory } from './platform-content.js';
 import { PlatformVaultService, VAULT_SUGGESTION_SCHEMA } from './platform-vault.js';
+import { PlatformInsightsService } from './platform-insights.js';
 import { PlatformCatalogService } from './platform-catalog.js';
 import { PlatformProfileService, type PlatformProviderProfile } from './platform-profiles.js';
 import { PlatformRunService, type PlatformRun, type PlatformRunInput } from './platform-runs.js';
 import { authenticatePlatformOperator, requirePlatformCapability, platformCapabilityAllowed, createPlatformOperatorCredential, type PlatformOperatorContext, type PlatformCapability } from './platform-auth.js';
-import { KNOWN_TOOLS, normalizeDisallowedTools } from './cli-mode.js';
+import { KNOWN_TOOLS, normalizeDisallowedTools, agentConfinementError } from './cli-mode.js';
+import { capabilitiesFor } from './model-capability.js';
 import { redactSecrets } from './redact.js';
 import { buildCodingPipelines } from './platform-presets.js';
+import { GitWorkspaceService } from './git-workspace.js';
 
 export interface PlatformExecutionContext {
   /** Present only for conversations with explicit retained history. */
@@ -24,7 +28,10 @@ export interface PlatformExecutionContext {
   repository?: string;
   workspaceId?: string;
   operator: PlatformOperatorContext;
+  fallbackModels?: string[];
   onDelta?: (delta: string) => void;
+  onExecutionEvent?: (event: ExecutionEvent) => void;
+  onFallbackModelUsed?: (fallbackModel: string) => void;
 }
 export interface PlatformApiDependencies {
   cfg(): BridgeConfig;
@@ -74,6 +81,7 @@ export class PlatformApi {
   readonly profiles: PlatformProfileService;
   readonly runs: PlatformRunService;
   readonly vault: PlatformVaultService;
+  readonly insights: PlatformInsightsService;
   private readonly codec: SnapshotCodec;
   private initError?: Error;
   private started?: Promise<void>;
@@ -112,6 +120,25 @@ export class PlatformApi {
         finally { release(); }
       },
     });
+    this.insights = new PlatformInsightsService(this.store, {
+      sessions: (ownerId, version) => {
+        const operator = operatorForOwner(ownerId, deps.cfg());
+        if (authorizationVersion(operator, deps.cfg()) !== version) throw new PlatformContentError('Insight authorization has changed', 403);
+        requirePlatformCapability(operator, 'view');
+        return this.visibleSessions(operator).filter(session => session.userId === ownerId);
+      },
+      analyze: async (ownerId, version, analysis, signal) => {
+        const operator = operatorForOwner(ownerId, deps.cfg());
+        if (authorizationVersion(operator, deps.cfg()) !== version) throw new PlatformContentError('Insight authorization has changed', 403);
+        requirePlatformCapability(operator, 'operate');
+        const endpoint = new URL(process.env.BITNET_URL || 'http://127.0.0.1:8080');
+        if (!['127.0.0.1', '[::1]', 'localhost'].includes(endpoint.hostname) || !['http:', 'https:'].includes(endpoint.protocol)) throw new PlatformContentError('Insights require BitNet on this device', 403);
+        if (deps.providerForModel('bitnet/auto') !== 'bitnet') throw new PlatformContentError('Local BitNet is unavailable', 503);
+        const release = deps.acquire(); if (!release) throw new PlatformContentError('Execution capacity unavailable', 429);
+        try { return await this.execute({ model: 'bitnet/auto', mode: 'chat', messages: [{ role: 'user', content: analysis.prompt }], max_tokens: 512, temperature: 0.1, response_format: { type: 'json_object', schema: analysis.schema }, signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]) }, { operator }); }
+        finally { release(); }
+      },
+    });
     this.runs = new PlatformRunService(this.store, {
       concurrency: 4, acquire: () => deps.acquire(), begin: run => deps.begin(run), finish: run => deps.finish(run), spend: id => deps.spend(id),
       execute: (request, { run }) => {
@@ -119,6 +146,12 @@ export class PlatformApi {
         if (run.input.authorizationVersion !== authorizationVersion(operator, deps.cfg())) throw new PlatformContentError('The credential that authorized this queued run has changed. Create a new run after reviewing its state.', 403);
         requirePlatformCapability(operator, 'operate', globalWorkspace(run.workspaceId));
         return this.execute(request, { operator, profile: run.input.profileId ? this.requireProfile(run.input.profileId) : undefined, runId: run.id, workspaceId: run.workspaceId, repository: run.input.repository });
+      },
+      rollback: async run => {
+        if (run.input.workingDirectory) {
+          const gitService = new GitWorkspaceService(run.input.workingDirectory);
+          await gitService.action({ action: 'rollback' });
+        }
       },
       onUpdate: run => deps.event({ type: 'platform_run', id: run.id, status: run.status, revision: run.revision }),
     });
@@ -128,7 +161,7 @@ export class PlatformApi {
   }
   async stop(): Promise<void> {
     for (const controller of this.sessionControllers.values()) controller.abort(new Error('Bridge is stopping'));
-    await this.content.stop(); await this.vault.stop(); await this.runs.stop(); await this.store.close();
+    await this.content.stop(); await this.vault.stop(); await this.insights.stop(); await this.runs.stop(); await this.store.close();
   }
   private visibleSessions(operator: PlatformOperatorContext): PlatformSession[] {
     return this.content.listSessions().filter(s => (operator.role === 'admin' || s.userId === operator.operatorId) && platformCapabilityAllowed(operator, 'view', globalWorkspace(s.workspaceId)));
@@ -179,9 +212,10 @@ export class PlatformApi {
     return { instructions: parts.join('\n\n'), skillRefs: refs };
   }
   private contextInput(body: Record<string, any>, session: PlatformSession, operator: PlatformOperatorContext): ContextInput {
-    const agent = body.agentId || session.agentId ? this.catalog.getAgent(body.agentId || session.agentId) : undefined;
-    const selectedProfile = body.profileId || session.profileId || agent?.profileId;
-    const profile = selectedProfile ? this.requireProfile(selectedProfile) : undefined;
+    const requestedAgentId = Object.hasOwn(body, 'agentId') ? (typeof body.agentId === 'string' && body.agentId ? body.agentId : undefined) : session.agentId;
+    const agent = requestedAgentId ? this.catalog.getAgent(requestedAgentId) : undefined;
+    const requestedProfileId = Object.hasOwn(body, 'profileId') ? (typeof body.profileId === 'string' && body.profileId ? body.profileId : undefined) : (session.profileId || agent?.profileId);
+    const profile = requestedProfileId ? this.requireProfile(requestedProfileId) : undefined;
     const model = body.model || profile?.model || agent?.model || session.model;
     const provider = typeof model === 'string' ? this.deps.providerForModel(model) : undefined;
     if (!provider) throw new PlatformContentError('Select a known provider/model');
@@ -195,11 +229,11 @@ export class PlatformApi {
       this.authorizeMemory(operator, memory, 'view');
     }
     return {
-      input: body.content ?? body.input, provider, model, profileId: profile?.id, agentId: agent?.id,
+      input: body.content ?? body.input, provider, model, profileId: profile?.id, agentId: requestedAgentId,
       contextTokens: Math.min(body.contextTokens ?? 8192, selected?.contextWindow ?? 8192, selected?.maxPromptChars ? Math.floor(selected.maxPromptChars / 4) : Infinity),
       maxOutputTokens: Math.min(body.maxOutputTokens ?? 1024, selected?.maxOutputTokens ?? 8192),
       systemPrompt: attached.instructions, memoryIds: body.memoryIds,
-      effort: body.effort || profile?.defaultEffort || 'low', mode: 'chat', cwd: workspace.cwd,
+      effort: body.effort || agent?.defaultEffort || profile?.defaultEffort || 'low', fastMode: parseFastMode(body.fastMode) ?? agent?.defaultFastMode ?? profile?.defaultFastMode, mode: 'chat', cwd: workspace.cwd,
       expectedRevision: body.expectedRevision ?? body.revision, requestId: body.requestId,
     };
   }
@@ -222,7 +256,7 @@ export class PlatformApi {
         if (method === 'GET' && !id) response(res, 200, { storage: { backend: this.store.backend.kind, revision: this.store.revision, encrypted: this.store.backend.kind !== 'memory', ready: !this.initError, error: this.initError ? redactSecrets(this.initError.message) : undefined, availableBackends: [{ id: 'file', available: true }, { id: 'sqlite', available: true }, { id: 'prisma', available: false, reason: 'Provide a generated client through PrismaSnapshotBackend in the embedding application' }], credentials: secureStorageStatus(), migration: 'Use encrypted backup/restore with the selected backend after restarting. No silent database switch.' } });
         else if (method === 'GET' && id === 'backup') response(res, 200, await this.store.backup(this.codec));
         else if (method === 'POST' && id === 'restore') {
-          if (this.runs.list().some(r => ['running', 'queued', 'waiting_approval'].includes(r.status)) || this.sessionControllers.size || this.vault.busy) throw new PlatformContentError('Stop active work before restoring a backup', 409);
+          if (this.runs.list().some(r => ['running', 'queued', 'waiting_approval'].includes(r.status)) || this.sessionControllers.size || this.vault.busy || this.insights.busy) throw new PlatformContentError('Stop active work before restoring a backup', 409);
           await this.store.restore(body as { format: string; data: string }, this.codec); response(res, 200, { restored: true });
         } else if (method === 'POST' && id === 'config') {
           if (!['file', 'sqlite'].includes(body.backend)) throw new PlatformContentError('Choose file or sqlite; Prisma clients are supplied by the embedding application');
@@ -237,7 +271,7 @@ export class PlatformApi {
       if (resource === 'diagnostics' && method === 'GET') {
         requirePlatformCapability(operator, 'admin'); response(res, 200, { data: await this.deps.diagnostics(), storage: { backend: this.store.backend.kind }, credentials: secureStorageStatus() }); return true;
       }
-      if (resource === 'models' && method === 'GET') { response(res, 200, { data: this.deps.models() }); return true; }
+      if (resource === 'models' && method === 'GET') { response(res, 200, { data: this.deps.models().map(model => ({ ...model, capabilities: model.capabilities ?? capabilitiesFor(model.provider, model.id) })) }); return true; }
       if (resource === 'workspaces' && method === 'GET') {
         response(res, 200, { data: this.deps.workspaces().filter(w => platformCapabilityAllowed(operator, 'view', w.id)) }); return true;
       }
@@ -246,7 +280,9 @@ export class PlatformApi {
         if (!model || !this.deps.providerForModel(model)) throw new PlatformContentError('Select a model to bind the preset roles');
         const roles = { planner: body.planner || model, implementer: body.implementer || model, reviewer: body.reviewer || model, security: body.security || model };
         if (Object.values(roles).some(m => typeof m !== 'string' || !this.deps.providerForModel(m))) throw new PlatformContentError('Every role must use a known provider/model');
-        const definitions = buildCodingPipelines(roles);
+        const efforts = Object.fromEntries(Object.keys(roles).map(role => [role, body.roleEfforts?.[role] || body.effort || undefined]));
+        const fastModes = Object.fromEntries(Object.keys(roles).map(role => [role, parseFastMode(body.roleFastModes?.[role]) ?? parseFastMode(body.fastMode)]));
+        const definitions = buildCodingPipelines(roles, efforts, fastModes);
         if (method === 'GET' && !id) response(res, 200, { data: definitions });
         else if (method === 'POST' && id && action === 'install') {
           requirePlatformCapability(operator, 'admin');
@@ -271,6 +307,20 @@ export class PlatformApi {
           const config = { operators: (this.deps.cfg().platformAuth?.operators || []).filter(o => o.id !== id) };
           (this.deps.saveConfig ?? saveConfig)({ platformAuth: config }); this.deps.cfg().platformAuth = config; response(res, 200, { deleted: true });
         } else throw new PlatformContentError('Unknown operator operation', 404);
+        return true;
+      }
+      if (resource === 'insights') {
+        const version = authorizationVersion(operator, this.deps.cfg());
+        if (!id && method === 'GET') response(res, 200, this.insights.view(operator.operatorId, version));
+        else if (id === 'refresh' && method === 'POST') {
+          requirePlatformCapability(operator, 'operate');
+          if (!['de', 'en'].includes(body.language)) throw new PlatformContentError('Select English or German');
+          if (this.insights.busy) throw new PlatformContentError('Local insight analysis is already running', 409);
+          void this.insights.scan(operator.operatorId, version, body.language).catch(() => {});
+          response(res, 202, { started: true });
+        } else if (id === 'cancel' && method === 'POST') {
+          requirePlatformCapability(operator, 'operate'); this.insights.cancel(operator.operatorId); response(res, 200, { cancelled: true });
+        } else throw new PlatformContentError('Unknown insight operation', 404);
         return true;
       }
       if (resource === 'vault') {
@@ -298,6 +348,19 @@ export class PlatformApi {
         } else throw new PlatformContentError('Unknown vault operation', 404);
         return true;
       }
+      if (resource === 'projects') {
+        requirePlatformCapability(operator, method === 'GET' ? 'view' : 'operate');
+        if (!id && method === 'GET') response(res, 200, { data: this.content.listProjects().filter(project => operator.role === 'admin' || project.userId === operator.operatorId) });
+        else if (!id && method === 'POST') response(res, 201, { project: await this.content.createProject({ name: body.name, userId: operator.operatorId }) });
+        else {
+          const project = this.content.getProject(id);
+          if (!project || (operator.role !== 'admin' && project.userId !== operator.operatorId)) throw new PlatformContentError('Project not found', 404);
+          if (!action && method === 'PATCH') response(res, 200, { project: await this.content.updateProject(id, { name: body.name, expectedRevision: body.expectedRevision }) });
+          else if (!action && method === 'DELETE') { await this.content.deleteProject(id); response(res, 200, { deleted: true }); }
+          else throw new PlatformContentError('Unknown project operation', 404);
+        }
+        return true;
+      }
       if (resource === 'sessions') {
         if (!id && method === 'GET') {
           const data = this.content.listSessions().filter(s => (operator.role === 'admin' || s.userId === operator.operatorId) && platformCapabilityAllowed(operator, 'view', globalWorkspace(s.workspaceId))).map(({ messages, ...s }) => ({ ...s, messageCount: messages.length }));
@@ -306,13 +369,13 @@ export class PlatformApi {
         if (!id && method === 'POST') {
           const workspace = body.workspaceId && body.workspaceId !== 'default' ? this.deps.resolveWorkspace(body.workspaceId) : {};
           requirePlatformCapability(operator, 'operate', workspace.workspaceId);
-          const session = await this.content.createSession({ title: body.title, retention: body.retention, workspaceId: workspace.workspaceId, userId: operator.operatorId, agentId: body.agentId, model: body.model, profileId: body.profileId, ttlMs: body.ttlMs });
+          const session = await this.content.createSession({ title: body.title, retention: body.retention, workspaceId: workspace.workspaceId, userId: operator.operatorId, projectId: body.projectId, agentId: body.agentId, model: body.model, profileId: body.profileId, ttlMs: body.ttlMs });
           await this.vault.settings(operator.operatorId, authorizationVersion(operator, this.deps.cfg()));
           response(res, 201, { session }); return true;
         }
         const session = this.authorizeSession(operator, id, method === 'GET' ? 'view' : 'operate');
         if (!action && method === 'GET') response(res, 200, { session });
-        else if (!action && method === 'PATCH') response(res, 200, { session: await this.content.updateSession(id, { title: body.title, retention: body.retention, model: body.model, provider: body.model ? this.deps.providerForModel(body.model) : undefined, profileId: body.profileId, agentId: body.agentId, ttlMs: body.ttlMs, expectedRevision: body.expectedRevision ?? body.revision }) });
+        else if (!action && method === 'PATCH') response(res, 200, { session: await this.content.updateSession(id, { projectId: body.projectId, title: body.title, retention: body.retention, model: body.model, provider: body.model ? this.deps.providerForModel(body.model) : undefined, profileId: body.profileId, agentId: body.agentId, ttlMs: body.ttlMs, expectedRevision: body.expectedRevision ?? body.revision }) });
         else if (!action && method === 'DELETE') { await this.content.deleteSession(id); response(res, 200, { deleted: true }); }
         else if (action === 'export' && method === 'GET') response(res, 200, JSON.parse(this.content.exportSession(id, 'json')));
         else if (action === 'branch' && method === 'POST') {
@@ -332,7 +395,25 @@ export class PlatformApi {
             const stream = body.stream === true;
             const send = (event: unknown) => { if (!res.destroyed) res.write(`data: ${JSON.stringify(event)}\n\n`); };
             if (stream) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
-            const result = await this.content.runTurn(id, input, (request, _context, captureDelta) => { if (stream) send({ type: 'saved', requestId: request.requestId }); return this.execute(request, { operator, sessionId: id, workspaceId: session.workspaceId, profile: input.profileId ? this.requireProfile(input.profileId) : undefined, onDelta: delta => { captureDelta(delta); if (stream) send({ type: 'delta', delta }); } }); });
+            let resolvedModel = input.model;
+            let resolvedProvider = input.provider;
+            const result = await this.content.runTurn(id, input, async (request, _context, captureDelta) => {
+              if (stream) send({ type: 'saved', requestId: request.requestId });
+              const content = await this.execute(request, {
+                operator,
+                sessionId: id,
+                workspaceId: session.workspaceId,
+                profile: input.profileId ? this.requireProfile(input.profileId) : undefined,
+                fallbackModels: (session as any).fallbackModels ?? this.deps.cfg().orchestrator?.fallbackModels,
+                onFallbackModelUsed: fb => {
+                  resolvedModel = fb;
+                  resolvedProvider = this.deps.providerForModel(fb) || input.provider;
+                },
+                onDelta: delta => { captureDelta(delta); if (stream) send({ type: 'delta', delta }); },
+                onExecutionEvent: event => { if (stream) send({ type: 'execution_event', event }); },
+              });
+              return { content, model: resolvedModel, provider: resolvedProvider };
+            });
             if (stream) { send({ type: 'done', ...result }); res.end(); } else response(res, 200, result);
           } finally { res.off('close', abort); if (this.sessionControllers.get(id) === controller) this.sessionControllers.delete(id); release(); }
         } else throw new PlatformContentError('Unknown session operation', 404);
@@ -413,11 +494,14 @@ export class PlatformApi {
         if (method === 'POST' && !id) {
           const input = this.prepareRun(body, operator); const run = await this.runs.create(input); response(res, 202, { run: publicRun(run) }); return true;
         }
-        const capability = action === 'actions' && ['approve', 'reject'].includes(body.action) ? 'review' : method === 'GET' ? 'view' : 'operate';
+        const isRunAction = action === 'actions' || ['approve', 'reject', 'cancel', 'retry', 'continue', 'rollback'].includes(action);
+        const runAction = action === 'actions' ? body.action : action;
+        const capability = isRunAction && ['approve', 'reject'].includes(runAction) ? 'review' : method === 'GET' ? 'view' : 'operate';
         const run = this.authorizeRun(operator, this.runs.get(id), capability);
-        if (method === 'GET') response(res, 200, { run: publicRun(run) });
-        else if (method === 'POST' && action === 'actions') response(res, 200, { run: publicRun(await this.runs.action(id, body.action, operator.operatorId, body.feedback)) });
-        else if (method === 'DELETE') { await this.runs.delete(id); response(res, 200, { deleted: true }); }
+        if (method === 'GET' && action === 'events') response(res, 200, { data: run.steps.flatMap(s => s.events || []) });
+        else if (method === 'GET' && !action) response(res, 200, { run: publicRun(run) });
+        else if (method === 'POST' && isRunAction) response(res, 200, { run: publicRun(await this.runs.action(id, runAction, operator.operatorId, body.feedback)) });
+        else if (method === 'DELETE' && !action) { await this.runs.delete(id); response(res, 200, { deleted: true }); }
         else throw new PlatformContentError('Unknown run operation', 404);
         return true;
       }
@@ -433,7 +517,7 @@ export class PlatformApi {
           if (!Array.isArray(body.models) || !body.models.length || body.models.length > 8 || body.models.some((m: unknown) => typeof m !== 'string' || !this.deps.providerForModel(m))) throw new PlatformContentError('Select 1 to 8 known models');
           const group = `evaluation-${randomUUID()}`; const runIds: string[] = [];
           for (const model of [...new Set<string>(body.models)]) {
-            const run = await this.runs.create({ prompt: 'This is a tiny instruction-following evaluation. Reply with exactly EVAL_OK. Do not use tools.', model, mode: 'chat', maxIterations: 1, maxOutputTokens: 64, successPattern: 'EVAL_OK', ownerId: operator.operatorId, authorizationVersion: authorizationVersion(operator, this.deps.cfg()), idempotencyKey: `${group}:${runIds.length}` }); runIds.push(run.id);
+            const run = await this.runs.create({ prompt: 'This is a tiny instruction-following evaluation. Reply with exactly EVAL_OK. Do not use tools.', model, effort: body.effort, fastMode: parseFastMode(body.fastMode), mode: 'chat', maxIterations: 1, maxOutputTokens: 64, successPattern: 'EVAL_OK', ownerId: operator.operatorId, authorizationVersion: authorizationVersion(operator, this.deps.cfg()), idempotencyKey: `${group}:${runIds.length}` }); runIds.push(run.id);
           }
           const evaluation = { id: group, ownerId: operator.operatorId, createdAt: Date.now(), runIds, fixture: 'instruction-following-v1' };
           await this.store.transaction(tx => tx.put('platform.evaluations', group, evaluation)); response(res, 202, { evaluation });
@@ -463,12 +547,19 @@ export class PlatformApi {
     requirePlatformCapability(operator, 'operate', workspace.workspaceId);
     const instructions = this.instructions(body, provider, mode);
     if (mode === 'agent' && this.deps.cfg().agentPolicies?.[provider]?.agentEnabled === false) throw new PlatformContentError('Agent mode is disabled for this provider', 403);
+    const allowUnconfined = body.allowUnconfined === true
+      || this.deps.cfg().agentPolicies?.[provider]?.allowUnconfined === true
+      || this.deps.cfg().allowUnconfined === true;
+    const confinementErr = agentConfinementError(provider, mode, { allowUnconfined });
+    if (confinementErr) throw new PlatformContentError(confinementErr, 403);
     return {
       prompt: body.prompt, model, profileId: profile?.id, agentId: agent?.id, workspaceId: workspace.workspaceId,
-      repository: workspace.repository, workingDirectory: workspace.cwd, mode, maxIterations: body.maxIterations,
+      repository: workspace.repository, workingDirectory: workspace.cwd, mode, effort: body.effort || agent?.defaultEffort || profile?.defaultEffort, fastMode: parseFastMode(body.fastMode) ?? agent?.defaultFastMode ?? profile?.defaultFastMode, maxIterations: body.maxIterations,
       maxDurationMs: body.maxDurationMs, maxTokens: body.maxTokens, maxOutputTokens: body.maxOutputTokens,
       maxCostUsd: workspace.maxCostUsd !== undefined ? Math.min(body.maxCostUsd ?? 0.5, workspace.maxCostUsd) : body.maxCostUsd,
-      requiresApproval: workspace.requiresApproval || body.requiresApproval === true, successPattern: body.successPattern,
+      requiresApproval: workspace.requiresApproval || body.requiresApproval === true,
+      rollbackOnFailure: body.rollbackOnFailure === true,
+      successPattern: body.successPattern,
       idempotencyKey: body.idempotencyKey, instructions: instructions.instructions, skillRefs: instructions.skillRefs, ownerId: operator.operatorId, authorizationVersion: authorizationVersion(operator, this.deps.cfg()),
     };
   }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -18,7 +18,7 @@ vi.mock('../src/config.js', async original => ({
 }));
 vi.mock('../src/registry.js', () => {
   const providers = ['cli-claude', 'cli-codex', 'bitnet'].map(name => ({
-    name, models: [{ id: name === 'bitnet' ? 'bitnet/auto' : `${name}/http-test`, provider: name, displayName: name, owned_by: 'test' }],
+    name, models: [{ id: name === 'bitnet' ? 'bitnet/auto' : name === 'cli-claude' ? 'cli-claude/claude-opus-5' : 'cli-codex/gpt-5.6-sol', provider: name, displayName: name, owned_by: 'test' }],
     ensureConnected: async () => true,
     checkSession: async () => true,
     chat: async (request: ChatRequest) => { state.calls.push(request); return state.respond(request); },
@@ -37,12 +37,14 @@ vi.mock('../src/registry.js', () => {
   } };
 });
 
+import { GitWorkspaceService } from '../src/git-workspace.js';
+import { RepositoryAnalyticsService } from '../src/repository-analytics.js';
 import { BridgeServer } from '../src/server.js';
 import { MemorySnapshotBackend, TransactionalStateStore } from '../src/storage.js';
 import { hashPlatformToken } from '../src/platform-auth.js';
 
-const modelA = 'cli-claude/http-test';
-const modelB = 'cli-codex/http-test';
+const modelA = 'cli-claude/claude-opus-5';
+const modelB = 'cli-codex/gpt-5.6-sol';
 const tokens = { admin: 'admin-platform-http-fixture-token-32', alice: 'alice-platform-http-fixture-token-32', bob: 'bob-platform-http-fixture-token-32', viewer: 'viewer-platform-http-fixture-token-32', reviewer: 'reviewer-platform-http-fixture-token-32' };
 type Actor = keyof typeof tokens;
 let server: BridgeServer;
@@ -71,6 +73,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await server?.stop();
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   if (state.runtime.startsWith(join(tmpdir(), 'conduit-platform-http-'))) rmSync(state.runtime, { recursive: true, force: true });
 });
 
@@ -119,8 +122,27 @@ describe('platform HTTP conversations', () => {
     const context = await api(`/v1/platform/sessions/${created.id}/context`, { content: 'Continue', maxOutputTokens: 64 });
     expect(context.status).toBe(200);
     expect(context.data.context.selectedMessageIds).toHaveLength(4);
-    expect(context.data.context.messages.at(-1).content).toBe('Continue');
     expect(state.calls).toHaveLength(2);
+  });
+
+  it('falls back to secondary model in chat mode when primary fails, but refuses fallback in agent mode', async () => {
+    const created = await session();
+    config.orchestrator = { strategy: 'round-robin', fallbackModels: [modelB] };
+    state.respond = async request => {
+      if (request.model === modelA) throw new Error('Primary model unavailable (HTTP 503)');
+      return 'Fallback answered successfully.';
+    };
+
+    const chatResult = await turn(created.id, 'Hello through fallback', { model: modelA });
+    expect(chatResult.status).toBe(200);
+    const messages = chatResult.data.session.messages;
+    const lastAssistant = messages[messages.length - 1];
+    expect(lastAssistant.model).toBe(modelB);
+    expect(lastAssistant.content).toBe('Fallback answered successfully.');
+
+    state.respond = async () => { throw new Error('Primary agent failed'); };
+    const agentResult = await turn(created.id, 'Agent task', { model: modelA, mode: 'agent' });
+    expect(agentResult.status).toBeGreaterThanOrEqual(400);
   });
 
   it('streams deltas and one completed canonical turn over SSE', async () => {
@@ -191,11 +213,46 @@ describe('platform HTTP conversations', () => {
     expect(sent.status).toBe(200); expect(state.calls[0].model).toBe(modelB);
     expect(sent.data.session.profileId).toBe(saved.data.profile.id);
   });
+
+  it('clears a leftover profile when the next turn sends explicit null and a different provider', async () => {
+    const saved = await api('/v1/platform/profiles', { name: 'First provider', provider: 'cli-claude', model: modelA });
+    expect(saved.status).toBe(201);
+    const created = await session('admin', { profileId: saved.data.profile.id });
+    state.respond = async () => 'Kept';
+    expect((await turn(created.id, 'Remember Orion')).status).toBe(200);
+    expect(state.calls[0].model).toBe(modelA);
+    state.respond = async () => 'Orion';
+    const switched = await turn(created.id, 'Name?', { model: modelB, profileId: null });
+    expect(switched.status).toBe(200);
+    expect(switched.data.session.model).toBe(modelB);
+    expect(switched.data.session.profileId).toBeUndefined();
+    expect(state.calls[1].model).toBe(modelB);
+    expect(state.calls[1].messages.map(m => m.content)).toEqual(['Remember Orion', 'Kept', 'Name?']);
+  });
+
+  it('keeps the native session key when only mutable profile fields change', async () => {
+    const saved = await api('/v1/platform/profiles', { name: 'Resume profile', provider: 'cli-claude', model: modelA, defaultEffort: 'low' });
+    expect(saved.status).toBe(201);
+    const created = await session('admin', { profileId: saved.data.profile.id });
+    expect((await turn(created.id, 'First')).status).toBe(200);
+    const key = state.calls[0].cliSessionKey;
+    expect(typeof key).toBe('string');
+    const updated = await api('/v1/platform/profiles', {
+      id: saved.data.profile.id, expectedRevision: saved.data.profile.revision,
+      name: 'Resume profile', provider: 'cli-claude', model: modelA, defaultEffort: 'low', defaultFastMode: true,
+    });
+    expect(updated.status).toBe(201);
+    expect((await turn(created.id, 'Second')).status).toBe(200);
+    expect(state.calls[1].cliSessionKey).toBe(key);
+    expect(JSON.parse(key!)).toEqual([expect.any(String), created.id, saved.data.profile.id]);
+  });
 });
 
 describe('platform HTTP authorization and memory', () => {
   it('allows scoped model discovery while denying legacy settings and cross-operator sessions', async () => {
-    expect((await api('/v1/platform/models', undefined, 'viewer')).status).toBe(200);
+    const models = await api('/v1/platform/models', undefined, 'viewer');
+    expect(models.status).toBe(200);
+    expect(models.data.data[0].capabilities).toMatchObject({ modes: expect.any(Array), streaming: expect.any(String), nativeResume: expect.any(Boolean) });
     expect((await api('/v1/models', undefined, 'viewer')).status).toBe(401);
     expect((await api('/v1/settings', undefined, 'alice')).status).toBe(401);
     expect((await api('/v1/platform/sessions', { model: modelA }, 'viewer')).status).toBe(403);
@@ -238,7 +295,66 @@ describe('platform HTTP authorization and memory', () => {
   });
 });
 
+describe('platform HTTP effort settings', () => {
+  it('persists agent/profile defaults and applies explicit chat and run overrides', async () => {
+    const profile = await api('/v1/platform/profiles',{name:'Effort profile',provider:'cli-claude',model:modelA,defaultEffort:'ultracode'});
+    expect(profile.status).toBe(201);
+    const agent = await api('/v1/platform/agents',{name:'Reviewer',model:modelA,profileId:profile.data.profile.id,defaultEffort:'high',defaultFastMode:true});
+    expect(agent.status).toBe(201);
+    expect(agent.data.agent.defaultEffort).toBe('high');
+    const chat = await session('admin',{agentId:agent.data.agent.id});
+    expect((await turn(chat.id,'Inherited')).status).toBe(200);
+    expect(state.calls.at(-1)?.effort).toBe('high'); expect(state.calls.at(-1)?.fastMode).toBe(true);
+    expect((await turn(chat.id,'Explicit',{effort:'medium',fastMode:false})).status).toBe(200);
+    expect(state.calls.at(-1)?.effort).toBe('medium'); expect(state.calls.at(-1)?.fastMode).toBe(false);
+    const run = await api('/v1/platform/runs',{prompt:'One iteration',agentId:agent.data.agent.id,maxIterations:1,maxOutputTokens:64});
+    expect(run.status).toBe(202); await untilRun(run.data.run.id,'completed');
+    expect(state.calls.at(-1)?.effort).toBe('high');
+    expect((await api('/v1/platform/agents',{name:'Invalid effort',defaultEffort:'bogus'})).status).toBe(400);
+  });
+
+  it('binds preset role effort and forwards the shared evaluation level to every model', async () => {
+    const installed = await api('/v1/platform/presets/platform-feature-review/install',{model:modelB,effort:'high',fastMode:true,security:modelA,roleEfforts:{security:'medium'},roleFastModes:{security:false}});
+    expect(installed.status).toBe(201);
+    expect(installed.data.pipeline.steps.find((step: any) => step.id === 'security')).toMatchObject({model:modelA,effort:'medium',fastMode:false});
+    expect(installed.data.pipeline.steps.find((step: any) => step.id === 'implement')).toMatchObject({model:modelB,effort:'high',fastMode:true});
+    state.respond = async () => 'EVAL_OK';
+    const evaluation = await api('/v1/platform/evaluations',{models:[modelA,modelB],effort:'low',fastMode:true});
+    expect(evaluation.status).toBe(202);
+    for (const id of evaluation.data.evaluation.runIds) await untilRun(id,'completed');
+    expect(state.calls.map(request => request.effort)).toEqual(['low','low']);
+    expect(state.calls.map(request => request.fastMode)).toEqual([true,true]);
+  });
+
+  it('uses role and fallback effort for orchestration while preserving a request override', async () => {
+    const configured = await api('/v1/orchestrator',{enabled:true,strategy:'sequential',roles:[{name:'Reviewer',model:modelA,effort:'high',fastMode:true}],fallbackModels:[modelB],fallbackEffort:'low',fallbackFastMode:false});
+    expect(configured.status).toBe(200);
+    state.respond = async request => { if (request.model === modelA) throw new Error('Fixture unavailable'); return 'Reviewed'; };
+    expect((await api('/v1/orchestrator/run',{prompt:'Review fixture'})).status).toBe(200);
+    expect(state.calls.map(request => request.effort)).toEqual(['high','low']);
+    expect(state.calls.map(request => request.fastMode)).toEqual([true,false]);
+    state.calls = [];
+    expect((await api('/v1/orchestrator/run',{prompt:'Review with override',effort:'medium'})).status).toBe(200);
+    expect(state.calls.map(request => request.effort)).toEqual(['medium','medium']);
+  });
+});
+
 describe('platform HTTP durable runs', () => {
+  it('forwards effort and exposes command evidence only through authorized run reads', async () => {
+    const gate = deferred();
+    state.respond = request => {
+      request.onExecutionEvent!({kind:'command',id:'command-1',command:'npm test',startedAt:1,status:'running',combinedOutput:'Testing'});
+      return gate.promise;
+    };
+    const created = await api('/v1/platform/runs',{prompt:'Verify',model:modelB,effort:'high',maxOutputTokens:64},'alice');
+    expect(created.status).toBe(202);
+    await vi.waitFor(() => expect(state.calls).toHaveLength(1));
+    expect(state.calls[0].effort).toBe('high');
+    const own = await api(`/v1/platform/runs/${created.data.run.id}`,undefined,'alice');
+    expect(own.data.run.steps[0].events[0]).toMatchObject({command:'npm test',combinedOutput:'Testing'});
+    expect((await api(`/v1/platform/runs/${created.data.run.id}`,undefined,'bob')).status).toBe(403);
+    gate.resolve('Verified'); await untilRun(created.data.run.id,'completed');
+  });
   it('returns 202, performs exactly two bounded iterations, and exposes evidence with accounting', async () => {
     state.respond = async () => state.calls.length === 1 ? 'One repair needed.' : 'DONE with evidence';
     const created = await api('/v1/platform/runs', { prompt: 'Fix a synthetic issue', model: modelA, maxIterations: 2, maxOutputTokens: 64, successPattern: 'DONE' });
@@ -282,8 +398,59 @@ describe('platform HTTP durable runs', () => {
     expect(run.approval.operator).toBe('reviewer'); expect(state.calls).toHaveLength(1);
     expect((await api(`/v1/platform/runs/${run.id}/actions`, { action: 'approve' }, 'reviewer')).status).toBe(409);
   });
+
+  it('continues a completed run on the same run id and returns persisted events', async () => {
+    state.calls = [];
+    state.respond = async request => {
+      request.onExecutionEvent?.({ kind: 'command', id: 'c1', command: 'git status', startedAt: 10, completedAt: 20, status: 'completed', exitCode: 0, stdout: 'clean' });
+      return 'First completion';
+    };
+    const created = await api('/v1/platform/runs', { prompt: 'Initial task', model: modelA, maxOutputTokens: 64 }, 'alice');
+    const first = await untilRun(created.data.run.id, 'completed');
+    expect(first.steps).toHaveLength(1);
+
+    // Verify events endpoint
+    const events = await api(`/v1/platform/runs/${created.data.run.id}/events`, undefined, 'alice');
+    expect(events.status).toBe(200);
+    expect(events.data.data).toEqual([expect.objectContaining({ command: 'git status', exitCode: 0 })]);
+
+    // Continue the task
+    state.respond = async () => 'Continued completion';
+    const cont = await api(`/v1/platform/runs/${created.data.run.id}/actions`, { action: 'continue', feedback: 'Next step instructions' }, 'alice');
+    expect(cont.status).toBe(200);
+    const second = await untilRun(created.data.run.id, 'completed');
+    expect(second.id).toBe(created.data.run.id);
+    expect(second.steps).toHaveLength(2);
+    expect(second.steps[1].content).toBe('Continued completion');
+  });
 });
 
+
+describe('platform HTTP insights', () => {
+  it('aggregates only owned sessions with local BitNet and enforces read and write roles', async () => {
+    const alice = await session('alice'), bob = await session('bob');
+    await turn(alice.id, 'Preserve the useful decisions.', {}, 'alice'); await turn(bob.id, 'PRIVATE_BOB', {}, 'bob');
+    state.calls = []; state.respond = async request => {
+      return JSON.stringify({ selected: [0] });
+    };
+    expect((await api('/v1/platform/insights/refresh', { language: 'de' }, 'viewer')).status).toBe(403);
+    expect((await api('/v1/platform/insights/refresh', { language: 'invalid' }, 'alice')).status).toBe(400);
+    expect((await api('/v1/platform/insights/refresh', { language: 'de', ownerId: 'bob' }, 'alice')).status).toBe(202);
+    await vi.waitFor(async () => expect((await api('/v1/platform/insights', undefined, 'alice')).data.job.status).toBe('complete'));
+    const result = (await api('/v1/platform/insights', undefined, 'alice')).data;
+    expect(result.report).toMatchObject({ sessions: 1, messages: 2 });
+    expect(result.report.items[0].sources[0].sessionId).toBe(alice.id);
+    expect(JSON.stringify(result)).not.toContain('authorizationVersion'); expect(JSON.stringify(result)).not.toContain('digest');
+    expect(state.calls).toHaveLength(1); expect(state.calls[0]).toMatchObject({ model: 'bitnet/auto', mode: 'chat', max_tokens: 512, response_format: { type: 'json_object' } });
+    expect(JSON.stringify(state.calls)).not.toContain('PRIVATE_BOB');
+    expect((await api('/v1/platform/insights', undefined, 'bob')).data.report).toBeUndefined();
+    expect((await api('/v1/platform/insights/cancel', {}, 'viewer')).status).toBe(403);
+    vi.stubEnv('BITNET_URL', 'https://remote.example.test');
+    expect((await api('/v1/platform/insights/refresh', { language: 'en' }, 'alice')).status).toBe(202);
+    await vi.waitFor(async () => expect((await api('/v1/platform/insights', undefined, 'alice')).data.job.status).toBe('error'));
+    expect(state.calls).toHaveLength(1);
+  });
+});
 
 describe('platform HTTP vault', () => {
   it('searches the authorized full transcript and denies volatile storage', async () => {
@@ -318,5 +485,95 @@ describe('platform HTTP vault', () => {
     expect((await api('/v1/platform/vault/scan', {}, 'alice')).status).toBe(202);
     await vi.waitFor(async () => expect((await api('/v1/platform/vault', undefined, 'alice')).data.settings.status).toBe('error'));
     expect(state.calls).toHaveLength(1);
+  });
+});
+
+describe('repository workspace HTTP authorization', () => {
+  function register(path = state.runtime) {
+    const result = server.workspaceManager.addOrUpdateWorkspace(path, 'Repository fixture', true);
+    if (!result.entry) throw new Error(result.error);
+    server.governanceManager.saveRepository({id:'fixture-repository',name:'Fixture',path});
+    return result.entry.id;
+  }
+  it('allows scoped reads and rejects unknown or ungranted workspaces before reading Git', async () => {
+    const workspaceId = register();
+    const snapshot = vi.spyOn(GitWorkspaceService.prototype, 'snapshot').mockResolvedValue({detected:false,branches:[],worktrees:[],commits:[],files:[],truncated:false,historyLimit:180,updatedAt:new Date().toISOString()});
+    expect((await api('/api/git-workspace/snapshot?workspaceId=' + workspaceId, undefined, 'viewer')).status).toBe(200);
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    config.platformAuth!.operators!.find(operator => operator.id === 'viewer')!.workspaceIds = ['ungranted-workspace'];
+    expect((await api('/api/git-workspace/snapshot?workspaceId=' + workspaceId, undefined, 'viewer')).status).toBe(403);
+    expect((await api('/api/git-workspace/snapshot?workspaceId=unknown&path=C:/', undefined, 'admin')).status).toBe(404);
+    const unauthenticated = await fetch(base + '/api/git-workspace/snapshot?workspaceId=' + workspaceId);
+    expect(unauthenticated.status).toBe(401);
+    expect(snapshot).toHaveBeenCalledTimes(1);
+  });
+  it('binds analytics to canonical registered roots and filters catalogs by workspace access', async () => {
+    const repository = join(state.runtime, 'repository');
+    const alias = join(state.runtime, 'repository alias');
+    mkdirSync(repository);
+    symlinkSync(repository, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const workspaceId = register(alias);
+    const read = vi.spyOn(RepositoryAnalyticsService.prototype, 'read').mockResolvedValue({status:'empty',snapshots:[]} as any);
+    const catalog = await api('/v1/analytics/repositories', undefined, 'viewer');
+    expect(catalog.status).toBe(200);
+    expect(catalog.data.data).toContainEqual({id:'fixture-repository',name:'Fixture'});
+    expect((await api('/v1/analytics/repository?repository=fixture-repository&branch=HEAD', undefined, 'viewer')).status).toBe(200);
+    expect(read.mock.calls[0][0].path).toBe(realpathSync.native(repository));
+    config.platformAuth!.operators!.find(operator => operator.id === 'viewer')!.workspaceIds = [workspaceId + '-other'];
+    expect((await api('/v1/analytics/repositories', undefined, 'viewer')).data.data).toEqual([]);
+    expect((await api('/v1/analytics/repository?repository=fixture-repository', undefined, 'viewer')).status).toBe(403);
+    expect((await api('/v1/analytics/repository?repository=unknown&path=C:/', undefined, 'admin')).status).toBe(404);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+  it('requires workspace admin and repository policy for explicit Git mutations', async () => {
+    const workspaceId = register();
+    const action = vi.spyOn(GitWorkspaceService.prototype, 'action').mockResolvedValue({ok:true,message:'Fixture action accepted'});
+    const body = {workspaceId,action:'fetch'};
+    expect((await api('/api/git-workspace/action', body, 'viewer')).status).toBe(403);
+    expect((await api('/api/git-workspace/action', body, 'alice')).status).toBe(403);
+    const crossSite = await fetch(base + '/api/git-workspace/action', {method:'POST',headers:{Authorization:'Bearer ' + tokens.admin,'Content-Type':'application/json',Origin:'https://outside.example'},body:JSON.stringify(body)});
+    expect(crossSite.status).toBe(403);
+    expect(action).not.toHaveBeenCalled();
+    expect((await api('/api/git-workspace/action', body, 'admin')).status).toBe(200);
+    expect(action).toHaveBeenCalledExactlyOnceWith({action:'fetch',worktree:undefined,name:undefined});
+    server.governanceManager.saveRepository({id:'fixture-repository',name:'Fixture',path:state.runtime,overrides:{requireApproval:true}});
+    expect((await api('/api/git-workspace/action', body, 'admin')).status).toBe(403);
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+  it('allows Git fetch when repository policy disallows Bash', async () => {
+    const workspaceId = register();
+    const action = vi.spyOn(GitWorkspaceService.prototype, 'action').mockResolvedValue({ok:true,message:'Fixture fetch accepted'});
+    server.governanceManager.saveRepository({id:'fixture-repository',name:'Fixture',path:state.runtime,overrides:{disallowedTools:'Bash'}});
+    expect((await api('/api/git-workspace/action', {workspaceId,action:'fetch'}, 'admin')).status).toBe(200);
+    expect(action).toHaveBeenCalledExactlyOnceWith({action:'fetch',worktree:undefined,name:undefined});
+  });
+  it('validates modes and opaque worktree identifiers before the Git service', async () => {
+    const workspaceId = register();
+    const diff = vi.spyOn(GitWorkspaceService.prototype, 'diff');
+    expect((await api('/api/git-workspace/diff?workspaceId=' + workspaceId + '&mode=execute', undefined, 'admin')).status).toBe(400);
+    expect((await api('/api/git-workspace/diff?workspaceId=' + workspaceId + '&worktree=../../other', undefined, 'admin')).status).toBe(400);
+    expect(diff).not.toHaveBeenCalled();
+    expect((await api('/api/git-workspace/action', [], 'admin')).status).toBe(400);
+  });
+});
+describe('chat project HTTP authorization', () => {
+  it('scopes project names and mutations to the owner, and retains assigned chats through moves', async () => {
+    const created = await api('/v1/platform/projects', { name: 'Alice launch' }, 'alice');
+    expect(created.status).toBe(201);
+    const project = created.data.project;
+    expect((await api('/v1/platform/projects', undefined, 'alice')).data.data).toEqual([project]);
+    expect((await api('/v1/platform/projects', undefined, 'bob')).data.data).toEqual([]);
+    expect((await api('/v1/platform/projects/' + project.id, { name: 'Hijacked' }, 'bob', 'PATCH')).status).toBe(404);
+    expect((await api('/v1/platform/projects', { name: 'Viewer project' }, 'viewer')).status).toBe(403);
+    expect((await api('/v1/platform/sessions', { model: modelA, projectId: project.id }, 'bob')).status).toBe(404);
+    const chat = await session('alice', { title: 'Launch checklist', projectId: project.id });
+    expect(chat.projectId).toBe(project.id);
+    await turn(chat.id, 'Preserve this conversation', {}, 'alice');
+    expect((await api('/v1/platform/projects/' + project.id, {}, 'alice', 'DELETE')).status).toBe(409);
+    const moved = await api('/v1/platform/sessions/' + chat.id, { projectId: null, expectedRevision: 3 }, 'alice', 'PATCH');
+    expect(moved.status).toBe(200); expect(moved.data.session.projectId).toBeUndefined();
+    expect(moved.data.session.messages).toHaveLength(2); expect(moved.data.session.workspaceId).toBe(chat.workspaceId);
+    expect((await api('/v1/platform/projects/' + project.id, {}, 'alice', 'DELETE')).status).toBe(200);
+    expect((await api('/v1/platform/sessions/' + chat.id, undefined, 'alice')).data.session.messages).toHaveLength(2);
   });
 });

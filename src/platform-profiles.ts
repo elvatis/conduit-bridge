@@ -1,3 +1,5 @@
+import { parseFastMode } from './fast-mode.js';
+import { isEffortLevel } from './effort.js';
 import { randomUUID } from 'node:crypto';
 import type { StateStore } from './storage.js';
 import type { ProviderName, SecretReference } from './types.js';
@@ -14,6 +16,7 @@ export interface PlatformProviderProfile {
   cliExecutable?: string;
   enabled: boolean;
   defaultEffort?: string;
+  defaultFastMode?: boolean;
   maxConcurrent: number;
   cooldownMs: number;
   createdAt: number;
@@ -29,6 +32,7 @@ export interface ProfileInput {
   cliExecutable?: string;
   enabled?: boolean;
   defaultEffort?: string;
+  defaultFastMode?: boolean;
   maxConcurrent?: number;
   cooldownMs?: number;
 }
@@ -49,7 +53,8 @@ export class PlatformProfileService {
     const maximum = input.maxConcurrent ?? 2; const cooldown = input.cooldownMs ?? 5000;
     if (!Number.isInteger(maximum) || maximum < 1 || maximum > 16) throw new ProfileError('maxConcurrent must be between 1 and 16');
     if (!Number.isInteger(cooldown) || cooldown < 0 || cooldown > 600000) throw new ProfileError('cooldownMs must be between 0 and 600000');
-    if (input.defaultEffort !== undefined && !['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].includes(input.defaultEffort)) throw new ProfileError('Invalid default effort');
+    const defaultFastMode = parseFastMode(input.defaultFastMode);
+    if (input.defaultEffort !== undefined && !isEffortLevel(input.defaultEffort)) throw new ProfileError('Invalid default effort');
     const id = input.id ?? `profile-${randomUUID()}`;
     if (this.mutating.has(id)) throw new ProfileError('Profile is already being changed', 409);
     this.mutating.add(id);
@@ -64,7 +69,7 @@ export class PlatformProfileService {
         const value: PlatformProviderProfile = {
           id, revision: (prior?.revision ?? 0) + 1, name: input.name.trim(), provider: input.provider,
           model: input.model, credentialRef: input.credentialRef, cliExecutable: input.cliExecutable,
-          enabled: input.enabled !== false, defaultEffort: input.defaultEffort, maxConcurrent: maximum,
+          enabled: input.enabled !== false, defaultEffort: input.defaultEffort, defaultFastMode, maxConcurrent: maximum,
           cooldownMs: cooldown, createdAt: prior?.createdAt ?? Date.now(), updatedAt: Date.now(),
         };
         tx.put(COLLECTION, id, value); return value;

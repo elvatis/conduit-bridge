@@ -69,6 +69,8 @@ export interface PlatformStorageConfig {
 export interface ProviderAgentPolicy {
   /** Whether agent mode (workspace mutation) is allowed for this provider. */
   agentEnabled: boolean;
+  /** Explicit operator opt-in allowing an unconfined provider to run in agent mode. */
+  allowUnconfined?: boolean;
   /** Default mode when incoming request omits mode: chat | plan | agent */
   defaultMode?: 'chat' | 'plan' | 'agent';
   /** Optional custom comma-separated disallowed tools for chat/read-only mode */
@@ -89,6 +91,8 @@ export interface BridgeConfig {
   platformStorage?: PlatformStorageConfig;
   orchestrator?: OrchestratorConfig; // optional persisted orchestration policy
   agentPolicies?: Partial<Record<ProviderName, ProviderAgentPolicy>>; // per-provider agent execution policies
+  /** Allow unconfined providers to run in agent mode across all providers. */
+  allowUnconfined?: boolean;
   repositories?: Record<string, RepositoryConfig> | RepositoryConfig[]; // repository-specific governance and pipeline assignments
   budget?: BudgetConfig;    // pipeline and model spending limit controls
   lmStudioUrl?: string;     // LM Studio server URL (default http://127.0.0.1:1234)
@@ -135,7 +139,16 @@ export interface ChatMessage {
   content: string;
 }
 
+export type ExecutionEvent = {
+  kind: 'command'; id: string; command: string; cwd?: string;
+  status: 'running' | 'completed' | 'failed'; startedAt: number; completedAt?: number;
+  stdout?: string; stderr?: string; combinedOutput?: string; exitCode?: number;
+} | { kind: 'message'; id: string; text: string; at: number }
+  | { kind: 'plan'; id: string; items: { text: string; completed: boolean }[]; at: number };
+
 export interface ChatRequest {
+  /** Trusted host-only execution evidence sink. Never accepted from HTTP input. */
+  onExecutionEvent?: (event: ExecutionEvent) => void;
   /** Trusted host-only continuity scope; never copied from a raw HTTP request. Native CLIs retain their own transcripts. */
   cliSessionKey?: string;
   model: string;
@@ -151,6 +164,8 @@ export interface ChatRequest {
    * high | xhigh | max (providers that only support a subset map down).
    */
   effort?: string;
+  /** Request the provider fast tier without changing reasoning effort. */
+  fastMode?: boolean;
   /**
    * Working directory for CLI providers. Ignored by API/LM Studio transports.
    * Must be an absolute path that exists; otherwise the CLI uses an empty sandbox.
@@ -164,6 +179,8 @@ export interface ChatRequest {
    * → agent, `plan: true` → plan.
    */
   mode?: 'chat' | 'plan' | 'agent';
+  /** Explicit operator opt-in allowing an unconfined provider to run in agent mode. */
+  allowUnconfined?: boolean;
   /** Optional custom comma-separated disallowed tools for chat mode */
   disallowedTools?: string;
   /** Aborted when the downstream HTTP client disconnects. */
@@ -203,6 +220,66 @@ export interface ModelDefinition {
    */
   contextWindow?: number;
   maxOutputTokens?: number;
+  /** Transport contract for UI and swap checks. Absent on older catalog rows. */
+  capabilities?: ProviderCapability;
+}
+
+export interface ProviderCapability {
+  modes: Array<'chat' | 'plan' | 'agent'>;
+  effort: string[];
+  fastMode: boolean;
+  streaming: 'token' | 'turn' | 'none';
+  nativeResume: boolean;
+  local: boolean;
+  tools?: string[];
+  executionEvents?: Array<'command' | 'message' | 'plan' | 'file'>;
+  interactiveApproval?: boolean;
+  steering?: boolean;
+}
+
+export interface ModelDescriptor extends ModelDefinition {
+  capabilities: ProviderCapability;
+  cost?: { estimator: 'bridge-estimate-v2'; local: boolean };
+  auth?: 'api-key' | 'cli' | 'local' | 'none';
+  local?: { runtime: 'lmstudio' | 'bitnet'; installed?: boolean; loaded?: boolean };
+}
+
+export interface RuntimeSession {
+  id: string;
+  sessionId?: string;
+  adapter: ProviderName;
+  modelId: string;
+  nativeSessionId?: string;
+  cwd?: string;
+  mode: 'chat' | 'plan' | 'agent';
+  startedAt: number;
+  lastActiveAt?: number;
+}
+
+export interface SessionState {
+  id: string;
+  revision: number;
+  workspaceId: string;
+  messages: Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    provider: string;
+    model: string;
+    createdAt: number;
+    nativeSessionId?: string;
+    status?: 'pending' | 'complete' | 'failed' | 'interrupted';
+  }>;
+  summary?: { content: string; throughMessageId: string; updatedAt: number };
+  memories?: string[];
+  skills?: Array<{ id: string; version: number }>;
+  agentId?: string;
+  profileId?: string;
+  taskId?: string;
+  runtime?: RuntimeSession;
+  permission: { mode: string; disallowedTools?: string };
+  fallbackModels?: string[];
+  swapHistory?: Array<{ fromModel?: string; toModel: string; timestamp: number; reason?: string }>;
 }
 
 // ── Provider interface — each provider implements this ───────────────────────
@@ -257,6 +334,7 @@ export interface RepositoryConfig {
   overrides?: {
     disallowedTools?: string;
     agentEnabled?: boolean;
+    allowUnconfined?: boolean;
     requireApproval?: boolean;
     maxCostPerRunUsd?: number;
     mandatoryGates?: string[];

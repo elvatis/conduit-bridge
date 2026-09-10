@@ -16,6 +16,39 @@ async function terminal(service: PlatformRunService, id: string) {
 afterEach(async () => { await Promise.all(services.splice(0).map(s => s.stop())); });
 
 describe('bounded durable agent runs', () => {
+  it('exposes live evidence, persists it at completion and forwards selected effort', async () => {
+    let finish!: (value: string) => void;
+    let sink: Parameters<PlatformRunRuntime['execute']>[0]['onExecutionEvent'];
+    let effort: string | undefined;
+    const { service } = await setup({ execute: async request => { effort = request.effort; sink = request.onExecutionEvent; return new Promise<string>(resolve => { finish = resolve; }); } });
+    const run = await service.create({ prompt: 'Verify source', model: 'lmstudio/test', effort: 'high' });
+    for (let i = 0; i < 50 && !sink; i++) await delay(5);
+    expect(effort).toBe('high'); expect(sink).toBeTypeOf('function');
+    sink!({ kind: 'command', id: 'cmd', command: 'npm test', startedAt: 1, status: 'running' });
+    expect(service.get(run.id)?.steps[0].events?.[0]).toMatchObject({ command: 'npm test', status: 'running' });
+    sink!({ kind: 'command', id: 'cmd', command: 'npm test', startedAt: 1, completedAt: 2, status: 'completed', exitCode: 0, stdout: 'Tests passed' });
+    finish('Done'); const result = await terminal(service, run.id);
+    expect(result.steps[0].events).toHaveLength(1);
+    expect(result.steps[0].events?.[0]).toMatchObject({ status: 'completed', exitCode: 0, stdout: 'Tests passed' });
+    sink!({ kind: 'message', id: 'late', at: 3, text: 'Late event must be ignored' });
+    expect(service.get(run.id)?.steps[0].events).toHaveLength(1);
+    await expect(service.create({ prompt: 'Invalid', model: 'lmstudio/test', effort: 'infinite' })).rejects.toThrow('effort');
+  });
+  it('reloads persisted command evidence after a new service starts on the same store', async () => {
+    let finish!: (value: string) => void;
+    let sink: Parameters<PlatformRunRuntime['execute']>[0]['onExecutionEvent'];
+    const { service, store } = await setup({ execute: async request => { sink = request.onExecutionEvent; return new Promise<string>(resolve => { finish = resolve; }); } });
+    const run = await service.create({ prompt: 'Keep evidence', model: 'lmstudio/test' });
+    for (let i = 0; i < 50 && !sink; i++) await delay(5);
+    sink!({ kind: 'command', id: 'cmd', command: 'npm test', startedAt: 1, completedAt: 2, status: 'completed', exitCode: 0, stdout: 'ok' });
+    finish('Done');
+    await terminal(service, run.id);
+    await service.stop();
+    const restarted = new PlatformRunService(store, { execute: async () => 'unused' });
+    services.push(restarted);
+    await restarted.start();
+    expect(restarted.get(run.id)?.steps[0].events).toEqual([expect.objectContaining({ kind: 'command', command: 'npm test', exitCode: 0, stdout: 'ok' })]);
+  });
   it('executes a bounded repair, retains evidence, and never adds a hidden final call', async () => {
     let calls = 0;
     const { service } = await setup({ execute: async () => ++calls === 1 ? 'Need one repair' : 'DONE with evidence' });
@@ -66,6 +99,87 @@ describe('bounded durable agent runs', () => {
     await store.transaction(tx => tx.put('platform.runs', interrupted.id, interrupted));
     const recovered = new PlatformRunService(store, { execute: async () => { throw new Error('must not replay'); } }); services.push(recovered); await recovered.start();
     expect(recovered.get('run-crash')?.status).toBe('interrupted');
+  });
+
+  it('continues a completed run with follow-up instructions on the same run id', async () => {
+    let calls = 0;
+    const receivedPrompts: string[] = [];
+    const { service } = await setup({
+      execute: async request => {
+        calls++;
+        const lastUser = request.messages.filter(m => m.role === 'user').pop()?.content || '';
+        receivedPrompts.push(lastUser);
+        return calls === 1 ? 'First iteration result' : 'Second iteration result';
+      },
+    });
+
+    const run = await service.create({ prompt: 'Implement database schema', model: 'lmstudio/test', maxIterations: 1 });
+    const firstDone = await terminal(service, run.id);
+    expect(firstDone.status).toBe('completed');
+    expect(firstDone.steps).toHaveLength(1);
+    expect(firstDone.steps[0].content).toBe('First iteration result');
+    expect(calls).toBe(1);
+
+    // Continuing with follow-up
+    await service.action(run.id, 'continue', 'operator-1', 'Now add migration script');
+    const secondDone = await terminal(service, run.id);
+    expect(secondDone.id).toBe(run.id);
+    expect(secondDone.status).toBe('completed');
+    expect(secondDone.steps).toHaveLength(2);
+    expect(secondDone.steps[1].content).toBe('Second iteration result');
+    expect(calls).toBe(2);
+    expect(receivedPrompts[1]).toContain('Now add migration script');
+    expect(secondDone.followUps).toEqual([expect.objectContaining({ prompt: 'Now add migration script', operator: 'operator-1' })]);
+
+    // Active run cannot be continued
+    await expect(service.action(run.id, 'continue', 'operator-1', '')).rejects.toThrow('Follow-up instruction is required');
+  });
+
+  it('rolls back workspace changes on operator action and automatically when rollbackOnFailure is true', async () => {
+    let rollbackCalls = 0;
+    let lastRolledBackRun: string | undefined;
+    const { service } = await setup({
+      execute: async () => 'some result',
+      rollback: async r => {
+        rollbackCalls++;
+        lastRolledBackRun = r.id;
+      },
+    });
+
+    const run = await service.create({ prompt: 'Task with working dir', model: 'lmstudio/test', workingDirectory: 'C:\\fake\\workspace', maxIterations: 1 });
+    await terminal(service, run.id);
+
+    // Rollback action by operator
+    await service.action(run.id, 'rollback', 'operator-1');
+    expect(rollbackCalls).toBe(1);
+    expect(lastRolledBackRun).toBe(run.id);
+    expect(service.get(run.id)?.stopReason).toBe('Rolled back by operator');
+
+    // Rollback requires a workingDirectory
+    const noDirRun = await service.create({ prompt: 'No cwd', model: 'lmstudio/test', maxIterations: 1 });
+    await terminal(service, noDirRun.id);
+    await expect(service.action(noDirRun.id, 'rollback', 'operator-1')).rejects.toThrow('working directory');
+
+    // Automatic rollback on failure
+    const failingService = (await setup({
+      execute: async () => { throw new Error('Simulated failure'); },
+      rollback: async r => {
+        rollbackCalls++;
+        lastRolledBackRun = r.id;
+      },
+    })).service;
+
+    const autoRollbackRun = await failingService.create({
+      prompt: 'Failing run with rollback',
+      model: 'lmstudio/test',
+      workingDirectory: 'C:\\fake\\workspace',
+      rollbackOnFailure: true,
+      maxIterations: 1,
+    });
+    const failedDone = await terminal(failingService, autoRollbackRun.id);
+    expect(failedDone.status).toBe('failed');
+    expect(rollbackCalls).toBe(2);
+    expect(lastRolledBackRun).toBe(autoRollbackRun.id);
   });
 });
 

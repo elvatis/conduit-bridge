@@ -1,4 +1,29 @@
+> Current review point: Review the new README installation route and docs/guides/bitnet.md in PR #120. The guide now accompanies a Windows x64 operator from prerequisites through a verified GGUF, configuration, readiness, first request and recovery. It explicitly distinguishes the BitNet build of llama-server, model aliases, process ownership and unvalidated native Linux paths. Focused tests, build and documentation checks pass; recheck hosted CI on the documentation head. Native service installation/restart, merge and release are outside this documentation task. Earlier review points below are historical.
+
+> Current review point: The English demo.gif is regenerated for the corrected insight selection, numbered source-message links, introduction and page search. The recording checks its synthetic categories against the current evidence rules and asserts no provider/mutation calls. Source and encoded frames were visually checked. Review the refreshed media in PR #120 and recheck hosted checks on its new head. The preceding application head a059862 passed all eight hosted checks, 690 tests and 57 browser cases. Merge/release remain outside this task. Older plans below are historical.
+
+> Current work: Commit the validated scanner/navigation/settings repair to PR #120. Continue the authorized usability work: spacing, accessible compact actions, first-visit introduction offer with Help re-entry, dedicated examples and local BitNet session insights. Hosted checks must be green before any separately authorized merge.
+
+> Current follow-up: Review the text centering, Apple-inspired control patterns and expanded German localization in PR #120. Local validation: 613 tests and 48 browser cases, plus the final targeted installed-template rerun. Recheck hosted CI on the updated head before any separately authorized merge.
+
+> Current feature work (2026-09-08): Review codex/agent-orchestrator-dashboard and docs/guides/execution-workspace.md. Local validation passes 611 tests/70 files and 44 browser tests after the second inspection. All pages/tabs pass English/German layout checks from 390 to 3840px. Navigation resizing, button alignment, settings coverage, an English reproducible GIF and workspace examples are included. PR #120 is the current review point; no release. The original v0.10.0 release/PR work below is historical. Next runtime priorities remain task/turn continuity, provider streaming, specific tool approvals and task/worktree/review binding in the Codex/Claude Code gap analyses. These reports are audits, not completed implementations. Current UI runs locally on 31338. MIT PR #119 is merged. Review docs/operations/command-guards.md before future PR merges.
+
 # Next actions
+
+Second inspection is implemented: named native dialogs with focus/Escape,
+accurate divider reset feedback and persistent failed-action errors. Latest
+local checks pass 611 tests/70 files and 44 browser tests, including ten added
+regressions. The bridge is rebuilt with retained chats and healthy BitNet.
+
+Review [PR #120](https://github.com/elvatis/conduit-bridge/pull/120), including
+the English demo and complete validation record. Confirm hosted checks on its
+current head before considering a merge. The user requested creation of the
+PR; merging and releasing are not part of this task.
+
+The new integration assessment is in docs/guides/integration-assessment.md.
+Start with versioned workflow/layout persistence and a scoped GitHub read
+service, followed by the Canvas UI and local cross-session prompt patterns.
+These are proposed follow-ups, not shipped capabilities.
 
 Current version: **v0.10.0**
 
@@ -13,7 +38,9 @@ _Updated: 2026-09-07_
    now starts automatically with the bridge; BITNET_AUTOSTART=false disables it. Rebuild with `scripts/bitnet/build-windows.ps1`
    after stopping it. Review upstream #602 before removing the 2B relu2 patch.
    Live LM Studio/Gemini API planning still needs a loaded model/credentials.
-Do not reintroduce `web-*`, Playwright, cookie extraction or VNC components.
+Do not reintroduce `web-*` provider transports, cookie extraction or VNC
+components. Playwright is permitted as an isolated development test/recording
+dependency; it is not a runtime provider or an authenticated browser bridge.
 Keep the gateway port unchanged; optional BitNet/tgrep daemon ports are explicit
 administrator-controlled integrations requested in the addendum.
 
@@ -45,4 +72,3 @@ decision or source work, so it is recorded here rather than assumed.
 4. **The first tag after `release.yml` landed must be cut at a commit that
    contains it.** GitHub loads the workflow from the tagged commit, so a tag
    on an earlier commit runs nothing: no run, no red X, no notification.
-

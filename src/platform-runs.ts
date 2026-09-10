@@ -1,8 +1,11 @@
+import { parseFastMode } from './fast-mode.js';
+import { isEffortLevel } from './effort.js';
 import { randomUUID, createHash } from 'node:crypto';
 import type { StateStore } from './storage.js';
-import type { ChatRequest } from './types.js';
+import type { ChatRequest, ExecutionEvent } from './types.js';
 import { abortable, estimateCost, estimateTokens } from './usage.js';
 import { redactSecrets } from './redact.js';
+import { recordExecutionEvent } from './execution-events.js';
 
 const RUNS = 'platform.runs';
 const ARTIFACTS = 'platform.artifacts';
@@ -17,6 +20,9 @@ export interface PlatformRunInput {
   repository?: string;
   workingDirectory?: string;
   mode?: 'chat' | 'plan' | 'agent';
+  effort?: string;
+  /** Request the provider fast tier without changing reasoning effort. */
+  fastMode?: boolean;
   maxIterations?: number;
   maxDurationMs?: number;
   maxCostUsd?: number;
@@ -31,6 +37,9 @@ export interface PlatformRunInput {
   ownerId?: string;
   /** Fingerprint of the credential that authorized queuing, supplied by the HTTP layer. */
   authorizationVersion?: string;
+  followUpPrompt?: string;
+  /** Automatically roll back uncommitted workspace changes if the run fails or is cancelled. */
+  rollbackOnFailure?: boolean;
 }
 export interface PlatformRunIteration {
   iteration: number;
@@ -41,6 +50,7 @@ export interface PlatformRunIteration {
   error?: string;
   contentHash?: string;
   artifactId?: string;
+  events?: ExecutionEvent[];
 }
 export interface PlatformArtifact {
   id: string;
@@ -74,6 +84,7 @@ export interface PlatformRun {
   tokensConsumed: number;
   approval?: { operator: string; decision: 'approved' | 'rejected'; time: number; feedback?: string };
   retryOf?: string;
+  followUps?: Array<{ prompt: string; operator: string; timestamp: number }>;
 }
 export class PlatformRunError extends Error {
   constructor(message: string, readonly status = 400, readonly code = 'invalid_request') { super(message); }
@@ -86,6 +97,7 @@ export interface PlatformRunRuntime {
   /** Return undefined when concurrency is busy; the queued job is retried later. */
   acquire?(): (() => void) | undefined;
   onUpdate?(run: PlatformRun): void;
+  rollback?(run: PlatformRun): Promise<void>;
   concurrency?: number;
   now?: () => number;
 }
@@ -100,6 +112,8 @@ function validate(input: PlatformRunInput): PlatformRunInput {
   const result = structuredClone(input);
   result.mode ??= 'chat';
   if (!['chat', 'plan', 'agent'].includes(result.mode)) throw new PlatformRunError('Invalid execution mode');
+  result.fastMode = parseFastMode(result.fastMode);
+  if (result.effort !== undefined && !isEffortLevel(result.effort)) throw new PlatformRunError('Invalid reasoning effort');
   result.maxIterations = bounded(input.maxIterations, 1, 1, 10, 'maxIterations');
   result.maxDurationMs = bounded(input.maxDurationMs, 120000, 100, 1800000, 'maxDurationMs');
   result.maxCostUsd = bounded(input.maxCostUsd, 0.5, 0, 100, 'maxCostUsd');
@@ -109,11 +123,13 @@ function validate(input: PlatformRunInput): PlatformRunInput {
   if (result.successPattern !== undefined && (typeof result.successPattern !== 'string' || !result.successPattern.trim() || result.successPattern.length > 200)) throw new PlatformRunError('successPattern must be a literal nonempty string up to 200 characters');
   if (result.idempotencyKey !== undefined && !/^[\w.:-]{1,120}$/.test(result.idempotencyKey)) throw new PlatformRunError('Invalid idempotencyKey');
   if (result.requiresApproval !== undefined && typeof result.requiresApproval !== 'boolean') throw new PlatformRunError('requiresApproval must be boolean');
+  if (result.rollbackOnFailure !== undefined && typeof result.rollbackOnFailure !== 'boolean') throw new PlatformRunError('rollbackOnFailure must be boolean');
   return result;
 }
 
 /** Single-host durable queue. Interrupted side effects never auto-replay. */
 export class PlatformRunService {
+  private liveEvidence = new Map<string, Map<number, ExecutionEvent[]>>();
   private active = new Map<string, { controller: AbortController; promise: Promise<void> }>();
   private pumping = false;
   private stopped = false;
@@ -136,7 +152,14 @@ export class PlatformRunService {
     this.schedule();
   }
   list(): PlatformRun[] { return this.store.list<PlatformRun>(RUNS).sort((a, b) => b.createdAt - a.createdAt); }
-  get(id: string): PlatformRun | undefined { return this.store.read<PlatformRun>(RUNS, id); }
+  get(id: string): PlatformRun | undefined {
+    const run = this.store.read<PlatformRun>(RUNS, id);
+    for (const step of run?.steps ?? []) {
+      const events = this.liveEvidence.get(id)?.get(step.iteration);
+      if (events) step.events = structuredClone(events);
+    }
+    return run;
+  }
   getArtifact(id: string): PlatformArtifact | undefined { return this.store.read<PlatformArtifact>(ARTIFACTS, id); }
   private require(id: string): PlatformRun { const run = this.get(id); if (!run) throw new PlatformRunError('Run not found', 404, 'not_found'); return run; }
   private async save(run: PlatformRun, artifacts: PlatformArtifact[] = []): Promise<void> {
@@ -197,6 +220,27 @@ export class PlatformRunService {
       if (run.input.mode === 'agent') throw new PlatformRunError('Agent runs may have side effects. Inspect the workspace and explicitly create a new run.', 409, 'side_effect_review_required');
       const next = await this.create({ ...run.input, idempotencyKey: undefined }); next.retryOf = id; await this.save(next); return next;
     }
+    if (action === 'continue') {
+      if (['queued', 'running', 'waiting_approval'].includes(run.status)) throw new PlatformRunError('An active run cannot be continued', 409);
+      if (!feedback || !feedback.trim()) throw new PlatformRunError('Follow-up instruction is required to continue', 400);
+      const followUp = redactSecrets(feedback.trim().slice(0, 50000));
+      run.followUps ??= [];
+      run.followUps.push({ prompt: followUp, operator, timestamp: this.now() });
+      run.input.followUpPrompt = followUp;
+      run.maxIterations = Math.max(run.maxIterations, run.steps.length + 1);
+      run.status = run.input.requiresApproval ? 'waiting_approval' : 'queued';
+      run.stopReason = undefined;
+      run.completedAt = undefined;
+      run.error = undefined;
+      await this.save(run); this.schedule(); return run;
+    }
+    if (action === 'rollback') {
+      if (['queued', 'running', 'waiting_approval'].includes(run.status)) throw new PlatformRunError('An active run cannot be rolled back', 409);
+      if (!run.input.workingDirectory) throw new PlatformRunError('Run has no associated working directory to roll back', 400);
+      await this.runtime.rollback?.(run);
+      run.stopReason = 'Rolled back by operator';
+      await this.save(run); return run;
+    }
     throw new PlatformRunError('Unknown run action');
   }
   private schedule(delay = 0): void {
@@ -229,29 +273,50 @@ export class PlatformRunService {
       timer = setTimeout(() => controller.abort(new Error('Run deadline exceeded')), run.input.maxDurationMs); timer.unref();
       const fingerprints = new Set<string>();
       let prior = '';
-      for (let iteration = 1; iteration <= run.maxIterations; iteration++) {
+      for (const step of run.steps) {
+        if (step.status === 'completed' && step.content) {
+          prior = step.content;
+          if (step.contentHash) fingerprints.add(step.contentHash);
+        }
+      }
+      const startIteration = run.steps.length + 1;
+      for (let iteration = startIteration; iteration <= run.maxIterations; iteration++) {
         controller.signal.throwIfAborted();
+        const followUp = run.input.followUpPrompt;
+        const userPrompt = followUp ? `Original prompt: ${run.prompt}\n\nFollow-up: ${followUp}` : run.prompt;
         const messages: ChatRequest['messages'] = [
           { role: 'system', content: [run.input.instructions || 'Complete the requested task and provide concise, verifiable evidence.',
             `This run has at most ${run.maxIterations} iterations. Do not claim tools or tests ran unless they actually did.`,
             run.input.successPattern ? `Only include the success marker "${run.input.successPattern}" when the stated task is complete.` : '',
           ].filter(Boolean).join('\n') },
-          { role: 'user', content: run.prompt },
-          ...(prior ? [{ role: 'assistant' as const, content: prior }, { role: 'user' as const, content: 'Review the previous result against the original task. Repair remaining issues and report fresh evidence. Do not repeat unchanged work.' }] : []),
+          { role: 'user', content: userPrompt },
+          ...(prior ? [{ role: 'assistant' as const, content: prior }, { role: 'user' as const, content: followUp ? `Follow-up instructions: ${followUp}` : 'Review the previous result against the original task. Repair remaining issues and report fresh evidence. Do not repeat unchanged work.' }] : []),
         ];
         const inputTokens = estimateTokens(messages.map(m => m.content).join('\n'));
         const maxOutput = Math.min(run.input.maxOutputTokens!, run.input.maxTokens! - run.tokensConsumed - inputTokens);
         if (maxOutput <= 0) throw new PlatformRunError('Run token budget exhausted', 402, 'budget_exceeded');
-        if (run.costUsd + estimateCost(run.model, inputTokens, maxOutput) > run.input.maxCostUsd!) throw new PlatformRunError('Run cost reservation exceeds its limit', 402, 'budget_exceeded');
+        if (run.costUsd + estimateCost(run.model, inputTokens, maxOutput, run.input.fastMode) > run.input.maxCostUsd!) throw new PlatformRunError('Run cost reservation exceeds its limit', 402, 'budget_exceeded');
         const step: PlatformRunIteration = { iteration, startedAt: this.now(), status: 'running' }; run.steps.push(step); await this.save(run);
-        const content = await abortable(this.runtime.execute({ model: run.model, messages, mode: run.input.mode, cwd: run.input.workingDirectory, max_tokens: maxOutput, signal: controller.signal }, { run: structuredClone(run), iteration }), controller.signal);
+        let lastEventNotice = 0;
+        const onExecutionEvent = (event: ExecutionEvent) => {
+          if (controller.signal.aborted || step.status !== 'running' || typeof event.id !== 'string') return;
+          step.events ??= [];
+          if (!recordExecutionEvent(step.events, event, run.steps.reduce((count, item) => count + (item.events?.length || 0), 0) < 64)) return;
+          if (!this.liveEvidence.has(run.id)) this.liveEvidence.set(run.id, new Map());
+          this.liveEvidence.get(run.id)!.set(iteration, step.events);
+          // The detailed GET exposes this bounded volatile snapshot. Persist at
+          // normal step transitions so output bursts never race durable revisions.
+          if (this.now() - lastEventNotice >= 250) { lastEventNotice = this.now(); try { this.runtime.onUpdate?.(structuredClone(run)); } catch {} }
+        };
+        const content = await abortable(this.runtime.execute({ model: run.model, messages, mode: run.input.mode, effort: run.input.effort, fastMode: run.input.fastMode, cwd: run.input.workingDirectory, max_tokens: maxOutput, signal: controller.signal, onExecutionEvent }, { run: structuredClone(run), iteration }), controller.signal);
         controller.signal.throwIfAborted();
         if (typeof content !== 'string' || content.length > maxOutput * 4) throw new PlatformRunError('Provider output exceeded the run output limit');
         const measured = this.runtime.spend?.(run.id);
         run.tokensConsumed = measured?.tokens ?? run.tokensConsumed + inputTokens + estimateTokens(content);
-        run.costUsd = measured?.costUsd ?? run.costUsd + estimateCost(run.model, inputTokens, estimateTokens(content));
+        run.costUsd = measured?.costUsd ?? run.costUsd + estimateCost(run.model, inputTokens, estimateTokens(content), run.input.fastMode);
         const digest = createHash('sha256').update(content.trim()).digest('hex');
         const artifact: PlatformArtifact = { id: `artifact-${randomUUID()}`, runId: run.id, name: `iteration-${iteration}.md`, mediaType: 'text/markdown', content, sizeBytes: Buffer.byteLength(content), sha256: digest, createdAt: this.now() };
+        step.events = this.liveEvidence.get(run.id)?.get(iteration) ?? step.events ?? [];
         Object.assign(step, { status: 'completed', content, completedAt: this.now(), contentHash: digest, artifactId: artifact.id });
         const { content: _privateContent, ...metadata } = artifact; run.artifacts.push(metadata);
         await this.save(run, [artifact]);
@@ -265,10 +330,16 @@ export class PlatformRunService {
       run.status = controller.signal.aborted ? 'cancelled' : 'failed';
       run.error = redactSecrets(error instanceof Error ? error.message : String(error)).slice(0, 2000);
       run.completedAt = this.now();
-      const step = run.steps.at(-1); if (step?.status === 'running') { step.status = 'failed'; step.error = run.error; step.completedAt = this.now(); }
+      const step = run.steps.at(-1); if (step?.status === 'running') {
+        step.events = this.liveEvidence.get(run.id)?.get(step.iteration) ?? step.events ?? [];
+        step.status = 'failed'; step.error = run.error; step.completedAt = this.now();
+      }
       const spend = this.runtime.spend?.(run.id); if (spend) { run.costUsd = spend.costUsd; run.tokensConsumed = spend.tokens; }
+      if (run.input.rollbackOnFailure && run.input.workingDirectory) {
+        try { await this.runtime.rollback?.(run); } catch {}
+      }
       await this.save(run);
-    } finally { if (timer) clearTimeout(timer); this.runtime.finish?.(run); }
+    } finally { delete run.input.followUpPrompt; this.liveEvidence.delete(run.id); if (timer) clearTimeout(timer); this.runtime.finish?.(run); }
   }
   async stop(): Promise<void> {
     this.stopped = true; if (this.timer) clearTimeout(this.timer);

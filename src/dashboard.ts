@@ -1,8 +1,18 @@
+import { GIT_WORKSPACE_HTML, GIT_WORKSPACE_STYLE, GIT_WORKSPACE_SCRIPT } from './ui/git-workspace.js';
+import { REPOSITORY_ANALYTICS_HTML, REPOSITORY_ANALYTICS_STYLE, REPOSITORY_ANALYTICS_SCRIPT, REPOSITORY_ANALYTICS_NAV_HTML } from './ui/repository-analytics.js';
+import { MODERN_STYLE } from './ui/modern-style.js';
+import { INSIGHTS_HTML, INSIGHTS_NAV_HTML, INSIGHTS_SCRIPT, INSIGHTS_STYLE } from './ui/insights.js';
+import { GETTING_STARTED_HTML, GETTING_STARTED_SCRIPT, GETTING_STARTED_STYLE, HELP_EXAMPLES_HTML, INTRO_OFFER_HTML, NAV_SEARCH_BUTTON } from './ui/getting-started.js';
+import { SIDEBAR_RESIZE_HTML, SIDEBAR_RESIZE_SCRIPT, SIDEBAR_RESIZE_STYLE } from './ui/sidebar-resize.js';
+import { effortControl, EFFORT_STYLE } from './ui/effort-slider.js';
 import { TRANSLATIONS } from './i18n.js';
 import { I18N_SCRIPT } from './ui/i18n.js';
+import { TOOL_COPY_DE, SYSTEM_TOOL_COPY_DE } from './ui/tool-copy.js';
 import { decorateSettingTooltips, SETTING_TOOLTIP_SCRIPT, SETTING_TOOLTIP_STYLE } from './ui/index.js';
 import { BRAND_ICON } from './ui/brand.js';
 import { WORKSPACE_STYLE } from './ui/workspace-style.js';
+// scg-ignore-next-line MINI_SHAI_HULUD_LOADER Reviewed 2026-09-08: static import of our tracked UI view, with no install hook, runtime download or credential loader; see docs/operations/supply-chain-review.md.
+import { EXECUTION_STYLE, EXECUTION_HTML, EXECUTION_SCRIPT, EXECUTION_NAV_HTML, EXECUTION_TREE_HTML } from './ui/execution.js';
 import { SELECT_STYLE, SELECT_SCRIPT } from './ui/select.js';
 import { PLATFORM_NEW_CHAT_HTML, PLATFORM_HISTORY_HTML, PLATFORM_HTML, PLATFORM_SCRIPT, PLATFORM_STYLE } from './platform-ui.js';
 
@@ -34,17 +44,17 @@ const SHARED_STYLE = `
     margin: 0;
     background: var(--bg);
     color: var(--body);
-    font: 14.5px/1.5 Inter, system-ui, -apple-system, sans-serif;
+    font: 1.0357rem/1.5 Inter, system-ui, -apple-system, sans-serif;
     background-image: radial-gradient(circle at 18% 0%, rgba(34,180,255,.08), transparent 32%), linear-gradient(180deg,#07111f 0%,#050B16 100%);
   }
-  main {
-    min-height: 100vh;
+  #main-layout {
+    min-height: 100dvh;
     display: grid;
     grid-template-columns: 252px minmax(0,1fr);
     padding: 0;
     transition: grid-template-columns .18s cubic-bezier(.4,0,.2,1);
   }
-  main.sidebar-collapsed {
+  #main-layout.sidebar-collapsed {
     grid-template-columns: 68px minmax(0,1fr);
   }
   .sidebar {
@@ -84,18 +94,18 @@ const SHARED_STYLE = `
   }
   .brand-mark {
     color: var(--blue);
-    font: 700 10px var(--font-sans);
+    font: 700 0.8rem var(--font-sans);
     letter-spacing: .16em;
   }
   .brand h1 {
     font-family: Georgia,serif;
-    font-size: 20px;
+    font-size: 1.4286rem;
     margin: 4px 0 2px;
     color: var(--text);
   }
   .brand small {
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 0.8214rem;
   }
   .collapse-btn {
     border: 1px solid transparent;
@@ -115,12 +125,12 @@ const SHARED_STYLE = `
     border-color: var(--line);
   }
   .nav-group-label {
-    font: 600 9.5px var(--font-sans);
+    font: 600 0.8rem var(--font-sans);
     letter-spacing: .12em;
     color: var(--muted);
     padding: 10px 10px 3px;
     text-transform: uppercase;
-    opacity: .55;
+    opacity: 1;
     pointer-events: none;
     user-select: none;
   }
@@ -143,7 +153,7 @@ const SHARED_STYLE = `
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 13.5px;
+    font-size: 0.9643rem;
     white-space: nowrap;
     width: 100%;
     transition: all .12s ease;
@@ -191,7 +201,7 @@ const SHARED_STYLE = `
     background: transparent;
     color: var(--muted);
     padding: 7px 10px;
-    font-size: 12px;
+    font-size: 0.8571rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -215,7 +225,7 @@ const SHARED_STYLE = `
     margin-top: auto;
     padding: 14px 6px 0;
     color: var(--muted);
-    font: 11px/1.5 var(--font-sans);
+    font: 0.8rem/1.5 var(--font-sans);
     border-top: 1px solid var(--line);
   }
   .sidebar.collapsed .side-footer {
@@ -247,8 +257,66 @@ const SHARED_STYLE = `
   }
   .appbrand {
     color: var(--blue);
-    font: 700 13px var(--font-sans);
+    font: 700 0.9286rem var(--font-sans);
     letter-spacing: .08em;
+  }
+  .appbar-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9286rem;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .appbar-breadcrumbs [hidden],
+  .breadcrumb-link[hidden],
+  .breadcrumb-sep[hidden],
+  .breadcrumb-current[hidden] {
+    display: none !important;
+  }
+  .breadcrumb-link {
+    background: transparent;
+    border: 0;
+    padding: 3px 6px;
+    min-height: 24px;
+    min-width: 24px;
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all .12s ease;
+  }
+  .breadcrumb-link:hover {
+    color: var(--text);
+    background: rgba(34, 180, 255, 0.12);
+  }
+  .breadcrumb-sep {
+    color: var(--line-2);
+    font-size: 0.8rem;
+    user-select: none;
+    padding: 0 1px;
+  }
+  .breadcrumb-current {
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 3px 6px;
+  }
+  .btn-cue {
+    transition: all .15s ease;
+  }
+  .btn-cue:hover {
+    background: var(--panel-3) !important;
+    border-color: var(--blue) !important;
+    color: var(--blue-soft) !important;
   }
   .header-actions {
     display: flex;
@@ -256,9 +324,9 @@ const SHARED_STYLE = `
     gap: 8px;
   }
   h1, h2, h3, p { margin-top: 0; }
-  h1 { font-size: 26px; margin-bottom: 4px; color: var(--text); }
-  h2 { font-size: 18px; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
-  h3 { font-size: 15px; margin-bottom: 5px; color: var(--text); }
+  h1 { font-size: 1.8571rem; margin-bottom: 4px; color: var(--text); }
+  h2 { font-size: 1.2857rem; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  h3 { font-size: 1.0714rem; margin-bottom: 5px; color: var(--text); }
   .muted, small { color: var(--muted); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
   .summary { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; margin: 0 0 16px; }
@@ -270,9 +338,9 @@ const SHARED_STYLE = `
     transition: transform .12s ease, border-color .12s ease;
   }
   .summary-item:hover { border-color: var(--line-2); transform: translateY(-1px); }
-  .summary-item strong { display: block; font-size: 22px; color: var(--blue); }
-  .summary-item span { color: var(--muted); font-size: 12px; }
-  .status-legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: 0 0 16px; }
+  .summary-item strong { display: block; font-size: 1.5714rem; color: var(--blue); }
+  .summary-item span { color: var(--muted); font-size: 0.8571rem; }
+  .status-legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 0.8571rem; margin: 0 0 16px; }
   .status-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .anchor { scroll-margin-top: 76px; }
   section, .transport {
@@ -307,7 +375,7 @@ const SHARED_STYLE = `
     padding: 7px 12px;
     cursor: pointer;
     text-decoration: none;
-    font-size: 13px;
+    font-size: 0.9286rem;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -329,7 +397,7 @@ const SHARED_STYLE = `
   .model-tools { display: grid; grid-template-columns: minmax(220px,1fr) 160px 210px auto; gap: 8px; margin-bottom: 12px; }
   .model-tools input { flex: 1; min-width: 0; }
   .model-summary { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0 14px; }
-  .model-summary span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--muted); font-size: 12px; }
+  .model-summary span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--muted); font-size: 0.8571rem; }
   .model-transport-group { margin: 14px 0 20px; }
   .model-transport-group > h3 { display: flex; justify-content: space-between; color: var(--blue); margin-bottom: 8px; }
   .model-provider-group { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; margin: 8px 0; overflow: hidden; }
@@ -343,8 +411,8 @@ const SHARED_STYLE = `
   .model-row:first-child { border-top: 0; }
   .model-row strong, .model-row code { display: block; }
   .model-row strong { color: var(--text); overflow-wrap: anywhere; }
-  .model-row code { font-size: 12px; }
-  .model-row .model-meta { color: var(--muted); font-size: 12px; }
+  .model-row code { font-size: 0.8571rem; }
+  .model-row .model-meta { color: var(--muted); font-size: 0.8571rem; }
   #model-list { max-height: 70vh; overflow: auto; padding-right: 4px; }
   .setting-list { display: grid; gap: 10px; margin: 12px 0 24px; }
   .setting-row { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(180px, 1fr) auto; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; }
@@ -354,7 +422,7 @@ const SHARED_STYLE = `
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font: 11.5px/1 var(--font-sans);
+    font: 0.8214rem/1 var(--font-sans);
     padding: 4px 8px;
     border-radius: 999px;
     border: 1px solid transparent;
@@ -391,7 +459,7 @@ const SHARED_STYLE = `
     gap: 6px;
   }
   .tool-picker-actions button {
-    font-size: 11.5px;
+    font-size: 0.8214rem;
     padding: 4px 8px;
     background: #112340;
     border: 1px solid var(--line);
@@ -420,7 +488,7 @@ const SHARED_STYLE = `
     background: rgba(255,111,145,.15);
     border: 1px solid rgba(255,111,145,.35);
     color: #ff9cb2;
-    font-size: 12px;
+    font-size: 0.8571rem;
     padding: 2px 8px;
     border-radius: 999px;
     font-weight: 500;
@@ -431,7 +499,7 @@ const SHARED_STYLE = `
     color: #ff9cb2;
     cursor: pointer;
     padding: 0 1px;
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1;
     opacity: .7;
   }
@@ -458,14 +526,14 @@ const SHARED_STYLE = `
     justify-content: space-between;
     padding: 6px 12px;
     background: #122844;
-    font-size: 12px;
+    font-size: 0.8571rem;
     font-weight: 600;
     color: var(--blue-soft);
     cursor: pointer;
     user-select: none;
   }
   .tool-cat-title .cat-badge {
-    font-size: 11px;
+    font-size: 0.8rem;
     color: var(--muted);
     font-weight: 400;
   }
@@ -481,7 +549,7 @@ const SHARED_STYLE = `
     gap: 6px;
     padding: 4px 8px;
     border-radius: 5px;
-    font-size: 12px;
+    font-size: 0.8571rem;
     border: 1px solid var(--line);
     background: #081628;
     color: var(--text);
@@ -498,7 +566,7 @@ const SHARED_STYLE = `
     color: #ffaec0;
   }
   .pill-tag {
-    font-size: 9px;
+    font-size: 0.8rem;
     text-transform: uppercase;
     font-weight: 700;
     padding: 1px 4px;
@@ -539,22 +607,22 @@ const SHARED_STYLE = `
     background: #0a192f;
     border: 1px solid var(--line);
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 0.8571rem;
   }
   .pipeline-step-pill .step-meta {
-    font-size: 10.5px;
+    font-size: 0.8rem;
     color: var(--muted);
     font-family: var(--font-sans);
   }
   .pipeline-arrow {
     color: var(--muted);
-    font-size: 14px;
+    font-size: 1rem;
   }
   .checkpoint-badge {
     background: rgba(245,184,61,.18);
     color: var(--warn);
     border: 1px solid rgba(245,184,61,.3);
-    font-size: 10px;
+    font-size: 0.8rem;
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 600;
@@ -601,14 +669,14 @@ const SHARED_STYLE = `
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
-    font-size: 13px;
+    font-size: 0.9286rem;
   }
   .step-result-content {
     background: #040913;
     border: 1px solid rgba(143,213,236,.1);
     border-radius: 5px;
     padding: 10px;
-    font-size: 12px;
+    font-size: 0.8571rem;
     max-height: 240px;
     overflow-y: auto;
     white-space: pre-wrap;
@@ -620,6 +688,13 @@ const SHARED_STYLE = `
   .modal-backdrop {
     position: fixed;
     inset: 0;
+    margin: 0;
+    border: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    color: var(--text);
     z-index: 100;
     background: rgba(2,6,12,.78);
     backdrop-filter: blur(4px);
@@ -628,9 +703,11 @@ const SHARED_STYLE = `
     justify-content: center;
     padding: 20px;
   }
-  .modal-backdrop.open {
+  .modal-backdrop[open] {
     display: flex;
   }
+  .modal-backdrop::backdrop { background:transparent; }
+  body:has(.modal-backdrop[open]) { overflow:hidden; }
   .modal-dialog {
     background: var(--panel);
     border: 1px solid var(--line-2);
@@ -644,6 +721,7 @@ const SHARED_STYLE = `
     box-shadow: 0 20px 40px rgba(0,0,0,.55);
   }
   .modal-header {
+    flex-shrink: 0;
     padding: 16px 20px;
     border-bottom: 1px solid var(--line);
     display: flex;
@@ -651,6 +729,8 @@ const SHARED_STYLE = `
     justify-content: space-between;
   }
   .modal-body {
+    min-height: 0;
+    overscroll-behavior: contain;
     padding: 20px;
     overflow-y: auto;
     display: flex;
@@ -658,6 +738,8 @@ const SHARED_STYLE = `
     gap: 16px;
   }
   .modal-footer {
+    flex-shrink: 0;
+    flex-wrap: wrap;
     padding: 14px 20px;
     border-top: 1px solid var(--line);
     display: flex;
@@ -673,7 +755,7 @@ const SHARED_STYLE = `
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
-    font-size: 16px;
+    font-size: 1.1429rem;
   }
   .modal-close:hover { color: var(--text); }
   .preset-buttons {
@@ -683,7 +765,7 @@ const SHARED_STYLE = `
     margin-bottom: 8px;
   }
   .preset-btn {
-    font-size: 12px;
+    font-size: 0.8571rem;
     padding: 5px 10px;
     background: #15253b;
     border: 1px solid var(--line);
@@ -702,7 +784,7 @@ const SHARED_STYLE = `
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: 0.9286rem;
     color: var(--text);
     cursor: pointer;
   }
@@ -731,9 +813,9 @@ const SHARED_STYLE = `
   .play-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   #play-output { white-space: pre-wrap; min-height: 54px; margin: 14px 0 0; }
   .activity-list { display: grid; gap: 7px; max-height: 460px; overflow: auto; }
-  .activity-event { display: grid; grid-template-columns: 76px 86px minmax(0,1fr); gap: 10px; align-items: start; border-top: 1px solid var(--line); padding: 9px 0; font-size: 13px; }
+  .activity-event { display: grid; grid-template-columns: 76px 86px minmax(0,1fr); gap: 10px; align-items: start; border-top: 1px solid var(--line); padding: 9px 0; font-size: 0.9286rem; }
   .activity-event:first-child { border-top: 0; }
-  .activity-event time, .activity-event .scope { color: var(--muted); font: 12px var(--font-sans); }
+  .activity-event time, .activity-event .scope { color: var(--muted); font: 0.8571rem var(--font-sans); }
   .activity-event.success .level { color: var(--ok); }
   .activity-event.warning .level { color: var(--warn); }
   .activity-event.error .level { color: var(--bad); }
@@ -743,7 +825,7 @@ const SHARED_STYLE = `
   li { margin: 7px 0; }
   pre { overflow-x: auto; background: #050B16; border: 1px solid var(--line); padding: 14px; border-radius: 6px; }
   @media (max-width: 760px) {
-    main { display: block; }
+    #main-layout { display: block; }
     .sidebar { position: fixed; z-index: 30; width: min(290px,86vw); transform: translateX(-102%); transition: transform .18s ease; box-shadow: 18px 0 45px rgba(0,0,0,.35); }
     .sidebar.open { transform: translateX(0); }
     .workspace { padding: 0 16px 42px; }
@@ -758,29 +840,29 @@ const SHARED_STYLE = `
   .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; margin: 16px 0 24px; }
   .chart-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
   .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .chart-header h3 { margin: 0; font-size: 14px; color: var(--blue-soft); }
-  .chart-badge { font: 600 11px var(--font-sans); padding: 2px 6px; border-radius: 4px; background: rgba(34,180,255,.12); color: var(--blue); }
+  .chart-header h3 { margin: 0; font-size: 1rem; color: var(--blue-soft); }
+  .chart-badge { font: 600 0.8rem var(--font-sans); padding: 2px 6px; border-radius: 4px; background: rgba(34,180,255,.12); color: var(--blue); }
   .svg-chart { width: 100%; height: auto; display: block; }
-  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 0.8571rem; color: var(--muted); }
   .legend-item { display: inline-flex; align-items: center; gap: 5px; }
   .legend-color { width: 10px; height: 10px; border-radius: 2px; }
 
   /* Risk & Classification Badges */
-  .risk-badge { font: 700 10.5px var(--font-sans); padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .risk-badge { font: 700 0.8rem var(--font-sans); padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
   .risk-low { background: rgba(31,209,138,.14); color: var(--ok); border: 1px solid rgba(31,209,138,.3); }
   .risk-medium { background: rgba(245,184,61,.14); color: var(--warn); border: 1px solid rgba(245,184,61,.3); }
   .risk-high { background: rgba(255,138,61,.14); color: var(--copper); border: 1px solid rgba(255,138,61,.3); }
   .risk-critical { background: rgba(255,111,145,.14); color: var(--bad); border: 1px solid rgba(255,111,145,.3); }
-  .class-badge { font: 500 11px Inter, sans-serif; padding: 2px 7px; border-radius: 4px; background: rgba(143,213,236,.12); color: var(--blue-soft); border: 1px solid rgba(143,213,236,.25); }
+  .class-badge { font: 500 0.8rem Inter, sans-serif; padding: 2px 7px; border-radius: 4px; background: rgba(143,213,236,.12); color: var(--blue-soft); border: 1px solid rgba(143,213,236,.25); }
 
   /* Filter Chips */
   .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
-  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: #0A1729; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+  .filter-chip { padding: 4px 10px; border-radius: 999px; font-size: 0.8571rem; border: 1px solid var(--line); background: #0A1729; color: var(--muted); cursor: pointer; transition: all .12s ease; }
   .filter-chip:hover { border-color: var(--line-2); color: var(--text); }
   .filter-chip.active { background: var(--blue); color: #050B16; border-color: var(--blue); font-weight: 600; }
 
   /* Data Table */
-  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; margin: 10px 0; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9286rem; text-align: left; margin: 10px 0; }
   .data-table th { background: #112340; color: var(--blue-soft); padding: 9px 12px; border-bottom: 1px solid var(--line-2); font-weight: 600; }
   .data-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   .data-table tr:hover td { background: rgba(17,35,64,.5); }
@@ -794,7 +876,7 @@ const SHARED_STYLE = `
   .budget-fill.danger { background: #ff6f91; }
 
   /* Directory Browser */
-  .dir-browser { background: #0A1729; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
+  .dir-browser { background: #0A1729; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 0.9286rem; }
   .dir-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
   .dir-item:hover { background: #112340; border-color: var(--line); }
   .dir-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 6px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; font-family: var(--font-sans); color: var(--blue-soft); }
@@ -811,7 +893,7 @@ const SHARED_STYLE = `
   .pipeline-run-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 12px; }
   .pipeline-header, .step-result-header, .checkpoint-banner > div, .chart-header { flex-wrap: wrap; gap: 8px; }
   .activity-event, .pipeline-card, .step-result-content, .tool-card, .dir-browser { overflow-wrap: anywhere; }
-  .chart-values { padding-left: 20px; font-size: 12px; overflow-wrap: anywhere; }
+  .chart-values { padding-left: 20px; font-size: 0.8571rem; overflow-wrap: anywhere; }
   .run-history-item { grid-template-columns: minmax(0,1fr) auto; }
   .data-table { table-layout: fixed; overflow-wrap: anywhere; }
   .data-table td > div { flex-wrap: wrap; }
@@ -824,10 +906,18 @@ const SHARED_STYLE = `
     .pipeline-header, .step-result-header { align-items: stretch; }
     .activity-event:not(.run-history-item) { grid-template-columns: 66px minmax(0,1fr); }
     .activity-event:not(.run-history-item) > :last-child { grid-column: 1 / -1; }
-    .data-table th, .data-table td { padding: 6px 4px; font-size: 11px; }
+    .data-table th, .data-table td { padding: 6px 4px; font-size: 0.8rem; }
   }
   ${WORKSPACE_STYLE}
+  ${EXECUTION_STYLE}
   ${SELECT_STYLE}
+  ${GIT_WORKSPACE_STYLE}
+  ${REPOSITORY_ANALYTICS_STYLE}
+  ${EFFORT_STYLE}
+  ${MODERN_STYLE}
+  ${INSIGHTS_STYLE}
+  ${GETTING_STARTED_STYLE}
+  ${SIDEBAR_RESIZE_STYLE}
 `;
 
 export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
@@ -841,6 +931,7 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
   <style>${SHARED_STYLE}</style>
 </head>
 <body>
+<a class="skip-link" href="#workspace-content" data-i18n="start_skip">Skip to content</a>
 <main id="main-layout">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -852,10 +943,12 @@ export const DASHBOARD_HTML = decorateSettingTooltips(`<!doctype html>
       </button>
     </div>
 ${PLATFORM_NEW_CHAT_HTML}
-<nav class="side-menu" aria-label="Main navigation" data-i18n-aria="ui_main_navigation">      <button class="active" data-section="platform" title="Conversation &amp; Agent Workspace" data-i18n-title="h_platform">
+<nav class="side-menu" aria-label="Main navigation" data-i18n-aria="ui_main_navigation">${EXECUTION_NAV_HTML}<button id="git-workspace-nav" data-section="git-workspace"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 7v10m12-10v3a5 5 0 0 1-5 5H6"/></svg><span class="nav-label" data-i18n="gw_nav">Git workspace</span></button>${REPOSITORY_ANALYTICS_NAV_HTML}<button class="active" data-section="platform" title="Conversation &amp; Agent Workspace" data-i18n-title="h_platform">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
         <span class="nav-label" data-i18n="nav_platform">Webchat &amp; agents</span>
       </button>
+${INSIGHTS_NAV_HTML}
+${PLATFORM_HISTORY_HTML}
       <button data-section="models" title="Models" data-i18n-title="nav_models">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
         <span class="nav-label" data-i18n="nav_models">Models</span>
@@ -864,7 +957,7 @@ ${PLATFORM_NEW_CHAT_HTML}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         <span class="nav-label" data-i18n="nav_workspaces">Workspaces</span>
       </button></nav>
-${PLATFORM_HISTORY_HTML}
+${EXECUTION_TREE_HTML}
 <details class="nav-advanced" id="advanced-nav"><summary title="Tools and administration" data-i18n-title="ui_tools_admin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><path d="M14 17.5h7m-3.5-3.5v7"/></svg><span data-i18n="ui_tools_admin">Tools and administration</span></summary>    <nav class="side-menu" aria-label="Dashboard sections" data-i18n-aria="ui_dashboard_sections" id="side-nav">
       <div class="nav-group-label" data-nav-group="core" data-i18n="group_core">Core</div>
       <button data-section="overview" title="Overview" data-i18n-title="nav_overview">
@@ -949,49 +1042,143 @@ ${PLATFORM_HISTORY_HTML}
     </div>
   </aside>
 
-  <div class="workspace">
+  ${SIDEBAR_RESIZE_HTML}
+  <div class="workspace" id="workspace-content" tabindex="-1">
     <nav class="appbar" aria-label="Dashboard controls" data-i18n-aria="ui_dashboard_controls">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <button id="menu-toggle" type="button" aria-label="Toggle navigation" data-i18n-aria="ui_toggle_navigation" data-i18n="ui_menu">Menu</button>
-        <span class="appbrand" id="page-title" data-i18n="nav_platform">Chat</span>
+      <div class="appbar-nav-context" style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+        <button id="menu-toggle" type="button" aria-label="Toggle navigation" data-i18n-aria="ui_toggle_navigation" title="Toggle navigation" data-i18n-title="ui_toggle_navigation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <nav class="appbar-breadcrumbs" id="app-breadcrumbs" aria-label="Location hierarchy">
+          <button type="button" class="breadcrumb-link" id="bc-root" title="Go to section root">
+            <span class="appbrand" id="page-title" data-i18n="nav_platform">Chat</span>
+          </button>
+          <span class="breadcrumb-sep" id="bc-sep-1" hidden aria-hidden="true">/</span>
+          <button type="button" class="breadcrumb-link" id="bc-sub" hidden title="Go to sub-view">
+            <span id="bc-sub-text"></span>
+          </button>
+          <span class="breadcrumb-sep" id="bc-sep-2" hidden aria-hidden="true">/</span>
+          <span class="breadcrumb-current" id="bc-item" hidden aria-current="page">
+            <span id="bc-item-text"></span>
+          </span>
+        </nav>
       </div>
       <div class="header-actions">
+        ${NAV_SEARCH_BUTTON}
         <button id="lang-toggle" type="button" title="Switch language" data-i18n-title="ui_switch_language" aria-label="Toggle language" data-i18n-aria="ui_toggle_language"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="lang-label">DE</span></button>
-        <button id="refresh" type="button">
+        <button id="refresh" type="button" title="Refresh" aria-label="Refresh" data-i18n-title="btn_refresh" data-i18n-aria="btn_refresh">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-          <span class="action-label" data-i18n="btn_refresh">Refresh</span>
         </button>
       </div>
     </nav>
 
     <p id="notice" role="status"></p>
+    ${INTRO_OFFER_HTML}
     ${PLATFORM_HTML}
+    ${EXECUTION_HTML}
+    ${GIT_WORKSPACE_HTML.replace('class="gw-page"', 'class="wide page-section gw-page"')}
+    ${REPOSITORY_ANALYTICS_HTML}
+    ${INSIGHTS_HTML}
 
-    <!-- Overview Section -->
+    <!-- Overview Section / Home Cockpit -->
     <div id="overview-section" class="page-section">
-      <header id="overview" class="anchor">
+      <header id="overview" class="anchor" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
         <div>
-          <h1 data-i18n="h_overview">Operational Dashboard</h1>
+          <h1 style="margin: 0 0 6px;" data-i18n="h_overview">Home Cockpit</h1>
           <div class="muted" id="version" data-i18n="ui_loading">Loading...</div>
         </div>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" id="btn-cockpit-new-task" class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="action-label">New Task</span></button>
+          <button type="button" id="btn-cockpit-chat" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
+            <span>Open Chat</span>
+          </button>
+        </div>
       </header>
+
+      <!-- Contextual Quick-Navigation Bar -->
+      <nav class="cockpit-nav-cues" aria-label="Contextual navigation" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; padding: 10px 14px; background: rgba(34, 180, 255, 0.04); border: 1px solid rgba(34, 180, 255, 0.15); border-radius: 8px; font-size: 0.8571rem;">
+        <span class="muted" style="font-weight: 500;">Quick Navigation:</span>
+        <button type="button" class="btn-cue" id="cue-chat" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">💬 Open Webchat</button>
+        <button type="button" class="btn-cue" id="cue-execution" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">⚡ Execution Workspace</button>
+        <button type="button" class="btn-cue" id="cue-git" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">⑂ Git Workspace</button>
+        <button type="button" class="btn-cue" id="cue-analytics" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">📊 Repository Analytics</button>
+        <button type="button" class="btn-cue" id="cue-insights" style="padding: 4px 10px; font-size: 0.8rem; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; color: var(--text); cursor: pointer;">💡 Local Insights</button>
+      </nav>
+
+      <!-- Attention Required Banner -->
+      <div id="cockpit-attention" style="display: none; background: rgba(245,184,61,0.12); border: 1px solid rgba(245,184,61,0.45); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="color: var(--warn); font-size: 1.2rem;">⚠️</span>
+          <div>
+            <strong style="color: var(--text);" id="cockpit-attention-title">Action Required</strong>
+            <div class="muted" style="font-size: 0.8571rem;" id="cockpit-attention-msg">Execution runs are waiting for approval.</div>
+          </div>
+        </div>
+        <button type="button" id="btn-cockpit-review" class="primary" style="background: var(--copper); color: #1B0E03; font-weight: 600;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label">Review in Execution Workspace</span></button>
+      </div>
+
+      <!-- KPI Summary Cards -->
       <div class="summary" aria-label="Runtime summary" data-i18n-aria="ui_runtime_summary">
         <div class="summary-item"><strong id="summary-connected">-</strong><span data-i18n="ui_connected_providers">Connected providers</span></div>
         <div class="summary-item"><strong id="summary-models">-</strong><span data-i18n="ui_registered_models">Registered models</span></div>
-        <div class="summary-item"><strong id="summary-requests">-</strong><span data-i18n="ui_requests_handled">Requests handled</span></div>
-        <div class="summary-item"><strong id="summary-active">-</strong><span data-i18n="ui_active_requests">Active requests</span></div>
+        <div class="summary-item"><strong id="summary-active-runs">-</strong><span>Active Runs & Tasks</span></div>
+        <div class="summary-item"><strong id="summary-workspaces">-</strong><span>Workspaces</span></div>
       </div>
+
+      <!-- Active & Recent Runs -->
+      <section style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin: 0; font-size: 1.1429rem;">Execution Workspace Overview</h2>
+          <button type="button" id="btn-cockpit-view-all-runs" style="background: none; border: 0; color: var(--blue); cursor: pointer; font-size: 0.8571rem; padding: 0;">Open Execution Workspace →</button>
+        </div>
+        <div id="cockpit-runs-container">
+          <div class="muted" style="padding: 12px 0;">Loading recent runs...</div>
+        </div>
+      </section>
+
+      <!-- Workspaces & Repositories Status -->
+      <section style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin: 0; font-size: 1.1429rem;">Workspaces & Repository Status</h2>
+          <button type="button" id="btn-cockpit-view-git" style="background: none; border: 0; color: var(--blue); cursor: pointer; font-size: 0.8571rem; padding: 0;">Open Git Workspace →</button>
+        </div>
+        <div id="cockpit-workspace-container">
+          <div class="muted" style="padding: 12px 0;">Loading workspace status...</div>
+        </div>
+      </section>
+
+      <!-- Provider & Runtime Connectivity Architecture -->
       <div class="grid">
-        <article class="transport"><strong>api-*</strong><h3 data-i18n="ui_direct_apis">Direct APIs</h3><p data-i18n="ui_direct_apis_description">Requests use provider SDK or REST endpoints. Independent API keys managed via protected Bridge settings.</p></article>
-        <article class="transport"><strong>cli-*</strong><h3 data-i18n="ui_local_clis">Local coding CLIs</h3><p data-i18n="ui_local_clis_description">Requests route to Claude Code, OpenAI Codex, Antigravity Gemini, or Grok CLI with account isolation.</p></article>
-        <article class="transport"><strong>lmstudio/*</strong><h3 data-i18n="ui_local_models">Local models</h3><p data-i18n="ui_local_models_description">Requests route to an OpenAI-compatible LM Studio server on localhost without cloud dependencies.</p></article>
+        <article class="transport">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong>api-*</strong>
+            <span id="badge-api-count" class="setting-badge ok">Connected</span>
+          </div>
+          <h3 data-i18n="ui_direct_apis">Direct APIs</h3>
+          <p data-i18n="ui_direct_apis_description">Requests use provider SDK or REST endpoints. Independent API keys managed via protected Bridge settings.</p>
+        </article>
+        <article class="transport">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong>cli-*</strong>
+            <span id="badge-cli-count" class="setting-badge ok">Connected</span>
+          </div>
+          <h3 data-i18n="ui_local_clis">Local coding CLIs</h3>
+          <p data-i18n="ui_local_clis_description">Requests route to Claude Code, OpenAI Codex, Antigravity Gemini, or Grok CLI with account isolation.</p>
+        </article>
+        <article class="transport">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong>lmstudio/*</strong>
+            <span id="badge-local-count" class="setting-badge muted">Local</span>
+          </div>
+          <h3 data-i18n="ui_local_models">Local models</h3>
+          <p data-i18n="ui_local_models_description">Requests route to an OpenAI-compatible LM Studio server on localhost without cloud dependencies.</p>
+        </article>
       </div>
     </div>
 
-    <!-- Playground Section -->
+    <!-- Playground Section (API Proxy Console) -->
     <section id="playground-section" class="playground page-section">
-      <h2 data-i18n="h_playground">Local Playground</h2>
-      <p class="muted" data-i18n="ui_playground_description">Send interactive test requests through the OpenAI-compatible proxy interface.</p>
+      <h2 data-i18n="h_playground">API Proxy Console (/v1/chat)</h2>
+      <p class="muted" data-i18n="ui_playground_description">Interactive debug console for testing the OpenAI-compatible HTTP proxy interface (<code>/v1/chat/completions</code>).</p>
       <label><span data-i18n="lbl_model">Model</span><select id="play-model"></select></label>
       <label><span data-i18n="lbl_mode">Mode</span>
         <select id="play-mode">
@@ -1004,13 +1191,13 @@ ${PLATFORM_HISTORY_HTML}
         <label><span data-i18n="lbl_working_dir">Working directory</span><input id="play-cwd" type="text" placeholder="Absolute path (required when agent mode is selected)" data-i18n-ph="ph_absolute_path"></label>
         <label><span data-i18n="lbl_workspace_quick">Workspace quick select</span><select id="play-ws-select"><option value="" data-i18n="ui_choose_workspace">-- Choose Workspace --</option></select></label>
       </div>
-      <label><span data-i18n="lbl_effort">Effort tier</span><select id="play-effort"></select></label>
+      ${effortControl('play-effort', '#play-model')}
       <label><span data-i18n="lbl_prompt">Prompt</span><textarea id="play-prompt" data-i18n-value="sample_ping">Reply with exactly: pong</textarea></label>
       <div class="play-actions">
         <button id="play-run" class="primary" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_run_test">Run test</span></button>
         <span id="play-note" class="muted"></span>
       </div>
-      <pre id="play-output" aria-live="polite">No test run yet.</pre>
+      <pre id="play-output" aria-live="polite" data-i18n="ui_no_test">No test run yet.</pre>
     </section>
 
     <!-- API Providers Section -->
@@ -1126,7 +1313,7 @@ ${PLATFORM_HISTORY_HTML}
         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 28px; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
           <div>
             <h3 style="margin: 0;" data-i18n="h_governance_audit">Governance Approval Audit Trail</h3>
-            <p class="muted" style="margin: 0; font-size: 13px;" data-i18n="ui_governance_audit_description">Full audit log of human authorizations, gate sign-offs, and rejections.</p>
+            <p class="muted" style="margin: 0; font-size: 0.9286rem;" data-i18n="ui_governance_audit_description">Full audit log of human authorizations, gate sign-offs, and rejections.</p>
           </div>
           <div class="play-actions">
             <button type="button" id="btn-export-audit-json"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span class="action-label" data-i18n="btn_export_json">Export JSON</span></button>
@@ -1213,7 +1400,7 @@ ${PLATFORM_HISTORY_HTML}
         <div class="dir-browser">
           <div class="dir-breadcrumb">
             <span data-i18n="lbl_path">Path:</span> <strong id="browser-current-path">-</strong>
-            <button type="button" id="browser-up-btn" style="padding: 2px 8px; font-size: 11px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span class="action-label" data-i18n="btn_parent_directory">Up one level</span></button>
+            <button type="button" id="browser-up-btn" style="padding: 2px 8px; font-size: 0.8rem;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span class="action-label" data-i18n="btn_parent_directory">Up one level</span></button>
           </div>
           <div id="browser-dirs-list" style="display: grid; gap: 4px; max-height: 240px; overflow-y: auto;"></div>
         </div>
@@ -1271,21 +1458,21 @@ ${PLATFORM_HISTORY_HTML}
         </select>
       </label>
       <div id="orch-roles"></div>
-      <label><span data-i18n="lbl_fallback_models">Fallback models</span><select id="orch-fallbacks" multiple size="4"></select></label>
+      <label><span data-i18n="lbl_fallback_models">Fallback models</span><select id="orch-fallbacks" multiple size="4"></select></label>${effortControl('orch-fallback-effort', '#orch-fallbacks')}
       <div class="play-actions">
         <button id="orch-save" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="btn_save_orchestration">Save orchestration</span></button>
         <button id="orch-run" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg><span class="action-label" data-i18n="btn_run_orchestration">Run orchestration</span></button>
         <span id="orch-note" class="muted"></span>
       </div>
-      <pre id="orch-output">No orchestration run yet.</pre>
+      <pre id="orch-output" data-i18n="ui_no_orchestration">No orchestration run yet.</pre>
     </section>
 
     <!-- Integration Tests Section -->
     <section id="integration-section" class="wide page-section">
       <h2 data-i18n="h_integration">Integration tests</h2>
       <p class="muted" data-i18n="ui_integration_description">Automated verification testing OpenAI routes and provider execution matrices.</p>
-      <pre>Base URL: http://127.0.0.1:31338/v1
-Endpoint: POST /chat/completions</pre>
+      <pre><span data-i18n="ui_base_url">Base URL</span>: http://127.0.0.1:31338/v1
+<span data-i18n="ui_endpoint">Endpoint</span>: POST /chat/completions</pre>
       <div class="play-actions">
         <button id="test-all-cli" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_test_clis">Test all CLI providers</span></button>
         <button id="test-openai" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="action-label" data-i18n="btn_test_openai">Test OpenAI-compatible route</span></button>
@@ -1401,27 +1588,31 @@ Endpoint: POST /chat/completions</pre>
     <section id="help-section-v2" class="wide page-section">
       <h2 data-i18n="h_help">Help and Operating Guide</h2>
       <p class="muted" data-i18n="ui_help_description">Getting started, connecting clients, and managing autonomous agent policies.</p>
+      ${HELP_EXAMPLES_HTML}
+      <details class="help-technical"><summary data-i18n="start_technical">Technical reference</summary>
       <section><h3 data-i18n="h_supported_platforms">Supported desktop platforms</h3><p><span data-i18n="help_platforms_dashboard">Conduit Bridge currently supports Windows Desktop and Linux Desktop. It needs Node.js 24 or newer. Start the bridge on the desktop and open</span> <code>http://127.0.0.1:31338/</code>.</p></section>
       <section><h3 data-i18n="h_desktop_autostart">Desktop autostart</h3><p><span data-i18n="help_after_build">After building, use</span> <code>./scripts/install-autostart.sh</code> <span data-i18n="help_linux_or">on Linux Desktop or</span> <code>powershell -ExecutionPolicy Bypass -File .\\scripts\\install-autostart.ps1</code> <span data-i18n="help_windows_start">on Windows Desktop. The bridge starts as the logged-in desktop user on</span> <code>127.0.0.1:31338</code><span data-i18n="help_see_inline">. See</span> <code>docs/guides/autostart.md</code> <span data-i18n="help_removal">for removal and troubleshooting.</span></p></section>
       <section>
         <h3 data-i18n="h_client_endpoints">Client endpoints</h3>
-        <pre>Base URL: http://127.0.0.1:31338/v1
-Models:   GET /v1/models
-Status:   GET /v1/status
-Chat:     POST /v1/chat/completions
-Tools:    GET /v1/tools
+        <pre><span data-i18n="ui_base_url">Base URL</span>: http://127.0.0.1:31338/v1
+<span data-i18n="h_models">Models</span>: GET /v1/models
+<span data-i18n="lbl_status">Status</span>: GET /v1/status
+Chat: POST /v1/chat/completions
+<span data-i18n="ui_tools">Tools</span>: GET /v1/tools
 Pipelines: GET /v1/pipelines
-Events:   ws://127.0.0.1:31338/v1/events</pre>
+<span data-i18n="ui_events">Events</span>: ws://127.0.0.1:31338/v1/events</pre>
       </section>
+      </details>
     </section>
   </div>
 </main>
 
 <!-- Customize Navigation Modal -->
-<div class="modal-backdrop" id="nav-modal">
+${GETTING_STARTED_HTML}
+<dialog class="modal-backdrop" id="nav-modal" aria-labelledby="nav-modal-title">
   <div class="modal-dialog">
     <div class="modal-header">
-      <h3 style="margin: 0;" data-i18n="h_customize_navigation">Customize Navigation Visibility</h3>
+      <h3 style="margin: 0;" id="nav-modal-title" tabindex="-1" autofocus data-i18n="h_customize_navigation">Customize Navigation Visibility</h3>
       <button class="modal-close" id="close-nav-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
@@ -1446,22 +1637,22 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       <button type="button" class="primary" id="save-nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="ui_apply_prefs">Apply Preferences</span></button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Custom Pipeline Builder Modal -->
-<div class="modal-backdrop" id="pipeline-modal">
+<dialog class="modal-backdrop" id="pipeline-modal" aria-labelledby="pipeline-modal-title">
   <div class="modal-dialog" style="max-width: 740px;">
     <div class="modal-header">
       <h3 style="margin: 0;" id="pipeline-modal-title" data-i18n="h_create_pipeline">Create Custom Agent Pipeline</h3>
       <button class="modal-close" id="close-pipeline-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
-      <label><span data-i18n="lbl_pipeline_name">Pipeline Name</span><input type="text" id="pipe-name-input" placeholder="e.g. Architect -&gt; Implement -&gt; Audit" data-i18n-ph="ph_pipeline_name"></label>
+      <label><span data-i18n="lbl_pipeline_name">Pipeline Name</span><input type="text" id="pipe-name-input" autofocus placeholder="e.g. Architect -&gt; Implement -&gt; Audit" data-i18n-ph="ph_pipeline_name"></label>
       <label><span data-i18n="lbl_description">Description</span><input type="text" id="pipe-desc-input" placeholder="Brief workflow summary" data-i18n-ph="ph_pipeline_description"></label>
       <div>
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
           <label style="font-weight: 600; color: var(--text); margin: 0;" data-i18n="lbl_pipeline_steps">Pipeline Steps</label>
-          <button type="button" id="pipe-add-step-btn" style="font-size: 12px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_add_step">Add Step</span></button>
+          <button type="button" id="pipe-add-step-btn" style="font-size: 0.8571rem;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_add_step">Add Step</span></button>
         </div>
         <div id="pipe-steps-container" style="display: grid; gap: 10px;"></div>
       </div>
@@ -1471,17 +1662,17 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       <button type="button" class="primary" id="save-pipeline-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="action-label" data-i18n="btn_save_pipeline">Save Pipeline</span></button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Register Repository Modal -->
-<div class="modal-backdrop" id="repo-modal">
+<dialog class="modal-backdrop" id="repo-modal" aria-labelledby="repo-modal-title">
   <div class="modal-dialog" style="max-width: 580px;">
     <div class="modal-header">
-      <h3 style="margin: 0;" data-i18n="h_register_repository">Register Repository</h3>
+      <h3 style="margin: 0;" id="repo-modal-title" data-i18n="h_register_repository">Register Repository</h3>
       <button class="modal-close" id="close-repo-modal" title="Close" data-i18n-title="ui_close" aria-label="Close" data-i18n-aria="ui_close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg></button>
     </div>
     <div class="modal-body">
-      <label><span data-i18n="lbl_repo_identifier">Repository Identifier (e.g. org/repo)</span><input type="text" id="repo-id-input" placeholder="acme/service-mesh" data-i18n-ph="ph_repo_id"></label>
+      <label><span data-i18n="lbl_repo_identifier">Repository Identifier (e.g. org/repo)</span><input type="text" id="repo-id-input" autofocus placeholder="acme/service-mesh" data-i18n-ph="ph_repo_id"></label>
       <label><span data-i18n="lbl_repo_name">Repository Friendly Name</span><input type="text" id="repo-name-input" placeholder="Acme Service Mesh" data-i18n-ph="ph_repo_name"></label>
       <label><span data-i18n="lbl_local_path">Local Absolute Path</span><input type="text" id="repo-path-input" placeholder="C:\\path\\to\\project" data-i18n-ph="ph_workspace_path"></label>
       <label><span data-i18n="lbl_description">Description</span><input type="text" id="repo-desc-input" placeholder="Purpose and architecture role" data-i18n-ph="ph_repo_description"></label>
@@ -1503,12 +1694,17 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       <button type="button" class="primary" id="save-repo-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg><span class="action-label" data-i18n="btn_register_repo">Register Repository</span></button>
     </div>
   </div>
-</div>
+</dialog>
 
 <script>window.__CB_TRANSLATIONS = ${JSON.stringify(TRANSLATIONS).replace(/</g, '\\u003c')};</script>
 <script>
   ${I18N_SCRIPT}
   const $ = id => document.getElementById(id);
+  const toolCopyDe = ${JSON.stringify(TOOL_COPY_DE)}, systemToolCopyDe = ${JSON.stringify(SYSTEM_TOOL_COPY_DE)};
+  function toolText(tool, field = 'displayName') {
+    return (currentLang === 'de' ? toolCopyDe[tool.name]?.[field === 'description' ? 1 : 0] : '') || tool[field] || (field === 'description' ? t('ui_no_tool_description') : tool.name);
+  }
+  function systemToolText(value) { return (currentLang === 'de' ? systemToolCopyDe[value] : '') || localizedValue(value); }
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
   // Sidebar collapse toggle
@@ -1546,9 +1742,14 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     window.addEventListener?.('resize', syncSidebarExpanded);
   }
   initSidebarCollapse();
+  ${SIDEBAR_RESIZE_SCRIPT}
 
   // Navigation visibility customization
   const NAV_SECTIONS = [
+    { key: 'execution', label: 'ex_nav' },
+    { key: 'insights', label: 'ins_nav' },
+    { key: 'git-workspace', label: 'gw_nav' },
+    { key: 'repository-analytics', label: 'ra_nav' },
     { key: 'overview', label: 'nav_overview' },
     { key: 'platform', label: 'nav_platform' },
     { key: 'playground', label: 'nav_playground' },
@@ -1603,7 +1804,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     const visible = getVisibleNavs();
     document.querySelectorAll('#side-nav button[data-section]').forEach(btn => {
       const key = btn.dataset.section;
-      btn.style.display = visible.has(key) ? 'flex' : 'none';
+      btn.style.display = key === 'execution' || visible.has(key) ? 'flex' : 'none';
     });
     updateNavGroups();
   }
@@ -1611,28 +1812,28 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   function openNavModal() {
     const visible = getVisibleNavs();
     const container = $('nav-checkboxes-container');
-    setLocalizedHtml(container, () => NAV_SECTIONS.filter(s => !['platform','models','workspaces','settings','help'].includes(s.key)).map(s =>
+    setLocalizedHtml(container, () => NAV_SECTIONS.filter(s => !['execution','git-workspace','repository-analytics','insights','platform','models','workspaces','settings','help'].includes(s.key)).map(s =>
       '<label class="nav-checkbox-label">' +
         '<input type="checkbox" data-nav-key="' + esc(s.key) + '"' + (visible.has(s.key) ? ' checked' : '') + '> ' +
         esc(t(s.label)) +
       '</label>'
     ).join(''));
-    $('nav-modal').classList.add('open');
+    $('nav-modal').showModal();
   }
 
   $('open-nav-custom-btn').addEventListener('click', openNavModal);
-  $('close-nav-modal').addEventListener('click', () => $('nav-modal').classList.remove('open'));
+  $('close-nav-modal').addEventListener('click', () => $('nav-modal').close());
   $('reset-nav-btn').addEventListener('click', () => {
     localStorage.removeItem('conduit_nav_visibility');
     applyNavVisibility();
-    $('nav-modal').classList.remove('open');
+    $('nav-modal').close();
   });
 
   $('save-nav-btn').addEventListener('click', () => {
     const checked = [...document.querySelectorAll('#nav-checkboxes-container input[data-nav-key]:checked')].map(cb => cb.dataset.navKey);
     localStorage.setItem('conduit_nav_visibility', JSON.stringify(checked.length ? checked : ['overview']));
     applyNavVisibility();
-    $('nav-modal').classList.remove('open');
+    $('nav-modal').close();
   });
 
   document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -1648,6 +1849,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   // Navigation section toggles
   const sectionIds = {
+    insights: 'insights-section',
+    execution: 'execution-section',
+    'git-workspace': 'git-workspace',
+    'repository-analytics': 'repository-analytics-section',
     overview: 'overview-section',
     platform: 'platform-section',
     playground: 'playground-section',
@@ -1670,8 +1875,64 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   };
 
   let activeSection = 'platform';
-  function showSection(name) {
+  function updateBreadcrumbs(sectionKey, subviewName, entityName, onSubClick) {
+    const rootLink = $('bc-root');
+    const rootText = $('page-title');
+    const sep1 = $('bc-sep-1');
+    const subBtn = $('bc-sub');
+    const subText = $('bc-sub-text');
+    const sep2 = $('bc-sep-2');
+    const itemSpan = $('bc-item');
+    const itemText = $('bc-item-text');
+    if (!rootLink || !rootText) return;
+
+    const section = NAV_SECTIONS.find(item => item.key === sectionKey);
+    const rootLabel = section ? t(section.label) : (sectionKey ? sectionKey.toUpperCase() : 'Conduit');
+    setLocalizedText(rootText, () => rootLabel);
+    rootLink.onclick = () => { showSection(sectionKey); if (sectionKey === 'platform') pfTab('chat'); };
+
+    if (subviewName) {
+      if (sep1) sep1.hidden = false;
+      if (subBtn && subText) {
+        subBtn.hidden = false;
+        subText.textContent = subviewName;
+        subBtn.onclick = onSubClick || null;
+      }
+    } else {
+      if (sep1) sep1.hidden = true;
+      if (subBtn) subBtn.hidden = true;
+    }
+
+    if (entityName) {
+      if (sep2) sep2.hidden = false;
+      if (itemSpan && itemText) {
+        itemSpan.hidden = false;
+        itemText.textContent = entityName;
+      }
+    } else {
+      if (sep2) sep2.hidden = true;
+      if (itemSpan) itemSpan.hidden = true;
+    }
+  }
+  window.updateBreadcrumbs = updateBreadcrumbs;
+
+  function showSection(name, updateLocation = true) {
+    if (!Object.hasOwn(sectionIds, name)) return;
+    if (updateLocation && window.location && window.location.hash !== '#' + name) window.history?.pushState(null, '', '#' + name);
     activeSection = name;
+    updateBreadcrumbs(name);
+    const activeBtn = document.querySelector('[data-section="' + name + '"]');
+    if (activeBtn) {
+      const parentDetails = activeBtn.closest('details');
+      if (parentDetails && !parentDetails.open) parentDetails.open = true;
+    }
+    $('ex-sidebar').hidden = name !== 'execution';
+    $('ex-create-task').hidden = name !== 'execution';
+    $('pf-new-chat').hidden = name === 'execution';
+    if (name === 'execution') executionRefresh();
+    if (name === 'git-workspace') window.gitWorkspace?.refresh();
+    if (name === 'repository-analytics') loadRepositoryAnalytics();
+    if (name === 'insights') loadInsights();
     const section = NAV_SECTIONS.find(item => item.key === name);
     if (section) setLocalizedText($('page-title'), () => t(section.label));
     Object.entries(sectionIds).forEach(([key, id]) => {
@@ -1680,6 +1941,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     });
     document.querySelectorAll('[data-section]').forEach(button => {
       button.classList.toggle('active', button.dataset.section === name);
+      if (button.dataset.section === name) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current');
     });
     sidebar.classList.remove('open');
     syncSidebarExpanded();
@@ -1691,9 +1953,16 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     button.addEventListener('click', () => { showSection(button.dataset.section); if (button.dataset.section === 'platform') pfTab('chat'); });
   });
 
+  $('cue-chat')?.addEventListener('click', () => { showSection('platform'); pfTab('chat'); });
+  $('cue-execution')?.addEventListener('click', () => showSection('execution'));
+  $('cue-git')?.addEventListener('click', () => showSection('git-workspace'));
+  $('cue-analytics')?.addEventListener('click', () => showSection('repository-analytics'));
+  $('cue-insights')?.addEventListener('click', () => showSection('insights'));
+  $('bc-root')?.addEventListener('click', () => { showSection(activeSection); if (activeSection === 'platform') pfTab('chat'); });
+
   $('menu-toggle').addEventListener('click', () => { sidebar.classList.toggle('open'); syncSidebarExpanded(); });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && sidebar.classList.contains('open')) { sidebar.classList.remove('open'); syncSidebarExpanded(); $('menu-toggle').focus(); }
+    if (event.key === 'Escape' && !document.querySelector('dialog[open]') && sidebar.classList.contains('open')) { sidebar.classList.remove('open'); syncSidebarExpanded(); $('menu-toggle').focus(); }
   });
 
   // Auth & API fetch wrapper
@@ -1780,6 +2049,101 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     renderProviderGroup(items, 'local', 'local-provider-list');
   }
 
+  function renderOverviewCockpit(status, wsData, platformRunsData, modelData) {
+    const runs = platformRunsData?.data || [];
+    const workspaces = wsData?.data || [];
+    const waitingRuns = runs.filter(r => r.status === 'waiting_approval');
+    const runningRuns = runs.filter(r => r.status === 'running');
+
+    // Attention banner
+    const attentionEl = $('cockpit-attention');
+    if (attentionEl) {
+      if (waitingRuns.length > 0) {
+        attentionEl.style.display = 'flex';
+        attentionEl.style.background = 'rgba(245,184,61,0.12)';
+        attentionEl.style.borderColor = 'rgba(245,184,61,0.45)';
+        if ($('cockpit-attention-title')) $('cockpit-attention-title').textContent = waitingRuns.length + ' Run(s) Awaiting Operator Approval';
+        if ($('cockpit-attention-msg')) $('cockpit-attention-msg').textContent = 'Actions require confirmation before tools or filesystem changes can proceed.';
+      } else if (runningRuns.length > 0) {
+        attentionEl.style.display = 'flex';
+        attentionEl.style.background = 'rgba(34,180,255,0.08)';
+        attentionEl.style.borderColor = 'rgba(34,180,255,0.3)';
+        if ($('cockpit-attention-title')) $('cockpit-attention-title').textContent = runningRuns.length + ' Task(s) Actively Executing';
+        if ($('cockpit-attention-msg')) $('cockpit-attention-msg').textContent = 'Agents are actively running in the background.';
+      } else {
+        attentionEl.style.display = 'none';
+      }
+    }
+
+    // KPIs
+    if ($('summary-active-runs')) {
+      $('summary-active-runs').textContent = (runningRuns.length + waitingRuns.length) + ' / ' + runs.length;
+    }
+    if ($('summary-workspaces')) {
+      $('summary-workspaces').textContent = String(workspaces.length);
+    }
+
+    // Runs table
+    const runsContainer = $('cockpit-runs-container');
+    if (runsContainer) {
+      if (!runs.length) {
+        runsContainer.innerHTML = '<div class="muted" style="padding: 14px 0;">No recent execution runs. Start one in the Execution Workspace.</div>';
+      } else {
+        const statusBadge = s => {
+          const cls = s === 'completed' ? 'ok' : s === 'running' ? 'info' : s === 'waiting_approval' ? 'warn' : 'bad';
+          return '<span class="setting-badge ' + cls + '">' + esc(s.toUpperCase()) + '</span>';
+        };
+        runsContainer.innerHTML = '<table class="data-table"><thead><tr>' +
+          '<th>Run ID</th><th>Status</th><th>Model</th><th>Prompt</th><th>Tokens / Cost</th><th>Action</th>' +
+          '</tr></thead><tbody>' +
+          runs.slice(0, 5).map(r =>
+            '<tr>' +
+              '<td><code title="' + esc(r.id || '') + '">' + esc((r.id || '').slice(0, 12)) + '</code></td>' +
+              '<td>' + statusBadge(r.status || 'unknown') + '</td>' +
+              '<td><code title="' + esc(r.input?.model || r.model || '-') + '">' + esc(r.input?.model || r.model || '-') + '</code></td>' +
+              '<td style="line-height: 1.45; word-break: break-word; overflow-wrap: anywhere;" title="' + esc(r.input?.prompt || r.prompt || '') + '">' + esc(r.input?.prompt || r.prompt || '-') + '</td>' +
+              '<td><span class="muted">' + (r.tokensConsumed ? r.tokensConsumed + ' tok ($' + (r.costUsd || 0).toFixed(4) + ')' : '-') + '</span></td>' +
+              '<td><button type="button" class="btn-jump-run" data-run-id="' + esc(r.id) + '" style="padding: 3px 8px; font-size: 0.8rem;">Open</button></td>' +
+            '</tr>'
+          ).join('') +
+          '</tbody></table>';
+      }
+    }
+
+    // Workspaces container
+    const wsContainer = $('cockpit-workspace-container');
+    if (wsContainer) {
+      if (!workspaces.length) {
+        wsContainer.innerHTML = '<div class="muted" style="padding: 14px 0;">No registered workspaces.</div>';
+      } else {
+        wsContainer.innerHTML = '<table class="data-table"><thead><tr>' +
+          '<th>Name</th><th>Path</th><th>Default</th><th>Permissions</th>' +
+          '</tr></thead><tbody>' +
+          workspaces.map(w =>
+            '<tr>' +
+              '<td><strong>' + esc(w.name || w.id) + '</strong></td>' +
+              '<td style="font-family: monospace; font-size: 0.8571rem; word-break: break-all; overflow-wrap: anywhere;" title="' + esc(w.path) + '">' + esc(w.path) + '</td>' +
+              '<td>' + (w.isDefault ? '<span class="setting-badge ok">Default</span>' : '<span class="muted">-</span>') + '</td>' +
+              '<td><span class="setting-badge ' + (w.isWritable || w.writable ? 'ok' : 'warn') + '">' + (w.isWritable || w.writable ? 'Read / Write' : 'Read Only') + '</span></td>' +
+            '</tr>'
+          ).join('') +
+          '</tbody></table>';
+      }
+    }
+
+    // Provider Badges
+    const provs = status?.providers || [];
+    const apiCount = provs.filter(p => p.name.startsWith('api-') && p.connected).length;
+    const cliCount = provs.filter(p => p.name.startsWith('cli-') && p.connected).length;
+    const localCount = provs.filter(p => (p.name.startsWith('lmstudio') || p.name.startsWith('bitnet')) && p.connected).length;
+    if ($('badge-api-count')) $('badge-api-count').textContent = apiCount + ' active';
+    if ($('badge-cli-count')) $('badge-cli-count').textContent = cliCount + ' active';
+    if ($('badge-local-count')) {
+      $('badge-local-count').textContent = localCount ? localCount + ' active' : 'offline';
+      $('badge-local-count').className = 'setting-badge ' + (localCount ? 'ok' : 'muted');
+    }
+  }
+
   function renderModels(items) {
     const selectedPlayModel = $('play-model').value;
     models = items;
@@ -1841,7 +2205,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     const chipsHtml = Array.from(selectedTools).sort().map(tool =>
       '<span class="tool-chip"><span>' + esc(tool) + '</span><button type="button" class="chip-del" data-remove-tool="' + esc(tool) + '" data-for-provider="' + esc(providerName) + '">&times;</button></span>'
-    ).join('') || ('<span class="muted" style="font-size:12px;">' + esc(t('ui_no_restrictions')) + '</span>');
+    ).join('') || ('<span class="muted" style="font-size:0.8571rem;">' + esc(t('ui_no_restrictions')) + '</span>');
 
     const accordionHtml = categories.map(cat => {
       const toolsInCat = knownTools.filter(tool => tool.category === cat);
@@ -1860,7 +2224,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
             return '<button type="button" class="tool-pill' + (isSelected ? ' selected' : '') + '" ' +
               'data-tool-name="' + esc(tool.name) + '" ' +
               'data-tool-provider="' + esc(providerName) + '" ' +
-              'title="' + esc(tool.description) + ' (' + (tool.mutating ? t('ui_mutating_state') : t('ui_read_only')) + ')">' +
+              'title="' + esc(toolText(tool, 'description')) + ' (' + (tool.mutating ? t('ui_mutating_state') : t('ui_read_only')) + ')">' +
               '<span class="pill-tag ' + tagClass + '">' + tagLabel + '</span>' +
               '<span>' + esc(tool.name) + '</span>' +
             '</button>';
@@ -1871,7 +2235,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     return '<div class="tool-picker-container" data-picker-for="' + esc(providerName) + '">' +
       '<div class="tool-picker-top">' +
-        ('<span style="font-size: 12px; font-weight: 600; color: var(--text);">' + esc(t('lbl_disallowed_tools')) + '</span>') +
+        ('<span style="font-size: 0.8571rem; font-weight: 600; color: var(--text);">' + esc(t('lbl_disallowed_tools')) + '</span>') +
         '<div class="tool-picker-actions">' +
           '<button type="button" data-tool-action="mutating" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + ('>' + '<span class="action-label">' + esc(t('btn_restrict_mutating')) + '</span>' + '</button>') +
           '<button type="button" data-tool-action="all" data-target="' + esc(providerName) + '"' + (isCli ? '' : ' disabled') + ('>' + '<span class="action-label">' + esc(t('btn_select_all')) + '</span>' + '</button>') +
@@ -1895,7 +2259,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     if (chipsArea) {
       setLocalizedHtml(chipsArea, () => Array.from(newSet).sort().map(tool =>
         '<span class="tool-chip"><span>' + esc(tool) + '</span><button type="button" class="chip-del" data-remove-tool="' + esc(tool) + '" data-for-provider="' + esc(providerName) + '">&times;</button></span>'
-      ).join('') || ('<span class="muted" style="font-size:12px;">' + esc(t('ui_no_restrictions')) + '</span>'));
+      ).join('') || ('<span class="muted" style="font-size:0.8571rem;">' + esc(t('ui_no_restrictions')) + '</span>'));
     }
 
     picker.querySelectorAll('.tool-pill').forEach(pill => {
@@ -2023,12 +2387,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   // Pipelines Subsystem UI
+  function pipelineRunName(run) { return pipelineText(cachedPipelines.find(pipe => pipe.id === run.pipelineId)) || run.pipelineName; }
   function renderPipelines(pipelines) {
     cachedPipelines = pipelines || [];
     const select = $('pipe-run-select');
     if (select) {
       const prev = select.value;
-      setLocalizedHtml(select, () => cachedPipelines.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join(''));
+      setLocalizedHtml(select, () => cachedPipelines.map(p => '<option value="' + esc(p.id) + '">' + esc(pipelineText(p)) + '</option>').join(''));
       if (prev && cachedPipelines.some(p => p.id === prev)) select.value = prev;
     }
 
@@ -2058,7 +2423,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         const isCheckpoint = Boolean(step.requiresApproval);
         return '<div class="pipeline-step-pill">' +
           '<span class="step-badge">' + (idx + 1) + '</span>' +
-          '<strong>' + esc(step.name) + '</strong>' +
+          '<strong>' + esc(pipelineText(pipe, 'name', step)) + '</strong>' +
           '<span class="step-meta">[' + esc(step.model) + ' · ' + esc(localizedValue(step.mode || 'chat')) + ']</span>' +
           '<span class="step-meta">' + (step.dependsOn?.length ? (t('ui_after') + ' ') + step.dependsOn.map(esc).join(', ') : t('ui_start_step')) + '</span>' +
           (isCheckpoint ? ('<span class="checkpoint-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' + ' ' + esc(t('ui_approval_gate')) + '</span>') : '') +
@@ -2068,8 +2433,8 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       return '<div class="pipeline-card" data-pipe-id="' + esc(pipe.id) + '">' +
         '<div class="pipeline-header">' +
           '<div>' +
-            '<h3 style="margin: 0 0 4px; color: var(--text);">' + esc(pipe.name) + (pipe.isBuiltIn ? (' <span class="setting-badge info">' + esc(t('ui_built_in')) + '</span>') : '') + '</h3>' +
-            '<span class="muted" style="font-size: 13px;">' + esc(pipe.description) + '</span>' +
+            '<h3 style="margin: 0 0 4px; color: var(--text);">' + esc(pipelineText(pipe)) + (pipe.isBuiltIn ? (' <span class="setting-badge info">' + esc(t('ui_built_in')) + '</span>') : '') + '</h3>' +
+            '<span class="muted" style="font-size: 0.9286rem;">' + esc(pipelineText(pipe, 'description')) + '</span>' +
           '</div>' +
           '<div class="actions">' +
             '<button type="button" class="primary" data-run-pipe="' + esc(pipe.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>' + '<span class="action-label">' + esc(t('btn_select_run')) + '</span>' + '</button>') +
@@ -2085,7 +2450,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     cachedRuns = runs || [];
     const approvals = $('pipeline-approvals');
     if (approvals) setLocalizedHtml(approvals, () => cachedRuns.filter(run => run.status === 'waiting_approval').map(run =>
-      '<div class="activity-event warning run-history-item"><span><strong>' + esc(run.pipelineName) + ('</strong><br>' + esc(t('ui_step_colon')) + ' ') + esc(run.pendingApprovalStepId || 'pending') + '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 0 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + '<span class="action-label">' + esc(t('btn_review_approval')) + '</span>' + '</button></div>')
+      '<div class="activity-event warning run-history-item"><span><strong>' + esc(pipelineRunName(run)) + ('</strong><br>' + esc(t('ui_step_colon')) + ' ') + esc(run.pendingApprovalStepId || 'pending') + '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 0 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + '<span class="action-label">' + esc(t('btn_review_approval')) + '</span>' + '</button></div>')
     ).join('') || ('<span class="muted">' + esc(t('ui_no_approvals')) + '</span>'));
     const selected = cachedRuns.find(run => run.id === selectedRunId);
     if (selected) renderLiveRun(selected);
@@ -2102,7 +2467,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         '<span>' +
           '<time>' + new Date(run.startedAt).toLocaleString(currentLang) + '</time><br>' +
           '<strong class="level">' + esc(localizedValue(run.status.toUpperCase())) + '</strong> · ' +
-          esc(run.pipelineName) + (run.initialPrompt ? ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' : (' ' + t('ui_saved_summary_only'))) +
+          esc(pipelineRunName(run)) + (run.initialPrompt ? ': "' + esc(run.initialPrompt.slice(0, 80)) + (run.initialPrompt.length > 80 ? '...' : '') + '"' : (' ' + t('ui_saved_summary_only'))) +
         '</span><button type="button" data-view-run="' + esc(run.id) + ('">' + '<span class="action-label">' + esc(t('btn_view_run')) + '</span>' + '</button>') +
       '</div>';
     }).join(''));
@@ -2168,7 +2533,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
       return '<div class="step-result-card ' + esc(step.status) + '">' +
         '<div class="step-result-header">' +
-          '<strong>' + esc(step.stepName) + ' <small class="muted">(' + esc(step.model) + ')</small></strong>' +
+          '<strong>' + esc(pipelineText(cachedPipelines.find(pipe => pipe.id === run.pipelineId), 'name', step)) + ' <small class="muted">(' + esc(step.model) + ')</small></strong>' +
           badge +
         '</div>' +
         (step.content ? '<div class="step-result-content">' + esc(step.content) + '</div>' : '') +
@@ -2178,7 +2543,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     return '<div style="margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;">' +
       '<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px;">' +
-        ('<strong>' + esc(t('ui_run_status')) + ' ') + esc(run.pipelineName) + '</strong>' +
+        ('<strong>' + esc(t('ui_run_status')) + ' ') + esc(pipelineRunName(run)) + '</strong>' +
         statusBadge +
       '</div>' +
       ('<div class="muted">' + esc(t('ui_run')) + ' ') + esc(run.id) + (run.error ? ' · ' + esc(run.error) : '') + '</div>' +
@@ -2300,6 +2665,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   });
 
   // Pipeline Builder Modal
+  let effortControlSequence = 0;
   function addStepToBuilder(step) {
     const container = $('pipe-steps-container');
     const idx = container.children.length + 1;
@@ -2313,16 +2679,17 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     };
 
     const row = document.createElement('div');
-    row.className = 'provider-block';
+    row.className = 'provider-block model-effort-pair';
+    const effortId = 'step-effort-' + (++effortControlSequence);
     row.style.margin = '0';
     row.style.padding = '12px';
     setLocalizedHtml(row, () => '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
       ('<strong>' + esc(t('ui_step')) + ' ') + idx + '</strong>' +
       '<button type="button" class="modal-close" style="color: var(--bad);" title="' + esc(t('btn_remove_step')) + '" aria-label="' + esc(t('btn_remove_step')) + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="10" y2="17"/><line x1="14" x2="14" y1="10" y2="17"/></svg></button>' +
     '</div>' +
-    '<div style="display: grid; grid-template-columns: 1fr 1.2fr 100px; gap: 8px; margin-bottom: 8px;">' +
+    '<div class="pipeline-step-fields">' +
       ('<label><span>' + esc(t('lbl_step_name')) + '</span><input type="text" class="step-name-inp" value="') + esc(s.name) + '"></label>' +
-      ('<label><span>' + esc(t('lbl_model')) + '</span><select class="step-model-inp">') + modelOptionGroups(s.model) + '</select></label>' +
+      ('<label><span>' + esc(t('lbl_model')) + '</span><select class="step-model-inp">') + modelOptionGroups(s.model) + '</select></label>' + effortControlHtml(effortId,'.step-model-inp',s.effort || '','','',s.fastMode) +
       ('<label><span>' + esc(t('lbl_mode')) + '</span><select class="step-mode-inp">') +
         '<option value="chat"' + (s.mode === 'chat' ? ' selected' : '') + ('>' + esc(t('mode_chat')) + '</option>') +
         '<option value="plan"' + (s.mode === 'plan' ? ' selected' : '') + ('>' + esc(t('mode_plan')) + '</option>') +
@@ -2330,7 +2697,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       '</select></label>' +
     '</div>' +
     '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">' +
-      '<label class="nav-checkbox-label" style="font-size: 12px;">' +
+      '<label class="nav-checkbox-label" style="font-size: 0.8571rem;">' +
         '<input type="checkbox" class="step-approval-inp"' + (s.requiresApproval ? ' checked' : '') + ('>' + ' ' + esc(t('lbl_approval_checkpoint'))) +
       '</label>' +
     '</div>' +
@@ -2340,6 +2707,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
     row.querySelector('.modal-close').addEventListener('click', () => row.remove());
     container.appendChild(row);
+    syncEffortControls(row);
   }
 
   $('btn-open-create-pipeline').addEventListener('click', () => {
@@ -2347,10 +2715,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     $('pipe-desc-input').value = '';
     $('pipe-steps-container').innerHTML = '';
     addStepToBuilder();
-    $('pipeline-modal').classList.add('open');
+    $('pipeline-modal').showModal();
   });
-  $('close-pipeline-modal').addEventListener('click', () => $('pipeline-modal').classList.remove('open'));
-  $('cancel-pipeline-btn').addEventListener('click', () => $('pipeline-modal').classList.remove('open'));
+  $('close-pipeline-modal').addEventListener('click', () => $('pipeline-modal').close());
+  $('cancel-pipeline-btn').addEventListener('click', () => $('pipeline-modal').close());
   $('pipe-add-step-btn').addEventListener('click', () => addStepToBuilder());
 
   $('save-pipeline-btn').addEventListener('click', async () => {
@@ -2365,6 +2733,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       id: 'step-' + (idx + 1),
       name: row.querySelector('.step-name-inp').value.trim() || ((t('ui_step') + ' ') + (idx + 1)),
       model: row.querySelector('.step-model-inp').value,
+      effort: row.querySelector('.effort-value').value || undefined, fastMode: row.querySelector('.effort-fast-value').value === 'true',
       mode: row.querySelector('.step-mode-inp').value,
       requiresApproval: row.querySelector('.step-approval-inp').checked,
       promptTemplate: row.querySelector('.step-prompt-inp').value.trim() || '{{prompt}}',
@@ -2377,7 +2746,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, description, steps }),
       });
-      $('pipeline-modal').classList.remove('open');
+      $('pipeline-modal').close();
       await refresh();
     } catch (err) {
       alert((t('error_save_failed') + ' ') + err.message);
@@ -2445,15 +2814,15 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         const displayName = tool.name || tool.displayName || tool.executable;
         const binPath = tool.path || tool.binaryPath || 'PATH';
         const risk = tool.riskLevel || 'Low';
-        const riskClass = risk === 'Critical' || risk === 'High' ? 'bad' : (risk === 'Medium' ? 'warn' : 'ok');
+        const riskClass = /^(critical|high)$/i.test(risk) ? 'bad' : (/^medium$/i.test(risk) ? 'warn' : 'ok');
         return '<div class="provider-block" style="padding: 10px; margin: 0;">' +
           '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">' +
-            '<strong>' + esc(displayName) + '</strong>' +
+            '<strong>' + esc(systemToolText(displayName)) + '</strong>' +
             '<span class="setting-badge ' + (isAvail ? 'ok' : 'bad') + '">' + (isAvail ? t('status_available') : t('status_missing')) + '</span>' +
           '</div>' +
-          '<div class="muted" style="font-size: 12px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
-          '<div style="display: flex; gap: 6px; margin-top: 6px; font-size: 11px;">' +
-            '<span class="setting-badge info">' + esc(tool.category || tool.classification || t('group_system')) + '</span>' +
+          '<div class="muted" style="font-size: 0.8571rem; font-family: monospace; word-break: break-all; overflow-wrap: anywhere;" title="' + esc(binPath) + '">' + esc(binPath) + '</div>' +
+          '<div style="display: flex; gap: 6px; margin-top: 6px; font-size: 0.8rem;">' +
+            '<span class="setting-badge info">' + esc(systemToolText(tool.category || tool.classification || t('group_system'))) + '</span>' +
             '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(risk)) + '</span>' +
             (tool.version ? '<span class="setting-badge muted">' + esc(tool.version) + '</span>' : '') +
           '</div>' +
@@ -2476,11 +2845,11 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     }
 
     setLocalizedHtml(container, () => list.map(tool => {
-      const riskClass = tool.riskLevel === 'Critical' || tool.riskLevel === 'High' ? 'bad' : (tool.riskLevel === 'Medium' ? 'warn' : 'ok');
+      const riskClass = /^(critical|high)$/i.test(tool.riskLevel) ? 'bad' : (/^medium$/i.test(tool.riskLevel) ? 'warn' : 'ok');
       return '<div class="tool-card">' +
         '<div class="tool-card-title">' +
           '<div>' +
-            '<strong>' + esc(tool.displayName || tool.name) + '</strong> ' +
+            '<strong>' + esc(toolText(tool)) + '</strong> ' +
             '<code>' + esc(tool.name) + '</code>' +
           '</div>' +
           '<span class="setting-badge ' + riskClass + ('">' + esc(t('ui_risk')) + ' ') + esc(localizedValue(tool.riskLevel || 'Low')) + '</span>' +
@@ -2490,7 +2859,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           '<span class="setting-badge muted">' + esc(localizedValue(tool.category || 'general')) + '</span>' +
           (tool.mutating ? ('<span class="setting-badge warn">' + esc(t('ui_workspace_mutating')) + '</span>') : ('<span class="setting-badge ok">' + esc(t('ui_read_only')) + '</span>')) +
         '</div>' +
-        '<p class="tool-card-desc">' + esc(tool.description || t('ui_no_tool_description')) + '</p>' +
+        '<p class="tool-card-desc">' + esc(toolText(tool, 'description')) + '</p>' +
       '</div>';
     }).join(''));
   }
@@ -2524,7 +2893,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           cachedRepositories.map(r =>
             '<tr>' +
               '<td><strong>' + esc(r.name || r.id) + '</strong><br><small class="muted"><code>' + esc(r.id) + '</code></small></td>' +
-              '<td style="font-family: monospace; font-size: 12px;">' + esc(r.path) + '</td>' +
+              '<td style="font-family: monospace; font-size: 0.8571rem;">' + esc(r.path) + '</td>' +
               '<td><span class="setting-badge info">' + esc(r.assignedGovernancePipeline || r.assignedPipeline || 'standard-governance') + '</span></td>' +
               '<td><small class="muted">' + (r.policyOverrides ? t('ui_custom_rules') + Object.keys(r.policyOverrides).length + (' ' + t('ui_rules_suffix')) : t('ui_standard')) + '</small></td>' +
               '<td>' +
@@ -2652,7 +3021,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           cachedWorkspaces.map(w =>
             '<tr>' +
               '<td><strong>' + esc(w.name || t('lbl_workspace')) + '</strong></td>' +
-              '<td style="font-family: monospace; font-size: 12px;">' + esc(w.path) + '</td>' +
+              '<td style="font-family: monospace; font-size: 0.8571rem;">' + esc(w.path) + '</td>' +
               '<td><span class="setting-badge ' + (w.exists ? 'ok' : 'bad') + '">' + (w.exists ? t('status_found_disk') : t('status_not_found')) + '</span></td>' +
               '<td><span class="setting-badge ' + (w.isWritable || w.writable ? 'ok' : 'warn') + '">' + (w.isWritable || w.writable ? t('permission_read_write') : t('ui_read_only')) + '</span></td>' +
               '<td>' +
@@ -2690,7 +3059,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
                 '<strong>' + esc(d.name) + '</strong>' +
               '</div>' +
-              '<button type="button" style="padding: 2px 8px; font-size: 11px;" data-add-dir-ws="' + esc(d.path) + '" data-name="' + esc(d.name) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>' + '<span class="action-label">' + esc(t('btn_add_workspace')) + '</span>' + '</button>') +
+              '<button type="button" style="padding: 2px 8px; font-size: 0.8rem;" data-add-dir-ws="' + esc(d.path) + '" data-name="' + esc(d.name) + ('">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>' + '<span class="action-label">' + esc(t('btn_add_workspace')) + '</span>' + '</button>') +
             '</div>'
           ).join(''));
         }
@@ -2751,7 +3120,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         const outPct = 100 - inPct;
 
         setLocalizedHtml(costContainer, () => '<div style="padding: 10px 0;">' +
-          '<div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">' +
+          '<div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.9286rem;">' +
             ('<span>' + esc(t('lbl_input_colon')) + ' ' + '<strong>') + inTok.toLocaleString(currentLang) + '</strong> (' + inPct + '%)</span>' +
             ('<span>' + esc(t('lbl_output_colon')) + ' ' + '<strong>') + outTok.toLocaleString(currentLang) + '</strong> (' + outPct + '%)</span>' +
           '</div>' +
@@ -2760,9 +3129,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
             '<div style="width: ' + outPct + ('%; background: var(--ok);" title="' + esc(t('lbl_output_tokens')) + '"></div>') +
           '</div>' +
           '<div style="margin-top: 16px; text-align: center;">' +
-            ('<span class="muted" style="font-size: 12px;">' + esc(t('lbl_estimated_total_cost')) + '</span>') +
-            '<div style="font-size: 24px; font-weight: 700; color: var(--ok); margin-top: 2px;">$' + estCost.toFixed(6) + '</div>' +
-            ('<span class="muted" style="font-size: 11px;">' + esc(t('ui_usage_estimates')) + '</span>') +
+            ('<span class="muted" style="font-size: 0.8571rem;">' + esc(t('lbl_estimated_total_cost')) + '</span>') +
+            '<div style="font-size: 1.7143rem; font-weight: 700; color: var(--ok); margin-top: 2px;">$' + estCost.toFixed(6) + '</div>' +
+            ('<span class="muted" style="font-size: 0.8rem;">' + esc(t('ui_usage_estimates')) + '</span>') +
           '</div>' +
         '</div>');
       }
@@ -2781,20 +3150,20 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
         setLocalizedHtml(pipeContainer, () => '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0;">' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--ok);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--ok);">' + completed + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('status_completed')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--ok);">' + completed + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('status_completed')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--warn);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--warn);">' + waiting + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('ui_awaiting_gate')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--warn);">' + waiting + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('ui_awaiting_gate')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--accent);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--accent);">' + running + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('status_running')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--accent);">' + running + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('status_running')) + '</div>') +
           '</div>' +
           '<div class="provider-block" style="padding: 8px; margin: 0; text-align: center; border-left: 4px solid var(--bad);">' +
-            '<div style="font-size: 20px; font-weight: 700; color: var(--bad);">' + failed + '</div>' +
-            ('<div class="muted" style="font-size: 12px;">' + esc(t('ui_failed_rejected_cancelled')) + '</div>') +
+            '<div style="font-size: 1.4286rem; font-weight: 700; color: var(--bad);">' + failed + '</div>' +
+            ('<div class="muted" style="font-size: 0.8571rem;">' + esc(t('ui_failed_rejected_cancelled')) + '</div>') +
           '</div>' +
         '</div>');
       }
@@ -2823,7 +3192,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           categories.map(c => {
             const pct = Math.max(6, Math.round((c.count / maxVal) * 100));
             return '<div>' +
-              '<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px;">' +
+              '<div style="display: flex; justify-content: space-between; font-size: 0.8571rem; margin-bottom: 2px;">' +
                 '<span>' + esc(t(c.label)) + '</span>' +
                 '<strong>' + c.count + '</strong>' +
               '</div>' +
@@ -2842,21 +3211,24 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     $('orch-enabled').value = String(Boolean(data.enabled));
     $('orch-strategy').value = data.strategy || 'sequential';
     setLocalizedHtml($('orch-roles'), () => (data.roles || []).map((role, i) =>
-      ('<label><span>' + esc(t('lbl_role')) + ' ') + (i + 1) + ': ' + esc(localizedValue(role.name)) + '</span><select data-orch-role="' + i + ('"><option value="">' + esc(t('ui_select_model')) + '</option>') + modelOptionGroups(role.model) + '</select></label>'
+      ('<div class="model-effort-pair"><label><span>' + esc(t('lbl_role')) + ' ') + (i + 1) + ': ' + esc(localizedValue(role.name)) + '</span><select data-orch-role="' + i + ('"><option value="">' + esc(t('ui_select_model')) + '</option>') + modelOptionGroups(role.model) + '</select></label>' + effortControlHtml('orch-effort-' + i,'[data-orch-role]',role.effort || '','','',role.fastMode) + '</div>'
     ).join(''));
     setLocalizedHtml($('orch-fallbacks'), () => modelOptionGroups(data.fallbackModels || []));
+    $('orch-fallback-effort').value = data.fallbackEffort || '';
+    setEffortFastMode('orch-fallback-effort',data.fallbackFastMode);
+    syncEffortControls();
   }
 
   async function saveOrchestrator() {
     const roles = [...document.querySelectorAll('[data-orch-role]')].map((select, i) => ({
       name: ['Analyst', 'Reviewer', 'Synthesizer'][i] || (t('lbl_role') + ' ') + (i + 1),
-      model: select.value
+      model: select.value, effort: $('orch-effort-' + i).value || undefined, fastMode: effortFastMode('orch-effort-' + i) ?? false
     }));
     const fallbackModels = [...$('orch-fallbacks').selectedOptions].map(option => option.value);
     const data = await request('/v1/orchestrator', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: $('orch-enabled').value === 'true', strategy: $('orch-strategy').value, roles, fallbackModels })
+      body: JSON.stringify({ enabled: $('orch-enabled').value === 'true', strategy: $('orch-strategy').value, roles, fallbackModels, fallbackEffort: $('orch-fallback-effort').value || undefined, fallbackFastMode: effortFastMode('orch-fallback-effort') ?? false })
     });
     dirtySections.delete('orchestrator-section');
     renderOrchestrator(data);
@@ -2873,7 +3245,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: 'Compare the current project state and identify the most important next engineering action.' })
       });
-      setLocalizedText($('orch-output'), () => data.results.map(r => r.role + ' (' + r.model + ')\\n' + (r.preview || r.content || '')).join('\\n\\n'));
+      setLocalizedText($('orch-output'), () => data.results.map(r => localizedValue(r.role) + ' (' + r.model + ')\\n' + (r.preview || r.content || '')).join('\\n\\n'));
       setLocalizedText($('orch-note'), () => t('status_completed'));
       showSection('activity');
     } catch (error) {
@@ -2937,20 +3309,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       : t('ui_no_usage'));
   }
 
-  function updateEffortOptions() {
-    const model = $('play-model').value;
-    const provider = providerForModel(model);
-    const info = capabilities[provider] || { values: ['none','minimal','low','medium','high','xhigh','max'] };
-    setLocalizedHtml($('play-effort'), () => info.values.map(value =>
-      '<option value="' + value + '">' + esc(localizedValue(value)) + (info.aliases && info.aliases[value] ? (' ' + t('ui_maps_to') + ' ') + esc(localizedValue(info.aliases[value])) + ')' : '') + '</option>'
-    ).join(''));
-  }
+  function updateEffortOptions() { syncEffortControls(); }
 
   function renderSettings(data) {
     if (dirtySections.has('settings-section')) return;
     setLocalizedHtml($('settings-keys'), () => '<div class="setting-list">' + Object.entries(data.apiKeys || {}).map(([provider, info]) =>
-      '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(localizedValue(info.source || (info.configured ? t('status_configured') : t('status_not_detected')))) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" placeholder="' + (info.configured ? t('ph_replace_api_key') : t('ph_paste_api_key')) + ('"><button type="submit">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' + '<span class="action-label">' + esc(t('btn_save_api_key')) + '</span>' + '</button></form></div>')
-    ).join('') + ('</div><p class="muted">' + esc(t('ui_keys_write_only')) + '</p>'));
+      '<div class="setting-row"><strong>' + esc(provider) + '</strong><span class="setting-badge ' + (info.configured ? 'ok' : 'muted') + '">' + esc(localizedValue(info.source || (info.configured ? t('status_configured') : t('status_not_detected')))) + '</span><form data-key-provider="' + esc(provider) + '"><input type="password" autocomplete="new-password" aria-label="' + esc(provider + ': ' + t('lbl_api_key_write_only')) + '" placeholder="' + (info.configured ? t('ph_replace_api_key') : t('ph_paste_api_key')) + ('"><button type="submit" class="primary" title="' + esc(t('btn_save_api_key') + ': ' + provider) + '" aria-label="' + esc(t('btn_save_api_key') + ': ' + provider) + '">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' + '</button></form></div>')
+    ).join('') + '</div>');
     document.querySelectorAll('[data-key-provider]').forEach(form => form.addEventListener('submit', saveKey));
   }
 
@@ -3000,6 +3365,8 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     try {
       // Only active-page data changes with activity; catalogs and settings do not.
       const jobs = [];
+      if (activeSection === 'execution') jobs.push(executionRefresh());
+      if (activeSection === 'insights') jobs.push(loadInsights());
       if (activeSection === 'pipelines' || activePipelineRun?.status === 'running') {
         jobs.push(request('/v1/pipelines/runs').then(data => renderPipelineRuns(data.data || [])));
       }
@@ -3007,10 +3374,13 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         jobs.push(request('/v1/analytics/overview').then(renderAnalyticsCharts));
         jobs.push(request('/v1/metrics').then(data => {
           renderMetrics(data); renderUsage(data);
-          const rows = Object.values(data.models || {});
-          setLocalizedText($('summary-requests'), () => rows.reduce((sum, model) => sum + model.requests, 0));
-          setLocalizedText($('summary-active'), () => rows.reduce((sum, model) => sum + model.inFlight, 0));
         }));
+        jobs.push(Promise.all([
+          request('/v1/status'),
+          request('/v1/workspaces').catch(() => ({ data: [] })),
+          request('/v1/platform/runs').catch(() => ({ data: [] })),
+          request('/v1/models').catch(() => ({ data: [] })),
+        ]).then(([st, ws, pr, md]) => renderOverviewCockpit(st, ws, pr, md)));
       }
       if (activeSection === 'activity') jobs.push(request('/v1/activity').then(renderActivity));
       if (activeSection === 'budgets') jobs.push(request('/v1/budgets').then(renderBudgets));
@@ -3027,18 +3397,21 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     setNotice(() => t('status_refreshing'), 'quiet');
     try {
       const identity = await request('/v1/platform/me');
+      repositoryIdentity(identity.operator);
       pfState.operator = identity.operator;
+      exIdentity(identity.operator);
+      if (activeSection === 'insights') await loadInsights();
       if (identity.operator?.source === 'operator-token') {
         setLocalizedText($('side-runtime'), () => (t('ui_workspace_access') + ' ') + identity.operator.role);
-        showSection('platform');
+        if (!['execution','git-workspace','repository-analytics','insights'].includes(activeSection)) showSection('platform');
         await platformRefresh();
-        setNotice(() => (t('ui_workspace_loaded_for') + ' ') + (identity.operator.displayName || identity.operator.operatorId), 'quiet');
+        setNotice(() => (t('ui_workspace_loaded_for') + ' ') + pfOperatorName(identity.operator), 'quiet');
         return;
       }
       const [
         status, modelData, capabilityData, metricData, settings, activity,
         orchestrator, agentPolicyData, toolsData, pipelinesData, runsData,
-        reposData, budgetData, wsData, auditData, analyticsData
+        reposData, budgetData, wsData, auditData, analyticsData, platformRunsData
       ] = await Promise.all([
         request('/v1/status'),
         request('/v1/models'),
@@ -3056,6 +3429,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         request('/v1/workspaces').catch(() => ({ data: [] })),
         request('/v1/governance/audit').catch(() => ({ data: [] })),
         request('/v1/analytics/overview').catch(() => ({})),
+        request('/v1/platform/runs').catch(() => ({ data: [] })),
       ]);
 
       capabilities = capabilityData.effort || {};
@@ -3065,10 +3439,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       setLocalizedText($('side-runtime'), () => '127.0.0.1:' + status.port + ' · v' + status.version);
       setLocalizedText($('summary-connected'), () => status.providers.filter(p => p.connected).length + '/' + status.providers.length);
       setLocalizedText($('summary-models'), () => (modelData.data || []).length);
-      const metricRows = Object.values(metricData.models || {});
-      setLocalizedText($('summary-requests'), () => metricRows.reduce((n, m) => n + m.requests, 0));
-      setLocalizedText($('summary-active'), () => metricRows.reduce((n, m) => n + m.inFlight, 0));
-
+      renderOverviewCockpit(status, wsData, platformRunsData, modelData);
       renderProviders(status.providers);
       renderModels(modelData.data || []);
       renderMetrics(metricData);
@@ -3084,15 +3455,32 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       renderGovernance(reposData.data || [], auditData.data || []);
       renderBudgets(budgetData);
       renderWorkspaces(wsData.data || []);
+      repositoryWorkspaceSync(wsData.data || []);
       renderAnalyticsCharts(analyticsData);
       platformSyncModels();
-      if (activeSection === 'platform') await platformRefresh();
+      // Chat history and projects are visible beside every page, including deep links.
+      await platformRefresh();
 
       setNotice(() => (t('ui_updated') + ' ') + new Date().toLocaleTimeString(currentLang), 'quiet');
     } catch (error) {
       setNotice(() => error.message, 'error');
     } finally { finishRefresh(); }
   }
+
+  $('btn-cockpit-new-task')?.addEventListener('click', () => {
+    showSection('execution');
+    $('ex-new-task')?.click();
+  });
+  $('btn-cockpit-chat')?.addEventListener('click', () => showSection('platform'));
+  $('btn-cockpit-review')?.addEventListener('click', () => showSection('execution'));
+  $('btn-cockpit-view-all-runs')?.addEventListener('click', () => showSection('execution'));
+  $('btn-cockpit-view-git')?.addEventListener('click', () => showSection('git-workspace'));
+  document.addEventListener('click', event => {
+    const jump = event.target.closest('[data-run-id]');
+    if (jump && jump.classList.contains('btn-jump-run')) {
+      showSection('execution');
+    }
+  });
 
   $('model-list').addEventListener('click', event => {
     const use = event.target.closest('[data-use-model]');
@@ -3114,7 +3502,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
       const body = {
         model: $('play-model').value,
         mode: $('play-mode').value,
-        effort: $('play-effort').value,
+        effort: $('play-effort').value, fastMode: effortFastMode('play-effort') ?? false,
         messages: [{ role: 'user', content: $('play-prompt').value }],
         max_tokens: 64
       };
@@ -3136,7 +3524,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
 
   $('play-model').addEventListener('change', updateEffortOptions);
   $('play-run').addEventListener('click', runPlayground);
-  $('refresh').addEventListener('click', () => { pfState.models = null; pfState.workspaces = null; return refresh(); });
+  $('refresh').addEventListener('click', () => { pfState.models = null; pfState.workspaces = null; exState.catalogs = false; return refresh(); });
   $('model-search').addEventListener('input', () => renderModels(models));
   $('model-transport-filter').addEventListener('change', () => renderModels(models));
   $('model-provider-filter').addEventListener('change', () => renderModels(models));
@@ -3191,10 +3579,10 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     $('repo-name-input').value = '';
     $('repo-path-input').value = '';
     $('repo-desc-input').value = '';
-    $('repo-modal').classList.add('open');
+    $('repo-modal').showModal();
   });
-  $('close-repo-modal')?.addEventListener('click', () => $('repo-modal').classList.remove('open'));
-  $('cancel-repo-btn')?.addEventListener('click', () => $('repo-modal').classList.remove('open'));
+  $('close-repo-modal')?.addEventListener('click', () => $('repo-modal').close());
+  $('cancel-repo-btn')?.addEventListener('click', () => $('repo-modal').close());
 
   $('save-repo-btn')?.addEventListener('click', async () => {
     const id = $('repo-id-input').value.trim();
@@ -3212,7 +3600,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, name, path, description, assignedGovernancePipeline }),
       });
-      $('repo-modal').classList.remove('open');
+      $('repo-modal').close();
       await refresh();
     } catch (err) {
       alert((t('error_save_failed') + ' ') + err.message);
@@ -3270,9 +3658,9 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
           hardStop: $('cfg-hard-stop').value === 'true'
         })
       });
-      if (note) setLocalizedText(note, () => t('ui_limits_saved'));
       dirtySections.delete('budgets-section');
       await refresh();
+      if (note) setLocalizedText(note, () => t('ui_limits_saved'));
     } catch (err) {
       if (note) setLocalizedText(note, () => err.message);
     }
@@ -3388,7 +3776,7 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
     ws.onmessage = event => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'activity' || data.type === 'platform_run') scheduleLiveRefresh();
+        if (data.type === 'activity' || data.type === 'platform_run' || data.type === 'pipeline_run') scheduleLiveRefresh();
       } catch {}
     };
     ws.onerror = () => {
@@ -3401,9 +3789,37 @@ Events:   ws://127.0.0.1:31338/v1/events</pre>
   }
 
   ${PLATFORM_SCRIPT}
+  ${EXECUTION_SCRIPT}
+  ${GIT_WORKSPACE_SCRIPT}
+  ${REPOSITORY_ANALYTICS_SCRIPT}
+  ${INSIGHTS_SCRIPT}
+  ${GETTING_STARTED_SCRIPT}
+  let repositoryActor = '';
+  function repositoryIdentity(operator) {
+    const key = JSON.stringify(operator || null);
+    if (key === repositoryActor) return;
+    repositoryActor = key;
+    insightsReset();
+    $('git-workspace-nav').dataset.detected = 'false';
+    window.gitWorkspace.configure({workspaces:[],workspaceId:'',canWrite:false,language:currentLang,request});
+    raReset();
+    pfState.workspaces = null;
+    // Identity initialization invalidates a deep-link load that may already be in flight.
+    if (activeSection === 'repository-analytics') loadRepositoryAnalytics(true);
+  }
+  function repositoryWorkspaceSync(workspaces = pfState.workspaces || [], workspaceId) {
+    if (!window.gitWorkspace) return;
+    const selected = workspaceId && workspaces.some(item => item.id === workspaceId) ? workspaceId : undefined;
+    return window.gitWorkspace.configure({request,workspaces,language:currentLang,canWrite:pfState.operator?.role === 'admin',...(selected ? {workspaceId:selected} : {})});
+  }
+  document.addEventListener('git-workspace-detected',event => { $('git-workspace-nav').dataset.detected = String(!!event.detail.detected); });
+  document.addEventListener('change',event => { if (['pf-chat-workspace','ex-workspace'].includes(event.target.id)) repositoryWorkspaceSync(undefined,event.target.value); });
   ${SETTING_TOOLTIP_SCRIPT}
   ${SELECT_SCRIPT}
   pfRenderTranscript();
+  const sectionFromLocation = () => { const name = window.location?.hash?.slice(1) || 'platform'; if (Object.hasOwn(sectionIds, name)) showSection(name, false); };
+  window.addEventListener('hashchange', sectionFromLocation);
+  if (window.location?.hash) sectionFromLocation();
   refresh();
   connectEvents();
   setInterval(refreshLive, 15000);

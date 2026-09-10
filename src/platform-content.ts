@@ -4,6 +4,7 @@ import type { ChatMessage, ChatRequest } from './types.js';
 import { abortable } from './usage.js';
 
 const SESSIONS = 'platform.sessions';
+const PROJECTS = 'platform.chat-projects';
 const MEMORIES = 'platform.memories';
 const MAX_MESSAGE_CHARS = 100_000;
 const MAX_SESSION_CHARS = 1_000_000;
@@ -47,6 +48,14 @@ export interface PlatformMessage {
   status?: 'pending' | 'complete' | 'failed' | 'interrupted';
   versions?: Array<{ revision: number; content: string; updatedAt: number }>;
 }
+export interface ChatProject {
+  id: string;
+  name: string;
+  userId: string;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+}
 export interface PlatformSession {
   id: string;
   title: string;
@@ -54,6 +63,8 @@ export interface PlatformSession {
   revision: number;
   userId: string;
   workspaceId: string;
+  /** Organization only; does not change the execution workspace. */
+  projectId?: string;
   agentId?: string;
   provider?: string;
   model?: string;
@@ -70,6 +81,7 @@ export interface CreateSessionInput {
   retention?: SessionRetention;
   userId?: string;
   workspaceId?: string;
+  projectId?: string | null;
   agentId?: string;
   provider?: string;
   model?: string;
@@ -112,6 +124,8 @@ export interface ContextInput {
   memoryIds?: string[];
   skillInstructions?: string[];
   effort?: string;
+  /** Request the provider fast tier without changing reasoning effort. */
+  fastMode?: boolean;
   mode?: 'chat' | 'plan' | 'agent';
   cwd?: string;
   signal?: AbortSignal;
@@ -170,6 +184,10 @@ export class PlatformContentService {
       const current = tx.read<PlatformSession>(SESSIONS, session.id);
       if (previous && current?.revision !== previous.revision) throw new PlatformContentError('Conversation changed in storage', 409, 'revision_conflict');
       if (!previous && current) throw new PlatformContentError('Session already exists', 409, 'revision_conflict');
+      if (session.projectId) {
+        const project = tx.read<ChatProject>(PROJECTS, session.projectId);
+        if (!project || project.userId !== session.userId) throw new PlatformContentError('Project is unavailable for this conversation', 404);
+      }
       tx.put(SESSIONS, session.id, structuredClone(session));
     });
   }
@@ -186,6 +204,41 @@ export class PlatformContentService {
     });
   }
 
+  listProjects(): ChatProject[] {
+    return this.store.list<ChatProject>(PROJECTS).map(project => structuredClone(project)).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  getProject(id: string): ChatProject | undefined {
+    const project = this.store.read<ChatProject>(PROJECTS, id);
+    return project ? structuredClone(project) : undefined;
+  }
+  async createProject(input: { name: string; userId: string }): Promise<ChatProject> {
+    const now = this.now();
+    const project: ChatProject = { id: `project-${randomUUID()}`, name: text(input.name, 'name', 100).trim(), userId: identifier(input.userId, 'userId'), revision: 1, createdAt: now, updatedAt: now };
+    await this.store.transaction(tx => {
+      if (tx.list<ChatProject>(PROJECTS).filter(p => p.userId === project.userId).length >= 100) throw new PlatformContentError('Project limit reached', 429);
+      tx.put(PROJECTS, project.id, project);
+    });
+    return structuredClone(project);
+  }
+  async updateProject(id: string, patch: { name: string; expectedRevision?: number }): Promise<ChatProject> {
+    let result!: ChatProject;
+    await this.store.transaction(tx => {
+      const previous = tx.read<ChatProject>(PROJECTS, id);
+      if (!previous) throw new PlatformContentError('Project not found', 404);
+      revision(previous.revision, patch.expectedRevision);
+      result = { ...previous, name: text(patch.name, 'name', 100).trim(), revision: previous.revision + 1, updatedAt: this.now() };
+      tx.put(PROJECTS, id, result);
+    });
+    return structuredClone(result);
+  }
+  async deleteProject(id: string): Promise<void> {
+    await this.store.transaction(tx => {
+      if (!tx.read(PROJECTS, id)) throw new PlatformContentError('Project not found', 404);
+      if (tx.list<PlatformSession>(SESSIONS).some(session => session.projectId === id)) throw new PlatformContentError('Move conversations out of the project before deleting it', 409, 'project_not_empty');
+      tx.delete(PROJECTS, id);
+    });
+  }
+
   async createSession(input: CreateSessionInput = {}): Promise<PlatformSession> {
     if (this.listSessions().length >= 500) throw new PlatformContentError('Session limit reached; remove expired or unneeded conversations', 429, 'session_limit');
     if (input.retention !== undefined && !['ephemeral', 'retained'].includes(input.retention)) throw new PlatformContentError('Unknown session retention');
@@ -194,6 +247,7 @@ export class PlatformContentService {
       id: `session-${randomUUID()}`, title: text(input.title ?? 'New conversation', 'title', 200),
       retention: 'retained', revision: 1,
       userId: identifier(input.userId ?? 'local-user', 'userId'), workspaceId: identifier(input.workspaceId ?? 'default', 'workspaceId'),
+      projectId: input.projectId == null ? undefined : identifier(input.projectId, 'projectId'),
       agentId: input.agentId === undefined ? undefined : identifier(input.agentId, 'agentId'),
       provider: input.provider === undefined ? undefined : identifier(input.provider, 'provider'),
       model: input.model === undefined ? undefined : identifier(input.model, 'model'),
@@ -212,11 +266,12 @@ export class PlatformContentService {
       .filter(s => (!filter.userId || s.userId === filter.userId) && (!filter.workspaceId || s.workspaceId === filter.workspaceId))
       .sort((a, b) => b.updatedAt - a.updatedAt).map(s => ({ ...structuredClone(s), retention: 'retained', expiresAt: undefined }));
   }
-  async updateSession(id: string, patch: { title?: string; retention?: SessionRetention; ttlMs?: number; provider?: string; model?: string; profileId?: string | null; agentId?: string | null; expectedRevision?: number }): Promise<PlatformSession> {
+  async updateSession(id: string, patch: { projectId?: string | null; title?: string; retention?: SessionRetention; ttlMs?: number; provider?: string; model?: string; profileId?: string | null; agentId?: string | null; expectedRevision?: number }): Promise<PlatformSession> {
     return this.locked(id, async () => {
       const previous = this.requireSession(id);
       revision(previous.revision, patch.expectedRevision);
       const next = structuredClone(previous);
+      if (patch.projectId !== undefined) next.projectId = patch.projectId === null ? undefined : identifier(patch.projectId, 'projectId');
       if (patch.title !== undefined) next.title = text(patch.title, 'title', 200);
       if (patch.provider !== undefined) next.provider = identifier(patch.provider, 'provider');
       if (patch.model !== undefined) next.model = identifier(patch.model, 'model');
@@ -361,17 +416,19 @@ export class PlatformContentService {
       signal.throwIfAborted();
       const now = this.now();
       const userMessage: PlatformMessage = { id: `message-${randomUUID()}`, role: 'user', content: input.input, provider: input.provider, model: input.model, profileId: input.profileId, createdAt: now, requestId, status: 'pending' };
-      const pending: PlatformSession = { ...previous, revision: previous.revision + 1, updatedAt: now, provider: input.provider, model: input.model, profileId: input.profileId, agentId: input.agentId ?? previous.agentId, messages: [...previous.messages, userMessage] };
+      const pending: PlatformSession = { ...previous, revision: previous.revision + 1, updatedAt: now, provider: input.provider, model: input.model, profileId: input.profileId, agentId: input.agentId, messages: [...previous.messages, userMessage] };
       await this.persist(pending, previous); // Do not dispatch a prompt that cannot be saved.
       let partial = '';
       let assistantMessage: PlatformMessage;
       let session: PlatformSession;
       try {
         signal.throwIfAborted();
-        const result = await abortable(execute({ provider: input.provider, model: input.model, profileId: input.profileId, sessionId: id, requestId, messages: context.messages, max_tokens: context.maxOutputTokens, effort: input.effort, mode: input.mode || 'chat', cwd: input.cwd, signal }, context, delta => { partial = (partial + delta).slice(0, MAX_MESSAGE_CHARS); }), signal);
+        const result = await abortable(execute({ provider: input.provider, model: input.model, profileId: input.profileId, sessionId: id, requestId, messages: context.messages, max_tokens: context.maxOutputTokens, effort: input.effort, fastMode: input.fastMode, mode: input.mode || 'chat', cwd: input.cwd, signal }, context, delta => { partial = (partial + delta).slice(0, MAX_MESSAGE_CHARS); }), signal);
         signal.throwIfAborted();
         const content = text(typeof result === 'string' ? result : result.content, 'provider response', MAX_MESSAGE_CHARS);
-        assistantMessage = { ...userMessage, id: `message-${randomUUID()}`, role: 'assistant', status: 'complete', content, createdAt: this.now(), nativeSessionId: typeof result === 'string' || result.nativeSessionId === undefined ? undefined : text(result.nativeSessionId, 'nativeSessionId', 300) };
+        const resolvedModel = typeof result === 'object' && (result as any).model ? (result as any).model : userMessage.model;
+        const resolvedProvider = typeof result === 'object' && (result as any).provider ? (result as any).provider : userMessage.provider;
+        assistantMessage = { ...userMessage, id: `message-${randomUUID()}`, role: 'assistant', status: 'complete', content, model: resolvedModel, provider: resolvedProvider, createdAt: this.now(), nativeSessionId: typeof result === 'string' || result.nativeSessionId === undefined ? undefined : text(result.nativeSessionId, 'nativeSessionId', 300) };
         userMessage.status = 'complete';
         session = { ...pending, revision: pending.revision + 1, updatedAt: this.now(), messages: [...previous.messages, userMessage, assistantMessage] };
         await this.persist(session, pending);

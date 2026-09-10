@@ -1,3 +1,4 @@
+import './warning-filter.js';
 // Public API for conduit-bridge (used by conduit-vscode extension)
 export { BridgeServer } from './server.js';
 export { ProviderRegistry, createSkillRegistry } from './registry.js';

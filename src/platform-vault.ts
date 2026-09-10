@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
+const getDatabaseSync = (): typeof import('node:sqlite').DatabaseSync => (createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')).DatabaseSync;
 import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import type { StateStore } from './storage.js';
@@ -88,7 +89,8 @@ export class PlatformVaultService {
     const docs = documents(sessions);
     const hit = (index: number, snippet: string, line?: number) => ({ sessionId: docs[index].session.id, messageId: docs[index].message.id, title: docs[index].session.title, role: docs[index].message.role, createdAt: docs[index].message.createdAt, provider: docs[index].message.provider, model: docs[index].message.model, snippet, line });
     if (mode === 'text') {
-      const db = new DatabaseSync(':memory:');
+      const DatabaseSyncClass = getDatabaseSync();
+      const db = new DatabaseSyncClass(':memory:');
       try {
         db.exec("PRAGMA temp_store=MEMORY; CREATE VIRTUAL TABLE messages USING fts5(content, tokenize='unicode61 remove_diacritics 2')");
         const insert = db.prepare('INSERT INTO messages(rowid, content) VALUES (?, ?)');

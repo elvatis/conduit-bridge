@@ -11,6 +11,7 @@ import { CodexCliProvider } from './providers/cli-codex.js';
 import { ClaudeCliProvider } from './providers/cli-claude.js';
 import { GeminiCliProvider } from './providers/cli-gemini.js';
 import { reloadCatalogs } from './model-catalog.js';
+import { capabilitiesFor } from './model-capability.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -73,12 +74,16 @@ export class ProviderRegistry {
   allModels(): ModelDefinition[] {
     return [...this._providers.values()]
       .filter(p => p.hasCredentials?.() !== false)
-      .flatMap(p => p.models);
+      .flatMap(p => p.models.map(m => this.withCapabilities(p.name, m)));
   }
 
   /** Every model including unreachable ones — for status and diagnostics. */
   allModelsIncludingUnavailable(): ModelDefinition[] {
-    return [...this._providers.values()].flatMap(p => p.models);
+    return [...this._providers.values()].flatMap(p => p.models.map(m => this.withCapabilities(p.name, m)));
+  }
+
+  private withCapabilities(provider: ProviderName, model: ModelDefinition): ModelDefinition {
+    return { ...model, capabilities: model.capabilities ?? capabilitiesFor(provider, model.id) };
   }
 
   /**

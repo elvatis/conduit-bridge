@@ -5,9 +5,56 @@ Thanks for your interest in contributing!
 ## Getting Started
 
 1. Fork the repository and create a feature branch from `main`.
-2. Install dependencies (if applicable): `npm ci`
-3. Run tests (if applicable): `npm test`
-4. Keep changes focused and small.
+2. Use Node.js 24 or newer and install dependencies: `npm ci --ignore-scripts`.
+3. Run `npm test` and `npm run build`.
+4. For dashboard changes, install Chromium with `npx playwright install chromium`
+   and run `npm run test:ui`.
+5. Keep changes focused and update the relevant guide and examples.
+
+## Dashboard verification
+
+The Playwright suite loads the current dashboard source into an isolated
+browser and intercepts every network request. Provider responses and writes
+use explicit fixtures; the suite never connects to a live bridge or account.
+Playwright is a development dependency, not a provider transport.
+
+The suite checks every navigation section and platform tab in English and
+German at 390, 768, 1280, 1920 and 3840 CSS pixels. Interaction tests cover
+settings, permissions, failed saves, keyboard use, project persistence,
+execution controls, Git browsing and analytics export. Add a regression that
+exercises the failing behavior when fixing a functional defect.
+Dialog checks also cover 320 x 480 and 1280 x 720 viewports, accessible names,
+initial and restored focus, inactive background controls, and Escape handling
+for nested menus and popovers. Execution checks retain failed-action messages
+across a completed refresh and clear them after a successful retry.
+Language checks load the shipped pipeline/tool catalogs, add controls after
+startup and switch languages while preserving drafts, provider values and
+returned content. Keep display translations separate from execution values.
+Layout checks measure visible select-label centers as well as icon alignment.
+The suite also runs axe-core WCAG A/AA checks across all 23 pages, six platform
+panes, expanded navigation and the new introduction, search and populated
+insights views at narrow and desktop widths. Keyboard cases cover first-visit
+dismissal, focus return, search selection, draft preservation and source links.
+Automated checks do not certify accessibility; retain manual keyboard and
+assistive-technology review for workflows they cannot assess. Do not suppress
+an accessibility rule to make a layout change pass.
+
+On Windows, an installed Edge can replace the downloaded test browser:
+
+```powershell
+$env:CONDUIT_TEST_BROWSER = 'msedge'
+npm run test:ui
+```
+
+CI runs Vitest and the production build on Linux and Windows, plus the browser
+suite with Chromium on Linux. Layout screenshots, failure traces and the HTML
+report are stored under `.ai/logs/browser-results` and `.ai/logs/browser-report`.
+CI retains the browser report for seven days. Open it with
+`npx playwright show-report .ai/logs/browser-report`.
+
+Use `npm run demo:record` to refresh the English GIF after visible changes.
+See [the recording instructions](assets/README.md) for FFmpeg requirements and
+[the validation record](docs/validation/execution-workspace.md) for test scope.
 
 ## Pull Request Process
 

@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.js.map
 .ai/logs/
+.conduit/
 
 # Local inference models are large runtime assets.
 *.gguf

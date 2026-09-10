@@ -23,6 +23,19 @@ function fixture() {
   return { chat, provider, registry, budget, metrics };
 }
 
+describe('Fast mode budget admission', () => {
+  it('reserves the higher estimate before calling the provider and preserves standard-speed admission', async () => {
+    const {provider,chat} = fixture();
+    const request = {model:'cli-codex/gpt-5.6-sol',messages:[{role:'user' as const,content:'test'}],max_tokens:16};
+    const standard = estimateCost(request.model,1,16);
+    const budget = new BudgetManager({dailyBudgetUsd:standard * 2,hardStop:true},join(directory,'fast-budget.json'));
+    await expect(executeWithAccounting(provider,{...request,fastMode:true},{budgetManager:budget})).rejects.toThrow('Daily budget');
+    expect(chat).not.toHaveBeenCalled();
+    expect(await executeWithAccounting(provider,{...request,fastMode:false},{budgetManager:budget})).toBe('result');
+    expect(chat).toHaveBeenCalledOnce();
+  });
+});
+
 describe('pipeline execution regressions', () => {
   it('executes the approved step exactly once and uses its frozen definition', async () => {
     const { chat, registry } = fixture();

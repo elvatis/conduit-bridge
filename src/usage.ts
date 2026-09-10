@@ -1,14 +1,17 @@
+import { parseFastMode, requireFastModeSupport } from './fast-mode.js';
 import { randomUUID } from 'node:crypto';
 import { BudgetExceededError, type BudgetManager } from './budget.js';
 import type { MetricsStore } from './metrics.js';
 import type { ChatRequest, ProviderAdapter } from './types.js';
 
 /** A consistent planning estimate, not a provider invoice or published price. */
-export const USAGE_ESTIMATE_VERSION = 'bridge-estimate-v1';
+export const USAGE_ESTIMATE_VERSION = 'bridge-estimate-v2';
+/** Planning-only premium; this heuristic is not a provider billing rate or cost ceiling. */
+export const FAST_MODE_ESTIMATE_MULTIPLIER = 3;
 export function estimateTokens(text: string): number { return Math.ceil(text.length / 4); }
-export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+export function estimateCost(model: string, inputTokens: number, outputTokens: number, fastMode = false): number {
   const rate = /^(?:lmstudio|bitnet)\//.test(model) ? 0 : /haiku|flash|luna/.test(model) ? 0.000001 : /opus|sol/.test(model) ? 0.000015 : 0.000005;
-  return Number(((inputTokens + outputTokens) * rate).toFixed(8));
+  return Number(((inputTokens + outputTokens) * rate * (fastMode ? FAST_MODE_ESTIMATE_MULTIPLIER : 1)).toFixed(8));
 }
 
 export interface AccountingOptions {
@@ -39,6 +42,8 @@ export async function abortable<T>(operation: Promise<T>, signal?: AbortSignal):
 
 /** Begin once, then finish once with the concatenated output (including partial errors). */
 export function openExecution(provider: Pick<ProviderAdapter, 'name' | 'models'>, original: ChatRequest, options: AccountingOptions = {}) {
+  parseFastMode(original.fastMode);
+  requireFastModeSupport(provider.name,original.model,original.fastMode);
   const runId = options.runId || `request-${randomUUID()}`;
   const ownsRun = !options.runId;
   const budget = options.budgetManager;
@@ -53,7 +58,7 @@ export function openExecution(provider: Pick<ProviderAdapter, 'name' | 'models'>
     const available = budget?.remainingTokens(runId) ?? Infinity;
     maxTokens = Math.min(outputLimit, model?.maxOutputTokens || Infinity, available - inputTokens);
     if (maxTokens <= 0) throw new BudgetExceededError('Input exhausts the remaining run token allowance');
-    reservation = budget?.reserve({ runId, model: original.model, provider: provider.name, estimatedTokens: inputTokens + maxTokens, estimatedCostUsd: estimateCost(original.model, inputTokens, maxTokens) });
+    reservation = budget?.reserve({ runId, model: original.model, provider: provider.name, estimatedTokens: inputTokens + maxTokens, estimatedCostUsd: estimateCost(original.model, inputTokens, maxTokens, original.fastMode) });
   } catch (error) {
     if (ownsRun) budget?.finishRun(runId);
     throw error;
@@ -73,10 +78,10 @@ export function openExecution(provider: Pick<ProviderAdapter, 'name' | 'models'>
     finished = true;
     dispose();
     const outputTokens = estimateTokens(output);
-    const costUsd = estimateCost(original.model, inputTokens, outputTokens);
+    const costUsd = estimateCost(original.model, inputTokens, outputTokens, original.fastMode);
     // Failed requests can still be billable. Retain the full estimate when no
     // output is available instead of claiming the provider consumed nothing.
-    const cost = error && !output ? estimateCost(original.model, inputTokens, maxTokens) : costUsd;
+    const cost = error && !output ? estimateCost(original.model, inputTokens, maxTokens, original.fastMode) : costUsd;
     const tokens = error && !output ? inputTokens + maxTokens : inputTokens + outputTokens;
     try {
       if (reservation) budget!.settle(reservation.reservationId, { costUsd: cost, tokens });

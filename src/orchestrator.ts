@@ -11,6 +11,8 @@ export type OrchestrationStrategy = 'sequential' | 'parallel' | 'debate';
 export interface OrchestrationRole {
   name: string;
   model: string;
+  effort?: string;
+  fastMode?: boolean;
 }
 
 export interface OrchestratorConfig {
@@ -18,6 +20,8 @@ export interface OrchestratorConfig {
   strategy: OrchestrationStrategy;
   roles: OrchestrationRole[];
   fallbackModels: string[];
+  fallbackEffort?: string;
+  fallbackFastMode?: boolean;
 }
 
 export const DEFAULT_ORCHESTRATOR: OrchestratorConfig = {

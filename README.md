@@ -11,13 +11,18 @@ keys, authenticated coding CLIs, local models, conversations, and workspace
 access under explicit local control. It runs on Windows Desktop and Linux
 Desktop at `127.0.0.1:31338`.
 
+![Conduit dashboard: chat, execution, Git history, source-linked insights and guided Help](assets/demo.gif)
+
+The tour uses illustrative data. [Record the English demo](assets/README.md)
+or follow the [workspace examples](examples/workspace/README.md).
+
 ## What it does
 
 | Need | Conduit Bridge provides |
 | --- | --- |
 | One client endpoint | OpenAI-compatible chat, responses, embeddings, model discovery, metrics, events, and comparison endpoints. |
 | Provider choice | Direct APIs, authenticated coding CLIs, LM Studio, and optional local BitNet inference remain separate and independently configurable. |
-| Productive local work | A dashboard for chat, models, provider health, projects, budgets, pipelines, governance, and diagnostics. |
+| Productive local work | Chat projects, execution evidence, Git history and diffs, repository analytics, models, budgets, pipelines, governance, and diagnostics. |
 | Controlled automation | Bounded agent runs, approval gates, scoped workspaces, versioned skills, provider profiles, and usage estimates. |
 | Private local state | Every platform conversation stays on this device until explicit deletion. Encrypted SQLite is the default, with backup and restore. |
 | Message vault | Search every conversation message with SQLite full text or tgrep regex. Recurring local BitNet scans propose improved prompts with source links. |
@@ -25,18 +30,42 @@ Desktop at `127.0.0.1:31338`.
 
 ## Quick start
 
-Install Node.js 24 or newer, then build and start the bridge:
+Install Git and Node.js 24 or newer, then clone, build and start the bridge:
 
 ```bash
+git clone https://github.com/elvatis/conduit-bridge.git
+cd conduit-bridge
 npm install
 npm run build
 node dist/cli.js start
 ```
 
-Open [the local dashboard](http://127.0.0.1:31338/) and select a connected
-model. The bridge listens only on loopback by default.
+To work only in the terminal, use the interactive workspace. It attaches to a
+running listener, or starts one if nothing is bound:
 
-Confirm that it is healthy and inspect the model IDs available to your account:
+```bash
+node dist/cli.js chat
+node dist/cli.js chat --model=cli-codex/gpt-5.6-sol
+```
+
+This is a full-screen keyboard workspace, not a bare prompt. **Ctrl+K** opens
+the command palette. **Ctrl+P** picks a model, **Ctrl+L** resumes a session,
+**Ctrl+R** shows execution, **Ctrl+G** shows git, **Ctrl+N** starts a new chat.
+Conversations are stored as platform sessions, same as the dashboard.
+
+For an existing checkout, start with `npm install` in its root directory.
+In Windows PowerShell, use `npm.cmd` if the npm script shim is blocked, and
+`curl.exe` for single-line curl commands. Multiline `bash` examples need Bash;
+the [BitNet walkthrough](docs/guides/bitnet.md) provides native PowerShell requests.
+
+Keep the terminal open: `start` runs in the foreground; **Ctrl+C** stops it.
+Open [the local dashboard](http://127.0.0.1:31338/) and select a connected model.
+The bridge listens only on loopback by default. Installing Conduit does not
+install an inference engine or download model weights. If you are starting
+without a provider, follow [local BitNet setup](#install-llama-server-and-bitnet)
+or connect one of the providers below before sending a chat.
+
+In a second terminal, confirm health and inspect the available model IDs:
 
 ```bash
 node dist/cli.js status
@@ -57,7 +86,7 @@ silently enables the matching paid API.
 | --- | --- | --- |
 | Direct API | `claude-api`, `codex-api`, `gemini-api`, `openrouter-api`, `perplexity-api` | Save a key through Settings or set the documented environment variable. |
 | Coding CLI | `cli-claude`, `cli-codex`, `cli-gemini`, `cli-grok` | Install and authenticate the provider's official CLI as the same desktop user. |
-| Local | `lmstudio`, `bitnet` | LM Studio uses its running local service. Configured BitNet starts with Conduit. |
+| Local | `lmstudio`, `bitnet` | LM Studio uses its running local service. [Install and configure llama-server with BitNet](docs/guides/bitnet.md) for CPU inference started with Conduit. |
 
 The dashboard lists each transport separately. It also groups model menus with
 CLI models first, so an installed coding CLI remains the natural starting point
@@ -66,17 +95,68 @@ for a new chat.
 See [provider setup and model catalogs](docs/guides/getting-started.md#connect-a-provider)
 for environment-variable names, model discovery, and model overrides.
 
+## Install llama-server and BitNet
+
+For local BitNet, you need **two files plus a chat template**: the native
+`llama-server` executable, Microsoft's `ggml-model-i2_s.gguf` weights, and the
+supplied 2B-4T template. Microsoft's BitNet source includes llama.cpp; the
+provided build helper produces the required `llama-server`. A separate Meta
+Llama model, Ollama or LM Studio installation is not required for this route.
+
+The [complete installation walkthrough](docs/guides/bitnet.md) provides
+PowerShell commands, download links, expected results and recovery steps:
+
+| Step | What to do | Check before continuing |
+| --- | --- | --- |
+| 1 | [Install the C++/Clang build tools](docs/guides/bitnet.md#prepare-the-computer), Git and Node.js. | Version checks succeed. |
+| 2 | [Build the BitNet-compatible llama-server](docs/guides/bitnet.md#build-the-native-server) with `./scripts/bitnet/build-windows.ps1` from a source checkout. | The resulting executable runs with `--version`. |
+| 3 | [Download the official 2B-4T GGUF](docs/guides/bitnet.md#download-the-model), about 1.19 GB, outside the repository. | File size and SHA-256 match. |
+| 4 | [Configure `.env`](docs/guides/bitnet.md#configure-the-bridge) with absolute executable, model and template paths. | All three files exist; tokenizer/template settings match the model. |
+| 5 | [Restart and check both services](docs/guides/bitnet.md#start-and-check-both-services). | Ports 31338 and 8080 respond; BitNet is connected. |
+| 6 | [Send the first request](docs/guides/bitnet.md#send-an-inference-request) using `bitnet/auto`. | A short answer arrives in PowerShell and Webchat. |
+
+This is the validated **Windows x64 CPU route**, using a pinned native build
+without Python or Conda. It downloads source during the build; you download
+the model explicitly. Linux users should read the
+[platform-specific limits and upstream route](docs/guides/bitnet.md#linux-and-other-installations).
+After setup, inference runs locally without an API key.
+
+Seeing `bitnet/auto` or `bitnet/2B-4T` in a model menu does not prove that a model
+is installed: these aliases do not download or switch models. The guide checks
+native health, Conduit's connection and a real answer separately. If a step
+fails, use the [troubleshooting table](docs/guides/bitnet.md#troubleshooting)
+or [foreground loading diagnostic](docs/guides/bitnet.md#inspect-a-native-startup-failure).
+Once the first chat works, continue with
+[daily startup and shutdown](docs/guides/bitnet.md#everyday-startup-and-shutdown)
+and optional [desktop autostart](docs/guides/autostart.md).
+
 ## Dashboard and work routing
 
 The browser dashboard is branded as **Conduit**, the Elvatis control plane for
-local AI work. It uses a dark navy, cyan and copper visual system, a compact
-sidebar, responsive layouts for narrow screens, and English or German labels.
+local AI work. It uses system typography, translucent navigation, opaque content,
+capsule controls, responsive layouts, and English or German labels.
 The main workspace brings together Webchat, Memory, Assistants, Tasks and
 Administration. Separate sections cover provider health, model catalogs,
 budgets, usage, pipelines, governance, diagnostics and activity. Model pickers
 are searchable and put authenticated CLI models first, followed by local and
 API transports. The complete transport ID stays visible so an operator can
 tell which account or local service will answer.
+
+Execution adds a hierarchical task view, provider events and a plan drawer.
+The shared Effort popover includes a separate Faster speed switch where supported.
+Git workspace shows branches, worktrees, commit history and diffs; Repository
+analytics charts committed source history with inspectable snapshots and export.
+Drag the navigation's right edge to adjust its width, or focus the divider and
+use the arrow keys. The width and language preference survive a browser reload.
+See [Execution and repository workspace](docs/guides/execution-workspace.md)
+for behavior, permissions and current limits.
+
+**Ctrl+K** finds any page. A brief first-visit offer introduces the main actions;
+**Help** reopens it and provides examples that populate unsent drafts. The
+dedicated [examples section](docs/examples/README.md) explains expected results.
+**Insights** uses local BitNet to gather results, decisions, lessons and open
+tasks from your own saved chats, with source excerpts and resumable progress.
+See [coverage and model limits](docs/guides/session-insights.md).
 
 The routing skill classifies a request before execution and returns a primary
 model plus ordered fallbacks. The route is a recommendation subject to the
@@ -146,7 +226,7 @@ is in [the integration guide](docs/reference/integrations.md).
 | Task | Guide |
 | --- | --- |
 | Install, connect a provider, and send a first request | [Getting started](docs/guides/getting-started.md) |
-| Run local BitNet CPU inference | [BitNet on Windows](docs/guides/bitnet.md) |
+| Install llama-server and BitNet, check each stage, and solve startup problems | [Local installation walkthrough](docs/guides/bitnet.md) |
 | Index and search a workspace with `tgrep` | [tgrep code search](docs/guides/tgrep.md) |
 | Understand files, SQLite, backups, and `CONDUIT_HOME` | [Storage and backups](docs/guides/storage.md) |
 | Run reviewed multi-step workflows | [Pipeline examples](docs/guides/pipelines.md) |
@@ -220,8 +300,8 @@ Conduit can run BitNet CPU inference on your own machine and expose it alongside
 other local models. It is useful for lightweight offline classification, short
 planning, and private experiments. It is not a substitute for reviewing model
 output or for a larger model on complex work. The [BitNet guide](docs/guides/bitnet.md)
-covers the model, reproducible Windows build, configuration, start command,
-verification, and limits.
+covers tool installation, a verified model download, the reproducible Windows
+build, configuration, first chat, daily operation and troubleshooting.
 
 [`tgrep`](https://github.com/microsoft/tgrep) is a separate optional local code
 search tool. It builds a per-workspace trigram index outside the source tree and
@@ -300,10 +380,8 @@ Added, Changed, Fixed and Security entries.
 
 ### 0.9.1
 
-The current release strengthens the release path and documentation checks. It
 The 0.9.1 release strengthens the release path and documentation checks. See
 [the 0.9.1 release notes](CHANGELOG.md#091---2026-09-03) for complete details.
-for the complete Added, Changed, and Fixed entries.
 
 ## Develop and verify
 

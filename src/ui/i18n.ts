@@ -1,3 +1,5 @@
+import { PIPELINE_COPY_DE, PIPELINE_ORIGINALS } from './pipeline-copy.js';
+
 /** Browser-side localization shared by the dashboard and its standalone help page. */
 export const I18N_SCRIPT = String.raw`
   let currentLang = 'de';
@@ -29,8 +31,24 @@ export const I18N_SCRIPT = String.raw`
     analyst: 'role_analyst', reviewer: 'role_reviewer', synthesizer: 'role_synthesizer',
     admin: 'role_admin', operator: 'lbl_operator', viewer: 'role_viewer',
     none: 'effort_none', minimal: 'effort_minimal', xhigh: 'effort_xhigh', max: 'effort_max',
+    vault: 'source_vault', env: 'source_env', environment: 'source_env', ultra: 'effort_ultra', ultracode: 'effort_ultracode',
+    'bridge config': 'source_bridge_config', 'not detected': 'status_not_detected',
     'cli not installed': 'status_cli_not_installed',
   };
+  function effortLabel(value) { return value ? t('effort_' + value) : t('ex_effort_default'); }
+  const pipelineCopyDe = ${JSON.stringify(PIPELINE_COPY_DE)};
+  const pipelineOriginals = ${JSON.stringify(PIPELINE_ORIGINALS)};
+  function pipelineText(pipe, field = 'name', step) {
+    const original = pipelineOriginals[pipe?.id];
+    const known = pipe?.isBuiltIn || original && pipe.name === original.name && pipe.description === original.description;
+    const copy = currentLang === 'de' && known ? pipelineCopyDe[pipe.id] : null;
+    if (step) {
+      const id = step.id || step.stepId, value = step.name || step.stepName;
+      return copy && original?.steps[id] === value ? copy.steps[id] || value : value;
+    }
+    return copy?.[field] || pipe?.[field] || '';
+  }
+  function pfOperatorName(operator) { return operator.operatorId === 'local-admin' && operator.displayName === 'Local administrator' ? t('ui_local_administrator') : operator.displayName || operator.operatorId; }
   function localizedValue(value) {
     const text = String(value ?? '');
     const key = displayTranslationKeys[text.toLowerCase()];
@@ -64,11 +82,13 @@ export const I18N_SCRIPT = String.raw`
     return result;
   }
   function setLocalizedHtml(element, render) {
+    if (!element) return;
     element.removeAttribute?.('data-i18n');
     element.innerHTML = render();
     localizedBindings.set(element, { render, nodes: localizationNodes(element), html: true });
   }
   function appendLocalizedHtml(element, render) {
+    if (!element) return;
     const template = document.createElement('template');
     template.innerHTML = render();
     const nodes = localizationNodes(template.content);
@@ -78,6 +98,7 @@ export const I18N_SCRIPT = String.raw`
     localizedBindings.set(anchor, { render, nodes, html: true });
   }
   function setLocalizedText(element, render) {
+    if (!element) return;
     // Action labels live beside their SVG, including transient busy-state labels.
     const target = element.tagName === 'BUTTON' ? element.querySelector('.action-label') || element : element;
     target.removeAttribute?.('data-i18n');
@@ -86,6 +107,7 @@ export const I18N_SCRIPT = String.raw`
     localizedBindings.set(target, { render, value, html: false });
   }
   function setLocalizedValue(element, render) {
+    if (!element) return;
     element.removeAttribute?.('data-i18n-value');
     const value = String(render());
     element.value = value;
@@ -132,6 +154,8 @@ export const I18N_SCRIPT = String.raw`
       document.querySelectorAll('[' + attribute + ']').forEach(element => element.setAttribute(property, t(element.getAttribute(attribute))));
     }
     refreshLocalizedBindings();
+    if (typeof syncEffortControls === 'function') syncEffortControls();
+    window.gitWorkspace?.setLanguage(currentLang);
     if (typeof updateSettingTooltipLanguage === 'function') updateSettingTooltipLanguage();
     try { localStorage.setItem('conduit_lang', currentLang); } catch {}
     const label = document.getElementById('lang-label');

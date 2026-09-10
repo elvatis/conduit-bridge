@@ -74,14 +74,22 @@ describe('agentModeCwdError', () => {
 });
 
 describe('isAgentModeAllowed', () => {
-  it('allows agent mode by default when policy is omitted or agentEnabled is true', () => {
-    expect(isAgentModeAllowed('cli-claude')).toBe(true);
-    expect(isAgentModeAllowed('cli-claude', { agentEnabled: true })).toBe(true);
+  it('allows confined provider (cli-codex) by default when agentEnabled is not false', () => {
+    expect(isAgentModeAllowed('cli-codex')).toBe(true);
+    expect(isAgentModeAllowed('cli-codex', { agentEnabled: true })).toBe(true);
+  });
+
+  it('refuses unconfined provider in agent mode by default unless allowUnconfined is true', () => {
+    expect(isAgentModeAllowed('cli-claude')).toBe(false);
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: true })).toBe(false);
+    expect(isAgentModeAllowed('cli-claude', { allowUnconfined: true })).toBe(true);
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: true, allowUnconfined: true })).toBe(true);
   });
 
   it('refuses agent mode when agentEnabled is explicitly false', () => {
-    expect(isAgentModeAllowed('cli-claude', { agentEnabled: false })).toBe(false);
-    expect(isAgentModeAllowed('cli-grok', { agentEnabled: false })).toBe(false);
+    expect(isAgentModeAllowed('cli-codex', { agentEnabled: false })).toBe(false);
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: false, allowUnconfined: true })).toBe(false);
+    expect(isAgentModeAllowed('cli-grok', { agentEnabled: false, allowUnconfined: true })).toBe(false);
   });
 });
 

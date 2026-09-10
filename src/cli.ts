@@ -1,7 +1,7 @@
+import './warning-filter.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { BridgeServer } from './server.js';
 import { loadConfig, saveConfig, loadDotEnv, parseConfigValue, bearerAuthorization, redactConfigForDisplay } from './config.js';
 import { logger, configureLogger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
@@ -16,7 +16,8 @@ const CLI_VERSION = (() => {
 })();
 
 const args = process.argv.slice(2);
-const cmd = args[0] ?? 'start';
+const isInteractiveTerminal = Boolean(process.stdin.isTTY && process.stdout.isTTY && !process.env.CI);
+const cmd = args[0] ?? (isInteractiveTerminal ? 'menu' : 'start');
 const flags: Record<string, string> = {};
 for (let i = 1; i < args.length; i++) {
   const match = args[i].match(/^--([a-z-]+)=(.+)$/);
@@ -25,15 +26,26 @@ for (let i = 1; i < args.length; i++) {
   else if (/^--[a-z-]+$/.test(args[i])) flags[args[i].slice(2)] = 'true';
 }
 
+const isInteractive = cmd === 'chat' || cmd === 'tui';
+if (isInteractive) {
+  const logDir = join(process.cwd(), '.conduit', 'logs');
+  logger.setFileDestination(join(logDir, 'bridge.log'), true);
+}
+
 const cfg = loadConfig({
   ...(flags.port ? { port: parseInt(flags.port) } : {}),
   ...(flags.host ? { host: flags.host } : {}),
   ...(flags['log-level'] ? { logLevel: flags['log-level'] as any } : {}),
   ...(flags['auth-token'] ? { authToken: flags['auth-token'] } : {}),
+  ...(flags['allow-unconfined'] === 'true' ? { allowUnconfined: true } : {}),
 });
 
 configureLogger(cfg);
-if (dotenvKeys.length) logger.info(`Loaded ${dotenvKeys.length} var(s) from .env: ${dotenvKeys.join(', ')}`);
+if (isInteractive) {
+  logger.muteConsole(true);
+} else if (dotenvKeys.length && cmd !== 'help' && cmd !== '--help' && !flags.help) {
+  logger.debug(`Loaded ${dotenvKeys.length} var(s) from .env`);
+}
 
 switch (cmd) {
   case 'start': {
@@ -42,6 +54,7 @@ switch (cmd) {
       process.exit(1);
     }
     logger.info(`conduit-bridge v${CLI_VERSION} starting on ${cfg.host}:${cfg.port}…`);
+    const { BridgeServer } = await import('./server.js');
     const server = new BridgeServer(cfg);
     server.start().catch(err => {
       logger.error(`Failed to start: ${err.message}`);
@@ -66,7 +79,7 @@ switch (cmd) {
       res.on('end', () => {
         try {
           const status = JSON.parse(data);
-          console.log(`conduit-bridge v${status.version} — uptime ${status.uptime}s`);
+          console.log(`conduit-bridge v${status.version} - uptime ${status.uptime}s`);
           for (const provider of status.providers) {
             console.log(`  ${provider.connected ? '✅' : '❌'} ${provider.name.padEnd(16)} ${provider.connected ? 'connected' : 'not connected'}`);
           }
@@ -75,6 +88,27 @@ switch (cmd) {
     }).on('error', () => {
       console.log(`conduit-bridge is NOT running on ${cfg.host}:${cfg.port}`);
       process.exit(1);
+    });
+    break;
+  }
+
+  case 'menu': {
+    const { runCliMenu } = await import('./cli-menu.js');
+    await runCliMenu(CLI_VERSION, cfg);
+    break;
+  }
+
+  case 'tui':
+  case 'chat': {
+    try { assertSupportedPlatform(); } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+    const { runChatCommand } = await import('./interactive-cli.js');
+    await runChatCommand(cfg, {
+      model: flags.model,
+      cliPath: fileURLToPath(import.meta.url),
+      allowUnconfined: flags['allow-unconfined'] === 'true',
     });
     break;
   }
@@ -106,26 +140,67 @@ switch (cmd) {
     break;
   }
 
-  default:
-    console.log(`conduit-bridge v${CLI_VERSION}
+  case 'run': {
+    const { handleRunCommand } = await import('./cli-commands.js');
+    const prompt = args.slice(1).filter(a => !a.startsWith('--')).join(' ');
+    const code = await handleRunCommand(cfg, prompt, flags);
+    process.exit(code);
+    break;
+  }
 
-Usage:
-  conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]
-                       [--auth-token=<token>]
-  conduit-bridge status
-  conduit-bridge config [key] [value]
+  case 'runs': {
+    const { handleRunsCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleRunsCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
 
-API providers:
-  claude-api, codex-api, gemini-api, openrouter-api, perplexity-api
-  Add credentials through dashboard Settings or protected environment variables.
+  case 'sessions': {
+    const { handleSessionsCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleSessionsCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
 
-CLI providers (authenticated by their installed tools):
-  cli-claude, cli-codex, cli-gemini, cli-grok
+  case 'workspaces': {
+    const { handleWorkspacesCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleWorkspacesCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
 
-Local provider:
-  lmstudio (set LM_STUDIO_URL to override http://127.0.0.1:1234)
+  case 'models': {
+    const { handleModelsCommand } = await import('./cli-commands.js');
+    const subArgs = args.slice(1).filter(a => !a.startsWith('--'));
+    const code = await handleModelsCommand(cfg, subArgs, flags);
+    process.exit(code);
+    break;
+  }
 
-Security:
-  External binds require an auth token configured through a protected setup path.
-`);
+  case 'help':
+  case '--help': {
+    const topic = args[1];
+    const { renderCliHelp } = await import('./cli-help.js');
+    console.log(renderCliHelp(CLI_VERSION, cfg, topic));
+    process.exit(0);
+    break;
+  }
+
+  default: {
+    const validCommands = ['start', 'status', 'chat', 'tui', 'menu', 'config', 'run', 'runs', 'sessions', 'workspaces', 'models', 'help'];
+    const { renderCliHelp } = await import('./cli-help.js');
+    const input = cmd.toLowerCase();
+    const match = validCommands.find(c => c.startsWith(input) || input.startsWith(c));
+    if (match) {
+      console.error(`Unknown command: "${cmd}". Did you mean "conduit-bridge ${match}"?\n`);
+    } else {
+      console.error(`Unknown command: "${cmd}".\n`);
+    }
+    console.log(renderCliHelp(CLI_VERSION, cfg));
+    process.exit(1);
+    break;
+  }
 }

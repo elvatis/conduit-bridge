@@ -1,3 +1,4 @@
+import { requireFastModeSupport } from '../fast-mode.js';
 import Anthropic from '@anthropic-ai/sdk';
 import type { ProviderName, ChatRequest, ModelDefinition } from '../types.js';
 import { ApiBaseProvider } from './api-base.js';
@@ -108,14 +109,18 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
+    requireFastModeSupport(this.name,req.model,req.fastMode);
     const effort = toClaudeEffort(req.effort);
-    const response = await client.messages.create({
+    const params = {
       model: apiModel,
       max_tokens: req.max_tokens ?? DEFAULT_MAX_TOKENS[req.model] ?? 64_000,
       ...(systemMsg ? { system: systemMsg.content } : {}),
       ...(effort ? { output_config: { effort } } : {}),
       messages: conversationMsgs,
-    }, { signal: req.signal });
+    };
+    const response = req.fastMode
+      ? await client.beta.messages.create({...params,speed:'fast',betas:['fast-mode-2026-02-01']},{signal:req.signal})
+      : await client.messages.create(params,{signal:req.signal});
 
     return response.content
       .filter(block => block.type === 'text')
@@ -134,14 +139,18 @@ export class ClaudeApiProvider extends ApiBaseProvider {
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
+    requireFastModeSupport(this.name,req.model,req.fastMode);
     const effort = toClaudeEffort(req.effort);
-    const stream = client.messages.stream({
+    const params = {
       model: apiModel,
       max_tokens: req.max_tokens ?? DEFAULT_MAX_TOKENS[req.model] ?? 64_000,
       ...(systemMsg ? { system: systemMsg.content } : {}),
       ...(effort ? { output_config: { effort } } : {}),
       messages: conversationMsgs,
-    }, { signal: req.signal });
+    };
+    const stream = req.fastMode
+      ? client.beta.messages.stream({...params,speed:'fast',betas:['fast-mode-2026-02-01']},{signal:req.signal})
+      : client.messages.stream(params,{signal:req.signal});
 
     for await (const event of stream) {
       if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {

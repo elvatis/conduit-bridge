@@ -1,3 +1,7 @@
+import './warning-filter.js';
+import { RepositoryApi } from './repository-api.js';
+import { FastModeError, parseFastMode } from './fast-mode.js';
+import { isEffortLevel } from './effort.js';
 import { LocalServerManager } from './providers/llama-server.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -5,11 +9,11 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest } from './types.js';
+import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest, ProviderAdapter, ExecutionEvent } from './types.js';
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
-import { parseCliRunMode, agentModeCwdError, KNOWN_TOOLS, discoverSystemTools, normalizeDisallowedTools } from './cli-mode.js';
+import { parseCliRunMode, agentModeCwdError, agentConfinement, agentConfinementError, KNOWN_TOOLS, discoverSystemTools, normalizeDisallowedTools } from './cli-mode.js';
 import { DASHBOARD_HTML, HELP_HTML } from './dashboard.js';
 import { BRAND_ICON } from './ui/brand.js';
 import { MetricsStore } from './metrics.js';
@@ -23,6 +27,7 @@ import { BudgetExceededError, BudgetManager } from './budget.js';
 import { WorkspaceManager, canonicalDirectory, isPathWithin } from './workspaces.js';
 import { GovernanceManager } from './governance.js';
 import { executeWithAccounting, openExecution, abortable } from './usage.js';
+import { capabilitiesFor } from './model-capability.js';
 import { PlatformApi, type PlatformExecutionContext } from './platform-api.js';
 import type { TransactionalStateStore } from './storage.js';
 import { PlatformContentError } from './platform-content.js';
@@ -34,6 +39,7 @@ import type { GitHubProjectsProvider } from './providers/github-projects.js';
 import type { PlatformOperatorContext } from './platform-auth.js';
 import { authenticatePlatformOperator, requirePlatformCapability } from './platform-auth.js';
 import { VscodeBridgeConnection, type VscodeDispatchRequest, type VscodeDispatchResult } from './vscode-bridge.js';
+import { GitWorkspaceService } from './git-workspace.js';
 
 const CLI_PROVIDERS = new Set<ProviderName>(['cli-claude', 'cli-codex', 'cli-gemini', 'cli-grok']);
 const MAX_REQUEST_BODY_BYTES = 1_048_576;
@@ -69,6 +75,7 @@ export class BridgeServer {
   private _unsubscribeActivity: (() => void) | null = null;
   private _platform: PlatformApi;
   private _integrations: IntegrationApi;
+  private _repositoryApi: RepositoryApi;
 
   constructor(cfg: BridgeConfig, options?: {
     pipelineStore?: PipelineStore;
@@ -104,6 +111,13 @@ export class BridgeServer {
       saveConfig: cfg => saveConfig(cfg),
       installPipeline: definition => this._pipelineStore.savePipeline(definition as PipelineDefinition),
     }, options?.platformStore);
+    this._repositoryApi = new RepositoryApi({
+      cfg: () => this._cfg,
+      workspaces: () => this._workspaceManager.listWorkspaces(),
+      repositories: () => this._governanceManager.listRepositories(),
+      repositoryWorkspace: repository => this._platformWorkspace(undefined, repository.path, repository.id).workspaceId!,
+      authorize: (actor, workspaceId, write) => this._skillContext(actor, workspaceId, new AbortController().signal, write, () => actor).authorize(write ? 'execute' : 'read', { skill: write ? 'git-workspace' : 'filesystem' }),
+    });
     this._integrations = new IntegrationApi({
       servers: this._localServers,
       cfg: () => this._cfg, workspaces: this._workspaceManager,
@@ -147,8 +161,8 @@ export class BridgeServer {
         logger.error(`Unhandled request error: ${err.message}`);
         if (!res.headersSent) {
           const tooLarge = err instanceof RequestBodyTooLargeError;
-          res.writeHead(tooLarge ? 413 : 500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: { message: tooLarge ? 'Request body is too large' : err.message, type: tooLarge ? 'request_too_large' : 'internal_error' } }));
+          res.writeHead(tooLarge ? 413 : err instanceof FastModeError ? 400 : 500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: tooLarge ? 'Request body is too large' : err.message, type: tooLarge ? 'request_too_large' : err instanceof FastModeError ? 'invalid_request' : 'internal_error' } }));
         }
       });
     });
@@ -438,6 +452,13 @@ export class BridgeServer {
         if (mode === 'agent' && (providerPolicy?.agentEnabled === false || options.overrides?.agentEnabled === false)) {
           return { allowed: false, reason: `Agent mode is disabled for provider '${providerName}' by policy` };
         }
+        const allowUnconfined = options.overrides?.allowUnconfined === true
+          || providerPolicy?.allowUnconfined === true
+          || this._cfg.allowUnconfined === true;
+        const confinementError = agentConfinementError(providerName, mode, { allowUnconfined });
+        if (confinementError) {
+          return { allowed: false, reason: confinementError };
+        }
         try {
           const disallowedTools = normalizeDisallowedTools(options.overrides?.disallowedTools ?? providerPolicy?.disallowedTools);
           return { allowed: true, ...(disallowedTools ? { disallowedTools } : {}) };
@@ -528,7 +549,7 @@ export class BridgeServer {
         if (repository && (repository.overrides?.agentEnabled === false || live?.requiresApproval)) throw new SkillError('Repository policy requires its governed pipeline for this mutation', 403);
       }
       const restrictions = new Set(normalizeDisallowedTools(repository?.overrides?.disallowedTools)?.split(',').map(value => value.trim()) ?? []);
-      const required = skill === 'filesystem' ? effect === 'write' ? ['Write', 'Edit'] : ['Read', 'Glob'] : skill === 'code-search' ? ['Read', 'Glob', 'Grep', 'FileSearch'] : skill === 'browser' ? ['WebFetch'] : skill === 'web-search' ? ['WebSearch'] : effect === 'execute' ? ['Bash', 'Shell'] : [];
+      const required = skill === 'filesystem' ? effect === 'write' ? ['Write', 'Edit'] : ['Read', 'Glob'] : skill === 'code-search' ? ['Read', 'Glob', 'Grep', 'FileSearch'] : skill === 'browser' ? ['WebFetch'] : skill === 'web-search' ? ['WebSearch'] : skill === 'git-workspace' ? [] : effect === 'execute' ? ['Bash', 'Shell'] : [];
       if (required.some(tool => restrictions.has(tool))) throw new SkillError('Repository tool policy forbids this operation', 403);
     };
     return {
@@ -579,38 +600,80 @@ export class BridgeServer {
     const mode = original.mode || 'chat';
     if (mode === 'agent' && (policy?.agentEnabled === false || repository?.overrides?.agentEnabled === false)) throw new PlatformContentError('Agent mode is disabled by provider or repository policy', 403);
     if (mode === 'agent' && workspace.requiresApproval) throw new PlatformContentError('This repository requires governed pipeline execution. Use its assigned pipeline and required gates.', 403);
-    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }) };
+    const allowUnconfined = original.allowUnconfined === true
+      || repository?.overrides?.allowUnconfined === true
+      || policy?.allowUnconfined === true
+      || this._cfg.allowUnconfined === true;
+    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile?.id ?? null]) : undefined, mode, allowUnconfined, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }), fastMode: parseFastMode(original.fastMode) ?? context.profile?.defaultFastMode };
     const cwdError = agentModeCwdError(mode, request.cwd); if (cwdError) throw new PlatformContentError(cwdError, 400);
-    if (!await provider.checkSession()) throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
+    const confinementError = agentConfinementError(provider.name, mode, { allowUnconfined });
+    if (confinementError) throw new PlatformContentError(confinementError, 403);
     const runId = context.runId || `chat-${randomUUID()}`;
-    let execution: ReturnType<typeof openExecution> | undefined;
-    let output = '';
-    const started = Date.now();
+    const executeAttempt = async (targetModel: string, targetProvider: ProviderAdapter): Promise<string> => {
+      let execution: ReturnType<typeof openExecution> | undefined;
+      let out = '';
+      const started = Date.now();
+      const targetReq = { ...request, model: targetModel, onExecutionEvent: context.onExecutionEvent ?? request.onExecutionEvent };
+      try {
+        execution = openExecution(targetProvider, targetReq, { budgetManager: this._budgetManager, metrics: this._metrics, runId });
+        if (context.onDelta) {
+          const iterator = targetProvider.chatStream(execution.request);
+          try {
+            for (;;) {
+              const chunk = await abortable(iterator.next(), execution.request.signal) as IteratorResult<string>;
+              if (chunk.done) break;
+              if (out.length + chunk.value.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+              out += chunk.value; context.onDelta(chunk.value);
+            }
+          } finally { if (execution.request.signal?.aborted) void iterator.return(undefined).catch(() => {}); }
+        } else {
+          out = await abortable(targetProvider.chat(execution.request), execution.request.signal);
+          if (out.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+        }
+        execution.finish(out);
+        this._activity.add('success', 'platform', 'Model request completed', { runId, provider: targetProvider.name, model: targetModel, durationMs: Date.now() - started, status: 'completed' });
+        return out;
+      } catch (error) {
+        execution?.finish(out, error);
+        this._activity.add('error', 'platform', 'Model request failed', { runId, provider: targetProvider.name, model: targetModel, durationMs: Date.now() - started, status: 'failed' });
+        throw error;
+      } finally {
+        execution?.dispose();
+      }
+    };
+
     try {
       this._budgetManager.beginRun(runId, { maxCostUsd: repository?.overrides?.maxCostPerRunUsd });
-      execution = openExecution(provider, request, { budgetManager: this._budgetManager, metrics: this._metrics, runId });
-      if (context.onDelta) {
-        const iterator = provider.chatStream(execution.request);
+      let primaryConnected = false;
+      try { primaryConnected = await provider.checkSession(); } catch { primaryConnected = false; }
+      if (primaryConnected) {
         try {
-          for (;;) {
-            const chunk = await abortable(iterator.next(), execution.request.signal);
-            if (chunk.done) break;
-            if (output.length + chunk.value.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
-            output += chunk.value; context.onDelta(chunk.value);
-          }
-        } finally { if (execution.request.signal?.aborted) void iterator.return(undefined).catch(() => {}); }
-      } else {
-        output = await abortable(provider.chat(execution.request), execution.request.signal);
-        if (output.length > execution.maxOutputChars) throw new PlatformContentError('Provider output exceeds the configured output limit', 400);
+          return await executeAttempt(original.model, provider);
+        } catch (error) {
+          if (mode === 'agent' || !context.fallbackModels?.length) throw error;
+        }
+      } else if (mode === 'agent' || !context.fallbackModels?.length) {
+        throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
       }
-      execution.finish(output);
-      this._activity.add('success', 'platform', 'Model request completed', { runId, provider: provider.name, model: original.model, durationMs: Date.now() - started, status: 'completed' });
-      return output;
-    } catch (error) {
-      execution?.finish(output, error);
-      this._activity.add('error', 'platform', 'Model request failed', { runId, provider: provider.name, model: original.model, durationMs: Date.now() - started, status: 'failed' });
-      throw error;
-    } finally { execution?.dispose(); if (!context.runId) this._budgetManager.finishRun(runId); }
+
+      if (mode === 'chat' && context.fallbackModels?.length) {
+        for (const candidate of context.fallbackModels) {
+          if (candidate === original.model) continue;
+          const candidateProvider = registry.providerForModel(candidate);
+          if (!candidateProvider) continue;
+          let candidateConnected = false;
+          try { candidateConnected = await candidateProvider.checkSession(); } catch { candidateConnected = false; }
+          if (!candidateConnected) continue;
+          context.onFallbackModelUsed?.(candidate);
+          this._activity.add('info', 'platform', `Chat request fell back from ${original.model} to ${candidate}`, { runId, model: candidate, provider: candidateProvider.name });
+          return await executeAttempt(candidate, candidateProvider);
+        }
+      }
+
+      throw new PlatformContentError(`${provider.name} is not connected; authenticate the selected CLI or configure its API credential`, 503);
+    } finally {
+      if (!context.runId) this._budgetManager.finishRun(runId);
+    }
   }
 
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -678,6 +741,7 @@ export class BridgeServer {
       return;
     }
 
+    if (await this._repositoryApi.handle(req, res, () => readBody(req))) return;
     if (await this._integrations.handle(req, res, () => readBody(req))) return;
 
     // Scoped platform tokens authorize only the platform routes, not legacy admin APIs.
@@ -710,6 +774,7 @@ export class BridgeServer {
         // — one that goes stale the moment a catalog is discovered, not pinned.
         ...(m.contextWindow ? { context_window: m.contextWindow } : {}),
         ...(m.maxOutputTokens ? { max_output_tokens: m.maxOutputTokens } : {}),
+        capabilities: m.capabilities ?? capabilitiesFor(m.provider, m.id),
         conduit: { availability: m.availability ?? 'dynamic', source: m.source ?? 'provider' },
       }));
       json(res, 200, { object: 'list', data: models });
@@ -768,7 +833,7 @@ export class BridgeServer {
         if (!provider || !(await provider.ensureConnected())) return { model, ok: false, latencyMs: Date.now() - started, error: 'provider unavailable' };
         try {
           const content = await executeWithAccounting(provider, {
-            model, messages: [{ role: 'user', content: data.prompt }], effort: data.effort,
+            model, messages: [{ role: 'user', content: data.prompt }], effort: data.effort, fastMode: parseFastMode(data.fastMode),
             max_tokens: typeof data.max_tokens === 'number' ? Math.min(Math.max(1, data.max_tokens), 4096) : 256,
             signal: controller.signal,
           }, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
@@ -788,8 +853,8 @@ export class BridgeServer {
       let data: any;
       try { data = JSON.parse(body); } catch { json(res, 400, { error: { message: 'Invalid JSON', type: 'invalid_request' } }); return; }
       const strategies = new Set<OrchestrationStrategy>(['sequential', 'parallel', 'debate']);
-      const roles = Array.isArray(data?.roles) ? data.roles.filter((r: any) => typeof r?.name === 'string' && typeof r?.model === 'string').slice(0, 8).map((r: any) => ({ name: r.name.trim().slice(0, 60), model: r.model.trim().slice(0, 180) })) : this._orchestrator.roles;
-      this._orchestrator = { enabled: Boolean(data?.enabled), strategy: strategies.has(data?.strategy) ? data.strategy : 'sequential', roles, fallbackModels: Array.isArray(data?.fallbackModels) ? data.fallbackModels.filter((m: any) => typeof m === 'string').slice(0, 8) : [] };
+      const roles = Array.isArray(data?.roles) ? data.roles.filter((r: any) => typeof r?.name === 'string' && typeof r?.model === 'string').slice(0, 8).map((r: any) => ({ name: r.name.trim().slice(0, 60), model: r.model.trim().slice(0, 180), effort: isEffortLevel(r.effort) ? r.effort : undefined, fastMode: parseFastMode(r.fastMode) })) : this._orchestrator.roles;
+      this._orchestrator = { enabled: Boolean(data?.enabled), strategy: strategies.has(data?.strategy) ? data.strategy : 'sequential', roles, fallbackFastMode: parseFastMode(data?.fallbackFastMode), fallbackEffort: isEffortLevel(data?.fallbackEffort) ? data.fallbackEffort : undefined, fallbackModels: Array.isArray(data?.fallbackModels) ? data.fallbackModels.filter((m: any) => typeof m === 'string').slice(0, 8) : [] };
       saveConfig({ orchestrator: this._orchestrator });
       this._activity.add('success', 'orchestrator', 'Orchestrator configuration updated');
       json(res, 200, this._orchestrator);
@@ -807,7 +872,7 @@ export class BridgeServer {
       if (!this._limit(req, res)) return;
       const accountingRunId = `orchestrator-${randomUUID()}`;
       this._activity.add('info', 'orchestrator', 'Run started with ' + this._orchestrator.strategy + ' strategy');
-      const runRole = async (role: { name: string; model: string }, prompt: string) => {
+      const runRole = async (role: { name: string; model: string; effort?: string; fastMode?: boolean }, prompt: string) => {
         const candidates = [role.model, ...this._orchestrator.fallbackModels].filter((model, i, all) => model && all.indexOf(model) === i);
         let lastError: unknown = new Error(role.name + ': no usable model');
         for (const model of candidates) {
@@ -816,7 +881,7 @@ export class BridgeServer {
             if (!provider || !(await provider.ensureConnected())) throw new Error('model is unavailable');
             this._activity.add('info', 'orchestrator', role.name + ' started on ' + model);
             const content = await executeWithAccounting(provider, {
-              model, messages: [{ role: 'user', content: prompt }], effort: data.effort,
+              model, messages: [{ role: 'user', content: prompt }], effort: data.effort || (model === role.model ? role.effort : this._orchestrator.fallbackEffort), fastMode: parseFastMode(data.fastMode) ?? (model === role.model ? role.fastMode : this._orchestrator.fallbackFastMode),
             }, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
             this._activity.add('success', 'orchestrator', role.name + ' completed on ' + model);
             return { role: role.name, model, content };
@@ -916,7 +981,7 @@ export class BridgeServer {
       if (!provider || !(await provider.ensureConnected())) { json(res, 503, { error: { message: 'Response provider is unavailable', type: 'provider_unavailable' } }); return; }
       try {
         const content = await executeWithAccounting(provider, {
-          model: data.model, messages, effort: data.reasoning?.effort || data.reasoning_effort,
+          model: data.model, messages, effort: data.reasoning?.effort || data.reasoning_effort, fastMode: parseFastMode(data.fastMode),
           max_tokens: data.max_output_tokens, signal: controller.signal,
         }, { budgetManager: this._budgetManager, metrics: this._metrics });
         json(res, 200, { id: 'resp-' + Date.now(), object: 'response', model: data.model, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: content }] }], status: 'completed' });
@@ -992,8 +1057,10 @@ export class BridgeServer {
           provider: name,
           loginType: isCli ? 'cli' : (name === 'lmstudio' || name === 'bitnet' ? 'local' : 'api-key'),
           hasAgentCapability: isCli,
+          confinement: isCli ? agentConfinement(name as any) : undefined,
           supportedModes: isCli ? ['chat', 'plan', 'agent'] : ['chat'],
           agentEnabled: stored ? Boolean(stored.agentEnabled) : isCli,
+          allowUnconfined: stored?.allowUnconfined ?? false,
           defaultMode: stored?.defaultMode || 'chat',
           disallowedTools: stored?.disallowedTools || (isCli ? 'Write,Edit,NotebookEdit,Bash' : ''),
         }];
@@ -1022,6 +1089,7 @@ export class BridgeServer {
         json(res, 400, { error: { message: `Provider '${provider}' does not support agent execution`, type: 'invalid_request' } });
         return;
       }
+      const allowUnconfined = typeof data.allowUnconfined === 'boolean' ? data.allowUnconfined : false;
       const validModes = isCli ? ['chat', 'plan', 'agent'] : ['chat'];
       const defaultMode = validModes.includes(data.defaultMode) ? data.defaultMode : 'chat';
       let disallowedTools: string | undefined;
@@ -1035,6 +1103,7 @@ export class BridgeServer {
       this._cfg.agentPolicies = this._cfg.agentPolicies || {};
       this._cfg.agentPolicies[provider] = {
         agentEnabled,
+        ...(allowUnconfined ? { allowUnconfined: true } : {}),
         defaultMode,
         ...(disallowedTools ? { disallowedTools } : {}),
       };
@@ -1408,7 +1477,7 @@ export class BridgeServer {
           dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn.map(String) : undefined,
           parallelGroup: typeof s.parallelGroup === 'string' ? s.parallelGroup : undefined,
           max_tokens: s.max_tokens,
-          effort: s.effort,
+          effort: s.effort, fastMode: s.fastMode,
         })),
         isBuiltIn: false,
         category: typeof data.category === 'string' ? data.category : 'custom',
@@ -1699,6 +1768,161 @@ export class BridgeServer {
       return;
     }
 
+    // ── /v1/chat/sessions ───────────────────────────────────────────────────
+    if (path === '/v1/chat/sessions' && method === 'POST') {
+      const body = await readBody(req);
+      let parsed: any = {};
+      try { if (body.trim()) parsed = JSON.parse(body); } catch {}
+      await this._platform.start();
+      const session = await this._platform.content.createSession({
+        title: parsed.title || 'Interactive Chat',
+        model: parsed.model,
+        workspaceId: parsed.workspaceId || 'default',
+        retention: 'retained',
+      });
+      json(res, 201, {
+        id: session.id,
+        model: session.model || parsed.model || 'gpt-4o',
+        title: session.title,
+        createdAt: session.createdAt,
+        messages: session.messages || [],
+      });
+      return;
+    }
+
+    if (path === '/v1/chat/sessions' && method === 'GET') {
+      await this._platform.start();
+      const sessions = this._platform.content.listSessions().map(s => ({
+        id: s.id,
+        title: s.title,
+        model: s.model,
+        updatedAt: s.updatedAt,
+        messages: s.messages || [],
+      }));
+      json(res, 200, { data: sessions });
+      return;
+    }
+
+    if (path.startsWith('/v1/chat/sessions/') && !path.endsWith('/cancel') && method === 'GET') {
+      const sessionId = decodeURIComponent(path.slice('/v1/chat/sessions/'.length));
+      await this._platform.start();
+      const session = this._platform.content.getSession(sessionId);
+      if (!session) {
+        json(res, 404, { error: { message: `Session ${sessionId} not found`, type: 'not_found' } });
+        return;
+      }
+      json(res, 200, {
+        id: session.id,
+        title: session.title,
+        model: session.model,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        messages: session.messages || [],
+        data: session,
+      });
+      return;
+    }
+
+    if (path.startsWith('/v1/chat/sessions/') && path.endsWith('/cancel') && method === 'POST') {
+      const sessionId = decodeURIComponent(path.slice('/v1/chat/sessions/'.length, -'/cancel'.length));
+      await this._platform.start();
+      this._platform.content.cancelTurn(sessionId);
+      json(res, 200, { cancelled: true });
+      return;
+    }
+
+    // ── /v1/runs ────────────────────────────────────────────────────────────
+    if (path === '/v1/runs' && method === 'GET') {
+      await this._platform.start();
+      const runs = this._platform.runs.list();
+      json(res, 200, { runs, data: runs });
+      return;
+    }
+
+    if (path === '/v1/runs' && method === 'POST') {
+      const body = await readBody(req);
+      let parsed: any = {};
+      try { if (body.trim()) parsed = JSON.parse(body); } catch {}
+      await this._platform.start();
+      const run = await this._platform.runs.create(parsed);
+      json(res, 201, run);
+      return;
+    }
+
+    if (path.startsWith('/v1/runs/') && !path.slice('/v1/runs/'.length).includes('/') && method === 'GET') {
+      const runId = decodeURIComponent(path.slice('/v1/runs/'.length));
+      await this._platform.start();
+      const run = this._platform.runs.get(runId);
+      if (!run) {
+        json(res, 404, { error: { message: `Run ${runId} not found`, type: 'not_found' } });
+        return;
+      }
+      json(res, 200, { run, data: run });
+      return;
+    }
+
+    if (path.startsWith('/v1/runs/') && method === 'POST') {
+      const segments = path.slice('/v1/runs/'.length).split('/');
+      if (segments.length === 2) {
+        const runId = decodeURIComponent(segments[0]);
+        const action = segments[1];
+        if (['approve', 'cancel', 'retry', 'continue'].includes(action)) {
+          const body = await readBody(req);
+          let parsed: any = {};
+          try { if (body.trim()) parsed = JSON.parse(body); } catch {}
+          await this._platform.start();
+          await this._platform.runs.action(runId, action as any, 'cli-operator', parsed.feedback);
+          json(res, 200, { success: true, action, id: runId });
+          return;
+        }
+      }
+    }
+
+    // ── /v1/insights ────────────────────────────────────────────────────────
+    if (path === '/v1/insights' && method === 'GET') {
+      await this._platform.start();
+      const view = this._platform.insights.view('local-admin', 'cli-version');
+      const summaries = (view as any)?.summaries || [];
+      json(res, 200, { insights: summaries, data: summaries });
+      return;
+    }
+
+    // ── /v1/git & /v1/workspaces/:id/git ────────────────────────────────────
+    if ((path === '/v1/git' || (path.startsWith('/v1/workspaces/') && path.endsWith('/git'))) && method === 'GET') {
+      let wsId: string | undefined;
+      if (path.startsWith('/v1/workspaces/')) {
+        wsId = decodeURIComponent(path.slice('/v1/workspaces/'.length, -'/git'.length));
+      }
+      const workspaceList = this._workspaceManager.listWorkspaces();
+      const workspace = wsId ? workspaceList.find(w => w.id === wsId) : (workspaceList[0] || { id: 'default', path: process.cwd() });
+      const targetDir = workspace?.path || process.cwd();
+      try {
+        const gitService = new GitWorkspaceService(targetDir);
+        const snapshot = await gitService.snapshot();
+        json(res, 200, {
+          detected: Boolean(snapshot.detected),
+          branch: snapshot.branch || '',
+          files: snapshot.files?.length || 0,
+          name: snapshot.name || '',
+        });
+      } catch {
+        json(res, 200, { detected: false, branch: '', files: 0, name: '' });
+      }
+      return;
+    }
+
+    // ── /v1/system/status ───────────────────────────────────────────────────
+    if (path === '/v1/system/status' && method === 'GET') {
+      const providers = this._registry.allModels().reduce<Array<{ name: string; connected: boolean }>>((acc, m) => {
+        if (!acc.some(p => p.name === m.provider)) {
+          acc.push({ name: m.provider, connected: true });
+        }
+        return acc;
+      }, []);
+      json(res, 200, { version: PKG_VERSION, providers });
+      return;
+    }
+
     // ── POST /v1/chat/completions ────────────────────────────────────────────
     if (path === '/v1/chat/completions' && method === 'POST') {
       const traceId = randomUUID();
@@ -1755,6 +1979,18 @@ export class BridgeServer {
         }
         const candidateCwdError = agentModeCwdError(parsed.mode, cwd);
         if (candidateCwdError) return { ok: false as const, status: 400, message: candidateCwdError, type: 'invalid_request' };
+        const allowUnconfined = req_data.allowUnconfined === true
+          || policy?.allowUnconfined === true
+          || this._cfg.allowUnconfined === true;
+        const candidateConfinementError = agentConfinementError(candidateProvider.name, parsed.mode, { allowUnconfined });
+        if (candidateConfinementError) {
+          return {
+            ok: false as const,
+            status: 403,
+            message: candidateConfinementError,
+            type: 'permission_denied',
+          };
+        }
         return {
           ok: true as const,
           request: {
@@ -1762,9 +1998,10 @@ export class BridgeServer {
             messages,
             temperature,
             max_tokens,
-            effort,
+            effort, fastMode: parseFastMode(req_data.fastMode),
             cwd,
             mode: parsed.mode,
+            allowUnconfined,
             disallowedTools: policy?.disallowedTools,
             signal: requestAbort.signal,
           },
@@ -1828,6 +2065,25 @@ export class BridgeServer {
           json(res, budget ? 402 : 400, { error: { message: (error as Error).message, type: budget ? 'budget_exceeded' : 'invalid_request' } });
           return;
         }
+        const id = `chatcmpl-${Date.now()}`;
+        const earlyEvents: ExecutionEvent[] = [];
+        let streamHeaderSent = false;
+        const emitExecutionEvent = (event: ExecutionEvent, currentModel = selectedModel) => {
+          if (res.writableEnded || res.destroyed) return;
+          if (!streamHeaderSent) {
+            earlyEvents.push(event);
+            return;
+          }
+          const eventChunk = JSON.stringify({
+            id,
+            object: 'chat.completion.chunk',
+            model: currentModel,
+            choices: [],
+            executionEvent: event,
+          });
+          res.write(`data: ${eventChunk}\n\n`);
+        };
+        accounting.request.onExecutionEvent = ev => emitExecutionEvent(ev, selectedModel);
         let streamIterator: AsyncGenerator<string> = provider.chatStream(accounting.request);
         let firstChunk: IteratorResult<string> = { done: true, value: undefined };
         try {
@@ -1843,6 +2099,7 @@ export class BridgeServer {
             let fallbackAccounting;
             try {
               fallbackAccounting = openExecution(fallback, fallbackRequest.request, { budgetManager: this._budgetManager, metrics: this._metrics, runId: accountingRunId });
+              fallbackAccounting.request.onExecutionEvent = ev => emitExecutionEvent(ev, candidate);
               streamIterator = fallback.chatStream(fallbackAccounting.request);
               firstChunk = await streamIterator.next();
               accounting = fallbackAccounting;
@@ -1870,7 +2127,8 @@ export class BridgeServer {
           Connection: 'keep-alive',
         });
 
-        const id = `chatcmpl-${Date.now()}`;
+        streamHeaderSent = true;
+        for (const ev of earlyEvents) emitExecutionEvent(ev, selectedModel);
         let streamedText = firstChunk.done ? '' : (firstChunk.value ?? '');
         let streamFailed = false;
         try {
