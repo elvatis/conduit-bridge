@@ -613,7 +613,7 @@ export class BridgeServer {
       let execution: ReturnType<typeof openExecution> | undefined;
       let out = '';
       const started = Date.now();
-      const targetReq = { ...request, model: targetModel, onExecutionEvent: context.onExecutionEvent };
+      const targetReq = { ...request, model: targetModel, onExecutionEvent: context.onExecutionEvent ?? request.onExecutionEvent };
       try {
         execution = openExecution(targetProvider, targetReq, { budgetManager: this._budgetManager, metrics: this._metrics, runId });
         if (context.onDelta) {
