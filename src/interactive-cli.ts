@@ -942,8 +942,12 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
         push({ type: 'escape' });
         continue;
       }
-      const key = decodeKey(buffer[0]);
-      buffer = buffer.slice(1);
+      // Consume a whole code point, not a code unit. An emoji arrives as a
+      // surrogate pair, and taking one half of it would hand decodeKey a lone
+      // surrogate that no branch can accept, so both halves were dropped.
+      const point = String.fromCodePoint(buffer.codePointAt(0) as number);
+      const key = decodeKey(point);
+      buffer = buffer.slice(point.length);
       if (key) push(key);
     }
   };

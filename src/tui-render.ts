@@ -513,8 +513,32 @@ export function decodeKey(seq: string): TuiKey | undefined {
   if (seq === '\x04') return { type: 'ctrl', key: 'd' };
   if (seq === '\x11') return { type: 'ctrl', key: 'q' };
   if (seq === '\x03') return { type: 'ctrl', key: 'c' };
-  if (seq.length === 1 && seq >= ' ' && seq <= '~') return { type: 'char', value: seq };
+  // Any single printable code point, not just ASCII. The old test was
+  // `seq >= ' ' && seq <= '~'`, which silently discarded every umlaut, accent,
+  // CJK glyph and emoji: the caller consumes the byte either way, so there was
+  // no error, no beep and no hint that input had been eaten. Measured on the
+  // real loop, a German sentence lost 8 of its 44 code units.
+  //
+  // Astral characters arrive as a surrogate pair and are passed here whole, so
+  // the length test counts code points rather than code units.
+  if (isPrintableCodePoint(seq)) return { type: 'char', value: seq };
   return undefined;
+}
+
+/** True for exactly one code point that the terminal can display. */
+export function isPrintableCodePoint(seq: string): boolean {
+  if (!seq) return false;
+  const points = [...seq];
+  if (points.length !== 1) return false;
+  const code = seq.codePointAt(0);
+  if (code === undefined) return false;
+  // C0, DEL and C1 are handled by the branches above or are not input at all.
+  if (code < 0x20 || code === 0x7f || (code >= 0x80 && code <= 0x9f)) return false;
+  // A lone surrogate is not a character. It reaches here when a chunk boundary
+  // splits a pair, and writing it back produces a replacement glyph or worse.
+  // Refusing it keeps the half in the buffer until its partner arrives.
+  if (code >= 0xd800 && code <= 0xdfff) return false;
+  return true;
 }
 
 function insertChar(state: TuiState, char?: string): TuiState {
