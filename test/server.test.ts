@@ -315,12 +315,45 @@ describe('BridgeServer HTTP handler', () => {
       expect(h.state.lastReq?.mode).toBe('plan');
     });
 
-    it('accepts agentic: true as agent when cwd is valid', async () => {
+    it('refuses unconfined provider in agent mode without opt-in', async () => {
       const res = await fetch(`${base}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hi' }],
+          agentic: true,
+          cwd: process.cwd(),
+        }),
+      });
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error.message).toContain("Agent mode is blocked for unconfined provider 'cli-grok'");
+    });
+
+    it('accepts agentic: true as agent when cwd is valid and allowUnconfined is true', async () => {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-grok/grok-4.5',
+          messages: [{ role: 'user', content: 'hi' }],
+          agentic: true,
+          cwd: process.cwd(),
+          allowUnconfined: true,
+        }),
+      });
+      expect(res.status).toBe(200);
+      expect(h.state.lastReq?.mode).toBe('agent');
+      expect(h.state.lastReq?.cwd).toBe(process.cwd());
+    });
+
+    it('accepts confined provider (cli-codex) in agent mode without allowUnconfined', async () => {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'cli-codex/gpt-test',
           messages: [{ role: 'user', content: 'hi' }],
           agentic: true,
           cwd: process.cwd(),
@@ -598,13 +631,14 @@ describe('BridgeServer HTTP handler', () => {
       expect(defaultModeRes.status).toBe(200);
       expect(h.state.lastReq?.mode).toBe('plan');
 
-      // 6. Re-enable agent mode
+      // 6. Re-enable agent mode with allowUnconfined
       await fetch(`${base}/v1/settings/agent-policy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           provider: 'cli-grok',
           agentEnabled: true,
+          allowUnconfined: true,
           defaultMode: 'chat',
         }),
       });
@@ -639,6 +673,7 @@ describe('BridgeServer HTTP handler', () => {
             messages: [{ role: 'user', content: 'hello' }],
             mode: 'agent',
             cwd: process.cwd(),
+            allowUnconfined: true,
           }),
         });
         expect(res.status).toBe(503);

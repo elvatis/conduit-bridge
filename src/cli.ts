@@ -36,6 +36,7 @@ const cfg = loadConfig({
   ...(flags.host ? { host: flags.host } : {}),
   ...(flags['log-level'] ? { logLevel: flags['log-level'] as any } : {}),
   ...(flags['auth-token'] ? { authToken: flags['auth-token'] } : {}),
+  ...(flags['allow-unconfined'] === 'true' ? { allowUnconfined: true } : {}),
 });
 
 configureLogger(cfg);
@@ -97,7 +98,11 @@ switch (cmd) {
       process.exit(1);
     }
     const { runChatCommand } = await import('./interactive-cli.js');
-    await runChatCommand(cfg, { model: flags.model, cliPath: fileURLToPath(import.meta.url) });
+    await runChatCommand(cfg, {
+      model: flags.model,
+      cliPath: fileURLToPath(import.meta.url),
+      allowUnconfined: flags['allow-unconfined'] === 'true',
+    });
     break;
   }
 

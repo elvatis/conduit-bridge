@@ -69,6 +69,8 @@ export interface PlatformStorageConfig {
 export interface ProviderAgentPolicy {
   /** Whether agent mode (workspace mutation) is allowed for this provider. */
   agentEnabled: boolean;
+  /** Explicit operator opt-in allowing an unconfined provider to run in agent mode. */
+  allowUnconfined?: boolean;
   /** Default mode when incoming request omits mode: chat | plan | agent */
   defaultMode?: 'chat' | 'plan' | 'agent';
   /** Optional custom comma-separated disallowed tools for chat/read-only mode */
@@ -89,6 +91,8 @@ export interface BridgeConfig {
   platformStorage?: PlatformStorageConfig;
   orchestrator?: OrchestratorConfig; // optional persisted orchestration policy
   agentPolicies?: Partial<Record<ProviderName, ProviderAgentPolicy>>; // per-provider agent execution policies
+  /** Allow unconfined providers to run in agent mode across all providers. */
+  allowUnconfined?: boolean;
   repositories?: Record<string, RepositoryConfig> | RepositoryConfig[]; // repository-specific governance and pipeline assignments
   budget?: BudgetConfig;    // pipeline and model spending limit controls
   lmStudioUrl?: string;     // LM Studio server URL (default http://127.0.0.1:1234)
@@ -175,6 +179,8 @@ export interface ChatRequest {
    * → agent, `plan: true` → plan.
    */
   mode?: 'chat' | 'plan' | 'agent';
+  /** Explicit operator opt-in allowing an unconfined provider to run in agent mode. */
+  allowUnconfined?: boolean;
   /** Optional custom comma-separated disallowed tools for chat mode */
   disallowedTools?: string;
   /** Aborted when the downstream HTTP client disconnects. */
@@ -328,6 +334,7 @@ export interface RepositoryConfig {
   overrides?: {
     disallowedTools?: string;
     agentEnabled?: boolean;
+    allowUnconfined?: boolean;
     requireApproval?: boolean;
     maxCostPerRunUsd?: number;
     mandatoryGates?: string[];

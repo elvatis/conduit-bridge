@@ -397,14 +397,35 @@ export function parseCliRunMode(
 }
 
 /**
+ * Agent mode writes the workspace. Unconfined providers (those whose native CLI
+ * permission checks are bypassed or skipped) can write outside the working directory.
+ * Strict protection by default: block unconfined providers in agent mode unless
+ * explicitly allowed by flag, request, or policy.
+ */
+export function agentConfinementError(
+  provider: string,
+  mode: CliRunMode,
+  options?: { allowUnconfined?: boolean },
+): string | undefined {
+  if (mode !== 'agent') return undefined;
+  if (options?.allowUnconfined === true) return undefined;
+  const known: CliModeProvider[] = ['cli-claude', 'cli-gemini', 'cli-codex', 'cli-grok'];
+  if (!(known as readonly string[]).includes(provider)) return undefined;
+  if (agentConfinement(provider as CliModeProvider) === 'none') {
+    return `Agent mode is blocked for unconfined provider '${provider}'. This provider lacks workspace filesystem isolation and can write outside the working directory. Pass --allow-unconfined or configure allowUnconfined to permit.`;
+  }
+  return undefined;
+}
+
+/**
  * Check whether a provider is permitted to run in agent mode.
  */
 export function isAgentModeAllowed(
   provider: string,
-  policy?: { agentEnabled?: boolean },
+  policy?: { agentEnabled?: boolean; allowUnconfined?: boolean },
 ): boolean {
   if (policy && policy.agentEnabled === false) return false;
-  return true;
+  return agentConfinementError(provider, 'agent', policy) === undefined;
 }
 
 /**

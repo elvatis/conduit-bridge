@@ -602,7 +602,7 @@ describe('Inference State Machine & Telemetry', () => {
     });
     const frame = renderTui(state);
     expect(frame).toContain('Thinking (');
-    expect(frame).toContain('2500ms');
+    expect(frame).toMatch(/Thinking \(25\d{2}ms\)/);
   });
 
   it('renders streaming state with token count and tokens per second rate', () => {

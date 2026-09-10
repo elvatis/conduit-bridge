@@ -90,6 +90,7 @@ export function renderCliHelp(version: string, cfg: BridgeConfig): string {
       `${YELLOW}--model=<id>${RESET}         Model for chat or run`,
       `${YELLOW}--workspace=<id>${RESET}     Execution workspace`,
       `${YELLOW}--mode=<mode>${RESET}        agent | plan | chat`,
+      `${YELLOW}--allow-unconfined${RESET}   Permit unconfined agent CLI providers`,
       `${YELLOW}--approval=<mode>${RESET}    ask | always | never`,
       `${YELLOW}--json${RESET}               Machine-readable output`,
       `${YELLOW}--auth-token=<tok>${RESET}   Bearer token for non-loopback binds`,

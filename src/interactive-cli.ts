@@ -170,7 +170,11 @@ function describeError(err: unknown): string {
   return 'unknown error';
 }
 
-export function createHttpChatClient(baseUrl: string, authHeaders: Record<string, string> = {}): ChatTurnClient {
+export function createHttpChatClient(
+  baseUrl: string,
+  authHeaders: Record<string, string> = {},
+  options: { allowUnconfined?: boolean } = {},
+): ChatTurnClient {
   const url = new URL(baseUrl);
   const isHttps = url.protocol === 'https:';
   const transport = isHttps ? httpsRequest : httpRequest;
@@ -300,7 +304,8 @@ export function createHttpChatClient(baseUrl: string, authHeaders: Record<string
       // never started still produced an id, the UI showed it as started, and
       // every later poll for that id quietly found nothing. The failure
       // reported success, which is the direction nobody notices.
-      const body = { prompt, model, mode: mode || 'agent', workspaceId };
+      const body: Record<string, any> = { prompt, model, mode: mode || 'agent', workspaceId };
+      if (options.allowUnconfined) body.allowUnconfined = true;
       const idOf = (res: unknown): string | undefined => {
         const value = res as { id?: unknown; run?: { id?: unknown } } | null;
         const found = value?.run?.id ?? value?.id;
@@ -379,6 +384,7 @@ export function createHttpChatClient(baseUrl: string, authHeaders: Record<string
           model,
           stream: true,
           messages: [{ role: 'user', content }],
+          ...(options.allowUnconfined ? { allowUnconfined: true } : {}),
         });
         const req = transport(
           {
@@ -1059,7 +1065,7 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
   };
 }
 
-export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string; cliPath?: string } = {}): Promise<void> {
+export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string; cliPath?: string; allowUnconfined?: boolean } = {}): Promise<void> {
   assertSupportedPlatform();
   const logFile = join(process.env.CONDUIT_HOME || join(process.cwd(), '.conduit'), 'logs', 'bridge.log');
   logger.setFileDestination(logFile, true);
@@ -1080,7 +1086,7 @@ export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string;
 
   try {
     await runInteractiveChat({
-      client: createHttpChatClient(baseUrl, headers),
+      client: createHttpChatClient(baseUrl, headers, { allowUnconfined: flags.allowUnconfined ?? cfg.allowUnconfined }),
       model: flags.model,
       terminal,
     });

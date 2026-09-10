@@ -78,16 +78,18 @@ export async function handleRunCommand(
   out: CliOutput = defaultCliOutput
 ): Promise<number> {
   if (!prompt || !prompt.trim()) {
-    out.error('Usage: conduit-bridge run "<prompt>" [--mode=chat|plan|agent] [--model=<id>] [--workspace=<id>] [--json]');
+    out.error('Usage: conduit-bridge run "<prompt>" [--mode=chat|plan|agent] [--model=<id>] [--workspace=<id>] [--allow-unconfined] [--json]');
     return 1;
   }
   try {
     const mode = flags.mode || 'agent';
     const model = flags.model;
     const workspaceId = flags.workspace;
+    const allowUnconfined = flags['allow-unconfined'] === 'true' || flags.allowUnconfined === 'true' || cfg.allowUnconfined === true;
     const body: Record<string, any> = { prompt, mode };
     if (model) body.model = model;
     if (workspaceId) body.workspaceId = workspaceId;
+    if (allowUnconfined) body.allowUnconfined = true;
 
     const res = await requestBridgeJson<{ run: { id: string; status: string; prompt?: string; mode?: string } }>(
       cfg,

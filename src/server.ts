@@ -13,7 +13,7 @@ import type { BridgeConfig, ProviderName, RepositoryConfig, ChatRequest, Provide
 import { ProviderRegistry } from './registry.js';
 import { logger } from './logger.js';
 import { effortCapabilities, pickEffort } from './effort.js';
-import { parseCliRunMode, agentModeCwdError, KNOWN_TOOLS, discoverSystemTools, normalizeDisallowedTools } from './cli-mode.js';
+import { parseCliRunMode, agentModeCwdError, agentConfinement, agentConfinementError, KNOWN_TOOLS, discoverSystemTools, normalizeDisallowedTools } from './cli-mode.js';
 import { DASHBOARD_HTML, HELP_HTML } from './dashboard.js';
 import { BRAND_ICON } from './ui/brand.js';
 import { MetricsStore } from './metrics.js';
@@ -452,6 +452,13 @@ export class BridgeServer {
         if (mode === 'agent' && (providerPolicy?.agentEnabled === false || options.overrides?.agentEnabled === false)) {
           return { allowed: false, reason: `Agent mode is disabled for provider '${providerName}' by policy` };
         }
+        const allowUnconfined = options.overrides?.allowUnconfined === true
+          || providerPolicy?.allowUnconfined === true
+          || this._cfg.allowUnconfined === true;
+        const confinementError = agentConfinementError(providerName, mode, { allowUnconfined });
+        if (confinementError) {
+          return { allowed: false, reason: confinementError };
+        }
         try {
           const disallowedTools = normalizeDisallowedTools(options.overrides?.disallowedTools ?? providerPolicy?.disallowedTools);
           return { allowed: true, ...(disallowedTools ? { disallowedTools } : {}) };
@@ -593,8 +600,14 @@ export class BridgeServer {
     const mode = original.mode || 'chat';
     if (mode === 'agent' && (policy?.agentEnabled === false || repository?.overrides?.agentEnabled === false)) throw new PlatformContentError('Agent mode is disabled by provider or repository policy', 403);
     if (mode === 'agent' && workspace.requiresApproval) throw new PlatformContentError('This repository requires governed pipeline execution. Use its assigned pipeline and required gates.', 403);
-    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile?.id ?? null]) : undefined, mode, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }), fastMode: parseFastMode(original.fastMode) ?? context.profile?.defaultFastMode };
+    const allowUnconfined = original.allowUnconfined === true
+      || repository?.overrides?.allowUnconfined === true
+      || policy?.allowUnconfined === true
+      || this._cfg.allowUnconfined === true;
+    const request = { ...original, cliSessionKey: context.sessionId ? JSON.stringify([context.operator.operatorId, context.sessionId, context.profile?.id ?? null]) : undefined, mode, allowUnconfined, cwd: workspace.cwd, disallowedTools: normalizeDisallowedTools(repository?.overrides?.disallowedTools ?? policy?.disallowedTools), effort: pickEffort({ effort: original.effort ?? context.profile?.defaultEffort }), fastMode: parseFastMode(original.fastMode) ?? context.profile?.defaultFastMode };
     const cwdError = agentModeCwdError(mode, request.cwd); if (cwdError) throw new PlatformContentError(cwdError, 400);
+    const confinementError = agentConfinementError(provider.name, mode, { allowUnconfined });
+    if (confinementError) throw new PlatformContentError(confinementError, 403);
     const runId = context.runId || `chat-${randomUUID()}`;
     const executeAttempt = async (targetModel: string, targetProvider: ProviderAdapter): Promise<string> => {
       let execution: ReturnType<typeof openExecution> | undefined;
@@ -1044,8 +1057,10 @@ export class BridgeServer {
           provider: name,
           loginType: isCli ? 'cli' : (name === 'lmstudio' || name === 'bitnet' ? 'local' : 'api-key'),
           hasAgentCapability: isCli,
+          confinement: isCli ? agentConfinement(name as any) : undefined,
           supportedModes: isCli ? ['chat', 'plan', 'agent'] : ['chat'],
           agentEnabled: stored ? Boolean(stored.agentEnabled) : isCli,
+          allowUnconfined: stored?.allowUnconfined ?? false,
           defaultMode: stored?.defaultMode || 'chat',
           disallowedTools: stored?.disallowedTools || (isCli ? 'Write,Edit,NotebookEdit,Bash' : ''),
         }];
@@ -1074,6 +1089,7 @@ export class BridgeServer {
         json(res, 400, { error: { message: `Provider '${provider}' does not support agent execution`, type: 'invalid_request' } });
         return;
       }
+      const allowUnconfined = typeof data.allowUnconfined === 'boolean' ? data.allowUnconfined : false;
       const validModes = isCli ? ['chat', 'plan', 'agent'] : ['chat'];
       const defaultMode = validModes.includes(data.defaultMode) ? data.defaultMode : 'chat';
       let disallowedTools: string | undefined;
@@ -1087,6 +1103,7 @@ export class BridgeServer {
       this._cfg.agentPolicies = this._cfg.agentPolicies || {};
       this._cfg.agentPolicies[provider] = {
         agentEnabled,
+        ...(allowUnconfined ? { allowUnconfined: true } : {}),
         defaultMode,
         ...(disallowedTools ? { disallowedTools } : {}),
       };
@@ -1962,6 +1979,18 @@ export class BridgeServer {
         }
         const candidateCwdError = agentModeCwdError(parsed.mode, cwd);
         if (candidateCwdError) return { ok: false as const, status: 400, message: candidateCwdError, type: 'invalid_request' };
+        const allowUnconfined = req_data.allowUnconfined === true
+          || policy?.allowUnconfined === true
+          || this._cfg.allowUnconfined === true;
+        const candidateConfinementError = agentConfinementError(candidateProvider.name, parsed.mode, { allowUnconfined });
+        if (candidateConfinementError) {
+          return {
+            ok: false as const,
+            status: 403,
+            message: candidateConfinementError,
+            type: 'permission_denied',
+          };
+        }
         return {
           ok: true as const,
           request: {
@@ -1972,6 +2001,7 @@ export class BridgeServer {
             effort, fastMode: parseFastMode(req_data.fastMode),
             cwd,
             mode: parsed.mode,
+            allowUnconfined,
             disallowedTools: policy?.disallowedTools,
             signal: requestAbort.signal,
           },

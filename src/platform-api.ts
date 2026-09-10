@@ -14,7 +14,7 @@ import { PlatformCatalogService } from './platform-catalog.js';
 import { PlatformProfileService, type PlatformProviderProfile } from './platform-profiles.js';
 import { PlatformRunService, type PlatformRun, type PlatformRunInput } from './platform-runs.js';
 import { authenticatePlatformOperator, requirePlatformCapability, platformCapabilityAllowed, createPlatformOperatorCredential, type PlatformOperatorContext, type PlatformCapability } from './platform-auth.js';
-import { KNOWN_TOOLS, normalizeDisallowedTools } from './cli-mode.js';
+import { KNOWN_TOOLS, normalizeDisallowedTools, agentConfinementError } from './cli-mode.js';
 import { capabilitiesFor } from './model-capability.js';
 import { redactSecrets } from './redact.js';
 import { buildCodingPipelines } from './platform-presets.js';
@@ -536,6 +536,11 @@ export class PlatformApi {
     requirePlatformCapability(operator, 'operate', workspace.workspaceId);
     const instructions = this.instructions(body, provider, mode);
     if (mode === 'agent' && this.deps.cfg().agentPolicies?.[provider]?.agentEnabled === false) throw new PlatformContentError('Agent mode is disabled for this provider', 403);
+    const allowUnconfined = body.allowUnconfined === true
+      || this.deps.cfg().agentPolicies?.[provider]?.allowUnconfined === true
+      || this.deps.cfg().allowUnconfined === true;
+    const confinementErr = agentConfinementError(provider, mode, { allowUnconfined });
+    if (confinementErr) throw new PlatformContentError(confinementErr, 403);
     return {
       prompt: body.prompt, model, profileId: profile?.id, agentId: agent?.id, workspaceId: workspace.workspaceId,
       repository: workspace.repository, workingDirectory: workspace.cwd, mode, effort: body.effort || agent?.defaultEffort || profile?.defaultEffort, fastMode: parseFastMode(body.fastMode) ?? agent?.defaultFastMode ?? profile?.defaultFastMode, maxIterations: body.maxIterations,

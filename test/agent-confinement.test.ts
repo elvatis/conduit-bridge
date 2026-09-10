@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { agentConfinement, cliPermissionArgs, unconfinedAgentProviders } from '../src/cli-mode.js';
+import {
+  agentConfinement,
+  agentConfinementError,
+  cliPermissionArgs,
+  isAgentModeAllowed,
+  unconfinedAgentProviders,
+} from '../src/cli-mode.js';
 
 /**
  * Agent mode launches three of the four providers with their own permission
@@ -50,5 +56,51 @@ describe('unconfinedAgentProviders', () => {
 
   it('control: an all-confined list produces no warning', () => {
     expect(unconfinedAgentProviders(['cli-codex'])).toEqual([]);
+  });
+});
+
+describe('agentConfinementError and isAgentModeAllowed', () => {
+  it('allows confined provider (cli-codex) in agent mode without opt-in', () => {
+    expect(agentConfinementError('cli-codex', 'agent')).toBeUndefined();
+    expect(isAgentModeAllowed('cli-codex')).toBe(true);
+    expect(isAgentModeAllowed('cli-codex', { agentEnabled: true })).toBe(true);
+  });
+
+  it('blocks unconfined providers in agent mode by default', () => {
+    for (const provider of ['cli-claude', 'cli-gemini', 'cli-grok'] as const) {
+      const err = agentConfinementError(provider, 'agent');
+      expect(err).toBeDefined();
+      expect(err).toContain(`Agent mode is blocked for unconfined provider '${provider}'`);
+      expect(err).toContain('Pass --allow-unconfined or configure allowUnconfined to permit.');
+      expect(isAgentModeAllowed(provider)).toBe(false);
+      expect(isAgentModeAllowed(provider, { agentEnabled: true })).toBe(false);
+    }
+  });
+
+  it('permits unconfined providers in agent mode when allowUnconfined is true', () => {
+    for (const provider of ['cli-claude', 'cli-gemini', 'cli-grok'] as const) {
+      expect(agentConfinementError(provider, 'agent', { allowUnconfined: true })).toBeUndefined();
+      expect(isAgentModeAllowed(provider, { allowUnconfined: true })).toBe(true);
+      expect(isAgentModeAllowed(provider, { agentEnabled: true, allowUnconfined: true })).toBe(true);
+    }
+  });
+
+  it('refuses agent mode when agentEnabled is explicitly false even with allowUnconfined', () => {
+    expect(isAgentModeAllowed('cli-codex', { agentEnabled: false })).toBe(false);
+    expect(isAgentModeAllowed('cli-claude', { agentEnabled: false, allowUnconfined: true })).toBe(false);
+    expect(isAgentModeAllowed('cli-grok', { agentEnabled: false, allowUnconfined: true })).toBe(false);
+  });
+
+  it('never blocks chat or plan mode regardless of confinement', () => {
+    for (const provider of ['cli-claude', 'cli-gemini', 'cli-grok', 'cli-codex'] as const) {
+      expect(agentConfinementError(provider, 'chat')).toBeUndefined();
+      expect(agentConfinementError(provider, 'plan')).toBeUndefined();
+    }
+  });
+
+  it('ignores non-CLI providers', () => {
+    expect(agentConfinementError('api-openrouter', 'agent')).toBeUndefined();
+    expect(agentConfinementError('lmstudio', 'agent')).toBeUndefined();
+    expect(isAgentModeAllowed('api-openrouter')).toBe(true);
   });
 });
