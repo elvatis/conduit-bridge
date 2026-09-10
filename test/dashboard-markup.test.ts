@@ -1,46 +1,44 @@
 import { describe, expect, it } from 'vitest';
 import { DASHBOARD_HTML } from '../src/dashboard.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+function collectIds(html: string): Set<string> {
+  const ids = new Set<string>();
+  const idAttrRegex = /\bid=["']([a-zA-Z][a-zA-Z0-9_-]*)["']/g;
+  let match: RegExpExecArray | null;
+  while ((match = idAttrRegex.exec(html)) !== null) ids.add(match[1]);
+  return ids;
+}
+
+function collectRefs(source: string): Set<string> {
+  const refs = new Set<string>();
+  const dollarRefRegex = /\$\(\s*['"]([a-zA-Z][a-zA-Z0-9_-]*)['"]\s*\)/g;
+  const getElemRefRegex = /getElementById\(\s*['"]([a-zA-Z][a-zA-Z0-9_-]*)['"]\s*\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = dollarRefRegex.exec(source)) !== null) refs.add(match[1]);
+  while ((match = getElemRefRegex.exec(source)) !== null) refs.add(match[1]);
+  return refs;
+}
 
 describe('Dashboard markup and script ID reference consistency', () => {
   it('declares all element IDs referenced by literal $(\'...\') and getElementById(\'...\')', () => {
-    // 1. Extract all id="..." attributes declared in the static DASHBOARD_HTML
-    const idAttrRegex = /\bid=["']([a-zA-Z0-9_-]+)["']/g;
-    const declaredIds = new Set<string>();
-    let match: RegExpExecArray | null;
-
-    while ((match = idAttrRegex.exec(DASHBOARD_HTML)) !== null) {
-      declaredIds.add(match[1]);
-    }
-
-    // 2. Read the source of src/dashboard.ts to find script references
-    const dashboardSrc = readFileSync(join(__dirname, '../src/dashboard.ts'), 'utf8');
-
-    // Extract browser script portion
-    const scriptStart = dashboardSrc.indexOf('<script>');
-    const scriptEnd = dashboardSrc.lastIndexOf('</script>');
-    expect(scriptStart).toBeGreaterThan(0);
-    expect(scriptEnd).toBeGreaterThan(scriptStart);
-    const clientScript = dashboardSrc.slice(scriptStart, scriptEnd);
-
-    // 3. Find literal $('id') and getElementById('id') calls
-    const dollarRefRegex = /\$\(\s*['"]([a-zA-Z0-9_-]+)['"]\s*\)/g;
-    const getElemRefRegex = /getElementById\(\s*['"]([a-zA-Z0-9_-]+)['"]\s*\)/g;
-
+    const declaredIds = collectIds(DASHBOARD_HTML);
+    const dashboardSrc = readFileSync(join(root, 'src/dashboard.ts'), 'utf8');
+    const uiDir = join(root, 'src/ui');
+    const extraSources = [
+      dashboardSrc,
+      readFileSync(join(root, 'src/platform-ui.ts'), 'utf8'),
+      ...readdirSync(uiDir).filter(name => name.endsWith('.ts')).map(name => readFileSync(join(uiDir, name), 'utf8')),
+    ];
     const referencedIds = new Set<string>();
-    while ((match = dollarRefRegex.exec(clientScript)) !== null) {
-      referencedIds.add(match[1]);
-    }
-    while ((match = getElemRefRegex.exec(clientScript)) !== null) {
-      referencedIds.add(match[1]);
+    for (const source of extraSources) {
+      for (const id of collectRefs(source)) referencedIds.add(id);
     }
 
-    // Dynamic IDs created at runtime by client script templates
     const dynamicallyCreatedIds = new Set<string>([
       'platform-view',
       'pf-chat-model',
@@ -58,18 +56,16 @@ describe('Dashboard markup and script ID reference consistency', () => {
 
     const missingIds: string[] = [];
     for (const id of referencedIds) {
-      if (!declaredIds.has(id) && !dynamicallyCreatedIds.has(id)) {
-        missingIds.push(id);
-      }
+      if (!declaredIds.has(id) && !dynamicallyCreatedIds.has(id)) missingIds.push(id);
     }
 
-    // Assert that no referenced IDs are missing from markup
     expect(missingIds, `Referenced IDs missing from DASHBOARD_HTML: ${missingIds.join(', ')}`).toEqual([]);
   });
 
   it('fails if obsolete summary-requests or summary-active are referenced', () => {
-    const dashboardSrc = readFileSync(join(__dirname, '../src/dashboard.ts'), 'utf8');
+    const dashboardSrc = readFileSync(join(root, 'src/dashboard.ts'), 'utf8');
     expect(dashboardSrc).not.toContain("$('summary-requests')");
     expect(dashboardSrc).not.toContain("$('summary-active')");
+    expect(dashboardSrc).not.toMatch(/\$\(\s*['"]summary-active['"]\s*\)/);
   });
 });

@@ -2,19 +2,19 @@
   "aahp_version": "3.0",
   "project": "pb",
   "last_session": {
-    "agent": "codex",
-    "session_id": "cli-1789003421",
-    "timestamp": "2026-09-10T01:23:41Z",
-    "commit": "62947f0",
+    "agent": "grok",
+    "session_id": "pr120-tui-box-daemon",
+    "timestamp": "2026-09-10T08:12:00Z",
+    "commit": "pending",
     "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:162bfa68fb3148696b4141a6dce568389dc116cceb5643eb767f56b8faf1a37e",
-      "updated": "2026-09-10T01:23:35Z",
-      "lines": 476,
-      "summary": "PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and"
+      "checksum": "sha256:462b14e7cebf2fe0252f636f4ef5b6592fcac695f74d5f9bf61df13bf1a32712",
+      "updated": "2026-09-10T08:12:00Z",
+      "lines": 478,
+      "summary": "Boxed TUI, silent chat daemon and markup contract (2026-09-10, PR #120)."
     },
     "NEXT_ACTIONS.md": {
       "checksum": "sha256:b67b2b756ae5c5c8909ca7727c5bf075f8e68978758f73880ad2bd5202675b19",
@@ -71,7 +71,7 @@
       "summary": "{"
     }
   },
-  "quick_context": "PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and Second inspection is implemented: named native dialogs with focus/Escape, ",
+  "quick_context": "Boxed TUI, silent chat daemon and markup contract on PR #120. Vitest 769 and Playwright 57 green.",
   "token_budget": {
     "manifest_only": 85,
     "manifest_plus_core": 9017,

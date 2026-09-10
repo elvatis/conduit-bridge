@@ -3,11 +3,11 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { join } from 'node:path';
-import { BridgeServer } from './server.js';
 import { bearerAuthorization } from './config.js';
 import type { BridgeConfig } from './types.js';
 import { logger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
+import { cliEntryPath, ensureBridgeListener, spawnBridgeDaemon } from './bridge-listener.js';
 import {
   applyTuiKey,
   decodeKey,
@@ -909,23 +909,21 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
   };
 }
 
-export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string } = {}): Promise<void> {
+export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string; cliPath?: string } = {}): Promise<void> {
   assertSupportedPlatform();
-  const logDir = join(process.cwd(), '.conduit', 'logs');
-  logger.setFileDestination(join(logDir, 'bridge.log'), true);
+  const logFile = join(process.env.CONDUIT_HOME || join(process.cwd(), '.conduit'), 'logs', 'bridge.log');
+  logger.setFileDestination(logFile, true);
   logger.muteConsole(true);
 
   const baseUrl = `http://${cfg.host}:${cfg.port}`;
   const headers = bearerAuthorization(cfg.authToken);
-  let stop: (() => Promise<void>) | undefined;
-  if (!await probeHealth(baseUrl, headers)) {
-    logger.info(`No listener on ${cfg.host}:${cfg.port}; starting one for this workspace`);
-    const server = new BridgeServer(cfg);
-    await server.start();
-    stop = async () => { await server.stop(); };
-  } else {
-    logger.info(`Attached to existing listener on ${cfg.host}:${cfg.port}`);
-  }
+  await ensureBridgeListener({
+    ready: () => probeHealth(baseUrl, headers),
+    spawn: () => {
+      logger.info(`No listener on ${cfg.host}:${cfg.port}; starting a detached daemon`);
+      spawnBridgeDaemon(cfg, flags.cliPath || cliEntryPath(), logFile);
+    },
+  });
   const terminal = createStdinTerminal();
   try {
     await runInteractiveChat({
@@ -935,6 +933,5 @@ export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string 
     });
   } finally {
     terminal.close();
-    if (stop) await stop();
   }
 }

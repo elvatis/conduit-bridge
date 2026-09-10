@@ -26,6 +26,35 @@ import {
 import { renderCliHelp } from '../src/cli-help.js';
 import { loadConfig } from '../src/config.js';
 
+function replayFrames(writes: string[], width = 80, height = 24): string {
+  const rows = Array.from({ length: height }, () => ' '.repeat(width).split(''));
+  let row = 0;
+  let col = 0;
+  const text = writes.join('');
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '\x1b') {
+      const cup = text.slice(i).match(/^\x1b\[(\d+);(\d+)H/);
+      if (cup) {
+        row = Math.max(0, Number(cup[1]) - 1);
+        col = Math.max(0, Number(cup[2]) - 1);
+        i += cup[0].length;
+        continue;
+      }
+      const csi = text.slice(i).match(/^\x1b\[[0-9;?]*[A-Za-z]/);
+      if (csi) { i += csi[0].length; continue; }
+    }
+    const ch = text[i];
+    i += 1;
+    if (ch === '\n') { row += 1; col = 0; continue; }
+    if (row >= 0 && row < height && col >= 0 && col < width) {
+      rows[row][col] = ch;
+      col += 1;
+    }
+  }
+  return rows.map(line => line.join('')).join('\n');
+}
+
 function baseState(over: Partial<TuiState> = {}): TuiState {
   return {
     view: 'chat',
@@ -115,6 +144,9 @@ describe('terminal workspace render', () => {
     expect(frame).toContain('The assertion compares the wrong field.');
     expect(frame).toContain('Ctrl+K');
     expect(frame).toContain('main');
+    expect(frame).toContain('╭');
+    expect(frame).toContain('PROMPT');
+    expect(frame).toContain('CONDUIT BRIDGE');
   });
 
   it('renders model, session and run pickers', () => {
@@ -332,7 +364,7 @@ describe('runInteractiveChat', () => {
       },
     });
     expect(sends).toBe(0);
-    expect(frames.join('')).toMatch(/unknown model/i);
+    expect(replayFrames(frames)).toMatch(/unknown model/i);
   });
 
   it('handles /run, /approve, and /continue commands', async () => {
@@ -475,14 +507,14 @@ describe('runInteractiveChat', () => {
       },
     });
 
-    const output = frames.join('');
+    const output = replayFrames(frames, 85, 24);
     expect(output).toContain('Local Insights Dashboard');
     expect(output).toContain('Decoupled session state');
   });
 });
 
 describe('TuiDifferentialRenderer', () => {
-  it('clears screen on initial frame or dimension change', () => {
+  it('paints the first frame without a full-screen clear', () => {
     const renderer = new TuiDifferentialRenderer();
     const writes: string[] = [];
     const term = {
@@ -493,12 +525,12 @@ describe('TuiDifferentialRenderer', () => {
 
     renderer.render(term, ['line 1', 'line 2', 'line 3', 'line 4', 'line 5']);
     expect(writes.length).toBe(1);
-    expect(writes[0]).toContain('\x1b[2J'); // full clear on initial frame
+    expect(writes[0]).not.toContain('\x1b[2J');
     expect(writes[0]).toContain('line 1');
     expect(writes[0]).toContain('line 5');
   });
 
-  it('performs differential delta-line updates without clearing the screen when a line changes', () => {
+  it('writes only changed cells on the next frame', () => {
     const renderer = new TuiDifferentialRenderer();
     const writes: string[] = [];
     const term = {
@@ -507,19 +539,18 @@ describe('TuiDifferentialRenderer', () => {
       write: (f: string) => writes.push(f),
     };
 
-    // First frame
     renderer.render(term, ['header', 'body line 1', 'body line 2', 'footer']);
-    writes.length = 0; // reset capture
+    writes.length = 0;
 
-    // Second frame: only line 4 (footer) changed
     renderer.render(term, ['header', 'body line 1', 'body line 2', 'footer modified'], { row: 4, col: 10 });
     expect(writes.length).toBe(1);
-    expect(writes[0]).not.toContain('\x1b[2J'); // NO full screen clear!
-    expect(writes[0]).toContain('\x1b[4;1H\x1b[2Kfooter modified'); // targeted line update!
-    expect(writes[0]).toContain('\x1b[4;10H\x1b[?25h'); // cursor positioned at input!
+    expect(writes[0]).not.toContain('\x1b[2J');
+    expect(writes[0]).not.toContain('\x1b[2K');
+    expect(writes[0]).toContain('modified');
+    expect(writes[0]).toContain('\x1b[4;10H\x1b[?25h');
   });
 
-  it('resets buffer state cleanly on reset()', () => {
+  it('repaints fully after reset without using a screen clear', () => {
     const renderer = new TuiDifferentialRenderer();
     const writes: string[] = [];
     const term = { columns: 80, rows: 3, write: (f: string) => writes.push(f) };
@@ -529,7 +560,8 @@ describe('TuiDifferentialRenderer', () => {
     writes.length = 0;
 
     renderer.render(term, ['a', 'b', 'c']);
-    expect(writes[0]).toContain('\x1b[2J'); // full clear again after reset
+    expect(writes[0]).not.toContain('\x1b[2J');
+    expect(writes[0]).toContain('a');
   });
 });
 

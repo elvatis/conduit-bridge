@@ -280,50 +280,82 @@ export interface TuiTerminalWriter {
  * Completely eliminates cursor flicker and screen tearing by diffing
  * the virtual screen buffer and updating only modified lines in place.
  */
+type Cell = { ch: string; style: string };
+
+function tokenizeLine(line: string, width: number): Cell[] {
+  const cells: Cell[] = [];
+  let style = '';
+  let i = 0;
+  while (i < line.length && cells.length < width) {
+    if (line.charCodeAt(i) === 27) {
+      const match = line.slice(i).match(/^\x1b\[[0-9;]*m/);
+      if (match) {
+        style = match[0] === '\x1b[0m' ? '' : match[0];
+        i += match[0].length;
+        continue;
+      }
+    }
+    cells.push({ ch: line[i], style });
+    i += 1;
+  }
+  while (cells.length < width) cells.push({ ch: ' ', style: '' });
+  return cells;
+}
+
+function cellsToAnsi(cells: Cell[]): string {
+  let out = '';
+  let style = '';
+  for (const cell of cells) {
+    if (cell.style !== style) {
+      out += `\x1b[0m${cell.style}`;
+      style = cell.style;
+    }
+    out += cell.ch;
+  }
+  return style ? `${out}\x1b[0m` : out;
+}
+
 export class TuiDifferentialRenderer {
-  private prevLines: string[] = [];
+  private prev: Cell[][] = [];
   private prevWidth = 0;
   private prevHeight = 0;
 
   render(terminal: TuiTerminalWriter, lines: string[], cursor?: { row: number; col: number }): void {
     const width = terminal.columns;
     const height = terminal.rows;
-    let out = '';
-
-    if (this.prevWidth !== width || this.prevHeight !== height || this.prevLines.length !== height) {
-      out += '\x1b[?25l\x1b[H\x1b[2J';
-      for (let r = 0; r < height; r++) {
-        const line = lines[r] ?? '';
-        out += `\x1b[${r + 1};1H${line}`;
+    const next = Array.from({ length: height }, (_, row) => tokenizeLine(lines[row] ?? '', width));
+    let out = '\x1b[?25l';
+    const resized = this.prevWidth !== width || this.prevHeight !== height || this.prev.length !== height;
+    if (resized) {
+      for (let row = 0; row < height; row++) {
+        out += `\x1b[${row + 1};1H${cellsToAnsi(next[row])}`;
       }
     } else {
-      out += '\x1b[?25l';
-      for (let r = 0; r < height; r++) {
-        const newLine = lines[r] ?? '';
-        const oldLine = this.prevLines[r] ?? '';
-        if (newLine !== oldLine) {
-          out += `\x1b[${r + 1};1H\x1b[2K${newLine}`;
+      for (let row = 0; row < height; row++) {
+        const before = this.prev[row];
+        const after = next[row];
+        let col = 0;
+        while (col < width) {
+          if (before[col].ch === after[col].ch && before[col].style === after[col].style) {
+            col += 1;
+            continue;
+          }
+          let end = col + 1;
+          while (end < width && (before[end].ch !== after[end].ch || before[end].style !== after[end].style)) end += 1;
+          out += `\x1b[${row + 1};${col + 1}H${cellsToAnsi(after.slice(col, end))}`;
+          col = end;
         }
       }
     }
-
-    if (cursor) {
-      out += `\x1b[${cursor.row};${cursor.col}H\x1b[?25h`;
-    } else {
-      out += '\x1b[?25l';
-    }
-
-    this.prevLines = [...lines];
+    out += cursor ? `\x1b[${cursor.row};${cursor.col}H\x1b[?25h` : '\x1b[?25l';
+    this.prev = next;
     this.prevWidth = width;
     this.prevHeight = height;
-
-    if (out) {
-      terminal.write(out);
-    }
+    terminal.write(out);
   }
 
   reset(): void {
-    this.prevLines = [];
+    this.prev = [];
     this.prevWidth = 0;
     this.prevHeight = 0;
   }
@@ -833,6 +865,38 @@ function renderApprovalCard(pending: TuiPendingApproval, width: number): string[
   return lines;
 }
 
+const BOX = { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│', ml: '├', mr: '┤', tm: '┬', bm: '┴' };
+
+function boxTop(width: number, title: string, right = ''): string {
+  const inner = Math.max(8, width - 2);
+  const left = `${BOX.h} ${title} `;
+  const tail = right ? ` ${right} ${BOX.h}` : BOX.h;
+  const fill = Math.max(0, inner - visible(left) - visible(tail));
+  return `${NORD_BORDER}${BOX.tl}${left}${BOX.h.repeat(fill)}${tail}${BOX.tr}${RESET}`;
+}
+
+function boxBottom(width: number, footer = ''): string {
+  const inner = Math.max(8, width - 2);
+  const text = footer ? ` ${footer} ` : '';
+  const fill = Math.max(0, inner - visible(text));
+  return `${NORD_BORDER}${BOX.bl}${BOX.h.repeat(fill)}${text}${BOX.br}${RESET}`;
+}
+
+function boxRow(width: number, content: string): string {
+  const inner = Math.max(1, width - 2);
+  return `${NORD_BORDER}${BOX.v}${RESET}${clip(' ' + content, inner)}${NORD_BORDER}${BOX.v}${RESET}`;
+}
+
+function bubble(role: 'user' | 'assistant', body: string, width: number, meta = ''): string[] {
+  const color = role === 'user' ? CYAN : NORD_PURPLE;
+  const title = role === 'user' ? 'you' : 'conduit';
+  const inner = Math.max(10, width - 2);
+  const head = `${color}${BOX.tl}${BOX.h} ${BOLD}${title}${RESET}${color} ${meta}${BOX.h.repeat(Math.max(0, inner - visible(`${title} ${meta}`) - 3))}${BOX.tr}${RESET}`;
+  const rows = wrap(body, inner - 2).map(line => `${color}${BOX.v}${RESET} ${TEXT}${pad(line, inner - 2)}${RESET}${color}${BOX.v}${RESET}`);
+  const foot = `${color}${BOX.bl}${BOX.h.repeat(inner)}${BOX.br}${RESET}`;
+  return [head, ...rows, foot];
+}
+
 export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { row: number; col: number } } {
   const width = Math.max(40, state.width || 80);
   const height = Math.max(16, state.height || 24);
@@ -854,33 +918,9 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
   const contextPct = Math.min(100, Math.round((contextTokens / contextLimit) * 100));
   const contextBar = renderProgressBar(contextPct, 8);
 
-  // Zone 1: Header
-  const headerLeft = `${BOLD}${CYAN}CONDUIT${RESET} ${DIM}•${RESET} ${COPPER}${clip(wsLabel, 12)}${RESET} ${DIM}•${RESET} ${TEXT}${clip(state.model, 16)}${RESET}`;
-  const headerCtx = `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}`;
-  const headerRight = `${headerCtx} ${DIM}•${RESET} ${DIM}Git:${RESET}${GREEN}${clip(gitLabel, 10)}${RESET} ${DIM}•${RESET} ${GREEN}${latency}${RESET}`;
-  const header = pad(headerLeft, Math.max(0, width - visible(headerRight))) + headerRight;
-
-  // Breadcrumbs / Nav Row
-  const navLeft = [
-    navMark(state.view, 'chat', '1 Chat'),
-    navMark(state.view, 'runs', `2 Runs (${state.runs.length})`),
-    navMark(state.view, 'workspaces', '3 Workspaces'),
-    navMark(state.view, 'insights', '4 Insights'),
-    navMark(state.view, 'git', '5 Git'),
-    navMark(state.view, 'help', '6 Help'),
-  ].join('  ');
-  const navRight = state.notice ? `${COPPER}${clip(state.notice, 28)}${RESET}` : `${MUTED}Ready${RESET}`;
-  const nav = pad(navLeft, Math.max(0, width - visible(navRight))) + navRight;
-
-  const shortcuts = [
-    `${CYAN}Ctrl+K${RESET} Palette`,
-    `${CYAN}Ctrl+P${RESET} Models`,
-    `${CYAN}Ctrl+W${RESET} Spaces`,
-    `${CYAN}Ctrl+R${RESET} Runs`,
-    `${CYAN}Ctrl+I${RESET} Insights`,
-    `${CYAN}Ctrl+Q${RESET} Quit`,
-  ].join('  ');
-  const status = `${DIM}${clip(state.host || '127.0.0.1:31338', 16)}${RESET}`;
+  const connected = `${GREEN}●${RESET} Connected: ${state.host || '127.0.0.1:31338'}`;
+  const header = boxTop(width, `${BOLD}${CYAN}CONDUIT BRIDGE${RESET} ${DIM}v0.10${RESET}`, connected);
+  const nav = boxRow(width, `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}  ${TEXT}Workspace:${RESET} ${COPPER}${clip(wsLabel, 12)}${RESET} [git:${GREEN}${clip(gitLabel, 12)}${RESET}]  ${TEXT}Model:${RESET} ${COPPER}${clip(state.model, 18)}${RESET}  ${latency}${state.notice && state.notice !== 'Ready' ? `  ${COPPER}${clip(state.notice, 24)}${RESET}` : ''}`);
 
   // Layout calculation
   const useSplitLayout = width >= 75;
@@ -1020,10 +1060,8 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
       }
 
       for (const message of state.messages) {
-        const who = message.role === 'user' ? `${COPPER}you${RESET}` : `${CYAN}conduit${RESET}`;
-        const meta = message.model ? `${MUTED}  ${message.model}${RESET}` : '';
-        transcript.push(`${who}${meta}`);
-        for (const line of wrap(message.content, rightWidth - 4)) transcript.push(`  ${TEXT}${line}${RESET}`);
+        const meta = message.model ? `${MUTED}${message.model}${RESET}` : '';
+        transcript.push(...bubble(message.role, message.content, Math.max(24, rightWidth - 2), meta));
         if (message.metrics) {
           const m = message.metrics;
           const costStr = m.turnCostUsd !== undefined ? ` | Cost: $${m.turnCostUsd.toFixed(4)}` : '';
@@ -1070,19 +1108,19 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
 
     if (useSplitLayout) {
       const leftTree: string[] = [
-        `  ${DIM}◆ Dashboard${RESET}`,
-        state.view === 'chat' ? `${BOLD}${CYAN}› 💬 Chat Sessions${RESET}` : `${MUTED}  💬 Chat Sessions${RESET}`,
-        state.view === 'runs' || state.view === 'run-detail' ? `${BOLD}${COPPER}› ⚡ Agent Runs (${state.runs.length})${RESET}` : `${MUTED}  ⚡ Agent Runs (${state.runs.length})${RESET}`,
-        state.view === 'workspaces' ? `${BOLD}${CYAN}› 📁 WORKSPACES${RESET}` : `${MUTED}  📁 WORKSPACES${RESET}`,
-        `  ${MUTED} └ ${clip(state.activeWorkspaceId || 'default', 12)}${RESET}`,
-        state.view === 'insights' ? `${BOLD}${CYAN}› 💡 Local Insights${RESET}` : `${MUTED}  💡 Local Insights${RESET}`,
-        `  ${MUTED}🤖 Models (${state.models.length})${RESET}`,
-        state.view === 'git' ? `${BOLD}${CYAN}› 🌿 Git [${clip(state.git.branch || 'main', 8)}]${RESET}` : `${MUTED}  🌿 Git [${clip(state.git.branch || 'main', 8)}]${RESET}`,
-        state.view === 'help' ? `${BOLD}${CYAN}› ⚙ Settings / Help${RESET}` : `${MUTED}  ⚙ Settings / Help${RESET}`,
-        `  ${NORD_BORDER}${'─'.repeat(leftWidth - 4)}${RESET}`,
-        `  ${DIM}Context: ${GREEN}${contextPct}%${RESET}`,
-        `  ${DIM}Git: ${state.git.files ? `${COPPER}${state.git.files} chg${RESET}` : `${GREEN}clean${RESET}`}`,
-        `  ${DIM}Status: ${state.busy ? `${COPPER}thinking${RESET}` : `${GREEN}ready${RESET}`}`,
+        `${BOLD}${TEXT}WORKSPACES & SESSIONS${RESET}`,
+        `${MUTED}▼ Workspaces${RESET}`,
+        `  ${GREEN}●${RESET} ${clip(wsLabel, leftWidth - 6)}`,
+        `${MUTED}▼ Active Runs (${state.runs.length})${RESET}`,
+        `  ${state.busy ? `${CYAN}◐${RESET}` : `${GREEN}●${RESET}`} ${state.busy ? 'running' : 'idle'}`,
+        `${MUTED}▼ Local Insights${RESET}`,
+        `  ${clip(`${state.insights?.length || 0} items`, leftWidth - 4)}`,
+        `${MUTED}▼ Chat Sessions${RESET}`,
+        `  ${CYAN}›${RESET} ${clip(state.sessionTitle || 'CLI chat', leftWidth - 6)}`,
+        `${MUTED}▼ Git [${clip(state.git.branch || 'main', 8)}]${RESET}`,
+        `  ${state.git.files ? `${COPPER}[+${state.git.files} ~0 -0]${RESET}` : `${GREEN}clean${RESET}`}`,
+        `${MUTED}Agent Runs${RESET}`,
+        `  ${clip(String(state.runs.length), 4)} queued/live`,
       ];
 
       const maxLines = Math.max(availableHeight, rightLines.length);
@@ -1096,40 +1134,35 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
     }
   }
 
-  // Zone 3: Footer (Input Area & Live Token Estimation)
-  const inputLine = state.overlay === 'none' && state.view === 'chat'
-    ? `${COPPER}›${RESET} ${state.input ? state.input.slice(0, state.cursor) + `${REVERSE} ${RESET}` + state.input.slice(state.cursor) : `${DIM}Type commands or chat... (/run, /continue, /help)${RESET}`}`
+  const promptTok = estimateTokens(state.input);
+  const projTok = contextTokens + promptTok;
+  const projPct = Math.min(100, Math.round((projTok / contextLimit) * 100));
+  const promptMeta = state.input.trim()
+    ? `Prompt: ~${promptTok} tok | Projected: ~${formatTokenCount(projTok)} (${projPct}%)`
+    : state.notice && state.notice !== 'Ready'
+      ? clip(state.notice, 42)
+      : `${state.busy ? 'streaming' : 'idle'}`;
+  const inputBody = state.overlay === 'none' && state.view === 'chat'
+    ? `${COPPER}>${RESET} ${state.input.slice(0, state.cursor)}${REVERSE} ${RESET}${state.input.slice(state.cursor)}`
     : state.overlay === 'none' ? `${MUTED}${state.view}  Esc returns to chat${RESET}` : `${MUTED}filter:${RESET} ${state.filter}`;
-
-  const modelBadge = `${COPPER}[${clip(state.model, 16)} ▾]${RESET}`;
-  const caret = clip(inputLine, width - visible(modelBadge) - 2) + '  ' + modelBadge;
-
-  // Pre-Execution Prompt Token Estimation Line
-  let promptEstimateDisplay = '';
-  if (state.overlay === 'none' && state.view === 'chat' && state.input.trim()) {
-    const promptTok = estimateTokens(state.input);
-    const projTok = contextTokens + promptTok;
-    const projPct = Math.min(100, Math.round((projTok / contextLimit) * 100));
-    promptEstimateDisplay = `${MUTED}Prompt: ~${promptTok} tok | Projected: ~${formatTokenCount(projTok)} (${projPct}%)${RESET}  `;
-  }
-
-  const footerStatus = clip(promptEstimateDisplay + status + '  ' + shortcuts, width);
+  const footerTop = boxTop(width, `PROMPT [Mode: ${state.view === 'chat' ? 'Chat' : state.view}]`, promptMeta);
+  const footerMid = boxRow(width, inputBody);
+  const footerBot = boxBottom(width, `${CYAN}Ctrl+K${RESET} Palette  ${CYAN}Ctrl+P${RESET} Model  ${CYAN}Ctrl+W${RESET} Spaces  ${CYAN}Ctrl+R${RESET} Runs  ${CYAN}Ctrl+I${RESET} Insights`);
 
   const lines = [
     clip(header, width),
     clip(nav, width),
-    `${MUTED}${'─'.repeat(width)}${RESET}`,
     ...bodyLines.map(line => clip(line, width)),
   ];
-  while (lines.length < height - 3) lines.push(' '.repeat(width));
-  lines.push(`${MUTED}${'─'.repeat(width)}${RESET}`);
-  lines.push(clip(caret, width));
-  lines.push(footerStatus);
+  while (lines.length < height - 3) lines.push(boxRow(width, ''));
+  lines.push(clip(footerTop, width));
+  lines.push(clip(footerMid, width));
+  lines.push(clip(footerBot, width));
 
   const cursorRow = height - 1;
-  const cursorCol = state.overlay === 'none' && state.view === 'chat' ? state.cursor + 3 : 1;
+  const cursorCol = state.overlay === 'none' && state.view === 'chat' ? state.cursor + 5 : 3;
 
-  return { lines, cursor: { row: cursorRow, col: cursorCol } };
+  return { lines: lines.slice(0, height), cursor: { row: cursorRow, col: Math.min(width, cursorCol) } };
 }
 
 export function renderTui(state: TuiState): string {

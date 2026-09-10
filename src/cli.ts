@@ -97,7 +97,7 @@ switch (cmd) {
       process.exit(1);
     }
     const { runChatCommand } = await import('./interactive-cli.js');
-    await runChatCommand(cfg, { model: flags.model });
+    await runChatCommand(cfg, { model: flags.model, cliPath: fileURLToPath(import.meta.url) });
     break;
   }
 
