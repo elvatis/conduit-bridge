@@ -991,6 +991,9 @@ export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string;
     },
   });
   const terminal = createStdinTerminal();
+  // Installed before the first frame, removed in the finally below.
+  const stopGuarding = guardTerminalRestore(() => terminal.close());
+
   try {
     await runInteractiveChat({
       client: createHttpChatClient(baseUrl, headers),
@@ -998,6 +1001,62 @@ export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string;
       terminal,
     });
   } finally {
+    stopGuarding();
     terminal.close();
   }
+}
+
+/**
+ * Restore the terminal on the paths `finally` cannot reach.
+ *
+ * The existing `finally` already covers a throw inside runInteractiveChat. What
+ * it does not cover is everything that never returns through that await:
+ * SIGINT and SIGTERM kill the process outright, and a throw inside a timer
+ * callback is an uncaught exception, not a rejected promise. The busy spinner
+ * paints from a setInterval (startBusyTimer), so the render path genuinely has
+ * a route out of the process that leaves the alternate screen active, mouse
+ * tracking on and the cursor hidden. The user is then left with a shell that
+ * echoes nothing and needs `reset` to recover.
+ *
+ * Restoration must be idempotent: a signal can arrive while the normal
+ * teardown is already running.
+ */
+export function guardTerminalRestore(restore: () => void): () => void {
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    try { restore(); } catch { /* the terminal is already gone */ }
+  };
+
+  const onSignal = (signal: NodeJS.Signals) => () => {
+    once();
+    // Re-raise with the default handler so the exit code stays truthful.
+    process.removeListener(signal, handlers[signal]);
+    process.kill(process.pid, signal);
+  };
+  const onFatal = (err: unknown) => {
+    once();
+    // Print AFTER restoring, or the message lands in the alternate screen and
+    // disappears with it, which is how a crash becomes a silent hang.
+    process.stderr.write(`\nconduit chat ended unexpectedly: ${String(err)}\n`);
+    process.exitCode = 1;
+  };
+
+  const handlers: Record<string, () => void> = {
+    SIGINT: onSignal('SIGINT'),
+    SIGTERM: onSignal('SIGTERM'),
+    SIGHUP: onSignal('SIGHUP'),
+  };
+  for (const [signal, handler] of Object.entries(handlers)) process.on(signal, handler);
+  process.on('uncaughtException', onFatal);
+  process.on('unhandledRejection', onFatal);
+  process.on('exit', once);
+
+  return () => {
+    for (const [signal, handler] of Object.entries(handlers)) process.off(signal, handler);
+    process.off('uncaughtException', onFatal);
+    process.off('unhandledRejection', onFatal);
+    process.off('exit', once);
+  };
 }
