@@ -119,10 +119,44 @@ export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assis
   for (const frame of parts) {
     const line = frame.split('\n').find(item => item.startsWith('data:'));
     if (!line) continue;
+    const payload = line.slice(5).trim();
+
+    // The chat endpoint closes with a bare sentinel, not JSON. Without this it
+    // reaches JSON.parse, throws, and is swallowed by the catch below, so the
+    // stream ends with no `done` and the caller keeps whatever it accumulated.
+    if (payload === '[DONE]') {
+      done ??= {};
+      continue;
+    }
+
     try {
-      const event = JSON.parse(line.slice(5).trim()) as { type?: string; delta?: string; assistantMessage?: { content?: string } };
-      if (event.type === 'delta' && typeof event.delta === 'string') deltas.push(event.delta);
-      if (event.type === 'done') done = event;
+      const event = JSON.parse(payload) as {
+        type?: string;
+        delta?: string;
+        assistantMessage?: { content?: string };
+        choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+      };
+
+      // Two wire formats reach this parser and both must work. The platform
+      // session endpoint sends {type:'delta', delta}; the chat endpoint at
+      // /v1/chat/completions sends OpenAI-shaped chunks with no `type` field at
+      // all (src/server.ts:2099-2104). This function only understood the first,
+      // while the client posts to the second (:317), so onDelta never fired:
+      // the reply stayed empty and every counter that hangs off a delta stayed
+      // at its initial value. That is the whole of the reported blind flight.
+      if (event.type === 'delta' && typeof event.delta === 'string') {
+        deltas.push(event.delta);
+      } else if (event.type === 'done') {
+        done = event;
+      } else if (Array.isArray(event.choices)) {
+        for (const choice of event.choices) {
+          const content = choice?.delta?.content;
+          if (typeof content === 'string' && content.length) deltas.push(content);
+          // finish_reason marks the last chunk. Record completion here as well,
+          // so a stream cut off before the sentinel still terminates cleanly.
+          if (choice?.finish_reason) done ??= {};
+        }
+      }
     } catch { /* ignore a truncated or non-JSON frame */ }
   }
   return { deltas, done, rest };
