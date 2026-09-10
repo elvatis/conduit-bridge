@@ -12,8 +12,12 @@ import {
   enrichModel,
   fuzzyMatch,
   renderTui,
+  renderTuiLines,
+  TuiDifferentialRenderer,
   type TuiState,
 } from '../src/tui-render.js';
+import { renderCliHelp } from '../src/cli-help.js';
+import { loadConfig } from '../src/config.js';
 
 function baseState(over: Partial<TuiState> = {}): TuiState {
   return {
@@ -469,3 +473,162 @@ describe('runInteractiveChat', () => {
     expect(output).toContain('Decoupled session state');
   });
 });
+
+describe('TuiDifferentialRenderer', () => {
+  it('clears screen on initial frame or dimension change', () => {
+    const renderer = new TuiDifferentialRenderer();
+    const writes: string[] = [];
+    const term = {
+      columns: 80,
+      rows: 5,
+      write: (f: string) => writes.push(f),
+    };
+
+    renderer.render(term, ['line 1', 'line 2', 'line 3', 'line 4', 'line 5']);
+    expect(writes.length).toBe(1);
+    expect(writes[0]).toContain('\x1b[2J'); // full clear on initial frame
+    expect(writes[0]).toContain('line 1');
+    expect(writes[0]).toContain('line 5');
+  });
+
+  it('performs differential delta-line updates without clearing the screen when a line changes', () => {
+    const renderer = new TuiDifferentialRenderer();
+    const writes: string[] = [];
+    const term = {
+      columns: 80,
+      rows: 4,
+      write: (f: string) => writes.push(f),
+    };
+
+    // First frame
+    renderer.render(term, ['header', 'body line 1', 'body line 2', 'footer']);
+    writes.length = 0; // reset capture
+
+    // Second frame: only line 4 (footer) changed
+    renderer.render(term, ['header', 'body line 1', 'body line 2', 'footer modified'], { row: 4, col: 10 });
+    expect(writes.length).toBe(1);
+    expect(writes[0]).not.toContain('\x1b[2J'); // NO full screen clear!
+    expect(writes[0]).toContain('\x1b[4;1H\x1b[2Kfooter modified'); // targeted line update!
+    expect(writes[0]).toContain('\x1b[4;10H\x1b[?25h'); // cursor positioned at input!
+  });
+
+  it('resets buffer state cleanly on reset()', () => {
+    const renderer = new TuiDifferentialRenderer();
+    const writes: string[] = [];
+    const term = { columns: 80, rows: 3, write: (f: string) => writes.push(f) };
+
+    renderer.render(term, ['a', 'b', 'c']);
+    renderer.reset();
+    writes.length = 0;
+
+    renderer.render(term, ['a', 'b', 'c']);
+    expect(writes[0]).toContain('\x1b[2J'); // full clear again after reset
+  });
+});
+
+describe('Inference State Machine & Telemetry', () => {
+  it('renders thinking state with ms timer and model telemetry', () => {
+    const state = baseState({
+      busy: true,
+      status: 'thinking',
+      busyStartTime: Date.now() - 2500,
+      spinnerFrame: 3,
+    });
+    const frame = renderTui(state);
+    expect(frame).toContain('Thinking (');
+    expect(frame).toContain('2500ms');
+  });
+
+  it('renders streaming state with token count and tokens per second rate', () => {
+    const state = baseState({
+      busy: true,
+      status: 'streaming',
+      streaming: 'Here is the generated analysis',
+      tokenCount: 42,
+      tokensPerSec: 38.5,
+      busyStartTime: Date.now() - 1100,
+      spinnerFrame: 1,
+    });
+    const frame = renderTui(state);
+    expect(frame).toContain('streaming ·');
+    expect(frame).toContain('42 tokens');
+    expect(frame).toContain('38.5 t/s');
+    expect(frame).toContain('Here is the generated analysis');
+  });
+
+  it('renders tool execution and diff mutation indicators', () => {
+    const state = baseState({
+      busy: true,
+      status: 'diff_apply',
+      currentTool: { name: 'patch', target: 'src/cli.ts', status: 'running' },
+      busyStartTime: Date.now() - 500,
+    });
+    const frame = renderTui(state);
+    expect(frame).toContain('Tool Invocation: patch (src/cli.ts)');
+    expect(frame).toContain('Applying Diff / Workspace Mutation');
+  });
+
+  it('renders syntax-highlighted diff chunks in run-detail events', () => {
+    const state = baseState({
+      view: 'run-detail',
+      selectedRunDetail: {
+        id: 'run-99',
+        status: 'completed',
+        model: 'cli-claude/claude-sonnet-5',
+        prompt: 'Fix type error in logger',
+        createdAt: Date.now(),
+        costUsd: 0.0012,
+        tokensConsumed: 120,
+        steps: [
+          {
+            iteration: 1,
+            status: 'completed',
+            events: [
+              {
+                kind: 'command',
+                command: 'git diff',
+                status: 'completed',
+                exitCode: 0,
+                stdout: '@@ -1,3 +1,4 @@\n-old code\n+new code\n unchanged',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const frame = renderTui(state);
+    expect(frame).toContain('Run Detail:');
+    expect(frame).toContain('run-99');
+    expect(frame).toContain('git diff');
+    expect(frame).toContain('+new code');
+    expect(frame).toContain('-old code');
+  });
+});
+
+describe('renderCliHelp', () => {
+  it('renders high-end ANSI help screen with 2-column commands, flags and verified providers', () => {
+    const cfg = loadConfig();
+    const help = renderCliHelp('0.10.0', cfg);
+
+    expect(help).toContain('CONDUIT BRIDGE');
+    expect(help).toContain('v0.10.0');
+    expect(help).toContain('CORE COMMANDS:');
+    expect(help).toContain('System & Service');
+    expect(help).toContain('Agent Orchestration');
+    expect(help).toContain('Workspaces & Models');
+    expect(help).toContain('chat | tui');
+    expect(help).toContain('FLAGS & OPTIONS:');
+    expect(help).toContain('--port=');
+    expect(help).toContain('--mode=');
+    expect(help).toContain('SUPPORTED PROVIDERS:');
+    expect(help).toContain('cli-gemini');
+    expect(help).toContain('cli-claude');
+    expect(help).toContain('cli-codex');
+    expect(help).toContain('cli-grok');
+    expect(help).toContain('claude-api');
+    expect(help).toContain('lmstudio');
+    expect(help).toContain('bitnet');
+    expect(help).toContain('EXAMPLES:');
+  });
+});
+

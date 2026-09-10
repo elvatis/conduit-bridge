@@ -82,11 +82,13 @@ export const I18N_SCRIPT = String.raw`
     return result;
   }
   function setLocalizedHtml(element, render) {
+    if (!element) return;
     element.removeAttribute?.('data-i18n');
     element.innerHTML = render();
     localizedBindings.set(element, { render, nodes: localizationNodes(element), html: true });
   }
   function appendLocalizedHtml(element, render) {
+    if (!element) return;
     const template = document.createElement('template');
     template.innerHTML = render();
     const nodes = localizationNodes(template.content);
@@ -96,6 +98,7 @@ export const I18N_SCRIPT = String.raw`
     localizedBindings.set(anchor, { render, nodes, html: true });
   }
   function setLocalizedText(element, render) {
+    if (!element) return;
     // Action labels live beside their SVG, including transient busy-state labels.
     const target = element.tagName === 'BUTTON' ? element.querySelector('.action-label') || element : element;
     target.removeAttribute?.('data-i18n');
@@ -104,6 +107,7 @@ export const I18N_SCRIPT = String.raw`
     localizedBindings.set(target, { render, value, html: false });
   }
   function setLocalizedValue(element, render) {
+    if (!element) return;
     element.removeAttribute?.('data-i18n-value');
     const value = String(render());
     element.value = value;

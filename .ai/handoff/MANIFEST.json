@@ -3,17 +3,17 @@
   "project": "pb",
   "last_session": {
     "agent": "codex",
-    "session_id": "cli-1788863014",
-    "timestamp": "2026-09-08T10:23:34Z",
-    "commit": "37a3fe3",
-    "phase": "documentation",
+    "session_id": "cli-1789002781",
+    "timestamp": "2026-09-10T01:13:01Z",
+    "commit": "7edd556",
+    "phase": "fix",
     "duration_minutes": 0
   },
   "files": {
     "STATUS.md": {
-      "checksum": "sha256:043c86b6a39313b7548661a8834e417b7cd246a3e54cbd1033f7e95f0d81071a",
-      "updated": "2026-09-08T10:23:26Z",
-      "lines": 469,
+      "checksum": "sha256:9057aea3d80e54286e67505499ab15deaa2a7076c66ac6ea31ae1d61c181ae0c",
+      "updated": "2026-09-10T01:12:58Z",
+      "lines": 475,
       "summary": "PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and"
     },
     "NEXT_ACTIONS.md": {
@@ -71,10 +71,10 @@
       "summary": "{"
     }
   },
-  "quick_context": "Guided llama-server and BitNet installation, checkpoints and recovery",
+  "quick_context": "PR #120 is open for the workspace branch. Hosted Linux, Chromium, CodeQL and Second inspection is implemented: named native dialogs with focus/Escape, ",
   "token_budget": {
     "manifest_only": 85,
-    "manifest_plus_core": 8281,
-    "full_read": 16135
+    "manifest_plus_core": 8983,
+    "full_read": 16837
   }
 }

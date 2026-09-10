@@ -88,4 +88,44 @@ describe('Logger', () => {
     logger.info('should show');
     expect(errSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('muteConsole suppresses console output while maintaining subscriber notifications', () => {
+    const log = new Logger('info');
+    log.muteConsole(true);
+    expect(log.isConsoleMuted()).toBe(true);
+
+    const received: string[] = [];
+    log.onLine(line => received.push(line));
+
+    log.info('message for subscribers only');
+    expect(errSpy).not.toHaveBeenCalled();
+    expect(received).toHaveLength(1);
+    expect(received[0]).toContain('message for subscribers only');
+
+    log.muteConsole(false);
+    log.info('back to console');
+    expect(errSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('setFileDestination writes logs to disk and mutes console when requested', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'conduit-log-test-'));
+    const logFile = path.join(tmpDir, 'bridge.log');
+
+    const log = new Logger('info');
+    log.setFileDestination(logFile, true);
+    expect(log.isConsoleMuted()).toBe(true);
+
+    log.info('line 1');
+    log.warn('line 2');
+
+    expect(errSpy).not.toHaveBeenCalled();
+    const written = fs.readFileSync(logFile, 'utf-8');
+    expect(written).toContain('[conduit-bridge] line 1');
+    expect(written).toContain('[conduit-bridge:warn] line 2');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

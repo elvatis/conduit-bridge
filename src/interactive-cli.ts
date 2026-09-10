@@ -2,6 +2,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
+import { join } from 'node:path';
 import { BridgeServer } from './server.js';
 import { bearerAuthorization } from './config.js';
 import type { BridgeConfig } from './types.js';
@@ -11,6 +12,8 @@ import {
   applyTuiKey,
   decodeKey,
   renderTui,
+  renderTuiLines,
+  TuiDifferentialRenderer,
   type TuiInsightRow,
   type TuiKey,
   type TuiMessage,
@@ -19,6 +22,7 @@ import {
   type TuiRunRow,
   type TuiState,
   type TuiWorkspaceRow,
+  type TuiInferenceStatus,
 } from './tui-render.js';
 
 export type ChatCommand =
@@ -118,182 +122,180 @@ export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assis
   return { deltas, done, rest };
 }
 
-type RequestResult = { status: number; headers: IncomingMessage['headers']; text: string };
-
-function requestOnce(url: URL, options: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }): Promise<RequestResult> {
+export async function requestOnce(url: URL, options: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<{ status: number; text: string }> {
   const transport = url.protocol === 'https:' ? httpsRequest : httpRequest;
   return new Promise((resolve, reject) => {
-    const req = transport({
-      protocol: url.protocol, hostname: url.hostname, port: url.port, path: `${url.pathname}${url.search}`,
-      method: options.method || 'GET', headers: options.headers,
-    }, res => {
-      const chunks: Buffer[] = [];
-      res.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-      res.on('end', () => resolve({ status: res.statusCode || 0, headers: res.headers, text: Buffer.concat(chunks).toString('utf8') }));
+    const req = transport(url, { method: options.method ?? 'GET', headers: options.headers }, (res: IncomingMessage) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { text += chunk; });
+      res.on('end', () => { resolve({ status: res.statusCode ?? 0, text }); });
     });
     req.on('error', reject);
-    options.signal?.addEventListener('abort', () => req.destroy(new Error('aborted')), { once: true });
     if (options.body) req.write(options.body);
     req.end();
   });
 }
 
-async function requestJson<T>(url: URL, options: { method?: string; headers?: Record<string, string>; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
-  const body = options.body === undefined ? undefined : JSON.stringify(options.body);
-  if (body) headers['Content-Type'] = 'application/json';
-  const result = await requestOnce(url, { method: options.method, headers, body, signal: options.signal });
-  if (result.status >= 400) {
-    let message = result.text || `HTTP ${result.status}`;
-    try {
-      const error = JSON.parse(result.text) as { error?: { message?: string } };
-      if (error.error?.message) message = error.error.message;
-    } catch { /* keep the raw body */ }
-    throw new Error(message);
-  }
-  return result.text ? JSON.parse(result.text) as T : {} as T;
+export async function requestJson<T>(url: URL, options: { method?: string; headers?: Record<string, string>; body?: unknown } = {}): Promise<T> {
+  const payload = options.body !== undefined ? JSON.stringify(options.body) : undefined;
+  const headers = { ...options.headers, ...(payload ? { 'content-type': 'application/json' } : {}) };
+  const res = await requestOnce(url, { method: options.method, headers, body: payload });
+  if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}: ${res.text.slice(0, 300)}`);
+  return JSON.parse(res.text) as T;
 }
 
 export function createHttpChatClient(baseUrl: string, headers: Record<string, string> = {}): ChatTurnClient {
   const root = baseUrl.replace(/\/+$/, '');
   return {
     async listModels() {
-      const body = await requestJson<{ data?: Array<{ id: string; display_name?: string }> }>(new URL(`${root}/v1/models`), { headers });
-      return (body.data || []).map(item => ({ id: item.id, displayName: item.display_name }));
+      const payload = await requestJson<{ data?: Array<{ id: string; display_name?: string }> }>(new URL(`${root}/v1/models`), { headers });
+      return (payload.data ?? []).map(item => ({ id: item.id, displayName: item.display_name }));
     },
     async createSession(model) {
-      const body = await requestJson<{ session: { id: string; model?: string; title?: string } }>(new URL(`${root}/v1/platform/sessions`), {
-        method: 'POST', headers, body: { model, title: 'CLI chat', retention: 'retained' },
+      const payload = await requestJson<{ id: string; model: string; title?: string }>(new URL(`${root}/v1/platform/sessions`), {
+        method: 'POST', headers, body: { model, title: 'CLI chat' },
       });
-      return { id: body.session.id, model: body.session.model || model, title: body.session.title };
+      return { id: payload.id, model: payload.model, title: payload.title };
     },
     async listSessions() {
-      const body = await requestJson<{ data?: Array<{ id: string; title: string; model?: string; updatedAt: number; messages?: TuiMessage[] }> }>(new URL(`${root}/v1/platform/sessions`), { headers });
-      return body.data || [];
+      const payload = await requestJson<{ data?: Array<{ id: string; title?: string; model?: string; updatedAt?: number }> }>(new URL(`${root}/v1/platform/sessions`), { headers });
+      return (payload.data ?? []).map(item => ({ id: item.id, title: item.title || item.id, model: item.model, updatedAt: item.updatedAt ?? 0 }));
     },
     async getSession(id) {
-      const body = await requestJson<{ session: { id: string; title?: string; model?: string; messages?: TuiMessage[] } }>(new URL(`${root}/v1/platform/sessions/${encodeURIComponent(id)}`), { headers });
-      return { id: body.session.id, title: body.session.title, model: body.session.model || '', messages: (body.session.messages || []).map(message => ({ role: message.role, content: message.content, model: message.model, status: message.status })) };
-    },
-    async listRuns() {
-      const body = await requestJson<{ data?: Array<{ id: string; status: string; input?: { prompt?: string; model?: string }; model?: string; steps?: unknown[]; costUsd?: number; tokensConsumed?: number; error?: string }> }>(new URL(`${root}/v1/platform/runs`), { headers });
-      return (body.data || []).map(run => ({
-        id: run.id,
-        status: run.status,
-        model: run.input?.model || run.model,
-        prompt: run.input?.prompt || '',
-        stepsCount: run.steps?.length,
-        costUsd: run.costUsd,
-        tokensConsumed: run.tokensConsumed,
-        error: run.error,
-      }));
-    },
-    async getRun(id: string) {
-      const body = await requestJson<{ run: any }>(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}`), { headers });
-      const r = body.run;
+      const payload = await requestJson<{ id: string; title?: string; model?: string; messages?: Array<{ role: 'user' | 'assistant'; content: string; model?: string }> }>(
+        new URL(`${root}/v1/platform/sessions/${encodeURIComponent(id)}`), { headers },
+      );
       return {
-        id: r.id,
-        status: r.status,
-        model: r.input?.model || r.model || '',
-        prompt: r.input?.prompt || '',
-        createdAt: r.createdAt || Date.now(),
-        costUsd: r.costUsd || 0,
-        tokensConsumed: r.tokensConsumed || 0,
-        error: r.error,
-        steps: (r.steps || []).map((s: any) => ({
-          iteration: s.iteration,
-          status: s.status,
-          content: s.content,
-          error: s.error,
-          events: s.events,
-        })),
-        artifacts: r.artifacts,
+        id: payload.id,
+        title: payload.title || payload.id,
+        model: payload.model || 'default',
+        messages: (payload.messages ?? []).map(m => ({ role: m.role, content: m.content, model: m.model })),
       };
     },
-    async runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string) {
-      await requestJson(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}/actions`), {
-        method: 'POST',
-        headers,
-        body: { action, feedback, operator: 'cli' },
+    async listRuns() {
+      try {
+        const payload = await requestJson<{ data?: Array<{ id: string; status: string; model?: string; input?: { prompt?: string }; steps?: unknown[]; costUsd?: number; tokensConsumed?: number; error?: string }> }>(
+          new URL(`${root}/v1/platform/runs`), { headers },
+        );
+        return (payload.data ?? []).map(r => ({
+          id: r.id,
+          status: r.status,
+          model: r.model,
+          prompt: r.input?.prompt || '(no prompt)',
+          stepsCount: r.steps?.length || 0,
+          costUsd: r.costUsd || 0,
+          tokensConsumed: r.tokensConsumed || 0,
+          error: r.error,
+        }));
+      } catch {
+        return [];
+      }
+    },
+    async getRun(id: string): Promise<TuiRunDetail> {
+      const payload = await requestJson<any>(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}`), { headers });
+      return {
+        id: payload.id,
+        status: payload.status,
+        model: payload.model || 'default',
+        prompt: payload.input?.prompt || '',
+        createdAt: payload.createdAt || Date.now(),
+        costUsd: payload.costUsd || 0,
+        tokensConsumed: payload.tokensConsumed || 0,
+        error: payload.error,
+        steps: payload.steps || [],
+        artifacts: payload.artifacts || [],
+      };
+    },
+    async runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string): Promise<void> {
+      await requestJson(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}/${action}`), {
+        method: 'POST', headers, body: feedback ? { feedback } : {},
       });
     },
-    async createRun(prompt: string, model?: string, mode: 'chat' | 'plan' | 'agent' = 'agent', workspaceId?: string) {
-      const body = await requestJson<{ run: { id: string } }>(new URL(`${root}/v1/platform/runs`), {
+    async createRun(prompt: string, model?: string, mode: 'chat' | 'plan' | 'agent' = 'agent', workspaceId?: string): Promise<{ id: string }> {
+      return requestJson<{ id: string }>(new URL(`${root}/v1/platform/runs`), {
         method: 'POST',
         headers,
         body: { prompt, model, mode, workspaceId },
       });
-      return { id: body.run.id };
     },
     async listWorkspaces() {
-      const body = await requestJson<{ data?: Array<{ id: string; name: string; path: string; isDefault?: boolean }> }>(new URL(`${root}/v1/platform/workspaces`), { headers });
-      return (body.data || []).map(w => ({ id: w.id, name: w.name || w.id, path: w.path || '', isDefault: w.isDefault }));
+      try {
+        const payload = await requestJson<{ data?: Array<{ id: string; name: string; path: string; isDefault?: boolean }> }>(
+          new URL(`${root}/v1/platform/workspaces`), { headers },
+        );
+        return payload.data || [];
+      } catch {
+        return [{ id: 'default', name: 'default', path: process.cwd(), isDefault: true }];
+      }
     },
     async gitSnapshot(workspaceId?: string) {
       try {
-        let spaceId = workspaceId;
-        if (!spaceId) {
-          const spaces = await requestJson<{ data?: Array<{ id: string; name?: string; isDefault?: boolean }> }>(new URL(`${root}/v1/platform/workspaces`), { headers });
-          const workspace = spaces.data?.find(item => item.isDefault) || spaces.data?.[0];
-          spaceId = workspace?.id;
-        }
-        if (!spaceId) return { detected: false, branch: '', files: 0, name: '' };
-        const snap = await requestJson<{ detected?: boolean; branch?: string; name?: string; files?: unknown[] }>(new URL(`${root}/api/git-workspace/snapshot?workspaceId=${encodeURIComponent(spaceId)}`), { headers });
-        return { detected: Boolean(snap.detected), branch: snap.branch || '', files: Array.isArray(snap.files) ? snap.files.length : 0, name: snap.name || spaceId };
+        const url = new URL(`${root}/v1/git/status`);
+        if (workspaceId) url.searchParams.set('workspaceId', workspaceId);
+        const payload = await requestJson<{ branch?: string; changedFiles?: number; repository?: string }>(url, { headers });
+        return {
+          detected: Boolean(payload.branch),
+          branch: payload.branch || 'main',
+          files: payload.changedFiles || 0,
+          name: payload.repository || 'workspace',
+        };
       } catch {
         return { detected: false, branch: '', files: 0, name: '' };
       }
     },
     async listInsights() {
       try {
-        const body = await requestJson<{ report?: { items?: Array<{ id: string; kind: string; text: string; sources?: Array<{ title?: string }> }> } }>(new URL(`${root}/v1/platform/insights`), { headers });
-        return (body.report?.items || []).map(item => ({
-          id: item.id,
-          kind: item.kind,
-          text: item.text,
-          title: item.sources?.[0]?.title,
-        }));
+        const payload = await requestJson<{ report?: { items?: Array<{ id: string; kind: string; text: string; title?: string; score?: number }> } }>(
+          new URL(`${root}/v1/platform/insights`), { headers },
+        );
+        return payload.report?.items || [];
       } catch {
         return [];
       }
     },
     async status() {
       try {
-        return await requestJson<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>(new URL(`${root}/v1/status`), { headers });
+        const payload = await requestJson<{ version?: string; providers?: Array<{ name: string; connected: boolean }> }>(new URL(`${root}/v1/status`), { headers });
+        return { version: payload.version, providers: payload.providers ?? [] };
       } catch {
         return { providers: [] };
       }
     },
     async send(sessionId, content, model, signal, onDelta) {
       const url = new URL(`${root}/v1/platform/sessions/${encodeURIComponent(sessionId)}/messages`);
-      const payload = JSON.stringify({ content, model, stream: true, maxOutputTokens: 1024 });
       const transport = url.protocol === 'https:' ? httpsRequest : httpRequest;
-      return new Promise<string>((resolve, reject) => {
-        const req = transport({
-          protocol: url.protocol, hostname: url.hostname, port: url.port, path: `${url.pathname}${url.search}`,
+      return new Promise((resolve, reject) => {
+        const req = transport(url, {
           method: 'POST',
-          headers: { ...headers, Accept: 'text/event-stream', 'Content-Type': 'application/json' },
-        }, res => {
-          if ((res.statusCode || 0) >= 400) {
-            const chunks: Buffer[] = [];
-            res.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-            res.on('end', () => reject(new Error(Buffer.concat(chunks).toString('utf8') || `HTTP ${res.statusCode}`)));
+          headers: { ...headers, 'content-type': 'application/json', accept: 'text/event-stream' },
+        }, (res: IncomingMessage) => {
+          if ((res.statusCode ?? 0) >= 400) {
+            let errorText = '';
+            res.on('data', c => { errorText += c; });
+            res.on('end', () => { reject(new Error(`HTTP ${res.statusCode}: ${errorText.slice(0, 200)}`)); });
             return;
           }
-          let rest = '';
-          let assembled = '';
+          let text = '';
+          let buffered = '';
+          res.setEncoding('utf8');
           res.on('data', chunk => {
-            const parsed = parseSseChunk(rest + chunk.toString('utf8'));
-            rest = parsed.rest;
-            for (const delta of parsed.deltas) { assembled += delta; onDelta?.(delta); }
-            if (parsed.done) assembled = parsed.done.assistantMessage?.content || assembled;
+            buffered += chunk;
+            const { deltas, done, rest } = parseSseChunk(buffered);
+            buffered = rest;
+            for (const delta of deltas) { text += delta; onDelta?.(delta); }
+            if (done?.assistantMessage?.content) text = done.assistantMessage.content;
           });
-          res.on('end', () => resolve(assembled));
-          res.on('error', reject);
+          res.on('end', () => { resolve(text); });
         });
         req.on('error', reject);
-        signal?.addEventListener('abort', () => req.destroy(new Error('aborted')), { once: true });
-        req.write(payload);
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            req.destroy();
+            reject(new Error('Turn cancelled'));
+          }, { once: true });
+        }
+        req.write(JSON.stringify({ content, model }));
         req.end();
       });
     },
@@ -310,10 +312,6 @@ export async function probeHealth(baseUrl: string, headers: Record<string, strin
   } catch {
     return false;
   }
-}
-
-function paint(terminal: TuiTerminal, state: TuiState): void {
-  terminal.write(renderTui({ ...state, width: terminal.columns, height: terminal.rows }));
 }
 
 async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<TuiState> {
@@ -354,11 +352,46 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     messages: [], input: '', cursor: 0, filter: '', selected: 0, models, sessions: [], runs: [],
     workspaces: [], runSelectedIndex: 0,
     git: { detected: false, branch: '', files: 0, name: '' }, host: '', notice: 'Ready', busy: false, streaming: '',
+    status: 'idle',
+    tokenCount: 0,
+    tokensPerSec: 0,
     latencyMs: 22,
     width: terminal.columns, height: terminal.rows,
   };
+
+  const screenBuffer = new TuiDifferentialRenderer();
+
+  let dirty = false;
+  let paintTimer: NodeJS.Timeout | undefined;
+
+  const flushPaint = () => {
+    if (paintTimer) {
+      clearTimeout(paintTimer);
+      paintTimer = undefined;
+    }
+    if (!dirty) return;
+    dirty = false;
+    const { lines, cursor } = renderTuiLines({ ...state, width: terminal.columns, height: terminal.rows });
+    screenBuffer.render(terminal, lines, cursor);
+  };
+
+  const requestPaint = (immediate = false) => {
+    dirty = true;
+    if (immediate) {
+      flushPaint();
+      return;
+    }
+    if (!paintTimer) {
+      paintTimer = setTimeout(() => {
+        paintTimer = undefined;
+        flushPaint();
+      }, 16); // 60 FPS frame throttle
+      paintTimer.unref?.();
+    }
+  };
+
   state = await refreshExtras(client, state);
-  paint(terminal, state);
+  requestPaint(true);
 
   const startBusyTimer = () => {
     if (busyTimer) clearInterval(busyTimer);
@@ -368,7 +401,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         return;
       }
       state = { ...state, spinnerFrame: (state.spinnerFrame || 0) + 1 };
-      paint(terminal, state);
+      requestPaint();
     }, 80);
     busyTimer.unref?.();
   };
@@ -383,52 +416,84 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
   const sendPrompt = async (text: string) => {
     inFlight = new AbortController();
     const startTime = Date.now();
+    let tokenCount = 0;
     state = {
       ...state,
       busy: true,
+      status: 'thinking',
       busyStartTime: startTime,
+      inferenceStartTime: startTime,
+      tokenCount: 0,
+      tokensPerSec: 0,
       spinnerFrame: 0,
       streaming: '',
       currentTool: undefined,
-      notice: 'Thinking...',
+      notice: `Thinking [${state.model}]...`,
       messages: [...state.messages, { role: 'user', content: text }],
     };
-    paint(terminal, state);
+    requestPaint(true);
     startBusyTimer();
 
     try {
       const answer = await client.send(state.sessionId, text, state.model, inFlight.signal, delta => {
+        const chunkTokens = Math.max(1, Math.round(delta.length / 4));
+        tokenCount += chunkTokens;
+        const elapsed = Math.max(1, Date.now() - startTime);
+        const tps = parseFloat(((tokenCount / elapsed) * 1000).toFixed(1));
+
         let currentTool = state.currentTool;
+        let status: TuiInferenceStatus = 'streaming';
         if (delta.includes('TOOL:') || delta.includes('Executing tool:')) {
+          status = 'tool_execution';
           const match = delta.match(/(?:TOOL:|Executing tool:)\s*([a-zA-Z0-9_-]+)/);
           if (match) currentTool = { name: match[1], status: 'running' };
+        } else if (delta.includes('<<<DIFF') || delta.includes('--- a/') || delta.includes('+++ b/')) {
+          status = 'diff_apply';
         }
-        state = { ...state, streaming: state.streaming + delta, currentTool };
-        paint(terminal, state);
+
+        state = {
+          ...state,
+          status,
+          tokenCount,
+          tokensPerSec: tps,
+          streaming: state.streaming + delta,
+          currentTool,
+          notice: status === 'tool_execution'
+            ? `Tool: ${currentTool?.name || 'execution'}...`
+            : status === 'diff_apply'
+            ? 'Applying diff...'
+            : `Streaming [${state.model} | ${(elapsed / 1000).toFixed(1)}s | ${tps} t/s]`,
+        };
+        requestPaint();
       });
       stopBusyTimer();
       const elapsed = Date.now() - startTime;
+      const tps = tokenCount > 0 && elapsed > 0 ? parseFloat(((tokenCount / elapsed) * 1000).toFixed(1)) : 0;
       state = {
         ...state,
         busy: false,
+        status: 'done',
         busyStartTime: undefined,
         currentTool: undefined,
         streaming: '',
-        notice: `Completed in ${elapsed}ms`,
+        tokenCount,
+        tokensPerSec: tps,
+        notice: `Completed in ${elapsed}ms (${tokenCount} tokens · ${tps} t/s)`,
         messages: [...state.messages, { role: 'assistant', content: answer, model: state.model }],
       };
     } catch (error) {
       stopBusyTimer();
       const message = inFlight.signal.aborted ? 'Cancelled' : error instanceof Error ? error.message : String(error);
-      state = { ...state, busy: false, busyStartTime: undefined, currentTool: undefined, streaming: '', notice: message };
+      state = { ...state, busy: false, status: 'error', busyStartTime: undefined, currentTool: undefined, streaming: '', notice: message };
     } finally {
       inFlight = undefined;
       stopBusyTimer();
-      paint(terminal, state);
+      requestPaint(true);
     }
   };
 
   while (true) {
+    flushPaint();
     const key = await terminal.readKey();
     if (!key) break;
     const previous = state.input;
@@ -439,7 +504,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       stopBusyTimer();
       inFlight?.abort();
       await client.cancel(state.sessionId).catch(() => {});
-      state = { ...state, busy: false, busyStartTime: undefined, currentTool: undefined, streaming: '', notice: 'Cancelled' };
+      state = { ...state, busy: false, status: 'error', busyStartTime: undefined, currentTool: undefined, streaming: '', notice: 'Cancelled' };
     }
     if (next.action === 'new') {
       const session = await client.createSession(state.model);
@@ -470,7 +535,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
           state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
         }
       } catch (err) {
-        state = { ...state, notice: `Approval failed: ${err instanceof Error ? err.message : String(err)}` };
+        state = { ...state, notice: `Approve failed: ${err instanceof Error ? err.message : String(err)}` };
       }
     }
     if (next.action === 'cancel-run' && next.payload) {
@@ -532,7 +597,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         stopBusyTimer();
         inFlight?.abort();
         await client.cancel(state.sessionId).catch(() => {});
-        state = { ...state, busy: false, busyStartTime: undefined, currentTool: undefined, streaming: '', notice: 'Cancelled' };
+        state = { ...state, busy: false, status: 'error', busyStartTime: undefined, currentTool: undefined, streaming: '', notice: 'Cancelled' };
       } else if (command.type === 'model') {
         if (!state.models.some(item => item.id === command.id)) state = { ...state, notice: `Unknown model ${command.id}` };
         else state = { ...state, model: command.id, notice: `Next reply uses ${command.id}` };
@@ -615,9 +680,11 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       } else if (command.type === 'unknown') state = { ...state, notice: `Unknown command ${command.text}` };
       else if (command.type === 'prompt') void sendPrompt(command.text);
     }
-    paint(terminal, state);
+    requestPaint();
   }
   stopBusyTimer();
+  flushPaint();
+  screenBuffer.reset();
 }
 
 function createStdinTerminal(): TuiTerminal & { close(): void } {
@@ -685,6 +752,10 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
 
 export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string } = {}): Promise<void> {
   assertSupportedPlatform();
+  const logDir = join(process.cwd(), '.conduit', 'logs');
+  logger.setFileDestination(join(logDir, 'bridge.log'), true);
+  logger.muteConsole(true);
+
   const baseUrl = `http://${cfg.host}:${cfg.port}`;
   const headers = bearerAuthorization(cfg.authToken);
   let stop: (() => Promise<void>) | undefined;

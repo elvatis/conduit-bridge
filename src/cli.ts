@@ -1,7 +1,7 @@
+import './warning-filter.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { BridgeServer } from './server.js';
 import { loadConfig, saveConfig, loadDotEnv, parseConfigValue, bearerAuthorization, redactConfigForDisplay } from './config.js';
 import { logger, configureLogger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
@@ -25,6 +25,12 @@ for (let i = 1; i < args.length; i++) {
   else if (/^--[a-z-]+$/.test(args[i])) flags[args[i].slice(2)] = 'true';
 }
 
+const isInteractive = cmd === 'chat' || cmd === 'tui';
+if (isInteractive) {
+  const logDir = join(process.cwd(), '.conduit', 'logs');
+  logger.setFileDestination(join(logDir, 'bridge.log'), true);
+}
+
 const cfg = loadConfig({
   ...(flags.port ? { port: parseInt(flags.port) } : {}),
   ...(flags.host ? { host: flags.host } : {}),
@@ -33,7 +39,11 @@ const cfg = loadConfig({
 });
 
 configureLogger(cfg);
-if (dotenvKeys.length) logger.info(`Loaded ${dotenvKeys.length} var(s) from .env: ${dotenvKeys.join(', ')}`);
+if (isInteractive) {
+  logger.muteConsole(true);
+} else if (dotenvKeys.length && cmd !== 'help' && cmd !== '--help' && !flags.help) {
+  logger.debug(`Loaded ${dotenvKeys.length} var(s) from .env`);
+}
 
 switch (cmd) {
   case 'start': {
@@ -42,6 +52,7 @@ switch (cmd) {
       process.exit(1);
     }
     logger.info(`conduit-bridge v${CLI_VERSION} starting on ${cfg.host}:${cfg.port}…`);
+    const { BridgeServer } = await import('./server.js');
     const server = new BridgeServer(cfg);
     server.start().catch(err => {
       logger.error(`Failed to start: ${err.message}`);
@@ -157,39 +168,17 @@ switch (cmd) {
     break;
   }
 
-  default:
-    console.log(`conduit-bridge v${CLI_VERSION}
+  case 'help':
+  case '--help': {
+    const { renderCliHelp } = await import('./cli-help.js');
+    console.log(renderCliHelp(CLI_VERSION, cfg));
+    process.exit(0);
+    break;
+  }
 
-Usage:
-  conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]
-                       [--auth-token=<token>]
-  conduit-bridge chat | tui  [--model=<id>] [--port=31338] [--host=127.0.0.1]
-                       Full-screen terminal workspace: chat, sessions, models,
-                       runs and git. Ctrl+K opens the command palette.
-  conduit-bridge run "<prompt>" [--mode=chat|plan|agent] [--model=<id>] [--workspace=<id>] [--json]
-                       Execute an agent or plan run directly from terminal
-  conduit-bridge runs [list | get <id> | approve <id> | cancel <id> | continue <id> [feedback] | retry <id>]
-                       Inspect, approve, continue, or cancel execution runs
-  conduit-bridge sessions [list | get <id> | delete <id>]
-                       Manage conversational sessions and transcripts
-  conduit-bridge workspaces [list]
-                       List registered workspaces
-  conduit-bridge models [list]
-                       List available models
-  conduit-bridge status
-  conduit-bridge config [key] [value]
-
-API providers:
-  claude-api, codex-api, gemini-api, openrouter-api, perplexity-api
-  Add credentials through dashboard Settings or protected environment variables.
-
-CLI providers (authenticated by their installed tools):
-  cli-claude, cli-codex, cli-gemini, cli-grok
-
-Local provider:
-  lmstudio (set LM_STUDIO_URL to override http://127.0.0.1:1234)
-
-Security:
-  External binds require an auth token configured through a protected setup path.
-`);
+  default: {
+    const { renderCliHelp } = await import('./cli-help.js');
+    console.log(renderCliHelp(CLI_VERSION, cfg));
+    break;
+  }
 }

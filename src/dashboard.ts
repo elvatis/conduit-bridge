@@ -3240,9 +3240,6 @@ ${GETTING_STARTED_HTML}
         jobs.push(request('/v1/analytics/overview').then(renderAnalyticsCharts));
         jobs.push(request('/v1/metrics').then(data => {
           renderMetrics(data); renderUsage(data);
-          const rows = Object.values(data.models || {});
-          setLocalizedText($('summary-requests'), () => rows.reduce((sum, model) => sum + model.requests, 0));
-          setLocalizedText($('summary-active'), () => rows.reduce((sum, model) => sum + model.inFlight, 0));
         }));
         jobs.push(Promise.all([
           request('/v1/status'),
@@ -3308,10 +3305,6 @@ ${GETTING_STARTED_HTML}
       setLocalizedText($('side-runtime'), () => '127.0.0.1:' + status.port + ' · v' + status.version);
       setLocalizedText($('summary-connected'), () => status.providers.filter(p => p.connected).length + '/' + status.providers.length);
       setLocalizedText($('summary-models'), () => (modelData.data || []).length);
-      const metricRows = Object.values(metricData.models || {});
-      setLocalizedText($('summary-requests'), () => metricRows.reduce((n, m) => n + m.requests, 0));
-      setLocalizedText($('summary-active'), () => metricRows.reduce((n, m) => n + m.inFlight, 0));
-
       renderOverviewCockpit(status, wsData, platformRunsData, modelData);
       renderProviders(status.providers);
       renderModels(modelData.data || []);
