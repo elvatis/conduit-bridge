@@ -162,6 +162,13 @@ export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assis
   return { deltas, done, rest };
 }
 
+/** A short, human-readable form of whatever a rejected request threw. */
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return 'unknown error';
+}
+
 export function createHttpChatClient(baseUrl: string, authHeaders: Record<string, string> = {}): ChatTurnClient {
   const url = new URL(baseUrl);
   const isHttps = url.protocol === 'https:';
@@ -272,18 +279,47 @@ export function createHttpChatClient(baseUrl: string, authHeaders: Record<string
       }
     },
     async runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string) {
-      await requestJson('POST', `/v1/runs/${id}/${action}`, feedback ? { feedback } : {}).catch(async () => {
-        await requestJson('POST', `/v1/platform/runs/${id}/${action}`, feedback ? { feedback } : {}).catch(() => {});
-      });
+      // The second catch used to be empty, so a rejected approval and a granted
+      // one were indistinguishable to the caller and the UI reported success
+      // either way. The fallback to the platform route stays, because both
+      // endpoints are live, but a failure of BOTH is now an error.
+      try {
+        await requestJson('POST', `/v1/runs/${id}/${action}`, feedback ? { feedback } : {});
+      } catch (primary) {
+        try {
+          await requestJson('POST', `/v1/platform/runs/${id}/${action}`, feedback ? { feedback } : {});
+        } catch {
+          throw new Error(`Run ${id}: ${action} was refused (${describeError(primary)})`);
+        }
+      }
     },
     async createRun(prompt: string, model?: string, mode?: 'chat' | 'plan' | 'agent', workspaceId?: string) {
+      // A fabricated identifier is worse than an error. The previous version
+      // fell back to `run-${Date.now()}` on every failure path, so a run that
+      // never started still produced an id, the UI showed it as started, and
+      // every later poll for that id quietly found nothing. The failure
+      // reported success, which is the direction nobody notices.
+      const body = { prompt, model, mode: mode || 'agent', workspaceId };
+      const idOf = (res: unknown): string | undefined => {
+        const value = res as { id?: unknown; run?: { id?: unknown } } | null;
+        const found = value?.run?.id ?? value?.id;
+        return typeof found === 'string' && found ? found : undefined;
+      };
+
+      let primary: unknown;
       try {
-        const res = await requestJson<{ id?: string; run?: { id: string } }>('POST', '/v1/runs', { prompt, model, mode: mode || 'agent', workspaceId });
-        return { id: (res as any).run?.id || res.id || `run-${Date.now()}` };
-      } catch {
-        const res = await requestJson<{ id?: string; run?: { id: string } }>('POST', '/v1/platform/runs', { prompt, model, mode: mode || 'agent', workspaceId }).catch(() => ({ id: `run-${Date.now()}` }));
-        return { id: (res as any).run?.id || (res as any).id || `run-${Date.now()}` };
+        const id = idOf(await requestJson<unknown>('POST', '/v1/runs', body));
+        if (id) return { id };
+        primary = new Error('the response carried no run id');
+      } catch (err) {
+        primary = err;
       }
+
+      const id = idOf(await requestJson<unknown>('POST', '/v1/platform/runs', body).catch(() => {
+        throw new Error(`The run could not be started: ${describeError(primary)}`);
+      }));
+      if (!id) throw new Error('The run could not be started: the response carried no run id');
+      return { id };
     },
     async listWorkspaces() {
       const body = await requestJson<{ workspaces?: TuiWorkspaceRow[]; data?: TuiWorkspaceRow[] }>('GET', '/v1/workspaces').catch(() => ({ workspaces: [], data: [] }));
