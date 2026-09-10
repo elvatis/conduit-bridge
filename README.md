@@ -40,7 +40,7 @@ npm run build
 node dist/cli.js start
 ```
 
-To work only in the terminal, use the interactive chat command. It attaches to a
+To work only in the terminal, use the interactive workspace. It attaches to a
 running listener, or starts one if nothing is bound:
 
 ```bash
@@ -48,7 +48,9 @@ node dist/cli.js chat
 node dist/cli.js chat --model=cli-codex/gpt-5.6-sol
 ```
 
-Slash commands: `/help`, `/models`, `/model <id>`, `/new`, `/stop`, `/quit`.
+This is a full-screen keyboard workspace, not a bare prompt. **Ctrl+K** opens
+the command palette. **Ctrl+P** picks a model, **Ctrl+L** resumes a session,
+**Ctrl+R** shows execution, **Ctrl+G** shows git, **Ctrl+N** starts a new chat.
 Conversations are stored as platform sessions, same as the dashboard.
 
 For an existing checkout, start with `npm install` in its root directory.

@@ -31,8 +31,9 @@ instead. It uses the same listener and stored conversations:
 node dist/cli.js chat
 ```
 
-`/help` lists in-session commands. `/model <id>` chooses the next reply without
-dropping the transcript. Verify the service separately if a client cannot connect:
+`chat` opens a full-screen terminal workspace. **Ctrl+K** is the command
+palette. **Ctrl+P** changes model without dropping the transcript. Verify the
+service separately if a client cannot connect:
 
 ```bash
 node dist/cli.js status

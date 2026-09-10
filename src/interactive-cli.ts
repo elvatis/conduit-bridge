@@ -1,4 +1,3 @@
-import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -8,6 +7,7 @@ import { bearerAuthorization } from './config.js';
 import type { BridgeConfig } from './types.js';
 import { logger } from './logger.js';
 import { assertSupportedPlatform } from './platform.js';
+import { applyTuiKey, decodeKey, renderTui, type TuiKey, type TuiMessage, type TuiState } from './tui-render.js';
 
 export type ChatCommand =
   | { type: 'help' }
@@ -21,26 +21,28 @@ export type ChatCommand =
   | { type: 'unknown'; text: string };
 
 export interface ChatModelRow { id: string; displayName?: string }
-export interface ChatSession { id: string; model: string }
+export interface ChatSession { id: string; model: string; title?: string; messages?: TuiMessage[] }
+export interface ChatSessionRow { id: string; title: string; model?: string; updatedAt: number; messages?: TuiMessage[] }
 export interface ChatTurnClient {
   listModels(): Promise<ChatModelRow[]>;
   createSession(model: string): Promise<ChatSession>;
+  listSessions(): Promise<ChatSessionRow[]>;
+  getSession(id: string): Promise<ChatSession & { messages: TuiMessage[] }>;
+  listRuns(): Promise<Array<{ id: string; status: string; model?: string; prompt: string }>>;
+  gitSnapshot(): Promise<{ detected: boolean; branch: string; files: number; name: string }>;
+  status(): Promise<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>;
   send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void): Promise<string>;
   cancel(sessionId: string): Promise<void>;
 }
-export interface ChatIo {
-  write(text: string): void;
-  prompt(query: string): Promise<string | null>;
-}
 
-const HELP = `Commands:
-  /help              Show this help
-  /models            List advertised models
-  /model <id>        Use a model for the next reply
-  /new               Start a new conversation
-  /stop              Cancel the in-flight reply
-  /quit              Leave chat
-Type a message and press Enter to send.`;
+export interface TuiTerminal {
+  columns: number;
+  rows: number;
+  color?: boolean;
+  write(frame: string): void;
+  readKey(): Promise<TuiKey | null>;
+  close?(): void;
+}
 
 export function parseChatCommand(raw: string): ChatCommand {
   const text = raw.replace(/\r$/, '');
@@ -77,65 +79,6 @@ export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assis
     } catch { /* ignore a truncated or non-JSON frame */ }
   }
   return { deltas, done, rest };
-}
-
-function modelPriorityLabel(id: string): string {
-  return id.startsWith('cli-') ? 'cli' : /^(lmstudio|bitnet)(\/|$)/.test(id) ? 'local' : 'api';
-}
-
-export async function runInteractiveChat(options: { io: ChatIo; client: ChatTurnClient; model?: string }): Promise<void> {
-  const { io, client } = options;
-  const models = await client.listModels();
-  if (!models.length) throw new Error('No models are advertised. Connect a provider, then try again.');
-  let model = options.model && models.some(item => item.id === options.model) ? options.model : preferredChatModel(models);
-  if (!model) throw new Error('No models are advertised. Connect a provider, then try again.');
-  let session = await client.createSession(model);
-  let inFlight: AbortController | undefined;
-  io.write(`Conduit chat  ${model}\n${HELP}\n`);
-  const lineLabel = () => `${model} > `;
-  while (true) {
-    const raw = await io.prompt(lineLabel());
-    if (raw === null) break;
-    const command = parseChatCommand(raw);
-    if (command.type === 'empty') continue;
-    if (command.type === 'help') { io.write(`${HELP}\n`); continue; }
-    if (command.type === 'quit') break;
-    if (command.type === 'unknown') { io.write(`Unknown command ${command.text}. Type /help.\n`); continue; }
-    if (command.type === 'models') {
-      for (const item of models) io.write(`  ${item.id}${item.id === model ? '  (current)' : ''}  ${modelPriorityLabel(item.id)}\n`);
-      continue;
-    }
-    if (command.type === 'model') {
-      if (!models.some(item => item.id === command.id)) { io.write(`Unknown model ${command.id}. Type /models.\n`); continue; }
-      model = command.id;
-      io.write(`Next reply uses ${model}. Conversation history is kept.\n`);
-      continue;
-    }
-    if (command.type === 'new') {
-      session = await client.createSession(model);
-      io.write(`New conversation ${session.id}\n`);
-      continue;
-    }
-    if (command.type === 'stop') {
-      if (!inFlight) { io.write('No reply is in flight.\n'); continue; }
-      inFlight.abort();
-      await client.cancel(session.id).catch(() => {});
-      io.write('\nCancelled.\n');
-      continue;
-    }
-    inFlight = new AbortController();
-    io.write('\n');
-    try {
-      const answer = await client.send(session.id, command.text, model, inFlight.signal, delta => io.write(delta));
-      if (answer && !answer.endsWith('\n')) io.write('\n');
-      io.write('\n');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      io.write(inFlight.signal.aborted ? '\nCancelled.\n' : `\n${message}\n`);
-    } finally {
-      inFlight = undefined;
-    }
-  }
 }
 
 type RequestResult = { status: number; headers: IncomingMessage['headers']; text: string };
@@ -182,10 +125,40 @@ export function createHttpChatClient(baseUrl: string, headers: Record<string, st
       return (body.data || []).map(item => ({ id: item.id, displayName: item.display_name }));
     },
     async createSession(model) {
-      const body = await requestJson<{ session: { id: string; model?: string } }>(new URL(`${root}/v1/platform/sessions`), {
+      const body = await requestJson<{ session: { id: string; model?: string; title?: string } }>(new URL(`${root}/v1/platform/sessions`), {
         method: 'POST', headers, body: { model, title: 'CLI chat', retention: 'retained' },
       });
-      return { id: body.session.id, model: body.session.model || model };
+      return { id: body.session.id, model: body.session.model || model, title: body.session.title };
+    },
+    async listSessions() {
+      const body = await requestJson<{ data?: Array<{ id: string; title: string; model?: string; updatedAt: number; messages?: TuiMessage[] }> }>(new URL(`${root}/v1/platform/sessions`), { headers });
+      return body.data || [];
+    },
+    async getSession(id) {
+      const body = await requestJson<{ session: { id: string; title?: string; model?: string; messages?: TuiMessage[] } }>(new URL(`${root}/v1/platform/sessions/${encodeURIComponent(id)}`), { headers });
+      return { id: body.session.id, title: body.session.title, model: body.session.model || '', messages: (body.session.messages || []).map(message => ({ role: message.role, content: message.content, model: message.model, status: message.status })) };
+    },
+    async listRuns() {
+      const body = await requestJson<{ data?: Array<{ id: string; status: string; input?: { prompt?: string; model?: string }; model?: string }> }>(new URL(`${root}/v1/platform/runs`), { headers });
+      return (body.data || []).map(run => ({ id: run.id, status: run.status, model: run.input?.model || run.model, prompt: run.input?.prompt || '' }));
+    },
+    async gitSnapshot() {
+      try {
+        const spaces = await requestJson<{ data?: Array<{ id: string; name?: string; isDefault?: boolean }> }>(new URL(`${root}/v1/platform/workspaces`), { headers });
+        const workspace = spaces.data?.find(item => item.isDefault) || spaces.data?.[0];
+        if (!workspace) return { detected: false, branch: '', files: 0, name: '' };
+        const snap = await requestJson<{ detected?: boolean; branch?: string; name?: string; files?: unknown[] }>(new URL(`${root}/api/git-workspace/snapshot?workspaceId=${encodeURIComponent(workspace.id)}`), { headers });
+        return { detected: Boolean(snap.detected), branch: snap.branch || '', files: Array.isArray(snap.files) ? snap.files.length : 0, name: snap.name || workspace.name || '' };
+      } catch {
+        return { detected: false, branch: '', files: 0, name: '' };
+      }
+    },
+    async status() {
+      try {
+        return await requestJson<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>(new URL(`${root}/v1/status`), { headers });
+      } catch {
+        return { providers: [] };
+      }
     },
     async send(sessionId, content, model, signal, onDelta) {
       const url = new URL(`${root}/v1/platform/sessions/${encodeURIComponent(sessionId)}/messages`);
@@ -235,14 +208,168 @@ export async function probeHealth(baseUrl: string, headers: Record<string, strin
   }
 }
 
-function readlineIo(): ChatIo & { close(): void } {
-  const rl = createInterface({ input, output, terminal: output.isTTY });
+function paint(terminal: TuiTerminal, state: TuiState): void {
+  terminal.write(renderTui({ ...state, width: terminal.columns, height: terminal.rows }));
+}
+
+async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<TuiState> {
+  const [sessions, runs, git] = await Promise.all([
+    client.listSessions().catch(() => state.sessions),
+    client.listRuns().catch(() => state.runs),
+    client.gitSnapshot().catch(() => state.git),
+  ]);
+  return { ...state, sessions, runs, git };
+}
+
+export async function runInteractiveChat(options: { client: ChatTurnClient; model?: string; terminal: TuiTerminal }): Promise<void> {
+  const { client, terminal } = options;
+  const models = await client.listModels();
+  if (!models.length) throw new Error('No models are advertised. Connect a provider, then try again.');
+  let model = options.model && models.some(item => item.id === options.model) ? options.model : preferredChatModel(models);
+  if (!model) throw new Error('No models are advertised. Connect a provider, then try again.');
+  const created = await client.createSession(model);
+  let inFlight: AbortController | undefined;
+  let state: TuiState = {
+    view: 'chat', overlay: 'none', model, sessionId: created.id, sessionTitle: created.title || 'CLI chat',
+    messages: [], input: '', cursor: 0, filter: '', selected: 0, models, sessions: [], runs: [],
+    git: { detected: false, branch: '', files: 0, name: '' }, host: '', notice: 'Ready', busy: false, streaming: '',
+    width: terminal.columns, height: terminal.rows,
+  };
+  state = await refreshExtras(client, state);
+  paint(terminal, state);
+
+  const sendPrompt = async (text: string) => {
+    inFlight = new AbortController();
+    state = {
+      ...state, busy: true, streaming: '', notice: 'Sending',
+      messages: [...state.messages, { role: 'user', content: text }],
+    };
+    paint(terminal, state);
+    try {
+      const answer = await client.send(state.sessionId, text, state.model, inFlight.signal, delta => {
+        state = { ...state, streaming: state.streaming + delta };
+        paint(terminal, state);
+      });
+      state = {
+        ...state, busy: false, streaming: '', notice: 'Ready',
+        messages: [...state.messages, { role: 'assistant', content: answer, model: state.model }],
+      };
+    } catch (error) {
+      const message = inFlight.signal.aborted ? 'Cancelled' : error instanceof Error ? error.message : String(error);
+      state = { ...state, busy: false, streaming: '', notice: message };
+    } finally {
+      inFlight = undefined;
+      paint(terminal, state);
+    }
+  };
+
+  while (true) {
+    const key = await terminal.readKey();
+    if (!key) break;
+    const previous = state.input;
+    const next = applyTuiKey(state, key);
+    state = { ...next.state, width: terminal.columns, height: terminal.rows };
+    if (next.action === 'quit') break;
+    if (next.action === 'cancel') {
+      inFlight?.abort();
+      await client.cancel(state.sessionId).catch(() => {});
+      state = { ...state, busy: false, notice: 'Cancelled' };
+    }
+    if (next.action === 'new') {
+      const session = await client.createSession(state.model);
+      state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation' };
+    }
+    if (next.action === 'refresh') state = await refreshExtras(client, state);
+    if (next.action === 'open-session') {
+      const opened = await client.getSession(state.sessionId);
+      state = {
+        ...state, sessionTitle: opened.title || opened.id, model: opened.model || state.model,
+        messages: opened.messages, view: 'chat', notice: `Resumed ${opened.title || opened.id}`,
+      };
+    }
+    if (next.action === 'send') {
+      const raw = next.payload ?? previous;
+      const command = parseChatCommand(raw);
+      if (command.type === 'quit') break;
+      if (command.type === 'help') state = { ...state, view: 'help' };
+      else if (command.type === 'new') {
+        const session = await client.createSession(state.model);
+        state = { ...state, sessionId: session.id, sessionTitle: session.title || 'CLI chat', messages: [], notice: 'New conversation' };
+      } else if (command.type === 'models') state = { ...state, overlay: 'models', filter: '', selected: 0 };
+      else if (command.type === 'stop') {
+        inFlight?.abort();
+        await client.cancel(state.sessionId).catch(() => {});
+        state = { ...state, busy: false, notice: 'Cancelled' };
+      } else if (command.type === 'model') {
+        if (!state.models.some(item => item.id === command.id)) state = { ...state, notice: `Unknown model ${command.id}` };
+        else state = { ...state, model: command.id, notice: `Next reply uses ${command.id}` };
+      } else if (command.type === 'unknown') state = { ...state, notice: `Unknown command ${command.text}` };
+      else if (command.type === 'prompt') void sendPrompt(command.text);
+    }
+    paint(terminal, state);
+  }
+}
+
+function createStdinTerminal(): TuiTerminal & { close(): void } {
+  if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== 'function') {
+    throw new Error('Interactive chat needs a real terminal. Run this from a console, not a pipe.');
+  }
+  input.setRawMode(true);
+  input.resume();
+  input.setEncoding('utf8');
+  output.write('\x1b[?1049h');
+  let buffer = '';
+  const pending: TuiKey[] = [];
+  let waiting: ((key: TuiKey | null) => void) | undefined;
+  const timer = { id: undefined as ReturnType<typeof setTimeout> | undefined };
+  const push = (key: TuiKey) => {
+    if (waiting) { const resume = waiting; waiting = undefined; resume(key); }
+    else pending.push(key);
+  };
+  const onData = (chunk: string) => {
+    buffer += chunk;
+    while (buffer) {
+      if (buffer.startsWith('\x1b[')) {
+        if (buffer.length < 3) break;
+        const key = decodeKey(buffer.slice(0, 3));
+        buffer = buffer.slice(3);
+        if (key) push(key);
+        continue;
+      }
+      if (buffer.startsWith('\x1b')) {
+        if (buffer.length === 1) {
+          if (!timer.id) timer.id = setTimeout(() => {
+            timer.id = undefined;
+            if (buffer === '\x1b') { buffer = ''; push({ type: 'escape' }); }
+          }, 20);
+          break;
+        }
+        buffer = buffer.slice(1);
+        push({ type: 'escape' });
+        continue;
+      }
+      const key = decodeKey(buffer[0]);
+      buffer = buffer.slice(1);
+      if (key) push(key);
+    }
+  };
+  input.on('data', onData);
   return {
-    write: text => { output.write(text); },
-    prompt: async query => {
-      try { return await rl.question(query); } catch { return null; }
+    get columns() { return output.columns || 80; },
+    get rows() { return output.rows || 24; },
+    color: true,
+    write: frame => { output.write(frame); },
+    readKey: () => new Promise(resolve => {
+      if (pending.length) resolve(pending.shift()!);
+      else waiting = resolve;
+    }),
+    close() {
+      input.off('data', onData);
+      if (timer.id) clearTimeout(timer.id);
+      waiting?.(null);
+      try { input.setRawMode(false); } catch { /* already closed */ }
+      output.write('\x1b[?25h\x1b[?1049l');
     },
-    close: () => rl.close(),
   };
 }
 
@@ -252,18 +379,22 @@ export async function runChatCommand(cfg: BridgeConfig, flags: { model?: string 
   const headers = bearerAuthorization(cfg.authToken);
   let stop: (() => Promise<void>) | undefined;
   if (!await probeHealth(baseUrl, headers)) {
-    logger.info(`No listener on ${cfg.host}:${cfg.port}; starting one for this chat session`);
+    logger.info(`No listener on ${cfg.host}:${cfg.port}; starting one for this workspace`);
     const server = new BridgeServer(cfg);
     await server.start();
     stop = async () => { await server.stop(); };
   } else {
     logger.info(`Attached to existing listener on ${cfg.host}:${cfg.port}`);
   }
-  const io = readlineIo();
+  const terminal = createStdinTerminal();
   try {
-    await runInteractiveChat({ io, client: createHttpChatClient(baseUrl, headers), model: flags.model });
+    await runInteractiveChat({
+      client: createHttpChatClient(baseUrl, headers),
+      model: flags.model,
+      terminal,
+    });
   } finally {
-    io.close();
+    terminal.close();
     if (stop) await stop();
   }
 }

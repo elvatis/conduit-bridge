@@ -79,6 +79,7 @@ switch (cmd) {
     break;
   }
 
+  case 'tui':
   case 'chat': {
     try { assertSupportedPlatform(); } catch (err) {
       console.error((err as Error).message);
@@ -122,7 +123,9 @@ switch (cmd) {
 Usage:
   conduit-bridge start [--port=31338] [--host=127.0.0.1] [--log-level=info]
                        [--auth-token=<token>]
-  conduit-bridge chat  [--model=<id>] [--port=31338] [--host=127.0.0.1]
+  conduit-bridge chat | tui  [--model=<id>] [--port=31338] [--host=127.0.0.1]
+                       Full-screen terminal workspace: chat, sessions, models,
+                       runs and git. Ctrl+K opens the command palette.
   conduit-bridge status
   conduit-bridge config [key] [value]
 
