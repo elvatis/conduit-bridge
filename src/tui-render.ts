@@ -1,8 +1,24 @@
 export type TuiView = 'chat' | 'runs' | 'run-detail' | 'workspaces' | 'insights' | 'git' | 'help';
 export type TuiOverlay = 'none' | 'palette' | 'models' | 'sessions' | 'workspaces';
-export type TuiInferenceStatus = 'idle' | 'thinking' | 'streaming' | 'tool_execution' | 'diff_apply' | 'done' | 'error';
+export type TuiInferenceStatus = 'idle' | 'thinking' | 'streaming' | 'tool_execution' | 'diff_apply' | 'waiting_approval' | 'done' | 'error';
 
-export interface TuiMessage { role: 'user' | 'assistant'; content: string; model?: string; status?: string }
+export interface TuiTurnMetrics {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  tokensPerSec: number;
+  turnCostUsd?: number;
+  costBudgetPercent?: number;
+}
+
+export interface TuiMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  model?: string;
+  status?: string;
+  metrics?: TuiTurnMetrics;
+}
+
 export interface TuiModelRow {
   id: string;
   displayName?: string;
@@ -13,6 +29,7 @@ export interface TuiModelRow {
   description?: string;
   toolSupport?: boolean | string;
 }
+
 export interface TuiSessionRow { id: string; title: string; model?: string; updatedAt: number }
 export interface TuiRunRow { id: string; status: string; model?: string; prompt: string; stepsCount?: number; costUsd?: number; tokensConsumed?: number; error?: string }
 export interface TuiWorkspaceRow { id: string; name: string; path: string; isDefault?: boolean }
@@ -53,6 +70,22 @@ export interface TuiRunDetail {
   artifacts?: Array<{ id: string; name: string; sizeBytes: number }>;
 }
 
+export interface TuiPendingApproval {
+  runId: string;
+  stepId?: string;
+  stepName?: string;
+  toolName?: string;
+  targetFile?: string;
+  diff?: string;
+  summary?: string;
+}
+
+export interface TuiScanProgress {
+  total: number;
+  scanned: number;
+  phase?: string;
+}
+
 export interface TuiState {
   view: TuiView;
   overlay: TuiOverlay;
@@ -86,6 +119,14 @@ export interface TuiState {
   tokenCount?: number;
   tokensPerSec?: number;
   inferenceStartTime?: number;
+  contextTokens?: number;
+  contextWindowLimit?: number;
+  pendingApproval?: TuiPendingApproval;
+  scanProgress?: TuiScanProgress;
+  lastTurnMetrics?: TuiTurnMetrics;
+  history?: string[];
+  historyIndex?: number;
+  draftInput?: string;
   width: number;
   height: number;
 }
@@ -93,6 +134,7 @@ export interface TuiState {
 export type TuiKey =
   | { type: 'char'; value: string }
   | { type: 'enter' }
+  | { type: 'newline' }
   | { type: 'escape' }
   | { type: 'backspace' }
   | { type: 'tab' }
@@ -100,6 +142,10 @@ export type TuiKey =
   | { type: 'down' }
   | { type: 'left' }
   | { type: 'right' }
+  | { type: 'word-left' }
+  | { type: 'word-right' }
+  | { type: 'home' }
+  | { type: 'end' }
   | { type: 'ctrl'; key: string };
 
 export type TuiAction =
@@ -137,12 +183,90 @@ const NORD_ARCTIC = '\x1b[38;2;129;161;193m';
 const NORD_GREEN = '\x1b[38;2;163;190;140m';
 const NORD_PURPLE = '\x1b[38;2;180;142;173m';
 
-export const TUI_COLORS = { CYAN, COPPER, TEXT, MUTED, GREEN, RED, YELLOW, RESET, BOLD, DIM, REVERSE, NORD_BORDER, NORD_FROST, NORD_ARCTIC, NORD_GREEN, NORD_PURPLE };
+export const TUI_COLORS = {
+  CYAN,
+  COPPER,
+  TEXT,
+  MUTED,
+  GREEN,
+  RED,
+  YELLOW,
+  RESET,
+  BOLD,
+  DIM,
+  REVERSE,
+  NORD_BORDER,
+  NORD_FROST,
+  NORD_ARCTIC,
+  NORD_GREEN,
+  NORD_PURPLE,
+};
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 export function stripAnsi(value: string): string {
-  return value.replace(/\x1b\[[0-9;]*m/g, '');
+  return value.replace(/\x1b\[[0-9;]*[a-zA-Z~]?/g, '');
+}
+
+/**
+ * Render an ANSI-styled dynamic progress bar with filled block characters,
+ * empty block characters, and percentage indicator.
+ * E.g.: [████████░░░░░░░░] 50%
+ */
+export function renderProgressBar(percent: number, width = 16, color?: string): string {
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  const totalBlocks = Math.max(4, width);
+  const filledCount = Math.min(totalBlocks, Math.max(0, Math.round((p / 100) * totalBlocks)));
+  const emptyCount = totalBlocks - filledCount;
+
+  const barColor = color || (p < 60 ? GREEN : p <= 85 ? YELLOW : RED);
+  const filled = '█'.repeat(filledCount);
+  const empty = '░'.repeat(emptyCount);
+
+  return `[${barColor}${filled}${MUTED}${empty}${RESET}] ${p}%`;
+}
+
+/**
+ * Pre-execution token count estimator based on blended BPE / word heuristics.
+ * Accurately estimates prompt token consumption prior to model submission.
+ */
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  const chars = trimmed.length;
+  const words = trimmed.split(/\s+/).length;
+  const est = Math.max(1, Math.round((chars / 3.8) * 0.6 + (words * 1.3) * 0.4));
+  return est;
+}
+
+/**
+ * Format numeric token counts into human-readable shorthand (e.g. 128k, 1.2M).
+ */
+export function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) {
+    return `${(tokens / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  }
+  if (tokens >= 1_000) {
+    return `${(tokens / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  return `${tokens}`;
+}
+
+export function findPrevWord(text: string, cursor: number): number {
+  if (cursor <= 0) return 0;
+  let i = cursor - 1;
+  while (i > 0 && /\s/.test(text[i])) i--;
+  while (i > 0 && !/\s/.test(text[i - 1])) i--;
+  return Math.max(0, i);
+}
+
+export function findNextWord(text: string, cursor: number): number {
+  if (cursor >= text.length) return text.length;
+  let i = cursor;
+  while (i < text.length && !/\s/.test(text[i])) i++;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  return Math.min(text.length, i);
 }
 
 export interface TuiTerminalWriter {
@@ -316,20 +440,24 @@ function wrap(value: string, width: number): string[] {
 export function decodeKey(seq: string): TuiKey | undefined {
   if (!seq) return undefined;
   if (seq === '\r' || seq === '\n') return { type: 'enter' };
+  if (seq === '\x1b\r' || seq === '\x1b\n' || seq === '\x1b[13;2u' || seq === '\x1b[27;2;13~') return { type: 'newline' };
   if (seq === '\x1b') return { type: 'escape' };
   if (seq === '\x7f' || seq === '\b') return { type: 'backspace' };
-  if (seq === '\t') return { type: 'tab' };
-  if (seq === '\x1b[A') return { type: 'up' };
-  if (seq === '\x1b[B') return { type: 'down' };
-  if (seq === '\x1b[D') return { type: 'left' };
-  if (seq === '\x1b[C') return { type: 'right' };
+  if (seq === '\t' || seq === '\x09') return { type: 'tab' };
+  if (seq === '\x1b[A' || seq === '\x1bOA') return { type: 'up' };
+  if (seq === '\x1b[B' || seq === '\x1bOB') return { type: 'down' };
+  if (seq === '\x1b[D' || seq === '\x1bOD') return { type: 'left' };
+  if (seq === '\x1b[C' || seq === '\x1bOC') return { type: 'right' };
+  if (seq === '\x1b[1;5D' || seq === '\x1b[5D' || seq === '\x1bb') return { type: 'word-left' };
+  if (seq === '\x1b[1;5C' || seq === '\x1b[5C' || seq === '\x1bf') return { type: 'word-right' };
+  if (seq === '\x1b[H' || seq === '\x1b[1~' || seq === '\x1bOH') return { type: 'home' };
+  if (seq === '\x1b[F' || seq === '\x1b[4~' || seq === '\x1bOF') return { type: 'end' };
   if (seq === '\x0b') return { type: 'ctrl', key: 'k' };
   if (seq === '\x0e') return { type: 'ctrl', key: 'n' };
   if (seq === '\x10') return { type: 'ctrl', key: 'p' };
   if (seq === '\x0c') return { type: 'ctrl', key: 'l' };
   if (seq === '\x17') return { type: 'ctrl', key: 'w' };
   if (seq === '\x12') return { type: 'ctrl', key: 'r' };
-  if (seq === '\x09') return { type: 'tab' };
   if (seq === '\x07') return { type: 'ctrl', key: 'g' };
   if (seq === '\x08') return { type: 'ctrl', key: 'h' };
   if (seq === '\x05') return { type: 'ctrl', key: 'e' };
@@ -440,25 +568,83 @@ export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; ac
     return { state, action: 'none' };
   }
 
+  // Pending Human-In-The-Loop Approval shortcuts (active when input is empty)
+  if (state.pendingApproval && !state.input && state.overlay === 'none' && (state.view === 'chat' || state.view === 'runs' || state.view === 'run-detail')) {
+    const approval = state.pendingApproval;
+    if (key.type === 'char') {
+      const val = key.value.toLowerCase();
+      if (val === 'y' || val === 'a') {
+        return {
+          state: { ...state, pendingApproval: undefined, notice: `Approved run ${approval.runId}` },
+          action: 'approve-run',
+          payload: approval.runId,
+        };
+      }
+      if (val === 's' || val === 'c') {
+        return {
+          state: { ...state, pendingApproval: undefined, notice: `Continued run ${approval.runId}` },
+          action: 'continue-run',
+          payload: approval.runId,
+        };
+      }
+      if (val === 'x') {
+        return {
+          state: { ...state, pendingApproval: undefined, notice: `Aborted run ${approval.runId}` },
+          action: 'cancel-run',
+          payload: approval.runId,
+        };
+      }
+      if (val === 'e') {
+        const promptSeed = `/continue ${approval.runId} `;
+        return {
+          state: {
+            ...state,
+            pendingApproval: undefined,
+            input: promptSeed,
+            cursor: promptSeed.length,
+            notice: 'Enter steering feedback:',
+          },
+          action: 'none',
+        };
+      }
+    }
+  }
+
   if (state.view === 'runs') {
     if (key.type === 'escape') return { state: { ...state, view: 'chat' }, action: 'none' };
     if (key.type === 'up') return { state: { ...state, runSelectedIndex: Math.max(0, state.runSelectedIndex - 1) }, action: 'none' };
     if (key.type === 'down') return { state: { ...state, runSelectedIndex: Math.min(Math.max(0, state.runs.length - 1), state.runSelectedIndex + 1) }, action: 'none' };
     const currentRun = state.runs[state.runSelectedIndex];
     if (key.type === 'enter' && currentRun) return { state, action: 'view-run', payload: currentRun.id };
-    if (key.type === 'char' && (key.value === 'a' || key.value === 'A') && currentRun) return { state, action: 'approve-run', payload: currentRun.id };
-    if (key.type === 'char' && (key.value === 'x' || key.value === 'X') && currentRun) return { state, action: 'cancel-run', payload: currentRun.id };
-    if (key.type === 'char' && (key.value === 'c' || key.value === 'C') && currentRun) return { state, action: 'continue-run', payload: currentRun.id };
-    if (key.type === 'char' && (key.value === 'r' || key.value === 'R') && currentRun) return { state, action: 'retry-run', payload: currentRun.id };
+    if (key.type === 'char' && (key.value === 'a' || key.value === 'A' || key.value === 'y' || key.value === 'Y') && currentRun) {
+      return { state, action: 'approve-run', payload: currentRun.id };
+    }
+    if (key.type === 'char' && (key.value === 'x' || key.value === 'X') && currentRun) {
+      return { state, action: 'cancel-run', payload: currentRun.id };
+    }
+    if (key.type === 'char' && (key.value === 'c' || key.value === 'C' || key.value === 's' || key.value === 'S') && currentRun) {
+      return { state, action: 'continue-run', payload: currentRun.id };
+    }
+    if (key.type === 'char' && (key.value === 'r' || key.value === 'R') && currentRun) {
+      return { state, action: 'retry-run', payload: currentRun.id };
+    }
   }
 
   if (state.view === 'run-detail') {
     if (key.type === 'escape') return { state: { ...state, view: 'runs' }, action: 'none' };
     const detail = state.selectedRunDetail;
-    if (key.type === 'char' && (key.value === 'a' || key.value === 'A') && detail) return { state, action: 'approve-run', payload: detail.id };
-    if (key.type === 'char' && (key.value === 'x' || key.value === 'X') && detail) return { state, action: 'cancel-run', payload: detail.id };
-    if (key.type === 'char' && (key.value === 'c' || key.value === 'C') && detail) return { state, action: 'continue-run', payload: detail.id };
-    if (key.type === 'char' && (key.value === 'r' || key.value === 'R') && detail) return { state, action: 'retry-run', payload: detail.id };
+    if (key.type === 'char' && (key.value === 'a' || key.value === 'A' || key.value === 'y' || key.value === 'Y') && detail) {
+      return { state, action: 'approve-run', payload: detail.id };
+    }
+    if (key.type === 'char' && (key.value === 'x' || key.value === 'X') && detail) {
+      return { state, action: 'cancel-run', payload: detail.id };
+    }
+    if (key.type === 'char' && (key.value === 'c' || key.value === 'C' || key.value === 's' || key.value === 'S') && detail) {
+      return { state, action: 'continue-run', payload: detail.id };
+    }
+    if (key.type === 'char' && (key.value === 'r' || key.value === 'R') && detail) {
+      return { state, action: 'retry-run', payload: detail.id };
+    }
   }
 
   if (state.view === 'insights') {
@@ -474,15 +660,94 @@ export function applyTuiKey(state: TuiState, key: TuiKey): { state: TuiState; ac
     const next = order[(order.indexOf(state.view) + 1) % order.length];
     return { state: { ...state, view: next }, action: next === 'runs' || next === 'git' || next === 'workspaces' || next === 'insights' ? 'refresh' : 'none' };
   }
+
+  // Prompt History Navigation (Up / Down arrow in Chat view)
+  if (state.view === 'chat' && state.overlay === 'none') {
+    if (key.type === 'up' && state.history && state.history.length > 0) {
+      const history = state.history;
+      const currentIdx = state.historyIndex ?? -1;
+      const nextIdx = currentIdx + 1;
+      if (nextIdx < history.length) {
+        const draftInput = currentIdx === -1 ? state.input : (state.draftInput ?? '');
+        const historicalText = history[history.length - 1 - nextIdx];
+        return {
+          state: {
+            ...state,
+            draftInput,
+            historyIndex: nextIdx,
+            input: historicalText,
+            cursor: historicalText.length,
+          },
+          action: 'none',
+        };
+      }
+    }
+    if (key.type === 'down' && state.historyIndex !== undefined && state.historyIndex >= 0) {
+      const history = state.history || [];
+      const nextIdx = state.historyIndex - 1;
+      if (nextIdx >= 0) {
+        const historicalText = history[history.length - 1 - nextIdx];
+        return {
+          state: {
+            ...state,
+            historyIndex: nextIdx,
+            input: historicalText,
+            cursor: historicalText.length,
+          },
+          action: 'none',
+        };
+      } else {
+        const restored = state.draftInput ?? '';
+        return {
+          state: {
+            ...state,
+            historyIndex: -1,
+            draftInput: undefined,
+            input: restored,
+            cursor: restored.length,
+          },
+          action: 'none',
+        };
+      }
+    }
+  }
+
+  // Cursor & Word Jumping
+  if (key.type === 'home') return { state: { ...state, cursor: 0 }, action: 'none' };
+  if (key.type === 'end') return { state: { ...state, cursor: state.input.length }, action: 'none' };
+  if (key.type === 'word-left') return { state: { ...state, cursor: findPrevWord(state.input, state.cursor) }, action: 'none' };
+  if (key.type === 'word-right') return { state: { ...state, cursor: findNextWord(state.input, state.cursor) }, action: 'none' };
+  if (key.type === 'newline') {
+    const before = state.input.slice(0, state.cursor);
+    const after = state.input.slice(state.cursor);
+    return { state: { ...state, input: before + '\n' + after, cursor: state.cursor + 1 }, action: 'none' };
+  }
+
   if (key.type === 'char' && key.value === '?' && !state.input) return { state: { ...state, view: 'help' }, action: 'none' };
   if (key.type === 'char') return { state: insertChar(state, key.value), action: 'none' };
   if (key.type === 'backspace') return { state: backspace(state), action: 'none' };
   if (key.type === 'left') return { state: { ...state, cursor: Math.max(0, state.cursor - 1) }, action: 'none' };
   if (key.type === 'right') return { state: { ...state, cursor: Math.min(state.input.length, state.cursor + 1) }, action: 'none' };
+
   if (key.type === 'enter') {
     if (!state.input.trim()) return { state, action: 'none' };
     const payload = state.input;
-    return { state: { ...state, input: '', cursor: 0 }, action: 'send', payload };
+    const history = state.history ? [...state.history] : [];
+    if (!history.length || history[history.length - 1] !== payload) {
+      history.push(payload);
+    }
+    return {
+      state: {
+        ...state,
+        input: '',
+        cursor: 0,
+        history,
+        historyIndex: -1,
+        draftInput: undefined,
+      },
+      action: 'send',
+      payload,
+    };
   }
   return { state, action: 'none' };
 }
@@ -542,6 +807,31 @@ function statusPill(status: string): string {
   return `${MUTED}○ ${status}${RESET}`;
 }
 
+function renderApprovalCard(pending: TuiPendingApproval, width: number): string[] {
+  const innerWidth = Math.max(20, width - 4);
+  const lines: string[] = [
+    `${YELLOW}┌─ ⏸ HUMAN-IN-THE-LOOP APPROVAL: Run ${pending.runId} ${'─'.repeat(Math.max(2, innerWidth - 38))}┐${RESET}`,
+    `${YELLOW}│${RESET} ${BOLD}Step:${RESET} ${TEXT}${clip(pending.stepName || pending.stepId || 'Approval Checkpoint', innerWidth - 8)}${RESET}`,
+    `${YELLOW}│${RESET} ${BOLD}Action:${RESET} ${COPPER}${clip(pending.toolName || 'Tool Execution Gate', innerWidth - 10)}${RESET}`,
+  ];
+  if (pending.summary) {
+    lines.push(`${YELLOW}│${RESET} ${DIM}Summary:${RESET} ${clip(pending.summary, innerWidth - 11)}`);
+  }
+  if (pending.diff) {
+    lines.push(`${YELLOW}│${RESET} ${DIM}Diff Preview:${RESET}`);
+    const diffLines = pending.diff.trim().split('\n').slice(0, 4);
+    for (const dl of diffLines) {
+      if (dl.startsWith('+')) lines.push(`${YELLOW}│${RESET}   ${GREEN}${clip(dl, innerWidth - 6)}${RESET}`);
+      else if (dl.startsWith('-')) lines.push(`${YELLOW}│${RESET}   ${RED}${clip(dl, innerWidth - 6)}${RESET}`);
+      else lines.push(`${YELLOW}│${RESET}   ${DIM}${clip(dl, innerWidth - 6)}${RESET}`);
+    }
+  }
+  lines.push(`${YELLOW}├${'─'.repeat(innerWidth + 2)}┤${RESET}`);
+  lines.push(`${YELLOW}│${RESET} ${BOLD}[y]${RESET} Approve  ${BOLD}[e]${RESET} Edit/Feedback  ${BOLD}[s]${RESET} Skip step  ${BOLD}[c]${RESET} Abort`);
+  lines.push(`${YELLOW}└${'─'.repeat(innerWidth + 2)}┘${RESET}`);
+  return lines;
+}
+
 export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { row: number; col: number } } {
   const width = Math.max(40, state.width || 80);
   const height = Math.max(16, state.height || 24);
@@ -557,10 +847,17 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
   const tps = state.tokensPerSec !== undefined ? `${state.tokensPerSec} t/s` : '';
   const telemetry = [state.model, `${elapsedSec}s`, tps].filter(Boolean).join(' | ');
 
+  // Header Context Window Progressbar
+  const contextTokens = state.contextTokens ?? state.messages.reduce((acc, m) => acc + estimateTokens(m.content), 0);
+  const contextLimit = state.contextWindowLimit ?? 128_000;
+  const contextPct = Math.min(100, Math.round((contextTokens / contextLimit) * 100));
+  const contextBar = renderProgressBar(contextPct, 8);
+
   // Zone 1: Header
-  const headerLeft = `${BOLD}${CYAN}CONDUIT${RESET} ${DIM}•${RESET} ${COPPER}${clip(wsLabel, 14)}${RESET} ${DIM}•${RESET} ${TEXT}${clip(state.model, 20)}${RESET}`;
-  const headerRight = `${DIM}Git:${RESET}${GREEN}${clip(gitLabel, 12)}${RESET} ${DIM}Lat:${RESET}${GREEN}${latency}${RESET}`;
-  const header = pad(headerLeft, width - visible(headerRight)) + headerRight;
+  const headerLeft = `${BOLD}${CYAN}CONDUIT${RESET} ${DIM}•${RESET} ${COPPER}${clip(wsLabel, 12)}${RESET} ${DIM}•${RESET} ${TEXT}${clip(state.model, 16)}${RESET}`;
+  const headerCtx = `Ctx:${contextBar} ${formatTokenCount(contextTokens)}/${formatTokenCount(contextLimit)}`;
+  const headerRight = `${headerCtx} ${DIM}•${RESET} ${DIM}Git:${RESET}${GREEN}${clip(gitLabel, 10)}${RESET} ${DIM}•${RESET} ${GREEN}${latency}${RESET}`;
+  const header = pad(headerLeft, Math.max(0, width - visible(headerRight))) + headerRight;
 
   // Breadcrumbs / Nav Row
   const navLeft = [
@@ -572,7 +869,7 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
     navMark(state.view, 'help', '6 Help'),
   ].join('  ');
   const navRight = state.notice ? `${COPPER}${clip(state.notice, 28)}${RESET}` : `${MUTED}Ready${RESET}`;
-  const nav = pad(navLeft, width - visible(navRight)) + navRight;
+  const nav = pad(navLeft, Math.max(0, width - visible(navRight))) + navRight;
 
   const shortcuts = [
     `${CYAN}Ctrl+K${RESET} Palette`,
@@ -613,45 +910,57 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
       const rows = state.runs.map((r, index) => {
         const active = index === state.runSelectedIndex;
         const pointer = active ? `${CYAN}›${RESET}` : ' ';
-        return `${pointer} ${statusPill(r.status)} ${BOLD}${r.id}${RESET}  ${COPPER}${clip(r.model || 'model', 14)}${RESET}  ${TEXT}${clip(r.prompt, rightWidth - 36)}${RESET}`;
+        const stepProgress = r.stepsCount ? ` ${renderProgressBar(Math.min(100, r.stepsCount * 20), 8)}` : '';
+        return `${pointer} ${statusPill(r.status)} ${BOLD}${r.id}${RESET}${stepProgress}  ${COPPER}${clip(r.model || 'model', 14)}${RESET}  ${TEXT}${clip(r.prompt, rightWidth - 40)}${RESET}`;
       });
       rightLines = [
-        `${BOLD}${TEXT}Agent Execution Runs${RESET}  ${MUTED}[Enter] Details  [A] Approve  [C] Continue  [X] Cancel  [R] Retry${RESET}`,
+        `${BOLD}${TEXT}Agent Execution Runs${RESET}  ${MUTED}[Enter] Details  [A/Y] Approve  [C/S] Continue  [X] Cancel  [R] Retry${RESET}`,
         `${MUTED}${'─'.repeat(Math.max(8, rightWidth - 2))}${RESET}`,
         ...(rows.length ? rows.slice(0, availableHeight - 2) : [`${MUTED}  No execution runs found. Start one with /run <prompt>${RESET}`]),
       ];
     } else if (state.view === 'run-detail' && state.selectedRunDetail) {
       const d = state.selectedRunDetail;
+      const completedSteps = d.steps.filter(s => s.status === 'completed' || s.status === 'succeeded').length;
+      const stepPct = d.steps.length ? Math.round((completedSteps / d.steps.length) * 100) : 0;
+      const stepBar = renderProgressBar(stepPct, 12, COPPER);
+
       rightLines = [
         `${BOLD}${TEXT}Run Detail:${RESET} ${d.id}  ${statusPill(d.status)}  ${COPPER}${d.model}${RESET}`,
-        `${MUTED}Tokens: ${d.tokensConsumed}  Cost: $${d.costUsd.toFixed(4)}  Steps: ${d.steps.length}${RESET}`,
+        `${MUTED}Tokens: ${d.tokensConsumed}  Cost: $${d.costUsd.toFixed(4)}  ${BOLD}Progress:${RESET} ${stepBar} (${completedSteps}/${d.steps.length} steps)${RESET}`,
         `${BOLD}Prompt:${RESET} ${d.prompt}`,
         `${MUTED}${'─'.repeat(Math.max(8, rightWidth - 2))}${RESET}`,
       ];
+
+      if (d.status === 'waiting_approval' || state.pendingApproval?.runId === d.id) {
+        const approval = state.pendingApproval || { runId: d.id, summary: 'Run requires human operator confirmation before continuing' };
+        rightLines.push(...renderApprovalCard(approval, rightWidth - 2));
+      }
+
       for (const s of d.steps) {
-        rightLines.push(`${BOLD}Step ${s.iteration}:${RESET} [${s.status}]`);
-        if (s.content) rightLines.push(...wrap(s.content, rightWidth - 4).slice(0, 2).map(l => `  ${TEXT}${l}${RESET}`));
+        const stepPill = s.status === 'completed' ? `${GREEN}●${RESET}` : s.status === 'running' ? `${YELLOW}◐${RESET}` : `${MUTED}○${RESET}`;
+        rightLines.push(`  ${stepPill} ${BOLD}Step ${s.iteration}:${RESET} [${s.status}]`);
+        if (s.content) rightLines.push(...wrap(s.content, rightWidth - 6).slice(0, 2).map(l => `    ${TEXT}${l}${RESET}`));
         if (s.events && s.events.length) {
-          rightLines.push(`  ${MUTED}Events (${s.events.length}):${RESET}`);
+          rightLines.push(`    ${MUTED}Events (${s.events.length}):${RESET}`);
           for (const ev of s.events.slice(-3)) {
             if (ev.kind === 'command') {
-              rightLines.push(`    ${COPPER}┌─ ⚡ [command] ${clip(ev.command || '', rightWidth - 20)} ─┐${RESET}`);
-              rightLines.push(`    ${COPPER}│${RESET} Exit: ${ev.exitCode ?? 0}  Status: ${ev.status === 'completed' ? `${GREEN}ok${RESET}` : ev.status}`);
-              rightLines.push(`    ${COPPER}└──────────────────────────────────────────────┘${RESET}`);
+              rightLines.push(`      ${COPPER}┌─ ⚡ [command] ${clip(ev.command || '', rightWidth - 24)} ─┐${RESET}`);
+              rightLines.push(`      ${COPPER}│${RESET} Exit: ${ev.exitCode ?? 0}  Status: ${ev.status === 'completed' ? `${GREEN}ok${RESET}` : ev.status}`);
+              rightLines.push(`      ${COPPER}└──────────────────────────────────────────────┘${RESET}`);
             }
             if (ev.stdout) {
               const outLines = ev.stdout.trim().split('\n');
               for (const ol of outLines.slice(0, 3)) {
-                if (ol.startsWith('+')) rightLines.push(`      ${GREEN}${clip(ol, rightWidth - 8)}${RESET}`);
-                else if (ol.startsWith('-')) rightLines.push(`      ${RED}${clip(ol, rightWidth - 8)}${RESET}`);
-                else if (ol.startsWith('@@')) rightLines.push(`      ${CYAN}${clip(ol, rightWidth - 8)}${RESET}`);
-                else rightLines.push(`      ${DIM}${clip(ol, rightWidth - 8)}${RESET}`);
+                if (ol.startsWith('+')) rightLines.push(`        ${GREEN}${clip(ol, rightWidth - 10)}${RESET}`);
+                else if (ol.startsWith('-')) rightLines.push(`        ${RED}${clip(ol, rightWidth - 10)}${RESET}`);
+                else if (ol.startsWith('@@')) rightLines.push(`        ${CYAN}${clip(ol, rightWidth - 10)}${RESET}`);
+                else rightLines.push(`        ${DIM}${clip(ol, rightWidth - 10)}${RESET}`);
               }
             }
           }
         }
       }
-      rightLines.push(`${MUTED}[Esc] Back to runs  [A] Approve  [C] Continue  [X] Cancel  [R] Retry${RESET}`);
+      rightLines.push(`${MUTED}[Esc] Back to runs  [A/Y] Approve  [C/S] Continue  [X] Cancel  [R] Retry${RESET}`);
     } else if (state.view === 'workspaces') {
       rightLines = [
         `${BOLD}${TEXT}Registered Workspaces${RESET}  ${MUTED}(Ctrl+W to switch)${RESET}`,
@@ -683,11 +992,11 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
       rightLines = [
         `${BOLD}${TEXT}Keyboard Workflows & Controls${RESET}`,
         `${CYAN}Enter${RESET} send    ${CYAN}Esc${RESET} close overlay / cancel    ${CYAN}Tab${RESET} next pane`,
-        `${CYAN}Ctrl+K${RESET} command palette`,
-        `${CYAN}Ctrl+N${RESET} new chat   ${CYAN}Ctrl+P${RESET} models (fuzzy)   ${CYAN}Ctrl+L${RESET} sessions   ${CYAN}Ctrl+W${RESET} spaces`,
+        `${CYAN}Ctrl+K${RESET} command palette    ${CYAN}Ctrl+P${RESET} models (fuzzy)   ${CYAN}Ctrl+W${RESET} spaces`,
         `${CYAN}Ctrl+R${RESET} runs   ${CYAN}Ctrl+I${RESET} insights   ${CYAN}Ctrl+G${RESET} git   ${CYAN}Ctrl+Q${RESET} quit`,
-        `${BOLD}${TEXT}Execution Controls (in Runs view):${RESET}`,
-        `${CYAN}Enter${RESET} details & telemetry   ${CYAN}A${RESET} approve   ${CYAN}C${RESET} continue   ${CYAN}X${RESET} cancel   ${CYAN}R${RESET} retry`,
+        `${CYAN}Ctrl+Left/Right${RESET} word jump    ${CYAN}Up/Down${RESET} prompt history`,
+        `${BOLD}${TEXT}Execution & Approval Controls:${RESET}`,
+        `${CYAN}[y]${RESET} approve   ${CYAN}[e]${RESET} edit/steer   ${CYAN}[s]${RESET} skip step   ${CYAN}[c]${RESET} cancel`,
         `${BOLD}${TEXT}Slash Commands in Chat:${RESET}`,
         `/run <prompt>          - Start an execution run`,
         `/continue <prompt>     - Continue selected or latest run`,
@@ -700,11 +1009,32 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
     } else {
       // Chat view
       const transcript: string[] = [];
+
+      // Scan progressbar indicator if active
+      if (state.scanProgress) {
+        const scanPct = Math.round((state.scanProgress.scanned / Math.max(1, state.scanProgress.total)) * 100);
+        const scanBar = renderProgressBar(scanPct, 12, CYAN);
+        transcript.push(`  ${CYAN}⚡ [Codebase Scan]${RESET} ${scanBar} ${state.scanProgress.scanned}/${state.scanProgress.total} files (${state.scanProgress.phase || 'indexing'})`);
+        transcript.push('');
+      }
+
       for (const message of state.messages) {
         const who = message.role === 'user' ? `${COPPER}you${RESET}` : `${CYAN}conduit${RESET}`;
         const meta = message.model ? `${MUTED}  ${message.model}${RESET}` : '';
         transcript.push(`${who}${meta}`);
         for (const line of wrap(message.content, rightWidth - 4)) transcript.push(`  ${TEXT}${line}${RESET}`);
+        if (message.metrics) {
+          const m = message.metrics;
+          const costStr = m.turnCostUsd !== undefined ? ` | Cost: $${m.turnCostUsd.toFixed(4)}` : '';
+          const budgetStr = m.costBudgetPercent !== undefined ? ` (${m.costBudgetPercent}% budget)` : '';
+          transcript.push(`  ${DIM}Tokens: in=${m.inputTokens} out=${m.outputTokens} tot=${m.totalTokens} | ${m.tokensPerSec} tok/s${costStr}${budgetStr}${RESET}`);
+        }
+        transcript.push('');
+      }
+
+      // Pending Human-In-The-Loop Approval card
+      if (state.pendingApproval) {
+        transcript.push(...renderApprovalCard(state.pendingApproval, rightWidth - 4));
         transcript.push('');
       }
 
@@ -749,7 +1079,7 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
         state.view === 'git' ? `${BOLD}${CYAN}› 🌿 Git [${clip(state.git.branch || 'main', 8)}]${RESET}` : `${MUTED}  🌿 Git [${clip(state.git.branch || 'main', 8)}]${RESET}`,
         state.view === 'help' ? `${BOLD}${CYAN}› ⚙ Settings / Help${RESET}` : `${MUTED}  ⚙ Settings / Help${RESET}`,
         `  ${NORD_BORDER}${'─'.repeat(leftWidth - 4)}${RESET}`,
-        `  ${DIM}Latency: ${GREEN}${latency} ✓${RESET}`,
+        `  ${DIM}Context: ${GREEN}${contextPct}%${RESET}`,
         `  ${DIM}Git: ${state.git.files ? `${COPPER}${state.git.files} chg${RESET}` : `${GREEN}clean${RESET}`}`,
         `  ${DIM}Status: ${state.busy ? `${COPPER}thinking${RESET}` : `${GREEN}ready${RESET}`}`,
       ];
@@ -765,13 +1095,24 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
     }
   }
 
-  // Zone 3: Footer (Input Area & Shortcuts)
+  // Zone 3: Footer (Input Area & Live Token Estimation)
   const inputLine = state.overlay === 'none' && state.view === 'chat'
     ? `${COPPER}›${RESET} ${state.input ? state.input.slice(0, state.cursor) + `${REVERSE} ${RESET}` + state.input.slice(state.cursor) : `${DIM}Type commands or chat... (/run, /continue, /help)${RESET}`}`
     : state.overlay === 'none' ? `${MUTED}${state.view}  Esc returns to chat${RESET}` : `${MUTED}filter:${RESET} ${state.filter}`;
 
   const modelBadge = `${COPPER}[${clip(state.model, 16)} ▾]${RESET}`;
   const caret = clip(inputLine, width - visible(modelBadge) - 2) + '  ' + modelBadge;
+
+  // Pre-Execution Prompt Token Estimation Line
+  let promptEstimateDisplay = '';
+  if (state.overlay === 'none' && state.view === 'chat' && state.input.trim()) {
+    const promptTok = estimateTokens(state.input);
+    const projTok = contextTokens + promptTok;
+    const projPct = Math.min(100, Math.round((projTok / contextLimit) * 100));
+    promptEstimateDisplay = `${MUTED}Prompt: ~${promptTok} tok | Projected: ~${formatTokenCount(projTok)} (${projPct}%)${RESET}  `;
+  }
+
+  const footerStatus = clip(promptEstimateDisplay + status + '  ' + shortcuts, width);
 
   const lines = [
     clip(header, width),
@@ -782,7 +1123,7 @@ export function renderTuiLines(state: TuiState): { lines: string[]; cursor?: { r
   while (lines.length < height - 3) lines.push(' '.repeat(width));
   lines.push(`${MUTED}${'─'.repeat(width)}${RESET}`);
   lines.push(clip(caret, width));
-  lines.push(clip(status + '  ' + shortcuts, width));
+  lines.push(footerStatus);
 
   const cursorRow = height - 1;
   const cursorCol = state.overlay === 'none' && state.view === 'chat' ? state.cursor + 3 : 1;

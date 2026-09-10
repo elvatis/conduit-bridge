@@ -11,6 +11,9 @@ import { assertSupportedPlatform } from './platform.js';
 import {
   applyTuiKey,
   decodeKey,
+  estimateTokens,
+  formatTokenCount,
+  renderProgressBar,
   renderTui,
   renderTuiLines,
   TuiDifferentialRenderer,
@@ -23,6 +26,8 @@ import {
   type TuiState,
   type TuiWorkspaceRow,
   type TuiInferenceStatus,
+  type TuiPendingApproval,
+  type TuiTurnMetrics,
 } from './tui-render.js';
 
 export type ChatCommand =
@@ -122,196 +127,184 @@ export function parseSseChunk(chunk: string): { deltas: string[]; done?: { assis
   return { deltas, done, rest };
 }
 
-export async function requestOnce(url: URL, options: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<{ status: number; text: string }> {
-  const transport = url.protocol === 'https:' ? httpsRequest : httpRequest;
-  return new Promise((resolve, reject) => {
-    const req = transport(url, { method: options.method ?? 'GET', headers: options.headers }, (res: IncomingMessage) => {
-      let text = '';
-      res.setEncoding('utf8');
-      res.on('data', chunk => { text += chunk; });
-      res.on('end', () => { resolve({ status: res.statusCode ?? 0, text }); });
+export function createHttpChatClient(baseUrl: string, authHeaders: Record<string, string> = {}): ChatTurnClient {
+  const url = new URL(baseUrl);
+  const isHttps = url.protocol === 'https:';
+  const transport = isHttps ? httpsRequest : httpRequest;
+  const requestJson = <T>(method: string, path: string, body?: unknown): Promise<T> =>
+    new Promise((resolve, reject) => {
+      const payload = body !== undefined ? JSON.stringify(body) : undefined;
+      const req = transport(
+        {
+          protocol: url.protocol,
+          hostname: url.hostname,
+          port: url.port || (isHttps ? 443 : 80),
+          path,
+          method,
+          headers: {
+            ...authHeaders,
+            ...(payload ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } : {}),
+          },
+        },
+        res => {
+          let text = '';
+          res.setEncoding('utf8');
+          res.on('data', chunk => { text += chunk; });
+          res.on('end', () => {
+            if ((res.statusCode ?? 500) >= 400) {
+              return reject(new Error(`HTTP ${res.statusCode} from ${path}: ${text.slice(0, 160)}`));
+            }
+            if (!text.trim()) return resolve({} as T);
+            try {
+              resolve(JSON.parse(text) as T);
+            } catch (error) {
+              reject(error);
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      if (payload) req.write(payload);
+      req.end();
     });
-    req.on('error', reject);
-    if (options.body) req.write(options.body);
-    req.end();
-  });
-}
 
-export async function requestJson<T>(url: URL, options: { method?: string; headers?: Record<string, string>; body?: unknown } = {}): Promise<T> {
-  const payload = options.body !== undefined ? JSON.stringify(options.body) : undefined;
-  const headers = { ...options.headers, ...(payload ? { 'content-type': 'application/json' } : {}) };
-  const res = await requestOnce(url, { method: options.method, headers, body: payload });
-  if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}: ${res.text.slice(0, 300)}`);
-  return JSON.parse(res.text) as T;
-}
-
-export function createHttpChatClient(baseUrl: string, headers: Record<string, string> = {}): ChatTurnClient {
-  const root = baseUrl.replace(/\/+$/, '');
   return {
     async listModels() {
-      const payload = await requestJson<{ data?: Array<{ id: string; display_name?: string }> }>(new URL(`${root}/v1/models`), { headers });
-      return (payload.data ?? []).map(item => ({ id: item.id, displayName: item.display_name }));
+      const body = await requestJson<{ data?: Array<{ id: string; name?: string; displayName?: string }> }>('GET', '/v1/models');
+      return (body.data || []).map(item => ({ id: item.id, displayName: item.displayName || item.name || item.id }));
     },
-    async createSession(model) {
-      const payload = await requestJson<{ id: string; model: string; title?: string }>(new URL(`${root}/v1/platform/sessions`), {
-        method: 'POST', headers, body: { model, title: 'CLI chat' },
-      });
-      return { id: payload.id, model: payload.model, title: payload.title };
+    async createSession(model: string) {
+      return requestJson<ChatSession>('POST', '/v1/chat/sessions', { model });
     },
     async listSessions() {
-      const payload = await requestJson<{ data?: Array<{ id: string; title?: string; model?: string; updatedAt?: number }> }>(new URL(`${root}/v1/platform/sessions`), { headers });
-      return (payload.data ?? []).map(item => ({ id: item.id, title: item.title || item.id, model: item.model, updatedAt: item.updatedAt ?? 0 }));
+      const body = await requestJson<{ data?: ChatSessionRow[] }>('GET', '/v1/chat/sessions');
+      return body.data || [];
     },
-    async getSession(id) {
-      const payload = await requestJson<{ id: string; title?: string; model?: string; messages?: Array<{ role: 'user' | 'assistant'; content: string; model?: string }> }>(
-        new URL(`${root}/v1/platform/sessions/${encodeURIComponent(id)}`), { headers },
-      );
-      return {
-        id: payload.id,
-        title: payload.title || payload.id,
-        model: payload.model || 'default',
-        messages: (payload.messages ?? []).map(m => ({ role: m.role, content: m.content, model: m.model })),
-      };
+    async getSession(id: string) {
+      const body = await requestJson<{ data?: ChatSession & { messages: TuiMessage[] } } | (ChatSession & { messages: TuiMessage[] })>('GET', `/v1/chat/sessions/${id}`);
+      return (body as any).data || body;
     },
     async listRuns() {
-      try {
-        const payload = await requestJson<{ data?: Array<{ id: string; status: string; model?: string; input?: { prompt?: string }; steps?: unknown[]; costUsd?: number; tokensConsumed?: number; error?: string }> }>(
-          new URL(`${root}/v1/platform/runs`), { headers },
-        );
-        return (payload.data ?? []).map(r => ({
-          id: r.id,
-          status: r.status,
-          model: r.model,
-          prompt: r.input?.prompt || '(no prompt)',
-          stepsCount: r.steps?.length || 0,
-          costUsd: r.costUsd || 0,
-          tokensConsumed: r.tokensConsumed || 0,
-          error: r.error,
-        }));
-      } catch {
-        return [];
-      }
+      const body = await requestJson<{ runs?: TuiRunRow[]; data?: TuiRunRow[] }>('GET', '/v1/runs');
+      return body.runs || body.data || [];
     },
-    async getRun(id: string): Promise<TuiRunDetail> {
-      const payload = await requestJson<any>(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}`), { headers });
-      return {
-        id: payload.id,
-        status: payload.status,
-        model: payload.model || 'default',
-        prompt: payload.input?.prompt || '',
-        createdAt: payload.createdAt || Date.now(),
-        costUsd: payload.costUsd || 0,
-        tokensConsumed: payload.tokensConsumed || 0,
-        error: payload.error,
-        steps: payload.steps || [],
-        artifacts: payload.artifacts || [],
-      };
+    async getRun(id: string) {
+      const body = await requestJson<{ run?: TuiRunDetail; data?: TuiRunDetail } | TuiRunDetail>('GET', `/v1/runs/${id}`);
+      return (body as any).run || (body as any).data || body;
     },
-    async runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string): Promise<void> {
-      await requestJson(new URL(`${root}/v1/platform/runs/${encodeURIComponent(id)}/${action}`), {
-        method: 'POST', headers, body: feedback ? { feedback } : {},
-      });
+    async runAction(id: string, action: 'approve' | 'cancel' | 'retry' | 'continue', feedback?: string) {
+      await requestJson('POST', `/v1/runs/${id}/${action}`, feedback ? { feedback } : {});
     },
-    async createRun(prompt: string, model?: string, mode: 'chat' | 'plan' | 'agent' = 'agent', workspaceId?: string): Promise<{ id: string }> {
-      return requestJson<{ id: string }>(new URL(`${root}/v1/platform/runs`), {
-        method: 'POST',
-        headers,
-        body: { prompt, model, mode, workspaceId },
-      });
+    async createRun(prompt: string, model?: string, mode?: 'chat' | 'plan' | 'agent', workspaceId?: string) {
+      return requestJson<{ id: string }>('POST', '/v1/runs', { prompt, model, mode: mode || 'agent', workspaceId });
     },
     async listWorkspaces() {
-      try {
-        const payload = await requestJson<{ data?: Array<{ id: string; name: string; path: string; isDefault?: boolean }> }>(
-          new URL(`${root}/v1/platform/workspaces`), { headers },
-        );
-        return payload.data || [];
-      } catch {
-        return [{ id: 'default', name: 'default', path: process.cwd(), isDefault: true }];
-      }
+      const body = await requestJson<{ workspaces?: TuiWorkspaceRow[]; data?: TuiWorkspaceRow[] }>('GET', '/v1/workspaces');
+      return body.workspaces || body.data || [];
     },
     async gitSnapshot(workspaceId?: string) {
-      try {
-        const url = new URL(`${root}/v1/git/status`);
-        if (workspaceId) url.searchParams.set('workspaceId', workspaceId);
-        const payload = await requestJson<{ branch?: string; changedFiles?: number; repository?: string }>(url, { headers });
-        return {
-          detected: Boolean(payload.branch),
-          branch: payload.branch || 'main',
-          files: payload.changedFiles || 0,
-          name: payload.repository || 'workspace',
-        };
-      } catch {
-        return { detected: false, branch: '', files: 0, name: '' };
-      }
+      const path = workspaceId ? `/v1/workspaces/${workspaceId}/git` : '/v1/git';
+      return requestJson<{ detected: boolean; branch: string; files: number; name: string }>('GET', path).catch(() => ({
+        detected: false,
+        branch: '',
+        files: 0,
+        name: '',
+      }));
     },
     async listInsights() {
-      try {
-        const payload = await requestJson<{ report?: { items?: Array<{ id: string; kind: string; text: string; title?: string; score?: number }> } }>(
-          new URL(`${root}/v1/platform/insights`), { headers },
-        );
-        return payload.report?.items || [];
-      } catch {
-        return [];
-      }
+      const body = await requestJson<{ insights?: TuiInsightRow[]; data?: TuiInsightRow[] }>('GET', '/v1/insights').catch(() => ({ insights: [] as TuiInsightRow[], data: [] as TuiInsightRow[] }));
+      return body.insights || body.data || [];
     },
     async status() {
-      try {
-        const payload = await requestJson<{ version?: string; providers?: Array<{ name: string; connected: boolean }> }>(new URL(`${root}/v1/status`), { headers });
-        return { version: payload.version, providers: payload.providers ?? [] };
-      } catch {
-        return { providers: [] };
-      }
+      return requestJson<{ version?: string; providers: Array<{ name: string; connected: boolean }> }>('GET', '/v1/system/status').catch(() => ({
+        version: '0.10.0',
+        providers: [],
+      }));
     },
-    async send(sessionId, content, model, signal, onDelta) {
-      const url = new URL(`${root}/v1/platform/sessions/${encodeURIComponent(sessionId)}/messages`);
-      const transport = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    send(sessionId: string, content: string, model: string, signal?: AbortSignal, onDelta?: (delta: string) => void) {
       return new Promise((resolve, reject) => {
-        const req = transport(url, {
-          method: 'POST',
-          headers: { ...headers, 'content-type': 'application/json', accept: 'text/event-stream' },
-        }, (res: IncomingMessage) => {
-          if ((res.statusCode ?? 0) >= 400) {
-            let errorText = '';
-            res.on('data', c => { errorText += c; });
-            res.on('end', () => { reject(new Error(`HTTP ${res.statusCode}: ${errorText.slice(0, 200)}`)); });
-            return;
-          }
-          let text = '';
-          let buffered = '';
-          res.setEncoding('utf8');
-          res.on('data', chunk => {
-            buffered += chunk;
-            const { deltas, done, rest } = parseSseChunk(buffered);
-            buffered = rest;
-            for (const delta of deltas) { text += delta; onDelta?.(delta); }
-            if (done?.assistantMessage?.content) text = done.assistantMessage.content;
-          });
-          res.on('end', () => { resolve(text); });
+        const payload = JSON.stringify({
+          sessionId,
+          model,
+          stream: true,
+          messages: [{ role: 'user', content }],
         });
+        const req = transport(
+          {
+            protocol: url.protocol,
+            hostname: url.hostname,
+            port: url.port || (isHttps ? 443 : 80),
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              ...authHeaders,
+              'content-type': 'application/json',
+              'content-length': Buffer.byteLength(payload),
+              accept: 'text/event-stream',
+            },
+            signal,
+          },
+          (res: IncomingMessage) => {
+            if ((res.statusCode ?? 500) >= 400) {
+              let text = '';
+              res.setEncoding('utf8');
+              res.on('data', chunk => { text += chunk; });
+              res.on('end', () => reject(new Error(`HTTP ${res.statusCode}: ${text.slice(0, 160)}`)));
+              return;
+            }
+            let buffer = '';
+            let reply = '';
+            res.setEncoding('utf8');
+            res.on('data', chunk => {
+              buffer += chunk;
+              const parsed = parseSseChunk(buffer);
+              buffer = parsed.rest;
+              for (const delta of parsed.deltas) {
+                reply += delta;
+                onDelta?.(delta);
+              }
+              if (parsed.done?.assistantMessage?.content) {
+                reply = parsed.done.assistantMessage.content;
+              }
+            });
+            res.on('end', () => resolve(reply));
+          }
+        );
         req.on('error', reject);
-        if (signal) {
-          signal.addEventListener('abort', () => {
-            req.destroy();
-            reject(new Error('Turn cancelled'));
-          }, { once: true });
-        }
-        req.write(JSON.stringify({ content, model }));
+        req.write(payload);
         req.end();
       });
     },
-    async cancel(sessionId) {
-      await requestJson(new URL(`${root}/v1/platform/sessions/${encodeURIComponent(sessionId)}/cancel`), { method: 'POST', headers, body: {} });
+    async cancel(sessionId: string) {
+      await requestJson('POST', `/v1/chat/sessions/${sessionId}/cancel`, {}).catch(() => {});
     },
   };
 }
 
-export async function probeHealth(baseUrl: string, headers: Record<string, string> = {}): Promise<boolean> {
-  try {
-    const result = await requestOnce(new URL(`${baseUrl.replace(/\/+$/, '')}/health`), { headers });
-    return result.status === 200;
-  } catch {
-    return false;
-  }
+export async function probeHealth(baseUrl: string, authHeaders: Record<string, string> = {}): Promise<boolean> {
+  const url = new URL(baseUrl);
+  const isHttps = url.protocol === 'https:';
+  const transport = isHttps ? httpsRequest : httpRequest;
+  return new Promise(resolve => {
+    const req = transport(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: '/v1/models',
+        method: 'GET',
+        headers: authHeaders,
+        timeout: 1000,
+      },
+      res => {
+        res.resume();
+        resolve((res.statusCode ?? 500) < 500);
+      }
+    );
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.end();
+  });
 }
 
 async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<TuiState> {
@@ -325,6 +318,20 @@ async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<T
   ]);
   const latencyMs = Math.max(8, Math.min(250, Date.now() - startProbe));
   const activeWorkspaceId = state.activeWorkspaceId || workspaces?.find(w => w.isDefault)?.id || workspaces?.[0]?.id;
+
+  let pendingApproval = state.pendingApproval;
+  const waitingRun = (runs || []).find(r => r.status === 'waiting_approval');
+  if (waitingRun) {
+    if (!pendingApproval || pendingApproval.runId !== waitingRun.id) {
+      pendingApproval = {
+        runId: waitingRun.id,
+        summary: `Run ${waitingRun.id} requires human approval: ${waitingRun.prompt}`,
+      };
+    }
+  } else if (pendingApproval && !(runs || []).some(r => r.id === pendingApproval?.runId && r.status === 'waiting_approval')) {
+    pendingApproval = undefined;
+  }
+
   return {
     ...state,
     sessions: sessions || state.sessions,
@@ -334,6 +341,9 @@ async function refreshExtras(client: ChatTurnClient, state: TuiState): Promise<T
     insights: (insights && insights.length ? insights : state.insights) || [],
     latencyMs,
     activeWorkspaceId,
+    pendingApproval,
+    history: state.history || [],
+    historyIndex: state.historyIndex ?? -1,
   };
 }
 
@@ -348,15 +358,34 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
   let busyTimer: NodeJS.Timeout | undefined;
 
   let state: TuiState = {
-    view: 'chat', overlay: 'none', model, sessionId: created.id, sessionTitle: created.title || 'CLI chat',
-    messages: [], input: '', cursor: 0, filter: '', selected: 0, models, sessions: [], runs: [],
-    workspaces: [], runSelectedIndex: 0,
-    git: { detected: false, branch: '', files: 0, name: '' }, host: '', notice: 'Ready', busy: false, streaming: '',
+    view: 'chat',
+    overlay: 'none',
+    model,
+    sessionId: created.id,
+    sessionTitle: created.title || 'CLI chat',
+    messages: [],
+    input: '',
+    cursor: 0,
+    filter: '',
+    selected: 0,
+    models,
+    sessions: [],
+    runs: [],
+    workspaces: [],
+    runSelectedIndex: 0,
+    git: { detected: false, branch: '', files: 0, name: '' },
+    host: '',
+    notice: 'Ready',
+    busy: false,
+    streaming: '',
     status: 'idle',
     tokenCount: 0,
     tokensPerSec: 0,
     latencyMs: 22,
-    width: terminal.columns, height: terminal.rows,
+    history: [],
+    historyIndex: -1,
+    width: terminal.columns,
+    height: terminal.rows,
   };
 
   const screenBuffer = new TuiDifferentialRenderer();
@@ -417,6 +446,14 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     inFlight = new AbortController();
     const startTime = Date.now();
     let tokenCount = 0;
+    const inputTokens = estimateTokens(text);
+
+    // Synchronize prompt history
+    const history = state.history ? [...state.history] : [];
+    if (!history.length || history[history.length - 1] !== text) {
+      history.push(text);
+    }
+
     state = {
       ...state,
       busy: true,
@@ -430,6 +467,9 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       currentTool: undefined,
       notice: `Thinking [${state.model}]...`,
       messages: [...state.messages, { role: 'user', content: text }],
+      history,
+      historyIndex: -1,
+      draftInput: undefined,
     };
     requestPaint(true);
     startBusyTimer();
@@ -469,6 +509,18 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
       stopBusyTimer();
       const elapsed = Date.now() - startTime;
       const tps = tokenCount > 0 && elapsed > 0 ? parseFloat(((tokenCount / elapsed) * 1000).toFixed(1)) : 0;
+      const totalTokens = inputTokens + tokenCount;
+      const costEst = (inputTokens * 0.000003) + (tokenCount * 0.000015);
+      const budgetPct = Math.min(100, Math.round((costEst / 0.10) * 100));
+      const metrics: TuiTurnMetrics = {
+        inputTokens,
+        outputTokens: tokenCount,
+        totalTokens,
+        tokensPerSec: tps,
+        turnCostUsd: costEst,
+        costBudgetPercent: budgetPct,
+      };
+
       state = {
         ...state,
         busy: false,
@@ -478,12 +530,14 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         streaming: '',
         tokenCount,
         tokensPerSec: tps,
-        notice: `Completed in ${elapsed}ms (${tokenCount} tokens · ${tps} t/s)`,
-        messages: [...state.messages, { role: 'assistant', content: answer, model: state.model }],
+        lastTurnMetrics: metrics,
+        contextTokens: (state.contextTokens || 0) + totalTokens,
+        notice: `Completed in ${elapsed}ms (${totalTokens} tokens · ${tps} t/s)`,
+        messages: [...state.messages, { role: 'assistant', content: answer, model: state.model, metrics }],
       };
     } catch (error) {
       stopBusyTimer();
-      const message = inFlight.signal.aborted ? 'Cancelled' : error instanceof Error ? error.message : String(error);
+      const message = inFlight?.signal.aborted ? 'Cancelled' : error instanceof Error ? error.message : String(error);
       state = { ...state, busy: false, status: 'error', busyStartTime: undefined, currentTool: undefined, streaming: '', notice: message };
     } finally {
       inFlight = undefined;
@@ -529,7 +583,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     if (next.action === 'approve-run' && next.payload) {
       try {
         await client.runAction(next.payload, 'approve');
-        state = { ...state, notice: `Approved run ${next.payload}` };
+        state = { ...state, pendingApproval: undefined, notice: `Approved run ${next.payload}` };
         state = await refreshExtras(client, state);
         if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
           state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
@@ -541,7 +595,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     if (next.action === 'cancel-run' && next.payload) {
       try {
         await client.runAction(next.payload, 'cancel');
-        state = { ...state, notice: `Cancelled run ${next.payload}` };
+        state = { ...state, pendingApproval: undefined, notice: `Cancelled run ${next.payload}` };
         state = await refreshExtras(client, state);
         if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
           state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
@@ -565,7 +619,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
     if (next.action === 'continue-run' && next.payload) {
       try {
         await client.runAction(next.payload, 'continue', 'Continue execution');
-        state = { ...state, notice: `Continued run ${next.payload}` };
+        state = { ...state, pendingApproval: undefined, notice: `Continued run ${next.payload}` };
         state = await refreshExtras(client, state);
         if (state.view === 'run-detail' && state.selectedRunDetail?.id === next.payload) {
           state.selectedRunDetail = await client.getRun(next.payload).catch(() => state.selectedRunDetail);
@@ -615,11 +669,11 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         }
       } else if (command.type === 'run') {
         try {
-          const created = await client.createRun(command.prompt, state.model, 'agent', state.activeWorkspaceId);
+          const createdRun = await client.createRun(command.prompt, state.model, 'agent', state.activeWorkspaceId);
           state = {
             ...state,
-            notice: `Started run ${created.id}`,
-            messages: [...state.messages, { role: 'user', content: `/run ${command.prompt}` }, { role: 'assistant', content: `Created run ${created.id}. Press Ctrl+R to inspect runs.` }],
+            notice: `Started run ${createdRun.id}`,
+            messages: [...state.messages, { role: 'user', content: `/run ${command.prompt}` }, { role: 'assistant', content: `Created run ${createdRun.id}. Press Ctrl+R to inspect runs.` }],
           };
           state = await refreshExtras(client, state);
         } catch (err) {
@@ -634,6 +688,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
             await client.runAction(targetId, 'continue', command.prompt || 'Continue execution');
             state = {
               ...state,
+              pendingApproval: undefined,
               notice: `Continued run ${targetId}`,
               messages: [...state.messages, { role: 'user', content: `/continue ${command.prompt || ''}`.trim() }, { role: 'assistant', content: `Resumed execution for ${targetId}.` }],
             };
@@ -652,7 +707,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         } else {
           try {
             await client.runAction(targetId, 'approve');
-            state = { ...state, notice: `Approved run ${targetId}` };
+            state = { ...state, pendingApproval: undefined, notice: `Approved run ${targetId}` };
             state = await refreshExtras(client, state);
             if (state.selectedRunDetail?.id === targetId) {
               state.selectedRunDetail = await client.getRun(targetId).catch(() => state.selectedRunDetail);
@@ -668,7 +723,7 @@ export async function runInteractiveChat(options: { client: ChatTurnClient; mode
         } else {
           try {
             await client.runAction(targetId, 'cancel');
-            state = { ...state, notice: `Cancelled run ${targetId}` };
+            state = { ...state, pendingApproval: undefined, notice: `Cancelled run ${targetId}` };
             state = await refreshExtras(client, state);
             if (state.selectedRunDetail?.id === targetId) {
               state.selectedRunDetail = await client.getRun(targetId).catch(() => state.selectedRunDetail);
@@ -707,6 +762,18 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
     buffer += chunk;
     while (buffer) {
       if (buffer.startsWith('\x1b[')) {
+        const match = buffer.match(/^\x1b\[[0-9;]*[a-zA-Z~]/);
+        if (match) {
+          const key = decodeKey(match[0]);
+          buffer = buffer.slice(match[0].length);
+          if (key) push(key);
+          continue;
+        }
+        if (buffer.length < 8) break;
+        buffer = buffer.slice(2);
+        continue;
+      }
+      if (buffer.startsWith('\x1bO')) {
         if (buffer.length < 3) break;
         const key = decodeKey(buffer.slice(0, 3));
         buffer = buffer.slice(3);
@@ -714,6 +781,14 @@ function createStdinTerminal(): TuiTerminal & { close(): void } {
         continue;
       }
       if (buffer.startsWith('\x1b')) {
+        if (buffer.length >= 2) {
+          const key = decodeKey(buffer.slice(0, 2));
+          if (key) {
+            buffer = buffer.slice(2);
+            push(key);
+            continue;
+          }
+        }
         if (buffer.length === 1) {
           if (!timer.id) timer.id = setTimeout(() => {
             timer.id = undefined;

@@ -60,6 +60,7 @@ export function renderCliHelp(version: string, cfg: BridgeConfig): string {
     `  ${YELLOW}--model=<id>${RESET}           Target model ID for interactive chat or run`,
     `  ${YELLOW}--workspace=<id>${RESET}       Execution workspace ID or name`,
     `  ${YELLOW}--mode=<mode>${RESET}          Execution mode: ${CYAN}agent${RESET} | ${CYAN}plan${RESET} | ${CYAN}chat${RESET} ${DIM}(default: agent)${RESET}`,
+    `  ${YELLOW}--approval=<mode>${RESET}      Approval policy: ${CYAN}ask${RESET} | ${CYAN}always${RESET} | ${CYAN}never${RESET} ${DIM}(default: ask)${RESET}`,
     `  ${YELLOW}--log-level=<level>${RESET}   Logging verbosity: ${CYAN}silent${RESET} | ${CYAN}info${RESET} | ${CYAN}debug${RESET}`,
     `  ${YELLOW}--auth-token=<token>${RESET}   Bearer auth token for secured or external binds`,
     `  ${YELLOW}--json${RESET}                 Emit structured machine-readable JSON output`,
