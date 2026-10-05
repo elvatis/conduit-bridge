@@ -29,7 +29,7 @@
     "openai": "^7.4.0"
   },
   "devDependencies": {
-    "@elvatis_com/aahp": "3.12.0",
+    "@elvatis_com/aahp": "4.0.0",
     "@types/node": "^26.4.1",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
